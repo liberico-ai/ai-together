@@ -1,0 +1,34 @@
+version: "3.9"
+services:
+
+
+  postgres:
+    image: postgres:15-alpine
+    volumes: ["pg_data:/var/lib/postgresql/data"]
+    environment:
+      POSTGRES_DB: libe_aios
+      POSTGRES_USER: libe
+      POSTGRES_PASSWORD: libepass
+    ports: ["5434:5432"]
+
+  pgbouncer:
+    image: edoburu/pgbouncer
+    environment:
+      DATABASE_URL: "postgresql://libe:libepass@postgres:5432/libe_aios"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "200"
+    ports: ["5435:5433"]
+    depends_on: [postgres]
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["minio_data:/data"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+
+volumes:
+  pg_data:
+  minio_data:
