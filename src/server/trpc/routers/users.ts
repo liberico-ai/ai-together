@@ -227,12 +227,17 @@ export const usersRouter = router({
     }),
 
   // 4b. User: Get GitHub OAuth verification URL
-  getGithubVerifyUrl: protectedProcedure.query(({ ctx }) => {
+  getGithubVerifyUrl: protectedProcedure.query(async ({ ctx }) => {
     const clientId = process.env.GITHUB_CLIENT_ID;
     if (!clientId) {
       return { url: null, configured: false };
     }
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/github-verify`;
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    const host = h.get("host") || "localhost:3000";
+    const proto = h.get("x-forwarded-proto") || "http";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `${proto}://${host}`;
+    const redirectUri = `${appUrl}/api/github-verify`;
     // S-03 FIX: Use random nonce instead of userId as OAuth state to prevent CSRF
     const { createOAuthNonce } = require("@/lib/oauth-nonce");
     const state = createOAuthNonce(ctx.user.id);

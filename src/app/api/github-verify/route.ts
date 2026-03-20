@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const state = searchParams.get("state"); // This is the nonce
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
 
   if (!code || !state) {
     return NextResponse.redirect(`${appUrl}/profile?github_verify=error&reason=missing_params`);
