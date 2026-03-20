@@ -51,7 +51,7 @@ export function CreateProjectDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button className="bg-coral-600 hover:bg-coral-700 dark:bg-coral-500 dark:hover:bg-coral-600 text-white font-semibold shadow-md hover:shadow-lg transition-all" />}>
+      <DialogTrigger render={<Button className="bg-rose-600 hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-600 text-white font-semibold shadow-md hover:shadow-lg transition-all" />}>
         <Plus className="mr-2 h-4 w-4" /> New Project
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
@@ -110,7 +110,7 @@ export function CreateProjectDialog() {
             <Button
               type="submit"
               disabled={createProject.isPending || !title.trim()}
-              className="bg-gradient-to-r from-rose-500 to-coral-500 text-white"
+              className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {createProject.isPending ? (
                 <>

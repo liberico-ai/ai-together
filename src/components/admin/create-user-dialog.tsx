@@ -55,7 +55,7 @@ export function CreateUserDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button className="bg-gradient-to-r from-rose-500 to-coral-500 hover:from-rose-600 hover:to-coral-600 text-white shadow-md" />}>
+      <DialogTrigger render={<Button className="bg-rose-600 hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-600 text-white font-semibold shadow-md hover:shadow-lg transition-all" />}>
         <UserPlus className="mr-2 h-4 w-4" /> Create User
       </DialogTrigger>
       <DialogContent className="sm:max-w-[450px]">
@@ -148,7 +148,7 @@ export function CreateUserDialog() {
             type="button"
             onClick={handleSave}
             disabled={createUser.isPending || !username.trim() || !password || password.length < 6 || !name.trim()}
-            className="bg-gradient-to-r from-rose-500 to-coral-500 text-white"
+            className="bg-rose-600 hover:bg-rose-700 text-white"
           >
             {createUser.isPending ? (
               <>

@@ -163,7 +163,7 @@ export default function ProjectsPage() {
           {projects?.map((project) => (
             <Link key={project.id} href={`/projects/${project.id}`}>
               <Card className="group hover:shadow-lg transition-all duration-300 border-border overflow-hidden cursor-pointer h-full flex flex-col">
-                <div className="h-2 w-full bg-gradient-to-r from-rose-400 to-coral-500 opacity-75 group-hover:opacity-100 transition-opacity" />
+                <div className="h-2 w-full bg-gradient-to-r from-rose-400 to-rose-500 opacity-75 group-hover:opacity-100 transition-opacity" />
                 <CardHeader className="pb-4">
                   <div className="flex justify-between items-start">
                     <StatusDropdown projectId={project.id} currentStatus={project.status} />

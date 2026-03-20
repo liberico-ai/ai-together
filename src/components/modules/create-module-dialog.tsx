@@ -143,7 +143,7 @@ export function CreateModuleDialog({ projectId }: { projectId: string }) {
             <Button
               type="submit"
               disabled={createModule.isPending || !title.trim()}
-              className="bg-gradient-to-r from-rose-500 to-coral-500 text-white"
+              className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {createModule.isPending ? (
                 <>
