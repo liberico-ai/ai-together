@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, date, unique, index } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const scoreEvents = pgTable("score_events", {
@@ -13,7 +13,10 @@ export const scoreEvents = pgTable("score_events", {
   refType: text("ref_type"), // 'task' | 'comment' | 'document' | 'commit'
   refId: text("ref_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  unique("uq_score_user_event_ref").on(table.userId, table.eventType, table.refId),
+  index("idx_score_events_user_created").on(table.userId, table.createdAt),
+]);
 
 export const reviewScores = pgTable("review_scores", {
   id: text("id")
@@ -29,3 +32,19 @@ export const reviewScores = pgTable("review_scores", {
   submittedVia: text("submitted_via").notNull().default("web"), // 'web' | 'mcp'
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Track daily user activity for tempo/streak calculation
+export const userActivityLog = pgTable("user_activity_log", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .references(() => users.id)
+    .notNull(),
+  activityDate: date("activity_date").notNull(),
+  loginCount: integer("login_count").default(1).notNull(),
+  actionCount: integer("action_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  unique("uq_user_activity_date").on(table.userId, table.activityDate),
+]);

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, index } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { modules } from "./modules";
 
@@ -31,4 +31,7 @@ export const tasks = pgTable("tasks", {
   createdBy: text("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_tasks_module").on(table.moduleId),
+  index("idx_tasks_assignee").on(table.assigneeId),
+]);

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, unique, index } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { projects } from "./projects";
 
@@ -15,7 +15,10 @@ export const githubCommits = pgTable("github_commits", {
   authorUserId: text("author_user_id").references(() => users.id),
   branch: text("branch"),
   committedAt: timestamp("committed_at").notNull(),
-});
+}, (table) => [
+  unique("github_commits_sha_project_unique").on(table.sha, table.projectId),
+  index("idx_github_commits_project_committed").on(table.projectId, table.committedAt),
+]);
 
 export const githubIssueMap = pgTable("github_issue_map", {
   id: text("id")

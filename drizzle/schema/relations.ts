@@ -6,7 +6,7 @@ import { tasks } from "./tasks";
 import { documents } from "./documents";
 import { comments, commentAttachments } from "./comments";
 import { notifications, activityLogs } from "./notifications";
-import { scoreEvents, reviewScores } from "./scoring";
+import { scoreEvents, reviewScores, userActivityLog } from "./scoring";
 import { githubCommits, githubIssueMap } from "./github";
 import { reviews } from "./reviews";
 
@@ -18,13 +18,15 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   projectsAsChairman: many(projects),
   projectMemberships: many(projectMembers),
   assignedModules: many(modules),
-  assignedTasks: many(tasks, { relationName: "assignee" }),
-  createdTasks: many(tasks, { relationName: "creator" }),
+  createdModules: many(modules, { relationName: "creator" }),
+  assignedTasks: many(tasks),
+  createdTasks: many(tasks, { relationName: "taskCreator" }),
   uploadedDocuments: many(documents),
   authoredComments: many(comments),
   notifications: many(notifications),
   activityLogs: many(activityLogs),
   scoreEvents: many(scoreEvents),
+  dailyActivity: many(userActivityLog),
   givenReviews: many(reviews),
   givenReviewScores: many(reviewScores),
 }));
@@ -59,6 +61,11 @@ export const modulesRelations = relations(modules, ({ one, many }) => ({
     fields: [modules.assigneeId],
     references: [users.id],
   }),
+  creator: one(users, {
+    fields: [modules.createdBy],
+    references: [users.id],
+    relationName: "creator",
+  }),
   tasks: many(tasks),
 }));
 
@@ -70,12 +77,11 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   assignee: one(users, {
     fields: [tasks.assigneeId],
     references: [users.id],
-    relationName: "assignee",
   }),
   creator: one(users, {
     fields: [tasks.createdBy],
     references: [users.id],
-    relationName: "creator",
+    relationName: "taskCreator",
   }),
 }));
 
@@ -91,5 +97,19 @@ export const commentAttachmentsRelations = relations(commentAttachments, ({ one 
   comment: one(comments, {
     fields: [commentAttachments.commentId],
     references: [comments.id],
+  }),
+}));
+
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+  reviewer: one(users, {
+    fields: [reviews.reviewerId],
+    references: [users.id],
+  }),
+}));
+
+export const documentsRelations = relations(documents, ({ one }) => ({
+  uploader: one(users, {
+    fields: [documents.uploadedBy],
+    references: [users.id],
   }),
 }));

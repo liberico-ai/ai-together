@@ -12,5 +12,6 @@ export const reviews = pgTable("reviews", {
     .notNull(),
   status: text("status").notNull(), // 'approved' | 'changes_requested'
   note: text("note"),
+  metaData: text("meta_data"), // To store JSON string of Rubric Scores
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

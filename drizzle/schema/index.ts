@@ -10,3 +10,4 @@ export * from "./scoring";
 export * from "./github";
 export * from "./reviews";
 export * from "./relations";
+export * from "./auth";

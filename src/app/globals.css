@@ -320,3 +320,74 @@ body {
     @apply font-sans;
   }
 }
+
+/* ===== MD Editor Theme Overrides ===== */
+[data-color-mode="dark"] .w-md-editor,
+[data-color-mode="dark"] .w-md-editor-toolbar {
+  --color-canvas-default: var(--card, #292524) !important;
+  --color-fg-default: var(--foreground, #fafaf9) !important;
+  --color-border-default: var(--border, rgba(255,255,255,0.1)) !important;
+  background-color: var(--card, #292524) !important;
+  color: var(--foreground, #fafaf9) !important;
+}
+[data-color-mode="dark"] .w-md-editor-text-input,
+[data-color-mode="dark"] .w-md-editor-text-pre > code,
+[data-color-mode="dark"] .w-md-editor textarea {
+  color: var(--foreground, #fafaf9) !important;
+  caret-color: var(--foreground, #fafaf9) !important;
+}
+[data-color-mode="dark"] .w-md-editor-toolbar {
+  border-bottom-color: var(--border, rgba(255,255,255,0.1)) !important;
+}
+[data-color-mode="dark"] .w-md-editor-toolbar li button {
+  color: var(--muted-foreground, #a8a29e) !important;
+}
+[data-color-mode="dark"] .w-md-editor-toolbar li button:hover {
+  color: var(--foreground, #fafaf9) !important;
+}
+
+[data-color-mode="light"] .w-md-editor,
+[data-color-mode="light"] .w-md-editor-toolbar {
+  --color-canvas-default: var(--card, #ffffff) !important;
+  --color-fg-default: var(--foreground, #1c1917) !important;
+  --color-border-default: var(--border, #e7e5e4) !important;
+  background-color: var(--card, #ffffff) !important;
+}
+
+/* Mention tag styling */
+.mention-tag {
+  background: linear-gradient(135deg, rgba(251, 113, 133, 0.15), rgba(251, 191, 36, 0.15));
+  color: #f43f5e;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.875em;
+}
+
+/* Glassmorphic Pill Tabs — Project Detail */
+.glassmorphic-tab[data-active],
+.glassmorphic-tab[data-state="active"] {
+  /* Light mode defaults */
+  background: rgba(249, 115, 22, 0.08) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border-color: rgba(249, 115, 22, 0.5) !important;
+  color: #ea580c !important; /* Tailwind coral/orange-600 equivalent */
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.15) !important;
+}
+
+/* Dark mode overrides */
+.dark .glassmorphic-tab[data-active],
+.dark .glassmorphic-tab[data-state="active"] {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(249, 115, 22, 0.7) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 16px rgba(249, 115, 22, 0.25), 0 0 4px rgba(249, 115, 22, 0.15), inset 0 1px 0 rgba(255,255,255,0.08) !important;
+}
+.glassmorphic-tab[data-active]::after,
+.glassmorphic-tab[data-state="active"]::after {
+  opacity: 0 !important;
+}
+.glassmorphic-tab:not([data-active]):not([data-state="active"]):hover {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}

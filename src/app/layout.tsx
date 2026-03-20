@@ -20,9 +20,34 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Libe Aios — AI-First Project Management",
+  title: {
+    template: "%s | Libe Aios",
+    default: "Libe Aios — AI-First Project Management",
+  },
   description:
     "Software project management platform designed for AI-Human collaboration. Manage projects, modules, tasks with AI Agent integration via MCP Server.",
+  keywords: ["AI", "Project Management", "MCP", "Collaboration", "Task Tracking"],
+  authors: [{ name: "Libe Aios Team" }],
+  openGraph: {
+    title: "Libe Aios — AI-First Project Management",
+    description: "Manage projects, modules, tasks with AI Agent integration via MCP Server.",
+    type: "website",
+    siteName: "Libe Aios",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Libe Aios",
+    description: "AI-First Project Management Platform",
+  },
+};
+
+export const viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0a09" }, // stone-950
+  ],
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
