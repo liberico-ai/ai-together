@@ -178,7 +178,7 @@ export const projectsRouter = router({
     }),
 
   // Add member
-  addMember: chairmanProcedure
+  addMember: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
@@ -197,7 +197,7 @@ export const projectsRouter = router({
     }),
 
   // Remove member
-  removeMember: chairmanProcedure
+  removeMember: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),

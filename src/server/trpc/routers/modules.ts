@@ -73,8 +73,8 @@ export const modulesRouter = router({
       return module;
     }),
 
-  // Create module (Chairman only)
-  create: chairmanProcedure
+  // Create module (any authenticated user)
+  create: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),

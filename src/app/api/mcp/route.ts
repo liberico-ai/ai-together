@@ -130,7 +130,6 @@ export async function POST(req: NextRequest) {
       }
 
       case "update_project": {
-        if (!isPrivileged(user.role)) return forbidden();
         if (!params.projectId) return badRequest("Missing projectId");
         const updates: any = { updatedAt: new Date() };
         if (params.title) updates.title = params.title;
@@ -166,7 +165,6 @@ export async function POST(req: NextRequest) {
       }
 
       case "add_project_member": {
-        if (!isPrivileged(user.role)) return forbidden();
         if (!params.projectId || !params.userId) return badRequest("Missing projectId or userId");
         const [member] = await db.insert(projectMembers)
           .values({ projectId: params.projectId, userId: params.userId })
@@ -176,7 +174,6 @@ export async function POST(req: NextRequest) {
       }
 
       case "remove_project_member": {
-        if (!isPrivileged(user.role)) return forbidden();
         if (!params.projectId || !params.userId) return badRequest("Missing projectId or userId");
         await db.delete(projectMembers).where(
           and(eq(projectMembers.projectId, params.projectId), eq(projectMembers.userId, params.userId))
