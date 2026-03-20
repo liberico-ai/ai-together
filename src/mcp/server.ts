@@ -8,216 +8,438 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 
-// Import Libe Aios environment & DB
-import { db } from "@/server/db";
-import { users } from "@drizzle/schema/users";
-import { projects } from "@drizzle/schema/projects";
-import { modules } from "@drizzle/schema/modules";
-import { scoreEvents, reviewScores } from "@drizzle/schema/scoring";
-import { activityLogs, notifications } from "@drizzle/schema/notifications";
-import { eq, and } from "drizzle-orm";
+// ==========================================
+// HTTP Client — calls production REST API
+// ==========================================
+const API_URL = process.env.LIBE_API_URL || "http://localhost:3000";
+const API_KEY = process.env.LIBE_API_KEY || "";
 
-const server = new Server(
-  {
-    name: "libe-aios-mcp",
-    version: "1.0.0",
-  },
-  {
-    capabilities: {
-      tools: {},
+async function callAPI(action: string, params: Record<string, any> = {}) {
+  if (!API_KEY) {
+    throw new McpError(ErrorCode.InvalidRequest, "LIBE_API_KEY environment variable is not set.");
+  }
+
+  const res = await fetch(`${API_URL}/api/mcp`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      "Content-Type": "application/json",
     },
-  }
-);
-
-/**
- * Auth Middleware
- * Verifies the LIBE_API_KEY environment variable against the database.
- * Returns the authenticated user object.
- */
-async function authenticateAgent() {
-  const apiKey = process.env.LIBE_API_KEY;
-  if (!apiKey) {
-    throw new McpError(ErrorCode.InvalidRequest, "Unauthorized: LIBE_API_KEY environment variable is missing.");
-  }
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.apiKey, apiKey),
+    body: JSON.stringify({ action, ...params }),
   });
 
-  if (!user) {
-    throw new McpError(ErrorCode.InvalidRequest, "Unauthorized: Invalid API Key provided for Libe Aios.");
+  const json = await res.json();
+
+  if (!res.ok || json.error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      json.error || `API error: ${res.status}`
+    );
   }
 
-  return user;
+  return json.data;
 }
 
 // ==========================================
-// Tool List Definition
+// MCP Server
+// ==========================================
+const server = new Server(
+  { name: "libe-aios-mcp", version: "2.0.0" },
+  { capabilities: { tools: {} } }
+);
+
+// ==========================================
+// Tool Definitions
 // ==========================================
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
+      // ---- PROJECTS ----
       {
         name: "get_projects",
-        description: "List all active projects in the Libe Aios system to understand context.",
+        description: "List all projects in the AI Together system with their members and status.",
         inputSchema: { type: "object", properties: {} },
       },
       {
-        name: "get_modules_for_review",
-        description: "Fetch all modules that are currently marked as 'in_review' and awaiting Chairman approval.",
+        name: "get_project",
+        description: "Get detailed info about a specific project by its ID.",
         inputSchema: {
           type: "object",
-          properties: {
-            projectId: {
-              type: "string",
-              description: "Optional project ID to filter modules.",
-            },
-          },
+          properties: { projectId: { type: "string", description: "Project ID (e.g. PROJ-001)" } },
+          required: ["projectId"],
         },
       },
       {
-        name: "submit_module_review",
-        description: "As the Chairman AI Agent, review a module and approve or request changes. Approving a module automatically updates its status and awards score points to the assignee.",
+        name: "create_project",
+        description: "Create a new project. Any user can create. The project manager defaults to the system Chairman if not specified.",
         inputSchema: {
           type: "object",
           properties: {
-            moduleId: { type: "string", description: "The internal ID of the module to review." },
-            status: { type: "string", enum: ["approved", "changes_requested"], description: "The outcome of the review." },
-            note: { type: "string", description: "Detailed AI feedback or reason for the decision." },
-            score: { type: "number", description: "Score awarded (0-100 points) if approved." },
+            title: { type: "string", description: "Project title" },
+            description: { type: "string", description: "Project description" },
+            managerId: { type: "string", description: "Optional: User ID for Project Manager" },
+            deadline: { type: "string", description: "Optional: Deadline date (YYYY-MM-DD)" },
           },
-          required: ["moduleId", "status", "score", "note"],
+          required: ["title"],
         },
+      },
+      {
+        name: "update_project",
+        description: "Update project details like title, description, status, or GitHub repo link. Chairman/Admin only.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: { type: "string" },
+            title: { type: "string" },
+            description: { type: "string" },
+            status: { type: "string", enum: ["planning", "active", "on_hold", "completed", "cancelled"] },
+            githubOwner: { type: "string" },
+            githubRepo: { type: "string" },
+            deadline: { type: "string" },
+          },
+          required: ["projectId"],
+        },
+      },
+      {
+        name: "delete_project",
+        description: "Permanently delete a project and all its modules, tasks, comments, and commits. Chairman/Admin only.",
+        inputSchema: {
+          type: "object",
+          properties: { projectId: { type: "string" } },
+          required: ["projectId"],
+        },
+      },
+      {
+        name: "add_project_member",
+        description: "Add a user to a project's team. Chairman/Admin only.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: { type: "string" },
+            userId: { type: "string", description: "User ID to add" },
+          },
+          required: ["projectId", "userId"],
+        },
+      },
+      {
+        name: "remove_project_member",
+        description: "Remove a user from a project's team. Chairman/Admin only.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: { type: "string" },
+            userId: { type: "string" },
+          },
+          required: ["projectId", "userId"],
+        },
+      },
+      {
+        name: "sync_github_commits",
+        description: "Sync latest commits from the linked GitHub repository into the system.",
+        inputSchema: {
+          type: "object",
+          properties: { projectId: { type: "string" } },
+          required: ["projectId"],
+        },
+      },
+
+      // ---- MODULES ----
+      {
+        name: "get_modules",
+        description: "List all modules in a project with their assignees and status.",
+        inputSchema: {
+          type: "object",
+          properties: { projectId: { type: "string" } },
+          required: ["projectId"],
+        },
+      },
+      {
+        name: "get_my_modules",
+        description: "List all modules assigned to the current user.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "get_module",
+        description: "Get detailed info about a specific module.",
+        inputSchema: {
+          type: "object",
+          properties: { moduleId: { type: "string", description: "Module ID (e.g. MOD-001)" } },
+          required: ["moduleId"],
+        },
+      },
+      {
+        name: "create_module",
+        description: "Create a new module in a project.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: { type: "string" },
+            title: { type: "string", description: "Module title" },
+            description: { type: "string", description: "Module description" },
+            assigneeId: { type: "string", description: "Optional: User ID to assign" },
+            deadline: { type: "string", description: "Optional: Deadline (YYYY-MM-DD)" },
+          },
+          required: ["projectId", "title"],
+        },
+      },
+      {
+        name: "update_module",
+        description: "Update module details like title, description, assignee, or deadline.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            moduleId: { type: "string" },
+            title: { type: "string" },
+            description: { type: "string" },
+            assigneeId: { type: "string" },
+            deadline: { type: "string" },
+          },
+          required: ["moduleId"],
+        },
+      },
+      {
+        name: "update_module_status",
+        description: "Change module status: planned, in_progress, in_review, changes_requested, done.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            moduleId: { type: "string" },
+            status: { type: "string", enum: ["planned", "in_progress", "in_review", "changes_requested", "done"] },
+          },
+          required: ["moduleId", "status"],
+        },
+      },
+      {
+        name: "delete_module",
+        description: "Delete a module and all its tasks, comments, and documents.",
+        inputSchema: {
+          type: "object",
+          properties: { moduleId: { type: "string" } },
+          required: ["moduleId"],
+        },
+      },
+
+      // ---- TASKS ----
+      {
+        name: "get_tasks",
+        description: "List all tasks in a module.",
+        inputSchema: {
+          type: "object",
+          properties: { moduleId: { type: "string" } },
+          required: ["moduleId"],
+        },
+      },
+      {
+        name: "get_my_tasks",
+        description: "List all tasks assigned to the current user across all modules.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "create_task",
+        description: "Create a new task in a module.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            moduleId: { type: "string" },
+            title: { type: "string" },
+            description: { type: "string" },
+            assigneeId: { type: "string", description: "Optional: User ID to assign" },
+            deadline: { type: "string" },
+          },
+          required: ["moduleId", "title"],
+        },
+      },
+      {
+        name: "update_task",
+        description: "Update task details.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            taskId: { type: "string" },
+            title: { type: "string" },
+            description: { type: "string" },
+            assigneeId: { type: "string" },
+            deadline: { type: "string" },
+          },
+          required: ["taskId"],
+        },
+      },
+      {
+        name: "update_task_status",
+        description: "Change task status: todo, in_progress, in_review, done.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            taskId: { type: "string" },
+            status: { type: "string", enum: ["todo", "in_progress", "in_review", "done"] },
+          },
+          required: ["taskId", "status"],
+        },
+      },
+      {
+        name: "delete_task",
+        description: "Delete a task.",
+        inputSchema: {
+          type: "object",
+          properties: { taskId: { type: "string" } },
+          required: ["taskId"],
+        },
+      },
+
+      // ---- COMMENTS ----
+      {
+        name: "get_comments",
+        description: "Get all comments on a module or task.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            targetType: { type: "string", enum: ["module", "task"] },
+            targetId: { type: "string", description: "Module or Task ID" },
+          },
+          required: ["targetType", "targetId"],
+        },
+      },
+      {
+        name: "add_comment",
+        description: "Add a comment to a module or task. Supports Markdown. Use **@username** to mention users.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            targetType: { type: "string", enum: ["module", "task"] },
+            targetId: { type: "string" },
+            content: { type: "string", description: "Comment text (Markdown supported)" },
+          },
+          required: ["targetType", "targetId", "content"],
+        },
+      },
+      {
+        name: "delete_comment",
+        description: "Delete a comment by its ID.",
+        inputSchema: {
+          type: "object",
+          properties: { commentId: { type: "string" } },
+          required: ["commentId"],
+        },
+      },
+
+      // ---- DOCUMENTS ----
+      {
+        name: "list_documents",
+        description: "List all documents attached to a project, module, or task.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            targetType: { type: "string", enum: ["project", "module", "task"] },
+            targetId: { type: "string" },
+          },
+          required: ["targetType", "targetId"],
+        },
+      },
+      {
+        name: "attach_link",
+        description: "Attach a link (URL) as a document to a project, module, or task.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            targetType: { type: "string", enum: ["project", "module", "task"] },
+            targetId: { type: "string" },
+            title: { type: "string", description: "Document title" },
+            url: { type: "string", description: "URL to attach" },
+          },
+          required: ["targetType", "targetId", "title", "url"],
+        },
+      },
+      {
+        name: "delete_document",
+        description: "Delete a document by its ID.",
+        inputSchema: {
+          type: "object",
+          properties: { documentId: { type: "string" } },
+          required: ["documentId"],
+        },
+      },
+
+      // ---- REVIEWS ----
+      {
+        name: "submit_review",
+        description: "Submit a review for a module. Approve or request changes, with score and feedback. Chairman/Admin only.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            moduleId: { type: "string" },
+            status: { type: "string", enum: ["approved", "changes_requested"] },
+            score: { type: "number", description: "Score (0-100)" },
+            note: { type: "string", description: "Review feedback" },
+          },
+          required: ["moduleId", "status", "score"],
+        },
+      },
+
+      // ---- NOTIFICATIONS ----
+      {
+        name: "get_notifications",
+        description: "Get the current user's recent notifications.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "mark_notification_read",
+        description: "Mark a notification as read, or mark all as read if no ID is given.",
+        inputSchema: {
+          type: "object",
+          properties: { notificationId: { type: "string", description: "Optional: specific notification ID" } },
+        },
+      },
+
+      // ---- DASHBOARD ----
+      {
+        name: "get_dashboard",
+        description: "Get system-wide stats: project count, module count, task count, user count.",
+        inputSchema: { type: "object", properties: {} },
+      },
+
+      // ---- USERS ----
+      {
+        name: "get_users",
+        description: "List all users in the system (names, emails, roles).",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "get_me",
+        description: "Get the current authenticated user's info.",
+        inputSchema: { type: "object", properties: {} },
       },
     ],
   };
 });
 
 // ==========================================
-// Tool Execution Logic
+// Tool Execution — proxy to REST API
 // ==========================================
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  // Enforce authentication for all tool calls
-  const agentUser = await authenticateAgent();
-
   const { name, arguments: args } = request.params;
 
-  switch (name) {
-    case "get_projects": {
-      const activeProjects = await db.query.projects.findMany({
-        where: eq(projects.status, "active"),
-      });
-      return {
-        content: [{ type: "text", text: JSON.stringify(activeProjects, null, 2) }],
-      };
-    }
-
-    case "get_modules_for_review": {
-      // Find modules in review status
-      const reviewModules = await db.query.modules.findMany({
-        where: eq(modules.status, "in_review"),
-        with: {
-          project: true,
-          assignee: true,
-        },
-      });
-
-      // Optionally filter by Project
-      const projectId = args && typeof args === "object" && "projectId" in args ? String(args.projectId) : undefined;
-      const filtered = projectId 
-        ? reviewModules.filter(m => m.project?.id === projectId)
-        : reviewModules;
-
-      return {
-        content: [{ type: "text", text: JSON.stringify(filtered, null, 2) }],
-      };
-    }
-
-    case "submit_module_review": {
-      if (!args || typeof args !== "object") {
-        throw new McpError(ErrorCode.InvalidParams, "Invalid arguments provided.");
-      }
-
-      const { moduleId, status, note, score } = args as { moduleId: string; status: string; note: string; score: number };
-
-      // Role check: Only Chairman or Admin can review (or an Agent running on their behalf)
-      if (agentUser.role !== "chairman" && agentUser.role !== "admin") {
-        throw new McpError(ErrorCode.InvalidRequest, "Forbidden: Only Chairman/Admin can submit module reviews.");
-      }
-
-      const mod = await db.query.modules.findFirst({
-        where: eq(modules.id, moduleId),
-        with: { project: true },
-      });
-
-      if (!mod) {
-        throw new McpError(ErrorCode.InvalidParams, `Module not found: ${moduleId}`);
-      }
-
-      if (mod.status !== "in_review") {
-        throw new McpError(ErrorCode.InvalidRequest, `Module is not in review status. Current status: ${mod.status}`);
-      }
-
-      const newStatus = status === "approved" ? "done" : "changes_requested";
-
-      // 1. Update Module Status
-      await db.update(modules)
-        .set({ status: newStatus, updatedAt: new Date() })
-        .where(eq(modules.id, moduleId));
-
-      // 2. Award Points if Approved
-      if (status === "approved" && mod.assigneeId) {
-        await db.insert(scoreEvents).values({
-          userId: mod.assigneeId,
-          points: score || 0,
-          eventType: "module_done",
-          refType: "module",
-          refId: moduleId,
-        });
-
-        await db.insert(reviewScores).values({
-          taskId: moduleId,
-          reviewerId: agentUser.id,
-          score: score || 0,
-          feedback: note,
-          submittedVia: "mcp", // Mark as Agent-evaluated
-        });
-      }
-
-      // 3. Log Activity
-      await db.insert(activityLogs).values({
-        userId: agentUser.id,
-        action: `module_reviewed_by_ai`,
-        targetType: "module",
-        targetId: moduleId,
-        metadata: JSON.stringify({ status, note, score }),
-      });
-
-      // 4. Notify Assignee
-      if (mod.assigneeId) {
-        await db.insert(notifications).values({
-          userId: mod.assigneeId,
-          type: "module_review",
-          title: status === "approved" ? "Module Approved by AI ✅" : "Changes Requested by AI ❌",
-          body: `Agent ${agentUser.name} evaluated your module: ${note}. Score: ${score}`,
-          link: `/modules/${moduleId}`,
-        });
-      }
-
-      return {
-        content: [{ type: "text", text: `Successfully processed review for module ${moduleId}. New status: ${newStatus}` }],
-      };
-    }
-
-    default:
-      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+  try {
+    const result = await callAPI(name, (args as Record<string, any>) || {});
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  } catch (error: any) {
+    return {
+      content: [{ type: "text", text: `Error: ${error.message || error}` }],
+      isError: true,
+    };
   }
 });
 
+// ==========================================
+// Start
+// ==========================================
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("Libe Aios MCP Server is running and waiting for Stdio connections...");
+  console.error(`Libe Aios MCP Server v2.0 connected.`);
+  console.error(`API URL: ${API_URL}`);
+  console.error(`API Key: ${API_KEY ? API_KEY.slice(0, 8) + "..." : "(not set)"}`);
 }
 
 main().catch((error) => {

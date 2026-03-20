@@ -396,6 +396,70 @@ export default function ProfilePage() {
              </CardContent>
            </Card>
 
+            {/* API Key for MCP Integration */}
+            <Card className="shadow-sm border-stone-200 dark:border-stone-800">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Key className="h-5 w-5 text-amber-500" />
+                  API Key
+                </CardTitle>
+                <CardDescription>
+                  Use this key to connect AI assistants (Antigravity, Cursor, Claude) to AI Together via MCP.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {profile?.apiKey ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        readOnly
+                        value={profile.apiKey}
+                        className="font-mono text-xs bg-stone-50 dark:bg-stone-900"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(profile.apiKey!);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                      >
+                        {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full text-amber-600 border-amber-200 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                      onClick={async () => {
+                        if (confirm("Regenerate API key? The old key will stop working.")) {
+                          await utils.client.users.generateApiKey.mutate();
+                          utils.users.me.invalidate();
+                        }
+                      }}
+                    >
+                      Regenerate Key
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+                    onClick={async () => {
+                      await utils.client.users.generateApiKey.mutate();
+                      utils.users.me.invalidate();
+                    }}
+                  >
+                    <Key className="mr-2 h-4 w-4" />
+                    Generate API Key
+                  </Button>
+                )}
+                <p className="text-[10px] text-muted-foreground">
+                  Add to your AI assistant config: <code className="bg-muted px-1 rounded">LIBE_API_KEY=your_key</code>
+                </p>
+              </CardContent>
+            </Card>
+
             {/* Change Password Card */}
             <Card className="shadow-sm border-stone-200 dark:border-stone-800">
               <CardHeader className="pb-3">
