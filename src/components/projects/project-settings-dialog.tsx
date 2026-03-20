@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Loader2, Plus, Trash2 } from "lucide-react";
+import { Settings, Loader2, Plus, Trash2, AlertTriangle } from "lucide-react";
 
 interface RubricCriterion {
   id: string;
@@ -31,6 +32,7 @@ export function ProjectSettingsDialog({
   const [repo, setRepo] = useState(project.githubRepo || "");
   const [criteria, setCriteria] = useState<RubricCriterion[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   const utils = trpc.useUtils();
 
   useEffect(() => {
@@ -67,6 +69,23 @@ export function ProjectSettingsDialog({
     });
   };
 
+  const deleteProject = trpc.projects.delete.useMutation({
+    onSuccess: () => {
+      utils.projects.list.invalidate();
+      setOpen(false);
+      router.push("/projects");
+    },
+    onError: (err) => {
+      setError(err.message);
+    },
+  });
+
+  const handleDelete = () => {
+    if (confirm(`Are you sure you want to delete this project? All modules, tasks, comments, and commits will be permanently deleted. This cannot be undone.`)) {
+      deleteProject.mutate({ id: project.id });
+    }
+  };
+
   const addCriterion = () => {
     setCriteria([...criteria, { id: crypto.randomUUID(), name: "", maxScore: 1, description: "" }]);
   };
@@ -88,9 +107,10 @@ export function ProjectSettingsDialog({
         )}
 
         <Tabs defaultValue="github" className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="grid grid-cols-2 shrink-0">
-            <TabsTrigger value="github">GitHub Integration</TabsTrigger>
+          <TabsList className="grid grid-cols-3 shrink-0">
+            <TabsTrigger value="github">GitHub</TabsTrigger>
             <TabsTrigger value="rubric">Scoring Rubric</TabsTrigger>
+            <TabsTrigger value="danger" className="text-rose-600 dark:text-rose-400">Danger Zone</TabsTrigger>
           </TabsList>
           
           <div className="flex-1 overflow-y-auto mt-4 px-1">
@@ -167,6 +187,30 @@ export function ProjectSettingsDialog({
                     No criteria defined. Click &quot;Add Criterion&quot; to start building your rubric.
                   </div>
                 )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="danger" className="space-y-4 m-0">
+              <div className="p-4 border-2 border-rose-200 dark:border-rose-900/50 rounded-lg space-y-4 bg-rose-50/50 dark:bg-rose-950/20">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-rose-700 dark:text-rose-400">Delete Project</h3>
+                    <p className="text-sm text-rose-600/70 dark:text-rose-400/70 mt-1">
+                      Permanently delete this project and all its modules, tasks, comments, documents, and commits. This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/50"
+                  onClick={handleDelete}
+                  disabled={deleteProject.isPending}
+                >
+                  {deleteProject.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                  Delete This Project
+                </Button>
               </div>
             </TabsContent>
           </div>

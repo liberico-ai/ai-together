@@ -7,41 +7,9 @@ import { eq, and, or, inArray, sql } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
 
 export const projectsRouter = router({
-  // List projects user is a member of or chairman of (Admin sees all)
+  // List all projects in the system (everyone can see all projects)
   list: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.user.id;
-    const userRole = ctx.user.role as string;
-
-    // Admin sees everything
-    if (userRole === "admin") {
-      return await ctx.db.query.projects.findMany({
-        orderBy: (projects, { desc }) => [desc(projects.createdAt)],
-        with: {
-          chairman: {
-            columns: { id: true, name: true, email: true, role: true },
-          },
-          members: {
-            with: {
-              user: {
-                columns: { id: true, name: true, email: true, role: true },
-              },
-            },
-          },
-        },
-      });
-    }
-
-    // Non-admin: only projects where user is chairman or member
-    const memberProjectIds = ctx.db
-      .select({ projectId: projectMembers.projectId })
-      .from(projectMembers)
-      .where(eq(projectMembers.userId, userId));
-
     return await ctx.db.query.projects.findMany({
-      where: or(
-        eq(projects.chairmanId, userId),
-        inArray(projects.id, memberProjectIds)
-      ),
       orderBy: (projects, { desc }) => [desc(projects.createdAt)],
       with: {
         chairman: {
@@ -75,8 +43,8 @@ export const projectsRouter = router({
       return project;
     }),
 
-  // Create project (Admin/Chairman only)
-  create: chairmanProcedure
+  // Create project (any authenticated user)
+  create: protectedProcedure
     .input(
       z.object({
         title: z.string().min(1),
@@ -94,11 +62,25 @@ export const projectsRouter = router({
           id: newId,
           title: input.title,
           description: input.description,
-          chairmanId: ctx.user.id, // Current chairman creates it
+          chairmanId: ctx.user.id,
           scoringRubric: input.scoringRubric,
           deadline: input.deadline ? new Date(input.deadline) : undefined,
         })
         .returning();
+
+      // Auto-add chairman as team member
+      const chairmanUsers = await ctx.db.query.users.findMany({
+        where: or(eq(users.role, "chairman"), eq(users.role, "admin")),
+        columns: { id: true },
+      });
+      const memberValues = chairmanUsers
+        .filter((u) => u.id !== ctx.user.id)
+        .map((u) => ({ projectId: newId, userId: u.id }));
+      // Also add the creator
+      memberValues.push({ projectId: newId, userId: ctx.user.id });
+      if (memberValues.length > 0) {
+        await ctx.db.insert(projectMembers).values(memberValues).onConflictDoNothing();
+      }
 
       return project;
     }),
@@ -138,12 +120,45 @@ export const projectsRouter = router({
       return updated;
     }),
 
-  // Delete project (Chairman/Admin only)
+  // Delete project (Chairman/Admin only — with cascade cleanup)
   delete: chairmanProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      // Cascades to project_members, modules (via FK cascade), and commits
-      await ctx.db.delete(projects).where(eq(projects.id, input.id));
+      const { modules } = await import("@drizzle/schema/modules");
+      const { tasks } = await import("@drizzle/schema/tasks");
+      const { comments } = await import("@drizzle/schema/comments");
+      const { documents } = await import("@drizzle/schema/documents");
+      const { scoreEvents } = await import("@drizzle/schema/scoring");
+      const { notifications } = await import("@drizzle/schema/notifications");
+
+      await ctx.db.transaction(async (tx) => {
+        // Get all module IDs in this project
+        const projectModules = await tx.query.modules.findMany({
+          where: eq(modules.projectId, input.id),
+          columns: { id: true },
+        });
+        const moduleIds = projectModules.map((m) => m.id);
+
+        if (moduleIds.length > 0) {
+          // Delete tasks, comments, documents, scores for modules
+          for (const modId of moduleIds) {
+            await tx.delete(tasks).where(eq(tasks.moduleId, modId));
+            await tx.delete(comments).where(eq(comments.targetId, modId));
+            await tx.delete(documents).where(eq(documents.targetId, modId));
+            await tx.delete(scoreEvents).where(eq(scoreEvents.refId, modId));
+          }
+          // Delete modules
+          await tx.delete(modules).where(eq(modules.projectId, input.id));
+        }
+
+        // Delete project-level data
+        await tx.delete(githubCommits).where(eq(githubCommits.projectId, input.id));
+        await tx.delete(projectMembers).where(eq(projectMembers.projectId, input.id));
+
+        // Delete the project
+        await tx.delete(projects).where(eq(projects.id, input.id));
+      });
+
       return { success: true };
     }),
 
