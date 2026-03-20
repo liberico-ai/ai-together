@@ -149,15 +149,51 @@ export const usersRouter = router({
       return { success: true };
     }),
 
-  // 2e. Admin: Delete User (hard delete)
+  // 2e. Admin: Delete User (hard delete with cascade cleanup)
   deleteUser: adminProcedure
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       if (input.userId === ctx.user.id) {
         throw new Error("You cannot delete your own account.");
       }
-      // Sessions and accounts cascade delete via FK
-      await ctx.db.delete(users).where(eq(users.id, input.userId));
+
+      const { scoreEvents, reviewScores, userActivityLog } = await import("@drizzle/schema/scoring");
+      const { activityLogs, notifications } = await import("@drizzle/schema/notifications");
+      const { comments } = await import("@drizzle/schema/comments");
+      const { githubCommits } = await import("@drizzle/schema/github");
+      const { modules } = await import("@drizzle/schema/modules");
+      const { tasks } = await import("@drizzle/schema/tasks");
+      const { documents } = await import("@drizzle/schema/documents");
+
+      // Transaction: clean up all references then delete user
+      await ctx.db.transaction(async (tx) => {
+        // 1. Delete owned data
+        await tx.delete(scoreEvents).where(eq(scoreEvents.userId, input.userId));
+        await tx.delete(reviewScores).where(eq(reviewScores.reviewerId, input.userId));
+        await tx.delete(userActivityLog).where(eq(userActivityLog.userId, input.userId));
+        await tx.delete(activityLogs).where(eq(activityLogs.userId, input.userId));
+        await tx.delete(notifications).where(eq(notifications.userId, input.userId));
+        await tx.delete(comments).where(eq(comments.authorId, input.userId));
+        await tx.delete(documents).where(eq(documents.uploadedBy, input.userId));
+
+        // 2. Nullify references (keep modules/tasks but unassign)
+        await tx.update(modules).set({ assigneeId: null }).where(eq(modules.assigneeId, input.userId));
+        await tx.update(modules).set({ createdBy: null }).where(eq(modules.createdBy, input.userId));
+        await tx.update(tasks).set({ assigneeId: null }).where(eq(tasks.assigneeId, input.userId));
+        await tx.update(tasks).set({ createdBy: null }).where(eq(tasks.createdBy, input.userId));
+        await tx.update(githubCommits).set({ authorUserId: null }).where(eq(githubCommits.authorUserId, input.userId));
+
+        // 3. Delete github map
+        await tx.delete(userGithubMap).where(eq(userGithubMap.userId, input.userId));
+
+        // 4. Delete auth data (sessions, accounts cascade via FK)
+        await tx.delete(sessions).where(eq(sessions.userId, input.userId));
+        await tx.delete(accounts).where(eq(accounts.userId, input.userId));
+
+        // 5. Finally delete the user
+        await tx.delete(users).where(eq(users.id, input.userId));
+      });
+
       return { success: true };
     }),
 
