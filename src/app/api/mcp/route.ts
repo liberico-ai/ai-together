@@ -12,7 +12,7 @@ import { githubCommits } from "@drizzle/schema/github";
 import { reviews } from "@drizzle/schema/reviews";
 import { eq, and, or, sql, desc, asc, inArray, gte } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
-import { s3Client, MINIO_BUCKET, MINIO_PUBLIC_URL, ensureBucket } from "@/lib/minio";
+import { s3Client, MINIO_BUCKET, getPublicUrl, ensureBucket } from "@/lib/minio";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { calculateTempoBonus, getCurrentStreak } from "@/lib/scoring";
 
@@ -486,7 +486,7 @@ export async function POST(req: NextRequest) {
           ContentType: contentType,
         }));
 
-        const url = `${MINIO_PUBLIC_URL}/${s3Key}`;
+        const url = getPublicUrl(s3Key);
         const [doc] = await db.insert(documents).values({
           title: params.filename,
           type: "file",

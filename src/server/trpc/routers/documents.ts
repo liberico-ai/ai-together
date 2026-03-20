@@ -4,7 +4,7 @@ import { documents } from "@drizzle/schema/documents";
 import { modules } from "@drizzle/schema/modules";
 import { tasks } from "@drizzle/schema/tasks";
 import { eq, and, inArray } from "drizzle-orm";
-import { s3Client, MINIO_BUCKET, MINIO_PUBLIC_URL, ensureBucket } from "@/lib/minio";
+import { s3Client, MINIO_BUCKET, MINIO_PUBLIC_URL, getPublicUrl, ensureBucket } from "@/lib/minio";
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -47,7 +47,7 @@ export const documentsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       // The public URL to access the file
-      const url = `${MINIO_PUBLIC_URL}/${input.s3Key}`;
+      const url = getPublicUrl(input.s3Key);
       
       const [doc] = await ctx.db.insert(documents).values({
         title: input.title,
