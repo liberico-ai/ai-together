@@ -18,7 +18,7 @@ export const usersRouter = router({
           ilike(users.username, q)
         ),
         columns: { id: true, name: true, username: true, image: true },
-        limit: 10,
+        limit: 50,
       });
     }),
 

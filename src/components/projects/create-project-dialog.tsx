@@ -31,8 +31,8 @@ export function CreateProjectDialog() {
   const [managerId, setManagerId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch users for PM selector
-  const { data: allUsers } = trpc.users.list.useQuery(undefined, { enabled: open });
+  // Fetch users for PM selector (searchUsers is available to all authenticated users)
+  const { data: allUsers } = trpc.users.searchUsers.useQuery({ query: "" }, { enabled: open });
 
   const utils = trpc.useUtils();
   const createProject = trpc.projects.create.useMutation({
@@ -129,7 +129,7 @@ export function CreateProjectDialog() {
                 <SelectContent>
                   {allUsers?.map((user: any) => (
                     <SelectItem key={user.id} value={user.id}>
-                      {user.name} ({user.role})
+                      {user.name}{user.username ? ` (@${user.username})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
