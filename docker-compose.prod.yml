@@ -1,17 +1,15 @@
-version: "3.9"
-
 # Production Docker Compose for Libe Aios
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Usage: docker compose -f docker-compose.prod.yml up -d
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/liberico-ai/ai-together:latest
     restart: unless-stopped
+    ports:
+      - "7060:3000"
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://libe:${POSTGRES_PASSWORD}@pgbouncer:5433/libe_aios
+      DATABASE_URL: ${DATABASE_URL}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL}
       MINIO_ENDPOINT: minio
@@ -23,36 +21,7 @@ services:
       GITHUB_APP_ID: ${GITHUB_APP_ID}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
     depends_on:
-      - pgbouncer
       - minio
-    networks:
-      - libe_net
-
-  postgres:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: libe_aios
-      POSTGRES_USER: libe
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    networks:
-      - libe_net
-    # Don't expose to host in production; go through PgBouncer
-    expose:
-      - "5432"
-
-  pgbouncer:
-    image: edoburu/pgbouncer
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: "postgresql://libe:${POSTGRES_PASSWORD}@postgres:5432/libe_aios"
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: "200"
-      DEFAULT_POOL_SIZE: "20"
-    depends_on:
-      - postgres
     networks:
       - libe_net
 
@@ -67,29 +36,15 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     networks:
       - libe_net
+    ports:
+      - "7061:9000" 
     expose:
       - "9000"
       - "9001"
-
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./deploy/ssl:/etc/ssl/certs:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-    depends_on:
-      - app
-    networks:
-      - libe_net
 
 networks:
   libe_net:
     driver: bridge
 
 volumes:
-  pg_data:
   minio_data:
