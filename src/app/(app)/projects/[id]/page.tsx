@@ -291,7 +291,7 @@ export default function ProjectDetailPage({
                     <Badge variant="secondary" className="ml-auto">{project.members.length + 1}</Badge>
                   </h3>
                   <div className="space-y-4">
-                    {/* Chairman */}
+                    {/* Project Manager */}
                     <div className="flex items-center space-x-3">
                       <Avatar className="h-9 w-9 ring-2 ring-amber-500/30">
                         <AvatarFallback className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 font-semibold">
@@ -300,11 +300,13 @@ export default function ProjectDetailPage({
                       </Avatar>
                       <div>
                         <p className="text-sm font-semibold">{project.chairman?.name}</p>
-                        <p className="text-xs text-stone-500">Chairman</p>
+                        <p className="text-xs text-stone-500">Project Manager</p>
                       </div>
                     </div>
-                    {/* Members */}
-                    {project.members.map((m: any) => (
+                    {/* Members (exclude PM to avoid duplicate) */}
+                    {project.members
+                      .filter((m: any) => m.user.id !== project.chairman?.id)
+                      .map((m: any) => (
                       <div key={m.user.id} className="flex items-center space-x-3">
                         <Avatar className="h-9 w-9">
                           <AvatarFallback className="bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 font-semibold">

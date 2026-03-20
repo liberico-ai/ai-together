@@ -188,7 +188,7 @@ export default function ProjectsPage() {
                     </div>
                   )}
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-semibold uppercase text-muted-foreground">Chairman</span>
+                    <span className="text-xs font-semibold uppercase text-muted-foreground">Project Manager</span>
                     <div className="flex items-center space-x-2">
                       <Avatar className="h-6 w-6">
                         <AvatarFallback className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300">
@@ -219,7 +219,7 @@ export default function ProjectsPage() {
               <tr className="border-b border-border bg-muted/30">
                 <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-5 py-3">Project</th>
                 <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3">Status</th>
-                <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3">Chairman</th>
+                <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3">PM</th>
                 <th className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3">Members</th>
                 <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3">Deadline</th>
                 <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3">Created</th>

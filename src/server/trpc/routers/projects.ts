@@ -51,10 +51,21 @@ export const projectsRouter = router({
         description: z.string().optional(),
         scoringRubric: z.string().optional(),
         deadline: z.string().optional(),
+        managerId: z.string().optional(), // Project Manager — defaults to system chairman
       })
     )
     .mutation(async ({ ctx, input }) => {
       const newId = await nextId("PROJ", ctx.db);
+
+      // Determine Project Manager: explicit choice > system chairman > creator
+      let pmId = input.managerId;
+      if (!pmId) {
+        const systemChairman = await ctx.db.query.users.findFirst({
+          where: eq(users.role, "chairman"),
+          columns: { id: true },
+        });
+        pmId = systemChairman?.id || ctx.user.id;
+      }
 
       const [project] = await ctx.db
         .insert(projects)
@@ -62,22 +73,26 @@ export const projectsRouter = router({
           id: newId,
           title: input.title,
           description: input.description,
-          chairmanId: ctx.user.id,
+          chairmanId: pmId,
           scoringRubric: input.scoringRubric,
           deadline: input.deadline ? new Date(input.deadline) : undefined,
         })
         .returning();
 
-      // Auto-add chairman as team member
-      const chairmanUsers = await ctx.db.query.users.findMany({
+      // Auto-add: creator + all chairman/admin users as team members
+      const privilegedUsers = await ctx.db.query.users.findMany({
         where: or(eq(users.role, "chairman"), eq(users.role, "admin")),
         columns: { id: true },
       });
-      const memberValues = chairmanUsers
-        .filter((u) => u.id !== ctx.user.id)
-        .map((u) => ({ projectId: newId, userId: u.id }));
-      // Also add the creator
-      memberValues.push({ projectId: newId, userId: ctx.user.id });
+      const memberIds = new Set([
+        ctx.user.id,        // creator
+        pmId,               // project manager
+        ...privilegedUsers.map((u) => u.id),
+      ]);
+      const memberValues = Array.from(memberIds).map((uid) => ({
+        projectId: newId,
+        userId: uid,
+      }));
       if (memberValues.length > 0) {
         await ctx.db.insert(projectMembers).values(memberValues).onConflictDoNothing();
       }

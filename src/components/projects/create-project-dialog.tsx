@@ -14,6 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Plus } from "lucide-react";
 
 export function CreateProjectDialog() {
@@ -21,7 +28,11 @@ export function CreateProjectDialog() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [managerId, setManagerId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch users for PM selector
+  const { data: allUsers } = trpc.users.list.useQuery(undefined, { enabled: open });
 
   const utils = trpc.useUtils();
   const createProject = trpc.projects.create.useMutation({
@@ -30,6 +41,7 @@ export function CreateProjectDialog() {
       setTitle("");
       setDescription("");
       setDeadline("");
+      setManagerId("");
       setError(null);
       utils.projects.list.invalidate();
     },
@@ -46,6 +58,7 @@ export function CreateProjectDialog() {
       title,
       description,
       deadline: deadline || undefined,
+      managerId: managerId || undefined, // empty = default to chairman
     });
   };
 
@@ -59,7 +72,7 @@ export function CreateProjectDialog() {
           <DialogHeader>
             <DialogTitle>Create New Project</DialogTitle>
             <DialogDescription>
-              Start a new game level! Define your project details here.
+              Start a new project. Define details and assign a Project Manager.
             </DialogDescription>
           </DialogHeader>
           {error && (
@@ -104,6 +117,23 @@ export function CreateProjectDialog() {
                 onChange={(e) => setDeadline(e.target.value)}
                 className="col-span-3"
               />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-sm">
+                PM
+              </Label>
+              <Select value={managerId} onValueChange={(v) => setManagerId(v || "")}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Default (Chairman)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allUsers?.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name} ({user.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
