@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Flame, Eye, EyeOff, Loader2 } from "lucide-react";
 import { signIn } from "@/lib/auth/client";
@@ -54,7 +54,7 @@ const sparkles = [
   { top: "65%", left: "80%", delay: "0.3s", dur: "3.4s" },
 ];
 
-export default function LoginPage() {
+function LoginContent() {
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [userId, setUserId] = useState("");
@@ -317,5 +317,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   );
 }

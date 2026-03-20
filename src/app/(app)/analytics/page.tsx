@@ -114,7 +114,7 @@ export default function AnalyticsPage() {
           <section>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Personal Overview</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard title="Modules Assigned" value={stats?.assigned ?? 0} icon={Clock} color="bg-blue-500" subtitle="Total across all projects" />
+              <StatCard title="Modules Assigned" value={stats?.modules?.assigned ?? 0} icon={Clock} color="bg-blue-500" subtitle="Total across all projects" />
               <StatCard title="Completion Rate" value={`${completionRate}%`} icon={CheckCircle2} color="bg-emerald-500" subtitle={`${modulesByStatus.done} modules done`} />
               <StatCard title="Your Rank" value={myRank !== undefined && myRank >= 0 ? `#${myRank + 1}` : "N/A"} icon={TrendingUp} color="bg-amber-500" subtitle="Platform leaderboard position" />
               <StatCard title="Total Points" value={myScore} icon={BarChart3} color="bg-coral-500" subtitle="Points earned from approvals" />
