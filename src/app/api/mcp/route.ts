@@ -6,11 +6,15 @@ import { modules } from "@drizzle/schema/modules";
 import { tasks } from "@drizzle/schema/tasks";
 import { comments } from "@drizzle/schema/comments";
 import { documents } from "@drizzle/schema/documents";
-import { scoreEvents, reviewScores } from "@drizzle/schema/scoring";
+import { scoreEvents, reviewScores, userActivityLog } from "@drizzle/schema/scoring";
 import { activityLogs, notifications } from "@drizzle/schema/notifications";
 import { githubCommits } from "@drizzle/schema/github";
-import { eq, and, or, sql, desc, asc, inArray } from "drizzle-orm";
+import { reviews } from "@drizzle/schema/reviews";
+import { eq, and, or, sql, desc, asc, inArray, gte } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
+import { s3Client, MINIO_BUCKET, MINIO_PUBLIC_URL } from "@/lib/minio";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { calculateTempoBonus, getCurrentStreak } from "@/lib/scoring";
 
 // ==========================================
 // Auth: Extract user from API Key
@@ -458,6 +462,41 @@ export async function POST(req: NextRequest) {
         return ok({ deleted: true });
       }
 
+      case "upload_document": {
+        if (!params.targetType || !params.targetId || !params.filename || !params.fileBase64)
+          return badRequest("Missing targetType, targetId, filename, or fileBase64");
+
+        // Decode base64 to Buffer
+        const fileBuffer = Buffer.from(params.fileBase64, "base64");
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        if (fileBuffer.length > maxSize) return badRequest("File exceeds 50MB limit");
+
+        const ext = params.filename.split(".").pop() || "bin";
+        const s3Key = `${params.targetType}/${params.targetId}/${crypto.randomUUID()}.${ext}`;
+        const contentType = params.contentType || "application/octet-stream";
+
+        // Upload to S3/MinIO
+        await s3Client.send(new PutObjectCommand({
+          Bucket: MINIO_BUCKET,
+          Key: s3Key,
+          Body: fileBuffer,
+          ContentType: contentType,
+        }));
+
+        const url = `${MINIO_PUBLIC_URL}/${s3Key}`;
+        const [doc] = await db.insert(documents).values({
+          title: params.filename,
+          type: "file",
+          url,
+          fileSize: fileBuffer.length,
+          targetType: params.targetType,
+          targetId: params.targetId,
+          uploadedBy: user.id,
+        }).returning();
+
+        return ok(doc);
+      }
+
       // =================
       // REVIEWS
       // =================
@@ -511,6 +550,40 @@ export async function POST(req: NextRequest) {
         return ok({ moduleId: params.moduleId, newStatus });
       }
 
+      case "list_reviews": {
+        if (!params.targetType || !params.targetId) return badRequest("Missing targetType or targetId");
+        const data = await db.query.reviews.findMany({
+          where: and(
+            eq(reviews.targetType, params.targetType),
+            eq(reviews.targetId, params.targetId)
+          ),
+          orderBy: (r, { desc }) => [desc(r.createdAt)],
+          with: {
+            reviewer: {
+              columns: { id: true, name: true, image: true },
+            },
+          },
+        });
+        return ok(data);
+      }
+
+      case "get_latest_review": {
+        if (!params.targetType || !params.targetId) return badRequest("Missing targetType or targetId");
+        const latest = await db.query.reviews.findFirst({
+          where: and(
+            eq(reviews.targetType, params.targetType),
+            eq(reviews.targetId, params.targetId)
+          ),
+          orderBy: (r, { desc }) => [desc(r.createdAt)],
+          with: {
+            reviewer: {
+              columns: { id: true, name: true, image: true },
+            },
+          },
+        });
+        return ok(latest || null);
+      }
+
       // =================
       // NOTIFICATIONS
       // =================
@@ -551,6 +624,185 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      case "get_leaderboard": {
+        const period = params.period || "month";
+        const now = new Date();
+        let cutoffDate: Date | null = null;
+
+        if (period === "today") {
+          cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (period === "week") {
+          cutoffDate = new Date(now);
+          cutoffDate.setDate(cutoffDate.getDate() - 7);
+        } else if (period === "month") {
+          cutoffDate = new Date(now);
+          cutoffDate.setDate(cutoffDate.getDate() - 30);
+        }
+
+        const results = await db
+          .select({
+            userId: users.id,
+            name: users.name,
+            username: users.username,
+            reviewPoints: sql<number>`CAST(COALESCE(SUM(CASE WHEN ${scoreEvents.eventType} IN ('module_done','module_early','module_late','task_done','task_early','task_late') THEN ${scoreEvents.points} ELSE 0 END), 0) AS INTEGER)`,
+            autoPoints: sql<number>`CAST(COALESCE(SUM(CASE WHEN ${scoreEvents.eventType} IN ('comment','commit','doc_approved') THEN ${scoreEvents.points} ELSE 0 END), 0) AS INTEGER)`,
+            totalBasePoints: sql<number>`CAST(COALESCE(SUM(${scoreEvents.points}), 0) AS INTEGER)`,
+          })
+          .from(users)
+          .leftJoin(
+            scoreEvents,
+            cutoffDate
+              ? and(eq(users.id, scoreEvents.userId), gte(scoreEvents.createdAt, cutoffDate))
+              : eq(users.id, scoreEvents.userId)
+          )
+          .groupBy(users.id, users.name, users.username)
+          .orderBy(desc(sql`SUM(${scoreEvents.points})`));
+
+        const periodDays = period === "today" ? 1 : period === "week" ? 7 : period === "month" ? 30 : 365;
+
+        const enrichedResults = await Promise.all(
+          results.map(async (u) => {
+            const logs = await db.query.userActivityLog.findMany({
+              where: eq(userActivityLog.userId, u.userId),
+              columns: { activityDate: true, actionCount: true },
+            });
+            const tempo = calculateTempoBonus(logs, periodDays);
+            const streak = getCurrentStreak(logs);
+            const totalPoints = u.totalBasePoints + tempo.total;
+            return {
+              userId: u.userId,
+              name: u.name,
+              username: u.username,
+              reviewPoints: u.reviewPoints,
+              autoPoints: u.autoPoints,
+              tempoBonus: tempo.total,
+              totalPoints,
+              streak,
+            };
+          })
+        );
+
+        return ok(
+          enrichedResults
+            .filter(u => u.totalPoints > 0)
+            .sort((a, b) => b.totalPoints - a.totalPoints)
+            .slice(0, 20)
+        );
+      }
+
+      case "get_my_rank": {
+        const period = params.period || "month";
+        const periodDays = period === "today" ? 1 : period === "week" ? 7 : period === "month" ? 30 : 365;
+
+        const myActivityLogs = await db.query.userActivityLog.findMany({
+          where: eq(userActivityLog.userId, user.id),
+          columns: { activityDate: true, actionCount: true },
+        });
+
+        const tempo = calculateTempoBonus(myActivityLogs, periodDays);
+        const streak = getCurrentStreak(myActivityLogs);
+
+        const now = new Date();
+        let cutoffDate: Date | null = null;
+        if (period === "today") {
+          cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (period === "week") {
+          cutoffDate = new Date(now);
+          cutoffDate.setDate(cutoffDate.getDate() - 7);
+        } else if (period === "month") {
+          cutoffDate = new Date(now);
+          cutoffDate.setDate(cutoffDate.getDate() - 30);
+        }
+
+        const myScores = await db
+          .select({
+            total: sql<number>`CAST(COALESCE(SUM(${scoreEvents.points}), 0) AS INTEGER)`,
+          })
+          .from(scoreEvents)
+          .where(
+            cutoffDate
+              ? and(eq(scoreEvents.userId, user.id), gte(scoreEvents.createdAt, cutoffDate))
+              : eq(scoreEvents.userId, user.id)
+          );
+
+        const basePoints = myScores[0]?.total ?? 0;
+        const totalPoints = basePoints + tempo.total;
+
+        // Last 7 days activity
+        const dailyActivity = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toISOString().split("T")[0];
+          const log = myActivityLogs.find(l => l.activityDate === dateStr);
+          dailyActivity.push({
+            date: dateStr,
+            day: d.toLocaleDateString("en", { weekday: "short" }),
+            actions: log?.actionCount ?? 0,
+          });
+        }
+
+        return ok({
+          totalPoints,
+          tempoBonus: tempo.total,
+          streak,
+          dailyActivity,
+        });
+      }
+
+      case "get_active_projects": {
+        const activeProjects = await db.query.projects.findMany({
+          where: eq(projects.status, "active"),
+          orderBy: (p, { desc }) => [desc(p.updatedAt)],
+          with: {
+            chairman: { columns: { id: true, name: true, email: true, role: true } },
+            members: { with: { user: { columns: { id: true, name: true, email: true, role: true } } } },
+            modules: { columns: { id: true, status: true } },
+          },
+        });
+
+        return ok(activeProjects.map(project => {
+          const totalModules = project.modules.length;
+          const doneModules = project.modules.filter(m => m.status === "done").length;
+          const progressPct = totalModules === 0 ? 0 : Math.round((doneModules / totalModules) * 100);
+          return {
+            id: project.id,
+            title: project.title,
+            status: project.status,
+            deadline: project.deadline,
+            progressPct,
+            members: project.members.map(m => m.user),
+            chairman: project.chairman,
+          };
+        }));
+      }
+
+      case "get_project_progress": {
+        const allProjects = await db.query.projects.findMany({
+          where: eq(projects.status, "active"),
+          columns: { id: true, title: true },
+        });
+
+        const result = [];
+        for (const p of allProjects) {
+          const mods = await db.query.modules.findMany({
+            where: eq(modules.projectId, p.id),
+            columns: { status: true },
+          });
+          const total = mods.length;
+          const done = mods.filter(m => m.status === "done").length;
+          const shortName = p.title.length > 20 ? p.title.slice(0, 17) + "..." : p.title;
+          result.push({
+            name: shortName,
+            done,
+            pending: total - done,
+            total,
+            pct: total > 0 ? Math.round((done / total) * 100) : 0,
+          });
+        }
+        return ok(result);
+      }
+
       // =================
       // USERS (limited)
       // =================
@@ -573,7 +825,7 @@ export async function POST(req: NextRequest) {
 
       // =================
       default:
-        return badRequest(`Unknown action: ${action}. Use get_projects, get_modules, create_module, add_comment, etc.`);
+        return badRequest(`Unknown action: ${action}. Use get_projects, get_modules, create_module, add_comment, upload_document, get_leaderboard, etc.`);
     }
   } catch (error: any) {
     console.error(`[MCP API] Error in action "${action}":`, error);

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -358,6 +360,78 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["documentId"],
         },
       },
+      {
+        name: "upload_document",
+        description: "Upload a local file as a document to a project, module, or task. The file is read from the local filesystem and uploaded to the server.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            targetType: { type: "string", enum: ["project", "module", "task"] },
+            targetId: { type: "string" },
+            filePath: { type: "string", description: "Absolute path to the local file to upload" },
+            contentType: { type: "string", description: "Optional MIME type (auto-detected if omitted)" },
+          },
+          required: ["targetType", "targetId", "filePath"],
+        },
+      },
+
+      // ---- REVIEWS (extended) ----
+      {
+        name: "list_reviews",
+        description: "List all reviews for a module or task, with reviewer info and scores.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            targetType: { type: "string", enum: ["module", "task"] },
+            targetId: { type: "string" },
+          },
+          required: ["targetType", "targetId"],
+        },
+      },
+      {
+        name: "get_latest_review",
+        description: "Get the most recent review for a module or task.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            targetType: { type: "string", enum: ["module", "task"] },
+            targetId: { type: "string" },
+          },
+          required: ["targetType", "targetId"],
+        },
+      },
+
+      // ---- DASHBOARD (extended) ----
+      {
+        name: "get_leaderboard",
+        description: "Get the gamification leaderboard with scores, streaks, and tempo bonuses. Top 20 users.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            period: { type: "string", enum: ["today", "week", "month", "all"], description: "Time period filter (default: month)" },
+          },
+        },
+      },
+      {
+        name: "get_my_rank",
+        description: "Get the current user's score stats: total points, tempo bonus, streak, and daily activity.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            period: { type: "string", enum: ["today", "week", "month", "all"], description: "Time period filter (default: month)" },
+          },
+        },
+      },
+      {
+        name: "get_active_projects",
+        description: "Get all active projects with progress percentage, members, and chairman.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "get_project_progress",
+        description: "Get module completion progress for all active projects (done/pending/total counts).",
+        inputSchema: { type: "object", properties: {} },
+      },
 
       // ---- REVIEWS ----
       {
@@ -419,6 +493,64 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
+    // Special handling for upload_document: read local file and base64-encode
+    if (name === "upload_document") {
+      const { filePath, targetType, targetId, contentType } = (args as Record<string, any>) || {};
+      if (!filePath) {
+        return {
+          content: [{ type: "text", text: "Error: filePath is required" }],
+          isError: true,
+        };
+      }
+
+      const resolvedPath = path.resolve(filePath);
+      if (!fs.existsSync(resolvedPath)) {
+        return {
+          content: [{ type: "text", text: `Error: File not found: ${resolvedPath}` }],
+          isError: true,
+        };
+      }
+
+      const fileBuffer = fs.readFileSync(resolvedPath);
+      const fileBase64 = fileBuffer.toString("base64");
+      const filename = path.basename(resolvedPath);
+
+      // Auto-detect content type from extension
+      const extMap: Record<string, string> = {
+        pdf: "application/pdf",
+        doc: "application/msword",
+        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        xls: "application/vnd.ms-excel",
+        xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ppt: "application/vnd.ms-powerpoint",
+        pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        gif: "image/gif",
+        svg: "image/svg+xml",
+        zip: "application/zip",
+        txt: "text/plain",
+        md: "text/markdown",
+        json: "application/json",
+        csv: "text/csv",
+      };
+      const ext = filename.split(".").pop()?.toLowerCase() || "";
+      const detectedType = contentType || extMap[ext] || "application/octet-stream";
+
+      const result = await callAPI("upload_document", {
+        targetType,
+        targetId,
+        filename,
+        contentType: detectedType,
+        fileBase64,
+      });
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+
     const result = await callAPI(name, (args as Record<string, any>) || {});
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
