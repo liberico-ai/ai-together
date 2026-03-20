@@ -128,8 +128,8 @@ export function CommentSection({ targetType, targetId }: CommentSectionProps) {
     }
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!content.trim()) return;
     createComment.mutate({ targetType, targetId, content });
   };
@@ -243,16 +243,22 @@ export function CommentSection({ targetType, targetId }: CommentSectionProps) {
             onChange={handleContentChange}
             placeholder="Type your comment here... Use @ to mention users"
             height={150}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !mentionState.active) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
           />
           <div className="flex justify-between items-center mt-3">
-             <p className="text-[10px] text-muted-foreground tracking-wide">Markdown is supported · Type <kbd className="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">@</kbd> to mention someone</p>
+             <p className="text-[10px] text-muted-foreground tracking-wide">Markdown supported · <kbd className="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">Enter</kbd> to send · <kbd className="px-1 py-0.5 rounded bg-muted text-[9px] font-mono">Shift+Enter</kbd> new line</p>
              <Button 
                type="submit" 
-               className="h-8 bg-coral-500 hover:bg-coral-600 text-white rounded-lg transition-all"
+               className="h-8 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-all"
                disabled={createComment.isPending || !content.trim()}
              >
                {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Send className="h-4 w-4 mr-1.5" />}
-               Send Comment
+               Send
              </Button>
           </div>
         </form>

@@ -17,6 +17,7 @@ interface MarkdownEditorProps {
   placeholder?: string;
   minHeight?: number;
   height?: number;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
 }
 
 export function MarkdownEditor({
@@ -25,6 +26,7 @@ export function MarkdownEditor({
   placeholder,
   minHeight = 200,
   height,
+  onKeyDown,
 }: MarkdownEditorProps) {
   const { resolvedTheme } = useTheme();
 
@@ -38,6 +40,7 @@ export function MarkdownEditor({
         }}
         textareaProps={{
           placeholder: placeholder || "Type your markdown here...",
+          onKeyDown: onKeyDown as any,
         }}
         minHeight={minHeight}
         height={height}
