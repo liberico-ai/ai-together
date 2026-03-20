@@ -4,7 +4,7 @@ import { documents } from "@drizzle/schema/documents";
 import { modules } from "@drizzle/schema/modules";
 import { tasks } from "@drizzle/schema/tasks";
 import { eq, and, inArray } from "drizzle-orm";
-import { s3Client, MINIO_BUCKET, MINIO_PUBLIC_URL } from "@/lib/minio";
+import { s3Client, MINIO_BUCKET, MINIO_PUBLIC_URL, ensureBucket } from "@/lib/minio";
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -20,6 +20,8 @@ export const documentsRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      // Ensure bucket exists
+      await ensureBucket();
       // Secure random file name to avoid collisions
       const ext = input.filename.split('.').pop();
       const s3Key = `${input.targetType}/${input.targetId}/${crypto.randomUUID()}.${ext}`;

@@ -12,7 +12,7 @@ import { githubCommits } from "@drizzle/schema/github";
 import { reviews } from "@drizzle/schema/reviews";
 import { eq, and, or, sql, desc, asc, inArray, gte } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
-import { s3Client, MINIO_BUCKET, MINIO_PUBLIC_URL } from "@/lib/minio";
+import { s3Client, MINIO_BUCKET, MINIO_PUBLIC_URL, ensureBucket } from "@/lib/minio";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { calculateTempoBonus, getCurrentStreak } from "@/lib/scoring";
 
@@ -474,6 +474,9 @@ export async function POST(req: NextRequest) {
         const ext = params.filename.split(".").pop() || "bin";
         const s3Key = `${params.targetType}/${params.targetId}/${crypto.randomUUID()}.${ext}`;
         const contentType = params.contentType || "application/octet-stream";
+
+        // Ensure bucket exists before uploading
+        await ensureBucket();
 
         // Upload to S3/MinIO
         await s3Client.send(new PutObjectCommand({
