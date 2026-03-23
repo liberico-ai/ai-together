@@ -7,9 +7,21 @@ import { addDays, subDays } from 'date-fns';
 import { notificationEmitter } from '@/lib/events';
 
 export async function GET(req: Request) {
-  // Simple cron protection
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET || 'dev_secret'}`) {
+  // Secure cron protection
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    console.error("[Cron] CRON_SECRET not configured");
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  }
+
+  const authHeader = req.headers.get('authorization') ?? '';
+  const expected = `Bearer ${cronSecret}`;
+
+  // Constant-time comparison to prevent timing attacks
+  const { timingSafeEqual } = await import('crypto');
+  const a = Buffer.from(authHeader);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

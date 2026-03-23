@@ -482,6 +482,49 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         description: "Get the current authenticated user's info.",
         inputSchema: { type: "object", properties: {} },
       },
+
+      // ---- CHAT ----
+      {
+        name: "list_conversations",
+        description: "List all chat conversations the current user is a participant of, with last message preview and unread counts.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "read_chat_messages",
+        description: "Read messages from a specific chat conversation. Returns the most recent messages (newest first).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            conversationId: { type: "string", description: "Conversation ID to read messages from" },
+            limit: { type: "number", description: "Number of messages to return (default: 20, max: 50)" },
+          },
+          required: ["conversationId"],
+        },
+      },
+      {
+        name: "send_chat_message",
+        description: "Send a text message to a chat conversation. The user must be a participant of the conversation.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            conversationId: { type: "string", description: "Conversation ID to send message to" },
+            content: { type: "string", description: "Message text content" },
+          },
+          required: ["conversationId", "content"],
+        },
+      },
+      {
+        name: "search_chat",
+        description: "Search messages across a conversation by keyword.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            conversationId: { type: "string", description: "Conversation ID to search within" },
+            query: { type: "string", description: "Search keyword" },
+          },
+          required: ["conversationId", "query"],
+        },
+      },
     ],
   };
 });
@@ -555,9 +598,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     return {
-      content: [{ type: "text", text: `Error: ${error.message || error}` }],
+      content: [{ type: "text", text: `Error: ${message}` }],
       isError: true,
     };
   }

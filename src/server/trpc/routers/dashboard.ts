@@ -3,7 +3,7 @@ import { scoreEvents, userActivityLog } from "@drizzle/schema/scoring";
 import { users } from "@drizzle/schema/users";
 import { projects } from "@drizzle/schema/projects";
 import { modules } from "@drizzle/schema/modules";
-import { eq, sql, desc, gte, and } from "drizzle-orm";
+import { eq, sql, desc, gte, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { calculateTempoBonus, getCurrentStreak } from "@/lib/scoring";
 
@@ -89,30 +89,41 @@ export const dashboardRouter = router({
         .orderBy(desc(sql`SUM(${scoreEvents.points})`));
 
       const periodDays = period === "today" ? 1 : period === "week" ? 7 : period === "month" ? 30 : 365;
-      
-      const enrichedResults = await Promise.all(
-        results.map(async (user) => {
-          const activityLogs = await ctx.db.query.userActivityLog.findMany({
-            where: eq(userActivityLog.userId, user.userId),
-            columns: { activityDate: true, actionCount: true },
-          });
 
-          const tempo = calculateTempoBonus(activityLogs, periodDays);
-          const streak = getCurrentStreak(activityLogs);
-          const totalPoints = user.totalBasePoints + tempo.total;
+      // Batch fetch all activity logs at once (fix N+1)
+      const userIds = results.map((u) => u.userId);
+      const allActivityLogs = userIds.length > 0
+        ? await ctx.db.query.userActivityLog.findMany({
+            where: inArray(userActivityLog.userId, userIds),
+            columns: { userId: true, activityDate: true, actionCount: true },
+          })
+        : [];
 
-          return {
-            userId: user.userId,
-            name: user.name,
-            username: user.username,
-            reviewPoints: user.reviewPoints,
-            autoPoints: user.autoPoints,
-            tempoBonus: tempo.total,
-            totalPoints,
-            streak,
-          };
-        })
-      );
+      // Group by userId for O(1) lookup
+      const logsByUser = new Map<string, typeof allActivityLogs>();
+      for (const log of allActivityLogs) {
+        const existing = logsByUser.get(log.userId) ?? [];
+        existing.push(log);
+        logsByUser.set(log.userId, existing);
+      }
+
+      const enrichedResults = results.map((user) => {
+        const activityLogs = logsByUser.get(user.userId) ?? [];
+        const tempo = calculateTempoBonus(activityLogs, periodDays);
+        const streak = getCurrentStreak(activityLogs);
+        const totalPoints = user.totalBasePoints + tempo.total;
+
+        return {
+          userId: user.userId,
+          name: user.name,
+          username: user.username,
+          reviewPoints: user.reviewPoints,
+          autoPoints: user.autoPoints,
+          tempoBonus: tempo.total,
+          totalPoints,
+          streak,
+        };
+      });
 
       return enrichedResults
         .filter(u => u.totalPoints > 0)
@@ -233,28 +244,27 @@ export const dashboardRouter = router({
   getProjectProgress: protectedProcedure.query(async ({ ctx }) => {
     const allProjects = await ctx.db.query.projects.findMany({
       where: eq(projects.status, "active"),
-      columns: { id: true, title: true }
+      columns: { id: true, title: true },
+      with: {
+        modules: {
+          columns: { status: true },
+        },
+      },
     });
-    
-    const result = [];
-    for (const p of allProjects) {
-      const mods = await ctx.db.query.modules.findMany({ 
-        where: eq(modules.projectId, p.id), 
-        columns: { status: true } 
-      });
-      const total = mods.length;
-      const done = mods.filter(m => m.status === "done").length;
-      
-      const shortName = p.title.length > 20 ? p.title.slice(0, 17) + "..." : p.title;
-      result.push({ 
-        name: shortName, 
-        done, 
-        pending: total - done, 
+
+    return allProjects.map((p) => {
+      const total = p.modules.length;
+      const done = p.modules.filter((m) => m.status === "done").length;
+      const shortName =
+        p.title.length > 20 ? p.title.slice(0, 17) + "..." : p.title;
+      return {
+        name: shortName,
+        done,
+        pending: total - done,
         total,
-        pct: total > 0 ? Math.round((done/total)*100) : 0 
-      });
-    }
-    return result;
+        pct: total > 0 ? Math.round((done / total) * 100) : 0,
+      };
+    });
   }),
 });
 

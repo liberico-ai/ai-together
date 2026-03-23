@@ -504,8 +504,8 @@ export default function ProfilePage() {
                       });
                       setPwMessage({ type: "success", text: "Password changed successfully!" });
                       setCurrentPw(""); setNewPw(""); setConfirmPw("");
-                    } catch (e: any) {
-                      setPwMessage({ type: "error", text: e?.message || "Failed to change password." });
+                    } catch (e: unknown) {
+                      setPwMessage({ type: "error", text: e instanceof Error ? e.message : "Failed to change password." });
                     }
                   }}
                 >

@@ -33,6 +33,7 @@ export const commentsRouter = router({
           eq(comments.targetId, input.targetId)
         ),
         orderBy: (comments, { asc }) => [asc(comments.createdAt)],
+        limit: 100,
         with: {
           author: { columns: { id: true, name: true, image: true } }
         }
@@ -43,7 +44,7 @@ export const commentsRouter = router({
     .input(z.object({
       targetType: z.enum(["module", "task"]),
       targetId: z.string(),
-      content: z.string().min(1),
+      content: z.string().min(1).max(5000),
     }))
     .mutation(async ({ ctx, input }) => {
       const [newComment] = await ctx.db.insert(comments).values({

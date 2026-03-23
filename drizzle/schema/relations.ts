@@ -9,6 +9,12 @@ import { notifications, activityLogs } from "./notifications";
 import { scoreEvents, reviewScores, userActivityLog } from "./scoring";
 import { githubCommits, githubIssueMap } from "./github";
 import { reviews } from "./reviews";
+import {
+  conversations,
+  conversationParticipants,
+  messages,
+  messageReactions,
+} from "./chat";
 
 export const usersRelations = relations(users, ({ many, one }) => ({
   githubMap: one(userGithubMap, {
@@ -110,6 +116,64 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
 export const documentsRelations = relations(documents, ({ one }) => ({
   uploader: one(users, {
     fields: [documents.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
+// ── Chat Relations ─────────────────────────────────────────
+
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [conversations.projectId],
+    references: [projects.id],
+  }),
+  creator: one(users, {
+    fields: [conversations.createdBy],
+    references: [users.id],
+  }),
+  participants: many(conversationParticipants),
+  messages: many(messages),
+}));
+
+export const conversationParticipantsRelations = relations(
+  conversationParticipants,
+  ({ one }) => ({
+    conversation: one(conversations, {
+      fields: [conversationParticipants.conversationId],
+      references: [conversations.id],
+    }),
+    user: one(users, {
+      fields: [conversationParticipants.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const messagesRelations = relations(messages, ({ one, many }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  sender: one(users, {
+    fields: [messages.senderId],
+    references: [users.id],
+  }),
+  replyTo: one(messages, {
+    fields: [messages.replyToId],
+    references: [messages.id],
+    relationName: "replies",
+  }),
+  replies: many(messages, { relationName: "replies" }),
+  reactions: many(messageReactions),
+}));
+
+export const messageReactionsRelations = relations(messageReactions, ({ one }) => ({
+  message: one(messages, {
+    fields: [messageReactions.messageId],
+    references: [messages.id],
+  }),
+  user: one(users, {
+    fields: [messageReactions.userId],
     references: [users.id],
   }),
 }));

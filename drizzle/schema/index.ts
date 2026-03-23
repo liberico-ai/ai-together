@@ -9,5 +9,6 @@ export * from "./notifications";
 export * from "./scoring";
 export * from "./github";
 export * from "./reviews";
+export * from "./chat";
 export * from "./relations";
 export * from "./auth";

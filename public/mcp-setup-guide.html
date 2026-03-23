@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Together — Hướng dẫn cài đặt MCP Server</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0f11;
+      --bg-card: #18181b;
+      --bg-code: #1e1e24;
+      --border: #27272a;
+      --text: #fafafa;
+      --text-muted: #a1a1aa;
+      --text-dim: #71717a;
+      --accent: #f97066;
+      --accent-soft: rgba(249,112,102,0.12);
+      --green: #34d399;
+      --green-soft: rgba(52,211,153,0.12);
+      --amber: #fbbf24;
+      --amber-soft: rgba(251,191,36,0.12);
+      --blue: #60a5fa;
+      --blue-soft: rgba(96,165,250,0.12);
+      --purple: #a78bfa;
+      --purple-soft: rgba(167,139,250,0.12);
+      --radius: 12px;
+      --shadow: 0 2px 20px rgba(0,0,0,0.3);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: var(--accent); color: #fff; }
+
+    /* ===== HERO ===== */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 80px 24px 60px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(249,112,102,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .hero-badge svg { width:14px; height:14px; }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    /* ===== LAYOUT ===== */
+    .container { max-width: 780px; margin: 0 auto; padding: 0 24px; }
+    .main-content { padding: 48px 0 80px; }
+
+    /* ===== SECTION ===== */
+    .section { margin-bottom: 48px; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .section-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .section-number.coral { background: var(--accent-soft); color: var(--accent); }
+    .section-number.green { background: var(--green-soft); color: var(--green); }
+    .section-number.blue  { background: var(--blue-soft); color: var(--blue); }
+    .section-number.amber { background: var(--amber-soft); color: var(--amber); }
+    .section-number.purple { background: var(--purple-soft); color: var(--purple); }
+    .section-header h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+    .card + .card { margin-top: 16px; }
+    .card p { color: var(--text-muted); font-size: 0.93rem; }
+    .card p + p { margin-top: 8px; }
+
+    /* ===== CODE BLOCK ===== */
+    .code-block {
+      position: relative;
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 16px 0;
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+    }
+    .code-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+    .copy-btn svg { width:12px; height:12px; }
+    pre {
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      color: #d4d4d8;
+    }
+    pre .comment { color: #6b7280; }
+    pre .key { color: var(--blue); }
+    pre .string { color: var(--green); }
+    pre .cmd { color: var(--amber); }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    /* ===== ALERT BOX ===== */
+    .alert {
+      display: flex;
+      gap: 12px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      margin: 16px 0;
+      line-height: 1.5;
+    }
+    .alert svg { width:18px; height:18px; flex-shrink:0; margin-top:1px; }
+    .alert.warning { background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(251,191,36,0.2); }
+    .alert.success { background: var(--green-soft); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
+    .alert.info    { background: var(--blue-soft); color: var(--blue); border: 1px solid rgba(96,165,250,0.2); }
+    .alert.danger  { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+
+    /* ===== TABS ===== */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      background: var(--bg-code);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 16px;
+      text-align: center;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { background: var(--bg-card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+    .tab-btn svg { width:16px; height:16px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ===== TABLE ===== */
+    .env-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 0.88rem;
+    }
+    .env-table th {
+      text-align: left;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.03);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .env-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .env-table td:first-child {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--blue);
+      white-space: nowrap;
+    }
+
+    /* ===== TOOL LIST ===== */
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .tool-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+    .tool-item:hover { border-color: var(--accent); color: var(--text); }
+    .tool-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ===== STEPS ===== */
+    .steps { counter-reset: step; }
+    .step {
+      position: relative;
+      padding-left: 40px;
+      padding-bottom: 24px;
+    }
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step::after {
+      content: '';
+      position: absolute;
+      left: 13px;
+      top: 32px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .step:last-child::after { display: none; }
+    .step h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .step p { color: var(--text-muted); font-size: 0.88rem; }
+
+    /* ===== FOOTER ===== */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 640px) {
+      .hero { padding: 48px 20px 40px; }
+      .tool-grid { grid-template-columns: 1fr; }
+      .tabs { flex-direction: column; }
+      pre { font-size: 11px; }
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(20px); }
+      to { opacity:1; transform:translateY(0); }
+    }
+    .section { animation: fadeUp 0.5s ease both; }
+    .section:nth-child(1) { animation-delay: 0.05s; }
+    .section:nth-child(2) { animation-delay: 0.1s; }
+    .section:nth-child(3) { animation-delay: 0.15s; }
+    .section:nth-child(4) { animation-delay: 0.2s; }
+    .section:nth-child(5) { animation-delay: 0.25s; }
+    .section:nth-child(6) { animation-delay: 0.3s; }
+  </style>
+</head>
+<body>
+
+<!-- ========== HERO ========== -->
+<header class="hero">
+  <div class="hero-badge">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    AI Together — MCP Server v2.0
+  </div>
+  <h1>Kết nối <span>AI Assistant</span><br>vào hệ thống quản lý dự án</h1>
+  <p>Hướng dẫn cài đặt MCP Server để Antigravity, Cursor, Claude Desktop hoặc bất kỳ AI assistant nào có hỗ trợ MCP kết nối vào AI Together.</p>
+</header>
+
+<!-- ========== MAIN ========== -->
+<main class="container main-content">
+
+  <!-- SECTION 1: Prerequisites -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number coral">1</div>
+      <h2>Yêu cầu trước khi cài đặt</h2>
+    </div>
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <h3>Node.js ≥ 20</h3>
+          <p>Kiểm tra: <code>node --version</code>. Cài từ <a href="https://nodejs.org" target="_blank" style="color:var(--accent)">nodejs.org</a> nếu chưa có.</p>
+        </div>
+        <div class="step">
+          <h3>Tài khoản AI Together</h3>
+          <p>Bạn cần đã có tài khoản trên hệ thống. Liên hệ Chairman nếu chưa được cấp.</p>
+        </div>
+        <div class="step">
+          <h3>API Key</h3>
+          <p>Vào <strong>Profile → API Key → Generate API Key</strong> trên giao diện web để lấy key.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: Get API Key -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number green">2</div>
+      <h2>Lấy API Key</h2>
+    </div>
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <h3>Đăng nhập vào AI Together</h3>
+          <p>Truy cập hệ thống web (VD: <code>https://ai-together.your-domain.com</code>).</p>
+        </div>
+        <div class="step">
+          <h3>Mở trang Profile</h3>
+          <p>Click vào avatar góc trên bên phải → chọn <strong>Profile</strong>.</p>
+        </div>
+        <div class="step">
+          <h3>Tạo API Key</h3>
+          <p>Tìm mục <strong>"API Key"</strong>, bấm <strong>"Generate API Key"</strong>. Sao chép key và lưu ở nơi an toàn.</p>
+        </div>
+      </div>
+      <div class="alert warning">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span><strong>Bảo mật:</strong> API Key cho phép truy cập đầy đủ vào tài khoản của bạn. Không chia sẻ công khai và không commit vào Git.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: Configuration -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number blue">3</div>
+      <h2>Cấu hình cho AI Assistant</h2>
+    </div>
+    <p style="color:var(--text-muted);font-size:0.93rem;margin-bottom:16px;">Chọn AI assistant bạn đang sử dụng:</p>
+
+    <!-- Tabs -->
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" onclick="showTab('antigravity')" role="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Antigravity
+      </button>
+      <button class="tab-btn" onclick="showTab('cursor')" role="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Cursor
+      </button>
+      <button class="tab-btn" onclick="showTab('claude')" role="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Claude Desktop
+      </button>
+      <button class="tab-btn" onclick="showTab('vscode')" role="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
+        VS Code
+      </button>
+    </div>
+
+    <!-- Antigravity Tab -->
+    <div id="tab-antigravity" class="tab-content active">
+      <div class="card">
+        <p>Mở file <code>.gemini/settings.json</code> tại thư mục project (hoặc home directory) và thêm:</p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-label">.gemini/settings.json</span>
+            <button class="copy-btn" onclick="copyCode(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+<pre>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"libe-aios"</span>: {
+      <span class="key">"command"</span>: <span class="string">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="string">"tsx"</span>, <span class="string">"src/mcp/server.ts"</span>],
+      <span class="key">"cwd"</span>: <span class="string">"/đường-dẫn-tới/libe-aios"</span>,
+      <span class="key">"env"</span>: {
+        <span class="key">"LIBE_API_URL"</span>: <span class="string">"https://ai-together.your-domain.com"</span>,
+        <span class="key">"LIBE_API_KEY"</span>: <span class="string">"your-api-key-here"</span>
+      }
+    }
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cursor Tab -->
+    <div id="tab-cursor" class="tab-content">
+      <div class="card">
+        <p>Mở file <code>.cursor/mcp.json</code> tại thư mục project và thêm:</p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-label">.cursor/mcp.json</span>
+            <button class="copy-btn" onclick="copyCode(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+<pre>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"libe-aios"</span>: {
+      <span class="key">"command"</span>: <span class="string">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="string">"tsx"</span>, <span class="string">"src/mcp/server.ts"</span>],
+      <span class="key">"cwd"</span>: <span class="string">"/đường-dẫn-tới/libe-aios"</span>,
+      <span class="key">"env"</span>: {
+        <span class="key">"LIBE_API_URL"</span>: <span class="string">"https://ai-together.your-domain.com"</span>,
+        <span class="key">"LIBE_API_KEY"</span>: <span class="string">"your-api-key-here"</span>
+      }
+    }
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Claude Desktop Tab -->
+    <div id="tab-claude" class="tab-content">
+      <div class="card">
+        <p>Mở <strong>Claude Desktop → Settings → Developer → Edit Config</strong>, hoặc chỉnh sửa trực tiếp file config:</p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-label">~/Library/Application Support/Claude/claude_desktop_config.json</span>
+            <button class="copy-btn" onclick="copyCode(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+<pre>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"libe-aios"</span>: {
+      <span class="key">"command"</span>: <span class="string">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="string">"tsx"</span>, <span class="string">"src/mcp/server.ts"</span>],
+      <span class="key">"cwd"</span>: <span class="string">"/đường-dẫn-tới/libe-aios"</span>,
+      <span class="key">"env"</span>: {
+        <span class="key">"LIBE_API_URL"</span>: <span class="string">"https://ai-together.your-domain.com"</span>,
+        <span class="key">"LIBE_API_KEY"</span>: <span class="string">"your-api-key-here"</span>
+      }
+    }
+  }
+}</pre>
+        </div>
+        <div class="alert info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+          <span><strong>macOS:</strong> <code style="border:none;background:transparent;color:var(--blue);padding:0">~/Library/Application Support/Claude/</code><br>
+          <strong>Windows:</strong> <code style="border:none;background:transparent;color:var(--blue);padding:0">%APPDATA%\Claude\</code>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- VS Code Tab -->
+    <div id="tab-vscode" class="tab-content">
+      <div class="card">
+        <p>Thêm vào <code>.vscode/settings.json</code> trong project:</p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-label">.vscode/settings.json</span>
+            <button class="copy-btn" onclick="copyCode(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy
+            </button>
+          </div>
+<pre>{
+  <span class="key">"mcp"</span>: {
+    <span class="key">"servers"</span>: {
+      <span class="key">"libe-aios"</span>: {
+        <span class="key">"command"</span>: <span class="string">"npx"</span>,
+        <span class="key">"args"</span>: [<span class="string">"tsx"</span>, <span class="string">"src/mcp/server.ts"</span>],
+        <span class="key">"cwd"</span>: <span class="string">"/đường-dẫn-tới/libe-aios"</span>,
+        <span class="key">"env"</span>: {
+          <span class="key">"LIBE_API_URL"</span>: <span class="string">"https://ai-together.your-domain.com"</span>,
+          <span class="key">"LIBE_API_KEY"</span>: <span class="string">"your-api-key-here"</span>
+        }
+      }
+    }
+  }
+}</pre>
+        </div>
+        <div class="alert info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+          <span>VS Code Copilot Chat (với MCP support) sẽ tự động phát hiện server từ config này.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 4: Environment Variables -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number amber">4</div>
+      <h2>Biến môi trường</h2>
+    </div>
+    <div class="card">
+      <table class="env-table">
+        <thead>
+          <tr>
+            <th>Biến</th>
+            <th>Mô tả</th>
+            <th>Ví dụ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>LIBE_API_URL</td>
+            <td style="color:var(--text-muted)">URL của hệ thống AI Together (bao gồm protocol, không có trailing slash)</td>
+            <td style="color:var(--text-muted)"><code>https://ai-together.libe.net</code></td>
+          </tr>
+          <tr>
+            <td>LIBE_API_KEY</td>
+            <td style="color:var(--text-muted)">API Key cá nhân của bạn (lấy từ Profile)</td>
+            <td style="color:var(--text-muted)"><code>ak_xxxxxxxx...</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="alert danger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4h.01"/></svg>
+        <span><strong>KHÔNG commit API Key vào Git!</strong> Thêm file config MCP vào <code style="border:none;background:transparent;color:#f87171;padding:0">.gitignore</code> nếu chứa key trực tiếp.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 5: Tools Available -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number purple">5</div>
+      <h2>Danh sách Tools khả dụng</h2>
+    </div>
+    <div class="card">
+      <p style="margin-bottom:16px">Sau khi kết nối, AI assistant sẽ có quyền truy cập 40+ tools sau:</p>
+
+      <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:var(--accent);margin-bottom:8px;">📁 Projects</h4>
+      <div class="tool-grid">
+        <div class="tool-item"><div class="tool-dot" style="background:var(--accent)"></div>get_projects</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--accent)"></div>get_project</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--accent)"></div>create_project</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--accent)"></div>update_project</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--accent)"></div>delete_project</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--accent)"></div>add_project_member</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--accent)"></div>remove_project_member</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--accent)"></div>sync_github_commits</div>
+      </div>
+
+      <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:var(--blue);margin:16px 0 8px;">📦 Modules</h4>
+      <div class="tool-grid">
+        <div class="tool-item"><div class="tool-dot" style="background:var(--blue)"></div>get_modules</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--blue)"></div>get_my_modules</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--blue)"></div>get_module</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--blue)"></div>create_module</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--blue)"></div>update_module</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--blue)"></div>update_module_status</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--blue)"></div>delete_module</div>
+      </div>
+
+      <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:var(--green);margin:16px 0 8px;">✅ Tasks</h4>
+      <div class="tool-grid">
+        <div class="tool-item"><div class="tool-dot" style="background:var(--green)"></div>get_tasks</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--green)"></div>get_my_tasks</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--green)"></div>create_task</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--green)"></div>update_task</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--green)"></div>update_task_status</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--green)"></div>delete_task</div>
+      </div>
+
+      <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:var(--amber);margin:16px 0 8px;">💬 Comments & Documents & Chat</h4>
+      <div class="tool-grid">
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>get_comments</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>add_comment</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>delete_comment</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>list_documents</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>attach_link</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>upload_document</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>delete_document</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>list_conversations</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>read_chat_messages</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>send_chat_message</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--amber)"></div>search_chat</div>
+      </div>
+
+      <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:var(--purple);margin:16px 0 8px;">📊 Dashboard, Reviews & Users</h4>
+      <div class="tool-grid">
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>get_dashboard</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>get_leaderboard</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>get_my_rank</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>get_active_projects</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>get_project_progress</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>submit_review</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>list_reviews</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>get_latest_review</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>get_notifications</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>mark_notification_read</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>get_users</div>
+        <div class="tool-item"><div class="tool-dot" style="background:var(--purple)"></div>get_me</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 6: Verify -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number green">6</div>
+      <h2>Kiểm tra kết nối</h2>
+    </div>
+    <div class="card">
+      <p>Sau khi cấu hình xong, mở AI assistant và thử hỏi:</p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-label">Thử nghiệm</span>
+        </div>
+<pre><span class="comment"># Hỏi AI assistant của bạn:</span>
+<span class="string">"Liệt kê tất cả các dự án trong hệ thống AI Together"</span>
+
+<span class="comment"># Hoặc:</span>
+<span class="string">"Cho tôi xem các module được giao cho tôi"</span>
+
+<span class="comment"># Hoặc:</span>
+<span class="string">"Tạo 1 task mới trong module MOD-001 với tiêu đề 'Fix login bug'"</span></pre>
+      </div>
+
+      <div class="alert success">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span><strong>Thành công!</strong> Nếu AI assistant trả về danh sách project hoặc module, MCP đã được kết nối đúng.</span>
+      </div>
+
+      <p style="margin-top:12px"><strong>Nếu gặp lỗi, kiểm tra:</strong></p>
+      <ul style="padding-left:20px;color:var(--text-muted);font-size:0.88rem;margin-top:8px;list-style:disc;">
+        <li>Đường dẫn <code>cwd</code> trỏ đúng đến thư mục <code>libe-aios</code></li>
+        <li><code>LIBE_API_URL</code> chính xác (bao gồm <code>https://</code>)</li>
+        <li><code>LIBE_API_KEY</code> hợp lệ (chưa bị regenerate)</li>
+        <li>Node.js phiên bản ≥ 20 đã cài đặt</li>
+        <li>Server AI Together đang chạy và có thể truy cập</li>
+      </ul>
+    </div>
+  </div>
+
+</main>
+
+<!-- ========== FOOTER ========== -->
+<footer>
+  <p>AI Together — MCP Server v2.0 &middot; Powered by <a href="https://modelcontextprotocol.io" target="_blank">Model Context Protocol</a></p>
+  <p style="margin-top:4px">Liên hệ Chairman nếu cần hỗ trợ thêm.</p>
+</footer>
+
+<!-- ========== SCRIPTS ========== -->
+<script>
+  function showTab(id) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    const text = pre.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.classList.add('copied');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy';
+      }, 2000);
+    });
+  }
+</script>
+</body>
+</html>

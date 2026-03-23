@@ -165,7 +165,7 @@ function EditModuleDialog({
   open,
   onOpenChange,
 }: {
-  module: any;
+  module: { id: string; title: string; description?: string | null; priority?: string | null; deadline?: Date | string | null };
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -203,7 +203,7 @@ function EditModuleDialog({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-foreground">Priority</label>
-              <Select value={priority} onValueChange={setPriority}>
+              <Select value={priority} onValueChange={(val) => setPriority(val ?? "medium")}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
@@ -280,7 +280,7 @@ export default function ModuleDetailPage({
   });
 
   // Permission check: admin/chairman/creator
-  const userRole = (session?.user as any)?.role || "user";
+  const userRole = (session?.user as { role?: string })?.role || "user";
   const isAdmin = userRole === "admin" || userRole === "chairman";
   const isCreator = module?.createdBy === session?.user?.id;
   const isAssignee = module?.assigneeId === session?.user?.id;
@@ -420,7 +420,7 @@ export default function ModuleDetailPage({
                            {project.chairman.name} <span className="text-xs text-muted-foreground ml-1">(Chairman)</span>
                          </SelectItem>
                       )}
-                      {project?.members?.map((m: any) => (
+                      {project?.members?.map((m: { user: { id: string; name: string } }) => (
                         <SelectItem key={m.user.id} value={m.user.id}>
                           {m.user.name}
                         </SelectItem>

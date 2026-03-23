@@ -11,6 +11,7 @@ export const projectsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     return await ctx.db.query.projects.findMany({
       orderBy: (projects, { desc }) => [desc(projects.createdAt)],
+      limit: 100,
       with: {
         chairman: {
           columns: { id: true, name: true, email: true, role: true },
@@ -47,9 +48,9 @@ export const projectsRouter = router({
   create: protectedProcedure
     .input(
       z.object({
-        title: z.string().min(1),
-        description: z.string().optional(),
-        scoringRubric: z.string().optional(),
+        title: z.string().min(1).max(200),
+        description: z.string().max(10000).optional(),
+        scoringRubric: z.string().max(10000).optional(),
         deadline: z.string().optional(),
         managerId: z.string().optional(), // Project Manager — defaults to system chairman
       })
@@ -95,6 +96,43 @@ export const projectsRouter = router({
       }));
       if (memberValues.length > 0) {
         await ctx.db.insert(projectMembers).values(memberValues).onConflictDoNothing();
+      }
+
+      // Auto-create project group conversation
+      try {
+        const { conversations, conversationParticipants, messages } = await import("@drizzle/schema/chat");
+        const { chatEmitter } = await import("@/lib/events");
+        const convId = crypto.randomUUID();
+        await ctx.db.insert(conversations).values({
+          id: convId,
+          type: "project",
+          title: `📁 ${input.title}`,
+          projectId: newId,
+          createdBy: ctx.user.id,
+        });
+        // Add all members as participants
+        const participantValues = Array.from(memberIds).map((uid) => ({
+          id: crypto.randomUUID(),
+          conversationId: convId,
+          userId: uid,
+          role: uid === ctx.user.id ? "admin" as const : "member" as const,
+        }));
+        if (participantValues.length > 0) {
+          await ctx.db.insert(conversationParticipants).values(participantValues);
+        }
+        // System message
+        await ctx.db.insert(messages).values({
+          id: crypto.randomUUID(),
+          conversationId: convId,
+          senderId: null,
+          content: `Nhóm chat đã được tạo tự động cho dự án "${input.title}"`,
+          messageType: "system",
+        });
+        // Emit to notify participants
+        chatEmitter.emit("conv_joined", { conversationId: convId });
+      } catch (err) {
+        console.error("[createProject] Failed to create project conversation:", err);
+        // Don't fail the project creation if chat creation fails
       }
 
       return project;

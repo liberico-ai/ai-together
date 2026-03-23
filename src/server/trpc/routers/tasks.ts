@@ -6,7 +6,7 @@ import { notifications } from "@drizzle/schema/notifications";
 import { eq } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
 import { notificationEmitter } from "@/lib/events";
-import { recordScore, recordActivity, SCORE_POINTS } from "@/lib/scoring";
+import { recordScore, recordActivity, SCORE_POINTS, getTaskScoreType } from "@/lib/scoring";
 import { escapeHtml } from "@/lib/escape-html";
 
 /** Check if user can manage (edit/delete) a task */
@@ -20,22 +20,6 @@ function canManageTask(
   return false;
 }
 
-/** Determine score type based on deadline */
-function getTaskScoreType(deadline: Date | null): {
-  eventType: string;
-  points: number;
-} {
-  if (!deadline) {
-    return { eventType: "task_done", points: SCORE_POINTS.MODULE_DONE };
-  }
-  const now = new Date();
-  if (now < deadline) {
-    return { eventType: "task_early", points: SCORE_POINTS.MODULE_EARLY };
-  } else {
-    return { eventType: "task_late", points: SCORE_POINTS.MODULE_LATE };
-  }
-}
-
 export const tasksRouter = router({
   // List tasks by module
   listByModule: protectedProcedure
@@ -44,6 +28,7 @@ export const tasksRouter = router({
       return await ctx.db.query.tasks.findMany({
         where: eq(tasks.moduleId, input.moduleId),
         orderBy: (tasks, { asc }) => [asc(tasks.createdAt)],
+        limit: 200,
         with: {
           assignee: {
             columns: { id: true, name: true, email: true, image: true },
@@ -102,8 +87,8 @@ export const tasksRouter = router({
     .input(
       z.object({
         moduleId: z.string(),
-        title: z.string().min(1),
-        description: z.string().optional(),
+        title: z.string().min(1).max(200),
+        description: z.string().max(10000).optional(),
         assigneeId: z.string().optional(),
         priority: z.enum(priorityEnum.enumValues).optional(),
         deadline: z.string().optional(),

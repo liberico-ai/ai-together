@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
   const user = await authenticate(req);
   if (!user) return unauthorized();
 
-  let body: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let body: Record<string, any>;
   try {
     body = await req.json();
   } catch {
@@ -126,12 +127,46 @@ export async function POST(req: NextRequest) {
         if (memberValues.length > 0) {
           await db.insert(projectMembers).values(memberValues).onConflictDoNothing();
         }
+
+        // Auto-create project group conversation
+        try {
+          const { conversations, conversationParticipants, messages: chatMessages } = await import("@drizzle/schema/chat");
+          const { chatEmitter } = await import("@/lib/events");
+          const convId = crypto.randomUUID();
+          await db.insert(conversations).values({
+            id: convId,
+            type: "project",
+            title: `📁 ${params.title}`,
+            projectId: newId,
+            createdBy: user.id,
+          });
+          const participantValues = Array.from(memberIds).map((uid) => ({
+            id: crypto.randomUUID(),
+            conversationId: convId,
+            userId: uid,
+            role: uid === user.id ? "admin" as const : "member" as const,
+          }));
+          if (participantValues.length > 0) {
+            await db.insert(conversationParticipants).values(participantValues);
+          }
+          await db.insert(chatMessages).values({
+            id: crypto.randomUUID(),
+            conversationId: convId,
+            senderId: null,
+            content: `Nhóm chat đã được tạo tự động cho dự án "${params.title}"`,
+            messageType: "system",
+          });
+          chatEmitter.emit("conv_joined", { conversationId: convId });
+        } catch (err) {
+          console.error("[MCP create_project] Chat conv creation failed:", err);
+        }
+
         return ok(project);
       }
 
       case "update_project": {
         if (!params.projectId) return badRequest("Missing projectId");
-        const updates: any = { updatedAt: new Date() };
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
         if (params.title) updates.title = params.title;
         if (params.description !== undefined) updates.description = params.description;
         if (params.status) updates.status = params.status;
@@ -280,7 +315,7 @@ export async function POST(req: NextRequest) {
 
       case "update_module": {
         if (!params.moduleId) return badRequest("Missing moduleId");
-        const updates: any = { updatedAt: new Date() };
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
         if (params.title) updates.title = params.title;
         if (params.description !== undefined) updates.description = params.description;
         if (params.assigneeId !== undefined) updates.assigneeId = params.assigneeId || null;
@@ -362,7 +397,7 @@ export async function POST(req: NextRequest) {
 
       case "update_task": {
         if (!params.taskId) return badRequest("Missing taskId");
-        const updates: any = { updatedAt: new Date() };
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
         if (params.title) updates.title = params.title;
         if (params.description !== undefined) updates.description = params.description;
         if (params.assigneeId !== undefined) updates.assigneeId = params.assigneeId || null;
@@ -824,11 +859,161 @@ export async function POST(req: NextRequest) {
       }
 
       // =================
+      // CHAT
+      // =================
+      case "list_conversations": {
+        const { conversations, conversationParticipants, messages } = await import("@drizzle/schema/chat");
+        // Get user's conversation IDs
+        const myConvs = await db.query.conversationParticipants.findMany({
+          where: eq(conversationParticipants.userId, user.id),
+          columns: { conversationId: true, lastReadAt: true },
+        });
+        if (myConvs.length === 0) return ok([]);
+
+        const convIds = myConvs.map(c => c.conversationId);
+        const convData = await db.query.conversations.findMany({
+          where: inArray(conversations.id, convIds),
+          orderBy: (c, { desc }) => [desc(c.lastMessageAt)],
+        });
+
+        // Enrich with participants and unread counts
+        const result = await Promise.all(convData.map(async (conv) => {
+          const participants = await db.query.conversationParticipants.findMany({
+            where: eq(conversationParticipants.conversationId, conv.id),
+            with: { user: { columns: { id: true, name: true } } },
+          });
+          const myEntry = myConvs.find(c => c.conversationId === conv.id);
+          const unreadConditions = [eq(messages.conversationId, conv.id), eq(messages.isDeleted, false)];
+          if (myEntry?.lastReadAt) {
+            const { gt } = await import("drizzle-orm");
+            unreadConditions.push(gt(messages.createdAt, myEntry.lastReadAt));
+          }
+          const [unreadResult] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(...unreadConditions));
+          return {
+            id: conv.id,
+            type: conv.type,
+            title: conv.title,
+            lastMessageAt: conv.lastMessageAt,
+            lastMessagePreview: conv.lastMessagePreview,
+            participants: participants.map(p => ({ id: p.user.id, name: p.user.name, role: p.role })),
+            unreadCount: Number(unreadResult?.count ?? 0),
+          };
+        }));
+        return ok(result);
+      }
+
+      case "read_chat_messages": {
+        if (!params.conversationId) return badRequest("Missing conversationId");
+        const { conversationParticipants, messages } = await import("@drizzle/schema/chat");
+        // Verify participant
+        const isParticipant = await db.query.conversationParticipants.findFirst({
+          where: and(eq(conversationParticipants.conversationId, params.conversationId), eq(conversationParticipants.userId, user.id)),
+        });
+        if (!isParticipant) return forbidden("Not a participant of this conversation");
+
+        const limit = Math.min(params.limit || 20, 50);
+        const msgs = await db.query.messages.findMany({
+          where: and(eq(messages.conversationId, params.conversationId), eq(messages.isDeleted, false)),
+          orderBy: (m, { desc }) => [desc(m.createdAt)],
+          limit,
+          with: {
+            sender: { columns: { id: true, name: true } },
+          },
+        });
+        // Mark as read
+        await db.update(conversationParticipants).set({ lastReadAt: new Date() }).where(
+          and(eq(conversationParticipants.conversationId, params.conversationId), eq(conversationParticipants.userId, user.id))
+        );
+        return ok(msgs.map(m => ({
+          id: m.id,
+          content: m.content,
+          messageType: m.messageType,
+          sender: m.sender,
+          createdAt: m.createdAt,
+          isEdited: m.isEdited,
+        })));
+      }
+
+      case "send_chat_message": {
+        if (!params.conversationId || !params.content) return badRequest("Missing conversationId or content");
+        const { conversationParticipants, messages, conversations } = await import("@drizzle/schema/chat");
+        const { chatEmitter } = await import("@/lib/events");
+        // Verify participant
+        const isParticipant = await db.query.conversationParticipants.findFirst({
+          where: and(eq(conversationParticipants.conversationId, params.conversationId), eq(conversationParticipants.userId, user.id)),
+        });
+        if (!isParticipant) return forbidden("Not a participant of this conversation");
+
+        // Sanitize content
+        const content = params.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const preview = content.length > 100 ? content.slice(0, 97) + "..." : content;
+
+        const [msg] = await db.insert(messages).values({
+          id: crypto.randomUUID(),
+          conversationId: params.conversationId,
+          senderId: user.id,
+          content,
+          messageType: "text",
+        }).returning();
+
+        // Update conversation cache
+        await db.update(conversations).set({
+          lastMessageAt: new Date(),
+          lastMessagePreview: preview,
+          updatedAt: new Date(),
+        }).where(eq(conversations.id, params.conversationId));
+
+        // Emit SSE event
+        chatEmitter.emit("new_message", {
+          conversationId: params.conversationId,
+          messageId: msg.id,
+          senderId: user.id,
+          senderName: user.name,
+          preview,
+        });
+
+        return ok({ messageId: msg.id, content, createdAt: msg.createdAt });
+      }
+
+      case "search_chat": {
+        if (!params.conversationId || !params.query) return badRequest("Missing conversationId or query");
+        const { conversationParticipants, messages } = await import("@drizzle/schema/chat");
+        const { ilike } = await import("drizzle-orm");
+        // Verify participant
+        const isParticipant = await db.query.conversationParticipants.findFirst({
+          where: and(eq(conversationParticipants.conversationId, params.conversationId), eq(conversationParticipants.userId, user.id)),
+        });
+        if (!isParticipant) return forbidden("Not a participant of this conversation");
+
+        const escapedQuery = params.query.replace(/%/g, '\\%').replace(/_/g, '\\_');
+
+        const results = await db.query.messages.findMany({
+          where: and(
+            eq(messages.conversationId, params.conversationId),
+            eq(messages.isDeleted, false),
+            ilike(messages.content, `%${escapedQuery}%`)
+          ),
+          orderBy: (m, { desc }) => [desc(m.createdAt)],
+          limit: 20,
+          with: {
+            sender: { columns: { id: true, name: true } },
+          },
+        });
+        return ok(results.map(m => ({
+          id: m.id,
+          content: m.content,
+          sender: m.sender,
+          createdAt: m.createdAt,
+        })));
+      }
+
+      // =================
       default:
-        return badRequest(`Unknown action: ${action}. Use get_projects, get_modules, create_module, add_comment, upload_document, get_leaderboard, etc.`);
+        return badRequest(`Unknown action: ${action}. Use get_projects, get_modules, create_module, add_comment, upload_document, get_leaderboard, list_conversations, send_chat_message, etc.`);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`[MCP API] Error in action "${action}":`, error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

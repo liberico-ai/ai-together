@@ -15,6 +15,10 @@ export const githubCommits = pgTable("github_commits", {
   authorUserId: text("author_user_id").references(() => users.id),
   branch: text("branch"),
   committedAt: timestamp("committed_at").notNull(),
+  // CI/CD status tracking
+  ciStatus: text("ci_status"),          // "pending" | "success" | "failure" | "error" | null
+  ciUrl: text("ci_url"),                // Link to CI details page
+  ciUpdatedAt: timestamp("ci_updated_at"),
 }, (table) => [
   unique("github_commits_sha_project_unique").on(table.sha, table.projectId),
   index("idx_github_commits_project_committed").on(table.projectId, table.committedAt),

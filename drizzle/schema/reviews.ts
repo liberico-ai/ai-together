@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const reviews = pgTable("reviews", {
@@ -14,4 +14,6 @@ export const reviews = pgTable("reviews", {
   note: text("note"),
   metaData: text("meta_data"), // To store JSON string of Rubric Scores
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_reviews_target").on(table.targetType, table.targetId),
+]);

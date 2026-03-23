@@ -47,4 +47,5 @@ export const userActivityLog = pgTable("user_activity_log", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   unique("uq_user_activity_date").on(table.userId, table.activityDate),
+  index("idx_activity_log_user").on(table.userId),
 ]);

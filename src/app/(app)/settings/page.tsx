@@ -101,12 +101,15 @@ export default function SettingsPage() {
         <CardContent>
           <div className="space-y-3">
             {[
-              { event: "task_done (Low)", pts: 30, desc: "Task approved by Chairman" },
-              { event: "task_done (Medium)", pts: 50, desc: "Task approved by Chairman" },
-              { event: "task_done (High)", pts: 70, desc: "Task approved by Chairman" },
-              { event: "task_done (Critical)", pts: 100, desc: "Task approved by Chairman" },
-              { event: "comment", pts: 5, desc: "Leaving a comment on module/task" },
-              { event: "commit", pts: 15, desc: "Pushing a commit (via GitHub webhook)" },
+              { event: "module_early", pts: 15, desc: "Module done before deadline" },
+              { event: "module_done", pts: 10, desc: "Module done on time / no deadline" },
+              { event: "module_late", pts: 5, desc: "Module done after deadline" },
+              { event: "task_early", pts: 15, desc: "Task done before deadline" },
+              { event: "task_done", pts: 10, desc: "Task done on time / no deadline" },
+              { event: "task_late", pts: 5, desc: "Task done after deadline" },
+              { event: "comment", pts: 1, desc: "Leaving a comment on module/task" },
+              { event: "commit", pts: 2, desc: "Pushing a commit (via GitHub webhook)" },
+              { event: "doc_approved", pts: 3, desc: "Document approved" },
             ].map(item => (
               <div key={item.event} className="flex items-center justify-between py-2 px-3 rounded-lg bg-stone-50 dark:bg-stone-900/30">
                 <div>

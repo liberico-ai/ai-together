@@ -3,6 +3,7 @@ import { router, protectedProcedure } from "../index";
 import { documents } from "@drizzle/schema/documents";
 import { modules } from "@drizzle/schema/modules";
 import { tasks } from "@drizzle/schema/tasks";
+import { projectMembers } from "@drizzle/schema/projects";
 import { eq, and, inArray } from "drizzle-orm";
 import { s3Client, MINIO_BUCKET, MINIO_PUBLIC_URL, getPublicUrl, ensureBucket } from "@/lib/minio";
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
@@ -53,6 +54,7 @@ export const documentsRouter = router({
         title: input.title,
         type: "file",
         url: url,
+        s3Key: input.s3Key,
         fileSize: input.fileSize,
         targetType: input.targetType,
         targetId: input.targetId,
@@ -89,6 +91,35 @@ export const documentsRouter = router({
       targetId: z.string(),
     }))
     .query(async ({ ctx, input }) => {
+      // H-03: Verify user has access to this target
+      if (input.targetType === "project") {
+        const isMember = await ctx.db.query.projectMembers.findFirst({
+          where: and(
+            eq(projectMembers.projectId, input.targetId),
+            eq(projectMembers.userId, ctx.user.id)
+          ),
+        });
+        if (!isMember && ctx.user.role !== "admin" && ctx.user.role !== "chairman") {
+          throw new Error("No access to this project's documents");
+        }
+      } else if (input.targetType === "module") {
+        const mod = await ctx.db.query.modules.findFirst({
+          where: eq(modules.id, input.targetId),
+          columns: { projectId: true },
+        });
+        if (mod) {
+          const isMember = await ctx.db.query.projectMembers.findFirst({
+            where: and(
+              eq(projectMembers.projectId, mod.projectId),
+              eq(projectMembers.userId, ctx.user.id)
+            ),
+          });
+          if (!isMember && ctx.user.role !== "admin" && ctx.user.role !== "chairman") {
+            throw new Error("No access to this module's documents");
+          }
+        }
+      }
+
       const targetIds = [input.targetId];
       const targetTypes = [input.targetType];
 
@@ -137,12 +168,13 @@ export const documentsRouter = router({
 
       // If it's a file, delete from S3
       if (doc.type === "file") {
-        const s3Key = doc.url.split(`${MINIO_PUBLIC_URL}/`)[1];
+        // Prefer stored s3Key; fallback to URL extraction for legacy docs
+        const s3Key = doc.s3Key ?? doc.url.split(`${MINIO_PUBLIC_URL}/`)[1];
         if (s3Key) {
            await s3Client.send(new DeleteObjectCommand({
              Bucket: MINIO_BUCKET,
              Key: s3Key,
-           })).catch(console.error); // Do not throw if S3 delete fails (e.g already deleted)
+           })).catch(console.error);
         }
       }
 

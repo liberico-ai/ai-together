@@ -8,6 +8,7 @@ import { reviewsRouter } from "./reviews";
 import { dashboardRouter } from "./dashboard";
 import { notificationsRouter } from "./notifications";
 import { usersRouter } from "./users";
+import { chatRouter } from "./chat";
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -19,6 +20,7 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   notifications: notificationsRouter,
   users: usersRouter,
+  chat: chatRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -3,7 +3,8 @@ import { router, protectedProcedure, chairmanProcedure } from "../index";
 import { modules } from "@drizzle/schema/modules";
 import { priorityEnum } from "@drizzle/schema/tasks";
 import { notifications } from "@drizzle/schema/notifications";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { projectMembers } from "@drizzle/schema/projects";
 import { nextId } from "@/lib/id-gen";
 import { notificationEmitter } from "@/lib/events";
 import { recordScore, recordActivity, getModuleScoreType } from "@/lib/scoring";
@@ -78,14 +79,25 @@ export const modulesRouter = router({
     .input(
       z.object({
         projectId: z.string(),
-        title: z.string().min(1),
-        description: z.string().optional(),
+        title: z.string().min(1).max(200),
+        description: z.string().max(10000).optional(),
         assigneeId: z.string().optional(),
         priority: z.enum(priorityEnum.enumValues).optional(),
         deadline: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // H-02: Verify user is a project member
+      const isMember = await ctx.db.query.projectMembers.findFirst({
+        where: and(
+          eq(projectMembers.projectId, input.projectId),
+          eq(projectMembers.userId, ctx.user.id)
+        ),
+      });
+      if (!isMember && ctx.user.role !== "admin" && ctx.user.role !== "chairman") {
+        throw new Error("You must be a project member to create modules");
+      }
+
       const newId = await nextId("MOD", ctx.db);
 
       const [newModule] = await ctx.db
@@ -166,40 +178,42 @@ export const modulesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.db.query.modules.findFirst({
-        where: eq(modules.id, input.id),
-        columns: { assigneeId: true, createdBy: true, deadline: true },
-      });
-      if (!existing) throw new Error("Module not found");
-
-      // Allow: assignee, admin, chairman, creator
-      const isAssignee = existing.assigneeId === ctx.user.id;
-      const isManager = canManageModule(ctx.user.role as string, ctx.user.id, existing);
-      if (!isAssignee && !isManager) {
-        throw new Error("You don't have permission to change this module's status");
-      }
-
-      const [updated] = await ctx.db
-        .update(modules)
-        .set({ status: input.status, updatedAt: new Date() })
-        .where(eq(modules.id, input.id))
-        .returning();
-
-      // Scoring when module is completed
-      if (input.status === "done" && updated.assigneeId) {
-        const { eventType, points } = getModuleScoreType(updated.deadline);
-        await recordScore(ctx.db, {
-          userId: updated.assigneeId,
-          eventType,
-          points,
-          refType: "module",
-          refId: updated.id,
+      return await ctx.db.transaction(async (tx) => {
+        const existing = await tx.query.modules.findFirst({
+          where: eq(modules.id, input.id),
+          columns: { assigneeId: true, createdBy: true, deadline: true },
         });
-      }
+        if (!existing) throw new Error("Module not found");
 
-      await recordActivity(ctx.db, ctx.user.id);
+        // Allow: assignee, admin, chairman, creator
+        const isAssignee = existing.assigneeId === ctx.user.id;
+        const isManager = canManageModule(ctx.user.role as string, ctx.user.id, existing);
+        if (!isAssignee && !isManager) {
+          throw new Error("You don't have permission to change this module's status");
+        }
 
-      return updated;
+        const [updated] = await tx
+          .update(modules)
+          .set({ status: input.status, updatedAt: new Date() })
+          .where(eq(modules.id, input.id))
+          .returning();
+
+        // Scoring when module is completed (atomic with status update)
+        if (input.status === "done" && updated.assigneeId) {
+          const { eventType, points } = getModuleScoreType(updated.deadline);
+          await recordScore(tx, {
+            userId: updated.assigneeId,
+            eventType,
+            points,
+            refType: "module",
+            refId: updated.id,
+          });
+        }
+
+        await recordActivity(tx, ctx.user.id);
+
+        return updated;
+      });
     }),
 
   // Update checklist

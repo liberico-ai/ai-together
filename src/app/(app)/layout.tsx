@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/server/db";
 import { users } from "@drizzle/schema/users";
 import { eq } from "drizzle-orm";
+import { ChatProvider } from "@/components/chat/chat-provider";
+import { ChatWidget } from "@/components/chat/chat-widget";
 
 export default async function AppLayout({
   children,
@@ -36,6 +38,10 @@ export default async function AppLayout({
         <Header />
         <main className="p-6">{children}</main>
       </div>
+      <ChatProvider>
+        <ChatWidget />
+      </ChatProvider>
     </div>
   );
 }
+

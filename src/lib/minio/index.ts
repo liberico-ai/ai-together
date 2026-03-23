@@ -42,8 +42,9 @@ export function ensureBucket(): Promise<void> {
       try {
         await s3Client.send(new HeadBucketCommand({ Bucket: MINIO_BUCKET }));
         console.log(`[MinIO] Bucket "${MINIO_BUCKET}" exists.`);
-      } catch (err: any) {
-        if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
+      } catch (err: unknown) {
+        const s3Err = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+        if (s3Err.name === "NotFound" || s3Err.$metadata?.httpStatusCode === 404) {
           console.log(`[MinIO] Bucket "${MINIO_BUCKET}" not found, creating...`);
           await s3Client.send(new CreateBucketCommand({ Bucket: MINIO_BUCKET }));
           console.log(`[MinIO] Bucket "${MINIO_BUCKET}" created.`);

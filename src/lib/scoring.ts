@@ -2,10 +2,13 @@ import { eq, sql, and } from "drizzle-orm";
 import { scoreEvents, userActivityLog } from "@drizzle/schema/scoring";
 import type { db as DB } from "@/server/db";
 
-type DbClient = typeof DB;
+// Accept both full db instance and PgTransaction
+type DbClient = Pick<typeof DB, 'insert' | 'update' | 'delete' | 'select' | 'query' | 'execute'>;
 
 /**
  * Record a score event for a user.
+ * Uses onConflictDoNothing to safely handle duplicate scoring attempts
+ * (e.g. module set to done twice, or scored via both updateStatus and review).
  */
 export async function recordScore(
   db: DbClient,
@@ -23,7 +26,7 @@ export async function recordScore(
     points: params.points,
     refType: params.refType ?? null,
     refId: params.refId ?? null,
-  });
+  }).onConflictDoNothing();
 
   // Also record daily activity
   await recordActivity(db, params.userId);
@@ -64,14 +67,23 @@ export async function recordActivity(db: DbClient, userId: string) {
  * - module_early:  +15 (done before deadline)
  * - module_done:   +10 (done on time / no deadline)
  * - module_late:   +5  (done after deadline)
+ * - task_early:    +15
+ * - task_done:     +10
+ * - task_late:     +5
  * - comment:       +1
  * - commit:        +2
  * - doc_approved:  +3
  */
 export const SCORE_POINTS = {
+  // Module scoring
   MODULE_EARLY: 15,
   MODULE_DONE: 10,
   MODULE_LATE: 5,
+  // Task scoring (same values but separate for flexibility)
+  TASK_EARLY: 15,
+  TASK_DONE: 10,
+  TASK_LATE: 5,
+  // Auto scoring
   COMMENT: 1,
   COMMIT: 2,
   DOC_APPROVED: 3,
@@ -93,6 +105,25 @@ export function getModuleScoreType(deadline: Date | null): {
     return { eventType: "module_early", points: SCORE_POINTS.MODULE_EARLY };
   } else {
     return { eventType: "module_late", points: SCORE_POINTS.MODULE_LATE };
+  }
+}
+
+/**
+ * Determine the score event type based on task deadline.
+ */
+export function getTaskScoreType(deadline: Date | null): {
+  eventType: string;
+  points: number;
+} {
+  if (!deadline) {
+    return { eventType: "task_done", points: SCORE_POINTS.TASK_DONE };
+  }
+
+  const now = new Date();
+  if (now < deadline) {
+    return { eventType: "task_early", points: SCORE_POINTS.TASK_EARLY };
+  } else {
+    return { eventType: "task_late", points: SCORE_POINTS.TASK_LATE };
   }
 }
 

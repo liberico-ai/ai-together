@@ -2,11 +2,46 @@
 
 import { trpc } from "@/lib/trpc/client";
 import { formatDistanceToNow } from "date-fns";
-import { GitCommit, RefreshCw, Loader2, ExternalLink } from "lucide-react";
+import { GitCommit, RefreshCw, Loader2, ExternalLink, Circle, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
+
+// CI Status badge component
+function CiStatusBadge({ status, url }: { status: string | null; url: string | null }) {
+  if (!status) return null;
+
+  const config: Record<string, { icon: typeof Circle; color: string; label: string; animate?: boolean }> = {
+    pending: { icon: Circle, color: "text-amber-500", label: "CI Running", animate: true },
+    success: { icon: CheckCircle2, color: "text-green-500", label: "CI Passed" },
+    failure: { icon: XCircle, color: "text-red-500", label: "CI Failed" },
+    error: { icon: AlertCircle, color: "text-red-400", label: "CI Error" },
+  };
+
+  const cfg = config[status] || config.error;
+  const Icon = cfg.icon;
+
+  const badge = (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded ${cfg.color}`}
+      title={cfg.label}
+    >
+      <Icon className={`w-3 h-3 ${cfg.animate ? "animate-pulse" : ""}`} />
+      {cfg.label}
+    </span>
+  );
+
+  if (url) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity">
+        {badge}
+      </a>
+    );
+  }
+
+  return badge;
+}
 
 export function CommitsTab({
   projectId,
@@ -57,6 +92,41 @@ export function CommitsTab({
     }
   }, [isLoading, commits, githubOwner, githubRepo, projectId]);
 
+  // ========================================
+  // SSE: Real-time commit & CI status updates
+  // ========================================
+  useEffect(() => {
+    if (!githubOwner || !githubRepo) return;
+
+    const es = new EventSource(`/api/sse/github?projectId=${encodeURIComponent(projectId)}`);
+
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "new_commits") {
+          // Auto-refresh commit list when new commits arrive via webhook
+          utils.projects.getCommits.invalidate({ projectId });
+        }
+
+        if (data.type === "status_update") {
+          // Auto-refresh to show updated CI status
+          utils.projects.getCommits.invalidate({ projectId });
+        }
+      } catch {
+        // Ignore parse errors (e.g. heartbeat)
+      }
+    };
+
+    es.onerror = () => {
+      // EventSource auto-reconnects on error
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [projectId, githubOwner, githubRepo, utils]);
+
   if (!githubOwner || !githubRepo) {
     return (
       <EmptyState
@@ -96,19 +166,25 @@ export function CommitsTab({
             </a>
           </h3>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => syncMutation.mutate({ projectId })}
-          disabled={syncMutation.isPending}
-        >
-          {syncMutation.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
-          {syncMutation.isPending ? "Syncing..." : "Sync Commits"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-green-500 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            Live
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncMutation.mutate({ projectId })}
+            disabled={syncMutation.isPending}
+          >
+            {syncMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            {syncMutation.isPending ? "Syncing..." : "Sync"}
+          </Button>
+        </div>
       </div>
 
       {/* Sync status message */}
@@ -137,7 +213,7 @@ export function CommitsTab({
       {!syncMutation.isPending && (!commits || commits.length === 0) && (
         <EmptyState
           title="No Commits Found"
-          description={`No commits found for ${githubOwner}/${githubRepo}. Click "Sync Commits" to fetch from GitHub or push some code.`}
+          description={`No commits found for ${githubOwner}/${githubRepo}. Click "Sync" to fetch from GitHub or push some code.`}
           icon={GitCommit}
         />
       )}
@@ -183,6 +259,13 @@ export function CommitsTab({
                     <span className="font-mono text-[10px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded">
                       {commit.branch}
                     </span>
+                  </>
+                )}
+                {/* CI Status Badge */}
+                {commit.ciStatus && (
+                  <>
+                    <span>•</span>
+                    <CiStatusBadge status={commit.ciStatus} url={commit.ciUrl} />
                   </>
                 )}
               </div>
