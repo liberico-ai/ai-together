@@ -74,13 +74,13 @@ export default function SettingsPage() {
             <div className="flex gap-2">
               <Input
                 readOnly
-                value={`${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/webhooks/github`}
+                value={`${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/github-webhook`}
                 className="font-mono text-xs bg-stone-50 dark:bg-stone-900"
               />
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/github`)}
+                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/github-webhook`)}
               >
                 Copy
               </Button>
