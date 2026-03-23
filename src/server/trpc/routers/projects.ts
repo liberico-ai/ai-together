@@ -340,8 +340,22 @@ export const projectsRouter = router({
           .insert(githubCommits)
           .values(commitValues)
           .onConflictDoNothing()
-          .returning({ id: githubCommits.id });
+          .returning({ id: githubCommits.id, authorUserId: githubCommits.authorUserId, sha: githubCommits.sha });
         inserted = result.length;
+
+        // Award points for NEW commits manually synced
+        const { recordScore, SCORE_POINTS } = await import("@/lib/scoring");
+        for (const row of result) {
+          if (row.authorUserId) {
+            await recordScore(ctx.db, {
+              userId: row.authorUserId,
+              eventType: "commit",
+              points: SCORE_POINTS.COMMIT,
+              refType: "commit",
+              refId: row.sha,
+            });
+          }
+        }
       }
 
       return { synced: inserted, total: apiCommits.length };
