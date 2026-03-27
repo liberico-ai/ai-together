@@ -7,7 +7,7 @@ import { useSession } from "@/lib/auth/client";
 import {
   Trophy, Loader2, Zap, Flame, TrendingUp, ChevronUp, Target,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const PERIODS = [
   { key: "today", label: "Today" },
@@ -133,6 +133,9 @@ export default function LeaderboardPage() {
                   {/* Avatar */}
                   <div className="relative">
                     <Avatar className={`${meta.avatarSize} ring-4 ${meta.ring} shadow-2xl transition-transform group-hover:scale-110`}>
+                      {(user.avatarUrl || user.image) ? (
+                        <AvatarImage src={user.avatarUrl || user.image || ""} alt={user.name || ""} />
+                      ) : null}
                       <AvatarFallback className={`bg-gradient-to-br ${meta.gradient} text-white font-bold ${meta.textSize}`}>
                         {user.name?.charAt(0) || "?"}
                       </AvatarFallback>
@@ -273,6 +276,9 @@ export default function LeaderboardPage() {
 
                   {/* Avatar */}
                   <Avatar className="h-12 w-12 shrink-0" style={{ boxShadow: `0 0 0 2px ${isDark ? "#44403c" : "#e7e5e4"}` }}>
+                    {(user.avatarUrl || user.image) ? (
+                      <AvatarImage src={user.avatarUrl || user.image || ""} alt={user.name || ""} />
+                    ) : null}
                     <AvatarFallback className={`text-base font-bold ${
                       rank <= 3
                         ? `bg-gradient-to-br ${PODIUM_META[rank - 1].gradient} text-white`

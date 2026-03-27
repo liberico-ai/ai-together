@@ -74,6 +74,8 @@ export const dashboardRouter = router({
           userId: users.id,
           name: users.name,
           username: users.username,
+          avatarUrl: users.avatarUrl,
+          image: users.image,
           reviewPoints: sql<number>`CAST(COALESCE(SUM(CASE WHEN ${scoreEvents.eventType} = 'module_done' OR ${scoreEvents.eventType} = 'module_early' OR ${scoreEvents.eventType} = 'module_late' OR ${scoreEvents.eventType} = 'task_done' OR ${scoreEvents.eventType} = 'task_early' OR ${scoreEvents.eventType} = 'task_late' THEN ${scoreEvents.points} ELSE 0 END), 0) AS INTEGER)`,
           autoPoints: sql<number>`CAST(COALESCE(SUM(CASE WHEN ${scoreEvents.eventType} = 'comment' OR ${scoreEvents.eventType} = 'commit' OR ${scoreEvents.eventType} = 'doc_approved' THEN ${scoreEvents.points} ELSE 0 END), 0) AS INTEGER)`,
           totalBasePoints: sql<number>`CAST(COALESCE(SUM(${scoreEvents.points}), 0) AS INTEGER)`,
@@ -85,7 +87,7 @@ export const dashboardRouter = router({
             ? and(eq(users.id, scoreEvents.userId), gte(scoreEvents.createdAt, cutoffDate))
             : eq(users.id, scoreEvents.userId)
         )
-        .groupBy(users.id, users.name, users.username)
+        .groupBy(users.id, users.name, users.username, users.avatarUrl, users.image)
         .orderBy(desc(sql`SUM(${scoreEvents.points})`));
 
       const periodDays = period === "today" ? 1 : period === "week" ? 7 : period === "month" ? 30 : 365;
@@ -117,6 +119,8 @@ export const dashboardRouter = router({
           userId: user.userId,
           name: user.name,
           username: user.username,
+          avatarUrl: user.avatarUrl,
+          image: user.image,
           reviewPoints: user.reviewPoints,
           autoPoints: user.autoPoints,
           tempoBonus: tempo.total,

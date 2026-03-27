@@ -6,6 +6,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { NotificationsBell } from "./notifications-bell";
 import { CommandSearch } from "./command-search";
 import { useSession, signOut } from "@/lib/auth/client";
+import { trpc } from "@/lib/trpc/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,9 @@ import { Badge } from "@/components/ui/badge";
 
 export function Header() {
   const { data: session } = useSession();
+  const { data: profile } = trpc.users.me.useQuery(undefined, {
+    enabled: !!session?.user,
+  });
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -27,6 +31,7 @@ export function Header() {
   };
 
   const userRole = (session?.user as any)?.role || "user";
+  const avatarUrl = profile?.avatarUrl || profile?.image;
 
   const roleBadgeClass =
     userRole === "admin"
@@ -56,10 +61,18 @@ export function Header() {
         <DropdownMenu>
           <DropdownMenuTrigger>
             <div className="flex items-center gap-2 pl-3 pr-1 py-1 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer">
-              <div className="w-8 h-8 rounded-full gradient-coral flex items-center justify-center
-                text-white text-sm font-semibold uppercase">
-                {session?.user?.name?.charAt(0) || "?"}
-              </div>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={session?.user?.name || "Avatar"}
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full gradient-coral flex items-center justify-center
+                  text-white text-sm font-semibold uppercase">
+                  {session?.user?.name?.charAt(0) || "?"}
+                </div>
+              )}
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </div>
           </DropdownMenuTrigger>
