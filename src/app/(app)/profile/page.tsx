@@ -4,12 +4,14 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { useSession } from "@/lib/auth/client";
-import { Loader2, User as UserIcon, Shield, Key, Github, Copy, Check, ExternalLink, ShieldCheck, ShieldAlert, Flame, Zap, Trophy, Lock } from "lucide-react";
+import { Loader2, User as UserIcon, Shield, Key, Github, Copy, Check, ExternalLink, ShieldCheck, ShieldAlert, Flame, Zap, Trophy, Lock, Camera, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarEditorDialog } from "@/components/profile/avatar-editor-dialog";
 
 export default function ProfilePage() {
   const utils = trpc.useUtils();
@@ -32,6 +34,8 @@ export default function ProfilePage() {
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linkSuccess, setLinkSuccess] = useState<string | null>(null);
   const [verifyMessage, setVerifyMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
+  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
+  const [isRemovingAvatar, setIsRemovingAvatar] = useState(false);
 
   // Handle GitHub verify callback messages from URL
   useEffect(() => {
@@ -107,6 +111,26 @@ export default function ProfilePage() {
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const handleAvatarSuccess = (avatarUrl: string) => {
+    utils.users.me.invalidate();
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!confirm("Remove your avatar? This will reset to the default.")) return;
+    setIsRemovingAvatar(true);
+    try {
+      const res = await fetch("/api/avatar/remove", { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove avatar");
+      utils.users.me.invalidate();
+    } catch (err) {
+      console.error("Remove avatar error:", err);
+    } finally {
+      setIsRemovingAvatar(false);
+    }
+  };
+
+  const currentAvatarUrl = profile?.avatarUrl || profile?.image;
 
   if (isLoading) {
      return <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-coral-500" /></div>;
@@ -209,6 +233,62 @@ export default function ProfilePage() {
             <CardDescription>Update your display name and view your account role.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Avatar Section */}
+            <div className="flex items-center gap-4 pb-4 border-b border-stone-100 dark:border-stone-800">
+              <div className="relative group">
+                <Avatar size="lg" className="!h-16 !w-16">
+                  {currentAvatarUrl ? (
+                    <AvatarImage src={currentAvatarUrl} alt={profile?.name || "Avatar"} />
+                  ) : null}
+                  <AvatarFallback className="text-lg bg-gradient-to-br from-coral-100 to-amber-100 dark:from-coral-950/40 dark:to-amber-950/40 text-coral-600 dark:text-coral-400">
+                    {profile?.name?.charAt(0)?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <button
+                  type="button"
+                  onClick={() => setAvatarDialogOpen(true)}
+                  className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  <Camera className="h-5 w-5 text-white" />
+                </button>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                  Profile Photo
+                </p>
+                <p className="text-xs text-stone-400 mb-2">
+                  Click the avatar or use the buttons below
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7"
+                    onClick={() => setAvatarDialogOpen(true)}
+                  >
+                    <Camera className="mr-1.5 h-3 w-3" />
+                    Change
+                  </Button>
+                  {currentAvatarUrl && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                      onClick={handleRemoveAvatar}
+                      disabled={isRemovingAvatar}
+                    >
+                      {isRemovingAvatar ? (
+                        <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-1.5 h-3 w-3" />
+                      )}
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>User ID</Label>
               <Input value={profile?.username || '—'} disabled className="bg-stone-50 dark:bg-stone-900 font-mono" />
@@ -515,6 +595,13 @@ export default function ProfilePage() {
             </Card>
         </div>
       </div>
+
+      {/* Avatar Editor Dialog */}
+      <AvatarEditorDialog
+        open={avatarDialogOpen}
+        onOpenChange={setAvatarDialogOpen}
+        onSuccess={handleAvatarSuccess}
+      />
     </div>
   );
 }
