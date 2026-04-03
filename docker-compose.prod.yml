@@ -21,6 +21,7 @@ services:
       GITHUB_APP_ID: ${GITHUB_APP_ID}
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
+      JIRA_WEBHOOK_SECRET: ${JIRA_WEBHOOK_SECRET}
     depends_on:
       - minio
     networks:
