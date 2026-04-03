@@ -6,22 +6,16 @@ import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { nextId } from "@/lib/id-gen";
 
-function verifySignature(payload: string, signature: string | null, secret: string): boolean {
-  if (!signature) return false;
-  const hmac = crypto.createHmac("sha256", secret);
-  hmac.update(payload);
-  const expected = `sha256=${hmac.digest("hex")}`;
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
-}
-
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const secret = process.env.JIRA_WEBHOOK_SECRET;
-
+  
+  // Jira webhooks typically do not support custom HMAC headers like GitHub by default.
+  // Instead, append the secret to the webhook URL in Jira: /api/jira-webhook?token=YOUR_SECRET
   if (secret) {
-    const signature = req.headers.get("x-hub-signature-256");
-    if (signature && !verifySignature(rawBody, signature, secret)) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    const token = req.nextUrl.searchParams.get("token");
+    if (token !== secret) {
+      return NextResponse.json({ error: "Invalid or missing token" }, { status: 401 });
     }
   }
 
