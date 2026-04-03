@@ -43,6 +43,13 @@
       "when": 1774251584023,
       "tag": "0005_fearless_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775206577077,
+      "tag": "0006_sticky_runaways",
+      "breakpoints": true
     }
   ]
 }
