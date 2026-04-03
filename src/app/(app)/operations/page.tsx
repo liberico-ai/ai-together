@@ -1,6 +1,5 @@
 "use client";
-
-import { trpc } from "@/components/providers/trpc-provider";
+import { trpc } from "@/lib/trpc/client";
 import { format } from "date-fns";
 import { 
   Table,

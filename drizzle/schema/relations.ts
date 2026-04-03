@@ -15,6 +15,7 @@ import {
   messages,
   messageReactions,
 } from "./chat";
+import { operations } from "./operations";
 
 export const usersRelations = relations(users, ({ many, one }) => ({
   githubMap: one(userGithubMap, {
@@ -175,5 +176,17 @@ export const messageReactionsRelations = relations(messageReactions, ({ one }) =
   user: one(users, {
     fields: [messageReactions.userId],
     references: [users.id],
+  }),
+}));
+
+export const operationsRelations = relations(operations, ({ one }) => ({
+  assignee: one(users, {
+    fields: [operations.assigneeId],
+    references: [users.id],
+  }),
+  creator: one(users, {
+    fields: [operations.createdBy],
+    references: [users.id],
+    relationName: "operationsCreator",
   }),
 }));
