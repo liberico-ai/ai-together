@@ -60,9 +60,16 @@ export default function OperationsPage() {
                     <TableCell className="font-medium">{op.id}</TableCell>
                     <TableCell>
                       {op.jiraIssueKey ? (
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {op.jiraIssueKey}
-                        </Badge>
+                        <a 
+                          href={`${process.env.NEXT_PUBLIC_JIRA_BASE_URL || "https://jira.ipcoms.vn"}/browse/${op.jiraIssueKey}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="hover:opacity-80 transition-opacity"
+                        >
+                          <Badge variant="outline" className="font-mono text-xs cursor-pointer hover:bg-muted">
+                            {op.jiraIssueKey}
+                          </Badge>
+                        </a>
                       ) : (
                         <span className="text-muted-foreground text-xs">-</span>
                       )}
