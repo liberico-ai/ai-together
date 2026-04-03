@@ -22,6 +22,7 @@ export const projects = pgTable("projects", {
   repoUrl: text("repo_url"),
   githubOwner: text("github_owner"),
   githubRepo: text("github_repo"),
+  jiraProjectKey: text("jira_project_key"),
   webhookSecret: text("webhook_secret"),
   chairmanId: text("chairman_id").references(() => users.id),
   status: projectStatusEnum("status").default("planning").notNull(),

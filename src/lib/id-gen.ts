@@ -5,6 +5,7 @@ const tableMap = {
   PROJ: "projects",
   MOD: "modules",
   TASK: "tasks",
+  OP: "operations",
 } as const;
 
 type IdPrefix = keyof typeof tableMap;

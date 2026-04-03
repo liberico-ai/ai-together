@@ -12,3 +12,4 @@ export * from "./reviews";
 export * from "./chat";
 export * from "./relations";
 export * from "./auth";
+export * from "./operations";

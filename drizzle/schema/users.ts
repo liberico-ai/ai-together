@@ -29,3 +29,11 @@ export const userGithubMap = pgTable("user_github_map", {
   githubVerified: boolean("github_verified").default(false).notNull(),
   linkedAt: timestamp("linked_at").defaultNow(),
 });
+
+export const userJiraMap = pgTable("user_jira_map", {
+  userId: text("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  jiraAccountId: text("jira_account_id").notNull().unique(),
+  linkedAt: timestamp("linked_at").defaultNow(),
+});

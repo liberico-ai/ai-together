@@ -9,6 +9,7 @@ import { dashboardRouter } from "./dashboard";
 import { notificationsRouter } from "./notifications";
 import { usersRouter } from "./users";
 import { chatRouter } from "./chat";
+import { operationsRouter } from "./operations";
 
 export const appRouter = router({
   projects: projectsRouter,
@@ -21,6 +22,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   users: usersRouter,
   chat: chatRouter,
+  operations: operationsRouter,
 });
 
 export type AppRouter = typeof appRouter;

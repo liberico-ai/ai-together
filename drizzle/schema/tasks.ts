@@ -22,6 +22,7 @@ export const tasks = pgTable("tasks", {
   moduleId: text("module_id")
     .references(() => modules.id, { onDelete: "cascade" })
     .notNull(),
+  jiraIssueKey: text("jira_issue_key"),
   title: text("title").notNull(),
   description: text("description"),
   assigneeId: text("assignee_id").references(() => users.id),
