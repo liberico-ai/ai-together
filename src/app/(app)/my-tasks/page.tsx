@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { Loader2, Boxes, Filter, ClipboardList, Calendar, ChevronRight } from "lucide-react";
+import { Loader2, ClipboardList, Filter, Calendar, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -32,24 +32,24 @@ const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
   low: { label: "Low", className: "text-muted-foreground/60" },
 };
 
-export default function MyModulesPage() {
+export default function MyTasksPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
-  const { data: modules, isLoading } = trpc.modules.myModules.useQuery();
+  const { data: tasks, isLoading } = trpc.tasks.myTasks.useQuery();
 
-  const filtered = modules?.filter(m => {
-    const statusMatch = statusFilter === "all" || m.status === statusFilter;
-    const priorityMatch = priorityFilter === "all" || m.priority === priorityFilter;
+  const filtered = tasks?.filter(t => {
+    const statusMatch = statusFilter === "all" || t.status === statusFilter;
+    const priorityMatch = priorityFilter === "all" || t.priority === priorityFilter;
     return statusMatch && priorityMatch;
   }) ?? [];
 
   const counts = {
-    total: modules?.length ?? 0,
-    inProgress: modules?.filter(m => m.status === "in_progress").length ?? 0,
-    inReview: modules?.filter(m => m.status === "in_review").length ?? 0,
-    done: modules?.filter(m => m.status === "done").length ?? 0,
-    overdue: modules?.filter(m => m.deadline && isPast(new Date(m.deadline)) && m.status !== "done").length ?? 0,
+    total: tasks?.length ?? 0,
+    inProgress: tasks?.filter(t => t.status === "in_progress").length ?? 0,
+    inReview: tasks?.filter(t => t.status === "in_review").length ?? 0,
+    done: tasks?.filter(t => t.status === "done").length ?? 0,
+    overdue: tasks?.filter(t => t.deadline && isPast(new Date(t.deadline)) && t.status !== "done").length ?? 0,
   };
 
   return (
@@ -57,10 +57,10 @@ export default function MyModulesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2 text-foreground">
-            <Boxes className="h-6 w-6 text-coral-500" />
-            My Modules
+            <ClipboardList className="h-6 w-6 text-coral-500" />
+            My Tasks
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">All modules assigned to you across all projects.</p>
+          <p className="text-muted-foreground text-sm mt-1">All tasks assigned to you across all projects.</p>
         </div>
       </div>
 
@@ -117,7 +117,7 @@ export default function MyModulesPage() {
         )}
       </div>
 
-      {/* Module List */}
+      {/* Task List */}
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
         {isLoading ? (
           <div className="divide-y divide-border">
@@ -125,48 +125,57 @@ export default function MyModulesPage() {
               <div key={i} className="flex items-center gap-4 px-5 py-4">
                 <div className="flex-1 space-y-2.5">
                   <Skeleton className="h-4 w-1/3" />
-                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-3 w-24" />
                 </div>
                 <div className="flex gap-3">
                   <Skeleton className="h-5 w-16 rounded-full" />
                   <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-5 w-14 rounded-full" />
                 </div>
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
           <div className="border-t border-transparent">
-            <EmptyState 
-              title={modules?.length === 0 ? "No modules assigned" : "No results found"}
-              description={modules?.length === 0 ? "You don't have any modules assigned to you yet." : "Try adjusting your filters to find what you're looking for."}
+            <EmptyState
+              title={tasks?.length === 0 ? "No tasks assigned" : "No results found"}
+              description={tasks?.length === 0 ? "You don't have any tasks assigned to you yet." : "Try adjusting your filters to find what you're looking for."}
               icon={ClipboardList}
             />
           </div>
         ) : (
           <div className="divide-y divide-border">
             {/* Table Header */}
-            <div className="grid grid-cols-[1fr_120px_100px_120px_32px] gap-4 px-5 py-2.5 bg-muted/30 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <span>Module</span>
+            <div className="grid grid-cols-[1fr_120px_100px_120px_80px_32px] gap-4 px-5 py-2.5 bg-muted/30 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>Task</span>
               <span>Status</span>
               <span>Priority</span>
               <span>Deadline</span>
+              <span>Estimate</span>
               <span />
             </div>
-            {filtered.map(mod => {
-              const statusCfg = STATUS_CONFIG[mod.status] ?? STATUS_CONFIG.planned;
-              const priorityCfg = PRIORITY_CONFIG[mod.priority] ?? PRIORITY_CONFIG.medium;
-              const isOverdue = mod.deadline && isPast(new Date(mod.deadline)) && mod.status !== "done";
+            {filtered.map(task => {
+              const statusCfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.planned;
+              const priorityCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium;
+              const isOverdue = task.deadline && isPast(new Date(task.deadline)) && task.status !== "done";
 
               return (
                 <Link
-                  key={mod.id}
-                  href={`/modules/${mod.id}`}
-                  className="grid grid-cols-[1fr_120px_100px_120px_32px] gap-4 items-center px-5 py-4 hover:bg-muted/30 transition-colors cursor-pointer group"
+                  key={task.id}
+                  href={`/projects/${task.project?.id}`}
+                  className="grid grid-cols-[1fr_120px_100px_120px_80px_32px] gap-4 items-center px-5 py-4 hover:bg-muted/30 transition-colors cursor-pointer group"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">{mod.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 font-mono">
-                      {mod.id} · {(mod as any).project?.title ?? ""}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">{task.title}</p>
+                      {task.jiraIssueKey && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 font-mono">
+                          {task.jiraIssueKey}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {task.id.slice(0, 8)} {task.project?.title ? `· ${task.project.title}` : ""} {task.module?.title ? `· ${task.module.title}` : ""}
                     </p>
                   </div>
 
@@ -181,14 +190,18 @@ export default function MyModulesPage() {
                     {priorityCfg.label}
                   </span>
 
-                  {mod.deadline ? (
+                  {task.deadline ? (
                     <span className={`text-xs font-medium flex items-center gap-1 ${isOverdue ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}>
                       <Calendar className="h-3 w-3" />
-                      {isOverdue ? "⚠️ " : ""}{format(new Date(mod.deadline), "MMM d")}
+                      {format(new Date(task.deadline), "MMM d")}
                     </span>
                   ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
+                    <span className="text-xs text-muted-foreground">&mdash;</span>
                   )}
+
+                  <span className="text-xs text-muted-foreground">
+                    {task.estimateDays != null ? `${task.estimateDays}d` : "\u2014"}
+                  </span>
 
                   <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </Link>

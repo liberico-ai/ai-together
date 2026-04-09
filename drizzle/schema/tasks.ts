@@ -1,6 +1,7 @@
-import { pgTable, text, timestamp, pgEnum, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, index, integer } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { modules } from "./modules";
+import { projects } from "./projects";
 
 export const taskStatusEnum = pgEnum("task_status", [
   "planned",
@@ -19,20 +20,24 @@ export const priorityEnum = pgEnum("priority", [
 
 export const tasks = pgTable("tasks", {
   id: text("id").primaryKey(), // TASK-001 format
-  moduleId: text("module_id")
-    .references(() => modules.id, { onDelete: "cascade" })
+  projectId: text("project_id")
+    .references(() => projects.id, { onDelete: "cascade" })
     .notNull(),
+  moduleId: text("module_id")
+    .references(() => modules.id, { onDelete: "set null" }),
   jiraIssueKey: text("jira_issue_key"),
   title: text("title").notNull(),
   description: text("description"),
   assigneeId: text("assignee_id").references(() => users.id),
   status: taskStatusEnum("status").default("planned").notNull(),
   priority: priorityEnum("priority").default("medium").notNull(),
+  estimateDays: integer("estimate_days"),
   deadline: timestamp("deadline"),
   createdBy: text("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
+  index("idx_tasks_project").on(table.projectId),
   index("idx_tasks_module").on(table.moduleId),
   index("idx_tasks_assignee").on(table.assigneeId),
 ]);

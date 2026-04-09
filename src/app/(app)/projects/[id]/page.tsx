@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { Loader2, ArrowLeft, Plus, Layout, Settings, FileText, GitCommit, Calendar, User2, Activity, Boxes } from "lucide-react";
+import { Loader2, ArrowLeft, Plus, Layout, Settings, FileText, GitCommit, Calendar, User2, Activity, Boxes, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { ModuleList } from "@/components/modules/module-list";
 import { CreateModuleDialog } from "@/components/modules/create-module-dialog";
+import { TaskList } from "@/components/tasks/task-list";
+import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { DocumentManager } from "@/components/documents/document-manager";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,7 +21,7 @@ import { ProjectSettingsDialog } from "@/components/projects/project-settings-di
 import { CommitsTab } from "@/components/projects/commits-tab";
 import { ManageTeamDialog } from "@/components/projects/manage-team-dialog";
 
-const MODULE_STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   planned: { label: "Planned", color: "text-stone-500", bgColor: "bg-stone-500" },
   in_progress: { label: "In Progress", color: "text-blue-600 dark:text-blue-400", bgColor: "bg-blue-500" },
   in_review: { label: "In Review", color: "text-amber-600 dark:text-amber-400", bgColor: "bg-amber-500" },
@@ -28,7 +30,7 @@ const MODULE_STATUS_CONFIG: Record<string, { label: string; color: string; bgCol
 };
 
 function ProjectProgress({ projectId }: { projectId: string }) {
-  const { data: modules, isLoading } = trpc.modules.listByProject.useQuery({ projectId });
+  const { data: tasks, isLoading } = trpc.tasks.listByProject.useQuery({ projectId });
 
   if (isLoading) {
     return (
@@ -39,17 +41,17 @@ function ProjectProgress({ projectId }: { projectId: string }) {
     );
   }
 
-  const total = modules?.length ?? 0;
+  const total = tasks?.length ?? 0;
   const counts = {
-    planned: modules?.filter(m => m.status === "planned").length ?? 0,
-    in_progress: modules?.filter(m => m.status === "in_progress").length ?? 0,
-    in_review: modules?.filter(m => m.status === "in_review").length ?? 0,
-    changes_requested: modules?.filter(m => m.status === "changes_requested").length ?? 0,
-    done: modules?.filter(m => m.status === "done").length ?? 0,
+    planned: tasks?.filter((t: any) => t.status === "planned").length ?? 0,
+    in_progress: tasks?.filter((t: any) => t.status === "in_progress").length ?? 0,
+    in_review: tasks?.filter((t: any) => t.status === "in_review").length ?? 0,
+    changes_requested: tasks?.filter((t: any) => t.status === "changes_requested").length ?? 0,
+    done: tasks?.filter((t: any) => t.status === "done").length ?? 0,
   };
 
   const progressPercent = total === 0 ? 0 : Math.round((counts.done / total) * 100);
-  const activeModules = modules?.filter(m => m.status === "in_progress" || m.status === "in_review" || m.status === "changes_requested") ?? [];
+  const activeTasks = tasks?.filter((t: any) => t.status === "in_progress" || t.status === "in_review" || t.status === "changes_requested") ?? [];
 
   return (
     <div className="space-y-6">
@@ -92,7 +94,7 @@ function ProjectProgress({ projectId }: { projectId: string }) {
         {/* Status Breakdown */}
         <div className="grid grid-cols-5 gap-2">
           {(["done", "in_review", "in_progress", "changes_requested", "planned"] as const).map((status) => {
-            const cfg = MODULE_STATUS_CONFIG[status];
+            const cfg = STATUS_CONFIG[status];
             return (
               <div key={status} className="text-center">
                 <div className={`text-xl font-bold ${cfg.color}`}>{counts[status]}</div>
@@ -103,48 +105,48 @@ function ProjectProgress({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {/* Active Modules */}
+      {/* Active Tasks */}
       <div className="rounded-xl border border-stone-200 dark:border-stone-800 overflow-hidden">
         <div className="px-6 py-4 border-b border-stone-200 dark:border-stone-800">
           <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">
-            Active Modules
-            {activeModules.length > 0 && (
-              <Badge variant="secondary" className="ml-2">{activeModules.length}</Badge>
+            Active Tasks
+            {activeTasks.length > 0 && (
+              <Badge variant="secondary" className="ml-2">{activeTasks.length}</Badge>
             )}
           </h3>
         </div>
-        {activeModules.length === 0 ? (
+        {activeTasks.length === 0 ? (
           <div className="px-6 py-8 text-center text-muted-foreground text-sm">
-            No modules currently in progress.
+            No tasks currently in progress.
           </div>
         ) : (
           <div className="divide-y divide-stone-100 dark:divide-stone-800">
-            {activeModules.map((mod: any) => {
-              const sCfg = MODULE_STATUS_CONFIG[mod.status];
+            {activeTasks.map((task: any) => {
+              const sCfg = STATUS_CONFIG[task.status];
               return (
-                <Link href={`/modules/${mod.id}`} key={mod.id} className="px-6 py-4 flex items-center gap-4 hover:bg-muted/30 transition-colors cursor-pointer group">
+                <Link href={`/projects/${projectId}`} key={task.id} className="px-6 py-4 flex items-center gap-4 hover:bg-muted/30 transition-colors cursor-pointer group">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${sCfg.bgColor}`} />
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm text-stone-900 dark:text-stone-100 truncate group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors">{mod.title}</div>
-                    <div className="text-xs text-muted-foreground font-mono">{mod.id}</div>
+                    <div className="font-semibold text-sm text-stone-900 dark:text-stone-100 truncate group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors">{task.title}</div>
+                    <div className="text-xs text-muted-foreground font-mono">{task.id}</div>
                   </div>
                   <Badge variant="outline" className={`text-[10px] border-0 px-2 py-0.5 shrink-0 ${sCfg.color} ${sCfg.bgColor}/10`}>
                     {sCfg.label}
                   </Badge>
-                  {mod.assignee && (
+                  {task.assignee && (
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Avatar className="h-5 w-5">
                         <AvatarFallback className="text-[9px] bg-stone-100 dark:bg-stone-800">
-                          {mod.assignee.name?.charAt(0) || "?"}
+                          {task.assignee.name?.charAt(0) || "?"}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="text-xs text-muted-foreground">{mod.assignee.name}</span>
+                      <span className="text-xs text-muted-foreground">{task.assignee.name}</span>
                     </div>
                   )}
-                  {mod.deadline && (
+                  {task.deadline && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
                       <Calendar className="h-3 w-3" />
-                      {format(new Date(mod.deadline), "MMM d")}
+                      {format(new Date(task.deadline), "MMM d")}
                     </span>
                   )}
                 </Link>
@@ -237,6 +239,7 @@ export default function ProjectDetailPage({
           </div>
           <div className="flex space-x-2">
             <ProjectSettingsDialog project={project} />
+            <CreateTaskDialog projectId={project.id} />
             <CreateModuleDialog projectId={project.id} />
           </div>
         </div>
@@ -253,14 +256,21 @@ export default function ProjectDetailPage({
               <Layout className="h-4 w-4" />
               Overview
             </TabsTrigger>
-            <TabsTrigger 
-              value="modules" 
+            <TabsTrigger
+              value="modules"
               className="glassmorphic-tab flex-initial flex items-center gap-2 px-5 py-2.5 !rounded-full font-medium text-sm border border-transparent text-muted-foreground hover:text-foreground transition-all duration-200 !bg-transparent !shadow-none m-0"
             >
               <Boxes className="h-4 w-4" />
               Modules
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
+              value="tasks"
+              className="glassmorphic-tab flex-initial flex items-center gap-2 px-5 py-2.5 !rounded-full font-medium text-sm border border-transparent text-muted-foreground hover:text-foreground transition-all duration-200 !bg-transparent !shadow-none m-0"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Tasks
+            </TabsTrigger>
+            <TabsTrigger
               value="documents" 
               className="glassmorphic-tab flex-initial flex items-center gap-2 px-5 py-2.5 !rounded-full font-medium text-sm border border-transparent text-muted-foreground hover:text-foreground transition-all duration-200 !bg-transparent !shadow-none m-0"
             >
@@ -328,6 +338,10 @@ export default function ProjectDetailPage({
 
           <TabsContent value="modules">
             <ModuleList projectId={project.id} />
+          </TabsContent>
+
+          <TabsContent value="tasks">
+            <TaskList projectId={project.id} />
           </TabsContent>
 
           <TabsContent value="documents">

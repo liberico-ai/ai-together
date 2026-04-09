@@ -5,7 +5,7 @@ import { modules } from "@drizzle/schema/modules";
 import { notifications } from "@drizzle/schema/notifications";
 import { eq, and, desc } from "drizzle-orm";
 import { notificationEmitter } from "@/lib/events";
-import { recordScore, getModuleScoreType, recordActivity } from "@/lib/scoring";
+import { recordScore, recordActivity } from "@/lib/scoring";
 import { escapeHtml } from "@/lib/escape-html";
 
 export const reviewsRouter = router({
@@ -80,63 +80,36 @@ export const reviewsRouter = router({
         })
         .returning();
 
-      // Update module/task status based on review result
+      // Notify module creator about review result
       if (input.targetType === "module") {
         const mod = await ctx.db.query.modules.findFirst({
           where: eq(modules.id, input.targetId),
           columns: {
             id: true,
             title: true,
-            assigneeId: true,
-            deadline: true,
+            createdBy: true,
           },
         });
 
-        if (mod) {
+        if (mod && mod.createdBy) {
           if (input.status === "approved") {
-            // Set module to "done" and award score
-            await ctx.db
-              .update(modules)
-              .set({ status: "done", updatedAt: new Date() })
-              .where(eq(modules.id, input.targetId));
-
-            if (mod.assigneeId) {
-              const { eventType, points } = getModuleScoreType(mod.deadline);
-              await recordScore(ctx.db, {
-                userId: mod.assigneeId,
-                eventType,
-                points,
-                refType: "module",
-                refId: mod.id,
-              });
-
-              // Notify assignee of approval
-              await ctx.db.insert(notifications).values({
-                userId: mod.assigneeId,
-                type: "review.approved",
-                title: "Module Approved ✅",
-                body: `Your module "${escapeHtml(mod.title)}" has been approved by ${escapeHtml(ctx.user.name)}`,
-                link: `/modules/${mod.id}`,
-              });
-              notificationEmitter.emit("new_notification", mod.assigneeId);
-            }
+            await ctx.db.insert(notifications).values({
+              userId: mod.createdBy,
+              type: "review.approved",
+              title: "Module Approved ✅",
+              body: `Your module "${escapeHtml(mod.title)}" has been approved by ${escapeHtml(ctx.user.name)}`,
+              link: `/modules/${mod.id}`,
+            });
+            notificationEmitter.emit("new_notification", mod.createdBy);
           } else {
-            // Changes requested
-            await ctx.db
-              .update(modules)
-              .set({ status: "changes_requested", updatedAt: new Date() })
-              .where(eq(modules.id, input.targetId));
-
-            if (mod.assigneeId) {
-              await ctx.db.insert(notifications).values({
-                userId: mod.assigneeId,
-                type: "review.changes_requested",
-                title: "Changes Requested 🔄",
-                body: `Changes requested for module "${escapeHtml(mod.title)}" by ${escapeHtml(ctx.user.name)}${input.note ? `: ${escapeHtml(input.note)}` : ""}`,
-                link: `/modules/${mod.id}`,
-              });
-              notificationEmitter.emit("new_notification", mod.assigneeId);
-            }
+            await ctx.db.insert(notifications).values({
+              userId: mod.createdBy,
+              type: "review.changes_requested",
+              title: "Changes Requested 🔄",
+              body: `Changes requested for module "${escapeHtml(mod.title)}" by ${escapeHtml(ctx.user.name)}${input.note ? `: ${escapeHtml(input.note)}` : ""}`,
+              link: `/modules/${mod.id}`,
+            });
+            notificationEmitter.emit("new_notification", mod.createdBy);
           }
         }
       }

@@ -267,7 +267,6 @@ export async function POST(req: NextRequest) {
           where: eq(modules.projectId, params.projectId),
           orderBy: (m, { desc }) => [desc(m.createdAt)],
           with: {
-            assignee: { columns: { id: true, name: true, email: true } },
             project: { columns: { id: true, title: true } },
           },
         });
@@ -276,7 +275,7 @@ export async function POST(req: NextRequest) {
 
       case "get_my_modules": {
         const data = await db.query.modules.findMany({
-          where: eq(modules.assigneeId, user.id),
+          where: eq(modules.createdBy, user.id),
           orderBy: (m, { desc }) => [desc(m.createdAt)],
           with: {
             project: { columns: { id: true, title: true } },
@@ -290,7 +289,6 @@ export async function POST(req: NextRequest) {
         const mod = await db.query.modules.findFirst({
           where: eq(modules.id, params.moduleId),
           with: {
-            assignee: { columns: { id: true, name: true, email: true } },
             project: { columns: { id: true, title: true } },
           },
         });
@@ -306,8 +304,6 @@ export async function POST(req: NextRequest) {
           projectId: params.projectId,
           title: params.title,
           description: params.description,
-          assigneeId: params.assigneeId || null,
-          deadline: params.deadline ? new Date(params.deadline) : undefined,
           createdBy: user.id,
         }).returning();
         return ok(mod);
@@ -318,27 +314,8 @@ export async function POST(req: NextRequest) {
         const updates: Record<string, unknown> = { updatedAt: new Date() };
         if (params.title) updates.title = params.title;
         if (params.description !== undefined) updates.description = params.description;
-        if (params.assigneeId !== undefined) updates.assigneeId = params.assigneeId || null;
-        if (params.deadline !== undefined) updates.deadline = params.deadline ? new Date(params.deadline) : null;
+        if (params.checklist !== undefined) updates.checklist = params.checklist;
         const [updated] = await db.update(modules).set(updates).where(eq(modules.id, params.moduleId)).returning();
-        return ok(updated);
-      }
-
-      case "update_module_status": {
-        if (!params.moduleId || !params.status) return badRequest("Missing moduleId or status");
-        const [updated] = await db.update(modules)
-          .set({ status: params.status, updatedAt: new Date() })
-          .where(eq(modules.id, params.moduleId))
-          .returning();
-
-        // Log activity
-        await db.insert(activityLogs).values({
-          userId: user.id,
-          action: "module_status_changed",
-          targetType: "module",
-          targetId: params.moduleId,
-          metadata: JSON.stringify({ newStatus: params.status }),
-        });
         return ok(updated);
       }
 
@@ -381,11 +358,12 @@ export async function POST(req: NextRequest) {
       }
 
       case "create_task": {
-        if (!params.moduleId || !params.title) return badRequest("Missing moduleId or title");
+        if (!params.projectId || !params.title) return badRequest("Missing projectId or title");
         const newId = await nextId("TASK", db);
         const [task] = await db.insert(tasks).values({
           id: newId,
-          moduleId: params.moduleId,
+          projectId: params.projectId,
+          moduleId: params.moduleId || null,
           title: params.title,
           description: params.description,
           assigneeId: params.assigneeId || null,
@@ -545,12 +523,9 @@ export async function POST(req: NextRequest) {
         });
         if (!mod) return badRequest("Module not found");
 
-        const newStatus = params.status === "approved" ? "done" : "changes_requested";
-        await db.update(modules).set({ status: newStatus, updatedAt: new Date() }).where(eq(modules.id, params.moduleId));
-
-        if (params.status === "approved" && mod.assigneeId) {
+        if (params.status === "approved" && mod.createdBy) {
           await db.insert(scoreEvents).values({
-            userId: mod.assigneeId,
+            userId: mod.createdBy,
             points: params.score,
             eventType: "module_done",
             refType: "module",
@@ -573,16 +548,16 @@ export async function POST(req: NextRequest) {
           metadata: JSON.stringify({ status: params.status, score: params.score, note: params.note }),
         });
 
-        if (mod.assigneeId) {
+        if (mod.createdBy) {
           await db.insert(notifications).values({
-            userId: mod.assigneeId,
+            userId: mod.createdBy,
             type: "module_review",
             title: params.status === "approved" ? "Module Approved ✅" : "Changes Requested ❌",
             body: `${user.name} reviewed your module. Score: ${params.score}. ${params.note || ""}`,
             link: `/modules/${params.moduleId}`,
           });
         }
-        return ok({ moduleId: params.moduleId, newStatus });
+        return ok({ moduleId: params.moduleId, status: params.status });
       }
 
       case "list_reviews": {
@@ -792,14 +767,14 @@ export async function POST(req: NextRequest) {
           with: {
             chairman: { columns: { id: true, name: true, email: true, role: true } },
             members: { with: { user: { columns: { id: true, name: true, email: true, role: true } } } },
-            modules: { columns: { id: true, status: true } },
+            tasks: { columns: { id: true, status: true } },
           },
         });
 
         return ok(activeProjects.map(project => {
-          const totalModules = project.modules.length;
-          const doneModules = project.modules.filter(m => m.status === "done").length;
-          const progressPct = totalModules === 0 ? 0 : Math.round((doneModules / totalModules) * 100);
+          const totalTasks = project.tasks.length;
+          const doneTasks = project.tasks.filter(t => t.status === "done").length;
+          const progressPct = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
           return {
             id: project.id,
             title: project.title,
@@ -820,12 +795,12 @@ export async function POST(req: NextRequest) {
 
         const result = [];
         for (const p of allProjects) {
-          const mods = await db.query.modules.findMany({
-            where: eq(modules.projectId, p.id),
+          const projectTasks = await db.query.tasks.findMany({
+            where: eq(tasks.projectId, p.id),
             columns: { status: true },
           });
-          const total = mods.length;
-          const done = mods.filter(m => m.status === "done").length;
+          const total = projectTasks.length;
+          const done = projectTasks.filter(t => t.status === "done").length;
           const shortName = p.title.length > 20 ? p.title.slice(0, 17) + "..." : p.title;
           result.push({
             name: shortName,

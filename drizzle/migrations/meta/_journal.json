@@ -50,6 +50,13 @@
       "when": 1775206577077,
       "tag": "0006_sticky_runaways",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1744156800000,
+      "tag": "0007_refactor_modules_tasks",
+      "breakpoints": true
     }
   ]
 }

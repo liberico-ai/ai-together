@@ -2,50 +2,50 @@ import { router, protectedProcedure } from "../index";
 import { scoreEvents, userActivityLog } from "@drizzle/schema/scoring";
 import { users } from "@drizzle/schema/users";
 import { projects } from "@drizzle/schema/projects";
-import { modules } from "@drizzle/schema/modules";
+import { tasks } from "@drizzle/schema/tasks";
 import { eq, sql, desc, gte, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { calculateTempoBonus, getCurrentStreak } from "@/lib/scoring";
 
 export const dashboardRouter = router({
   getStats: protectedProcedure.query(async ({ ctx }) => {
-    // 1. Module Stats
-    const allModules = await ctx.db.query.modules.findMany({
-      where: eq(modules.assigneeId, ctx.user.id),
-      columns: { id: true, status: true, deadline: true }
+    // 1. Task Stats — tasks assigned to the current user
+    const allTasks = await ctx.db.query.tasks.findMany({
+      where: eq(tasks.assigneeId, ctx.user.id),
+      columns: { id: true, status: true, deadline: true },
     });
 
     const now = new Date();
-    let assigned = allModules.length;
+    let assigned = allTasks.length;
     let inProgress = 0;
     let completed = 0;
-    let mOverdue = 0;
+    let overdue = 0;
 
-    allModules.forEach(mod => {
-      if (mod.status === "in_progress" || mod.status === "in_review") inProgress++;
-      if (mod.status === "done") completed++;
-      if (mod.status !== "done" && mod.deadline && new Date(mod.deadline) < now) mOverdue++;
-    });
+    for (const task of allTasks) {
+      if (task.status === "in_progress" || task.status === "in_review") inProgress++;
+      if (task.status === "done") completed++;
+      if (task.status !== "done" && task.deadline && new Date(task.deadline) < now) overdue++;
+    }
 
     // 2. Project Stats
     const allProjects = await ctx.db.query.projects.findMany({
-      columns: { id: true, status: true, deadline: true }
+      columns: { id: true, status: true, deadline: true },
     });
-    
+
     let pTotal = allProjects.length;
     let pActive = 0;
     let pCompleted = 0;
     let pOverdue = 0;
 
-    allProjects.forEach(proj => {
+    for (const proj of allProjects) {
       if (proj.status === "active" || proj.status === "planning") pActive++;
       if (proj.status === "done") pCompleted++;
       if (proj.status !== "done" && proj.deadline && new Date(proj.deadline) < now) pOverdue++;
-    });
+    }
 
-    return { 
-      modules: { assigned, inProgress, completed, overdue: mOverdue },
-      projects: { total: pTotal, active: pActive, completed: pCompleted, overdue: pOverdue }
+    return {
+      tasks: { assigned, inProgress, completed, overdue },
+      projects: { total: pTotal, active: pActive, completed: pCompleted, overdue: pOverdue },
     };
   }),
 
@@ -136,9 +136,6 @@ export const dashboardRouter = router({
     }),
 
   getActiveProjects: protectedProcedure.query(async ({ ctx }) => {
-    // Determine active projects the user is involved in
-    // For simplicity, we fetch all projects with status "active" or "planning"
-    // Wait, earlier we saw project status is active, so we query active.
     const activeProjects = await ctx.db.query.projects.findMany({
       where: eq(projects.status, "active"),
       orderBy: (projects, { desc }) => [desc(projects.updatedAt)],
@@ -153,16 +150,16 @@ export const dashboardRouter = router({
             },
           },
         },
-        modules: {
+        tasks: {
           columns: { id: true, status: true },
-        }
+        },
       },
     });
 
     return activeProjects.map(project => {
-      const totalModules = project.modules.length;
-      const doneModules = project.modules.filter(m => m.status === "done").length;
-      const progressPct = totalModules === 0 ? 0 : Math.round((doneModules / totalModules) * 100);
+      const totalTasks = project.tasks.length;
+      const doneTasks = project.tasks.filter(t => t.status === "done").length;
+      const progressPct = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
 
       return {
         id: project.id,
@@ -250,15 +247,15 @@ export const dashboardRouter = router({
       where: eq(projects.status, "active"),
       columns: { id: true, title: true },
       with: {
-        modules: {
+        tasks: {
           columns: { status: true },
         },
       },
     });
 
     return allProjects.map((p) => {
-      const total = p.modules.length;
-      const done = p.modules.filter((m) => m.status === "done").length;
+      const total = p.tasks.length;
+      const done = p.tasks.filter((t) => t.status === "done").length;
       const shortName =
         p.title.length > 20 ? p.title.slice(0, 17) + "..." : p.title;
       return {
@@ -269,6 +266,86 @@ export const dashboardRouter = router({
         pct: total > 0 ? Math.round((done / total) * 100) : 0,
       };
     });
+  }),
+
+  getWorkloadOverview: protectedProcedure.query(async ({ ctx }) => {
+    const allTasks = await ctx.db.query.tasks.findMany({
+      columns: {
+        id: true,
+        status: true,
+        priority: true,
+        deadline: true,
+        estimateDays: true,
+        assigneeId: true,
+        projectId: true,
+      },
+      with: {
+        assignee: { columns: { id: true, name: true, email: true, image: true } },
+        project: { columns: { id: true, title: true } },
+      },
+    });
+
+    // Group by assignee
+    const byMember = new Map<string, {
+      user: { id: string; name: string | null; email: string; image: string | null };
+      total: number;
+      inProgress: number;
+      done: number;
+      overdue: number;
+      totalEstimateDays: number;
+    }>();
+
+    const now = new Date();
+    for (const task of allTasks) {
+      if (!task.assigneeId || !task.assignee) continue;
+      const key = task.assigneeId;
+      if (!byMember.has(key)) {
+        byMember.set(key, {
+          user: task.assignee,
+          total: 0,
+          inProgress: 0,
+          done: 0,
+          overdue: 0,
+          totalEstimateDays: 0,
+        });
+      }
+      const m = byMember.get(key)!;
+      m.total++;
+      if (task.status === "in_progress" || task.status === "in_review") m.inProgress++;
+      if (task.status === "done") m.done++;
+      if (task.status !== "done" && task.deadline && new Date(task.deadline) < now) m.overdue++;
+      if (task.estimateDays) m.totalEstimateDays += task.estimateDays;
+    }
+
+    // Summary stats
+    const totalTasks = allTasks.length;
+    const totalDone = allTasks.filter(t => t.status === "done").length;
+    const totalInProgress = allTasks.filter(t => t.status === "in_progress" || t.status === "in_review").length;
+    const totalOverdue = allTasks.filter(t => t.status !== "done" && t.deadline && new Date(t.deadline) < now).length;
+
+    // Upcoming deadlines (next 7 days, not done)
+    const nextWeek = new Date(now);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const upcoming = allTasks
+      .filter(t => t.status !== "done" && t.deadline && new Date(t.deadline) >= now && new Date(t.deadline) <= nextWeek)
+      .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
+      .slice(0, 10);
+
+    return {
+      summary: { totalTasks, totalDone, totalInProgress, totalOverdue },
+      members: Array.from(byMember.values())
+        .map(m => ({
+          user: m.user,
+          total: m.total,
+          inProgress: m.inProgress,
+          done: m.done,
+          overdue: m.overdue,
+          totalEstimateDays: m.totalEstimateDays,
+          completionRate: m.total > 0 ? Math.round((m.done / m.total) * 100) : 0,
+        }))
+        .sort((a, b) => b.total - a.total),
+      upcoming,
+    };
   }),
 });
 

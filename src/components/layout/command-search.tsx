@@ -35,7 +35,7 @@ export function CommandSearch() {
   const { data: projects } = trpc.projects.list.useQuery(undefined, {
     enabled: open,
   });
-  const { data: myModules } = trpc.modules.myModules.useQuery(undefined, {
+  const { data: myTasks } = trpc.tasks.myTasks.useQuery(undefined, {
     enabled: open,
   });
   const { data: users } = trpc.users.searchUsers.useQuery(
@@ -104,24 +104,24 @@ export function CommandSearch() {
               </CommandGroup>
             )}
 
-            {projects && projects.length > 0 && myModules && myModules.length > 0 && (
+            {projects && projects.length > 0 && myTasks && myTasks.length > 0 && (
               <CommandSeparator />
             )}
 
-            {/* Modules */}
-            {myModules && myModules.length > 0 && (
-              <CommandGroup heading="Modules">
-                {myModules.map((mod: any) => (
+            {/* Tasks */}
+            {myTasks && myTasks.length > 0 && (
+              <CommandGroup heading="My Tasks">
+                {myTasks.map((task: any) => (
                   <CommandItem
-                    key={mod.id}
-                    value={`${mod.title} ${mod.project?.title || ""}`}
-                    onSelect={() => handleSelect(`/modules/${mod.id}`)}
+                    key={task.id}
+                    value={`${task.title} ${task.project?.title || ""}`}
+                    onSelect={() => handleSelect(`/projects/${task.projectId}`)}
                   >
                     <Boxes className="mr-2 h-4 w-4 text-muted-foreground" />
                     <div className="flex flex-col">
-                      <span>{mod.title}</span>
-                      {mod.project?.title && (
-                        <span className="text-xs text-muted-foreground">{mod.project.title}</span>
+                      <span>{task.title}</span>
+                      {task.project?.title && (
+                        <span className="text-xs text-muted-foreground">{task.project.title}</span>
                       )}
                     </div>
                   </CommandItem>
@@ -129,7 +129,7 @@ export function CommandSearch() {
               </CommandGroup>
             )}
 
-            {myModules && myModules.length > 0 && users && users.length > 0 && (
+            {myTasks && myTasks.length > 0 && users && users.length > 0 && (
               <CommandSeparator />
             )}
 

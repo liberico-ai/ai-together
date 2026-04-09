@@ -177,7 +177,6 @@ export const usersRouter = router({
         await tx.delete(documents).where(eq(documents.uploadedBy, input.userId));
 
         // 2. Nullify references (keep modules/tasks but unassign)
-        await tx.update(modules).set({ assigneeId: null }).where(eq(modules.assigneeId, input.userId));
         await tx.update(modules).set({ createdBy: null }).where(eq(modules.createdBy, input.userId));
         await tx.update(tasks).set({ assigneeId: null }).where(eq(tasks.assigneeId, input.userId));
         await tx.update(tasks).set({ createdBy: null }).where(eq(tasks.createdBy, input.userId));

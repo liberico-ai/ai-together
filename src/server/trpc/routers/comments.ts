@@ -61,8 +61,8 @@ export const commentsRouter = router({
 
       if (input.targetType === "module") {
         const mod = await ctx.db.query.modules.findFirst({ where: eq(modules.id, input.targetId) });
-        if (mod && mod.assigneeId && mod.assigneeId !== ctx.user.id) {
-          notifyUserId = mod.assigneeId;
+        if (mod && mod.createdBy && mod.createdBy !== ctx.user.id) {
+          notifyUserId = mod.createdBy;
           targetTitle = mod.title;
           notificationLink = `/modules/${mod.id}`;
         }

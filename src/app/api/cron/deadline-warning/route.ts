@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/server/db';
-import { modules } from '@drizzle/schema/modules';
+import { tasks } from '@drizzle/schema/tasks';
 import { notifications } from '@drizzle/schema/notifications';
 import { lt, and, ne, isNotNull, gt } from 'drizzle-orm';
 import { addDays, subDays } from 'date-fns';
@@ -27,29 +27,29 @@ export async function GET(req: Request) {
 
   const tomorrow = addDays(new Date(), 1);
   const yesterday = subDays(new Date(), 1);
-  
-  // Find modules due within 24 hours that are not done
-  const dueModules = await db.query.modules.findMany({
+
+  // Find tasks due within 24 hours that are not done
+  const dueTasks = await db.query.tasks.findMany({
     where: and(
-      isNotNull(modules.deadline),
-      lt(modules.deadline, tomorrow),
-      gt(modules.deadline, yesterday),
-      ne(modules.status, "done")
+      isNotNull(tasks.deadline),
+      lt(tasks.deadline, tomorrow),
+      gt(tasks.deadline, yesterday),
+      ne(tasks.status, "done")
     ),
-    columns: { id: true, title: true, assigneeId: true, deadline: true }
+    columns: { id: true, title: true, assigneeId: true, deadline: true, projectId: true }
   });
 
   let count = 0;
-  for (const mod of dueModules) {
-    if (mod.assigneeId) {
+  for (const task of dueTasks) {
+    if (task.assigneeId) {
       await db.insert(notifications).values({
-         userId: mod.assigneeId,
+         userId: task.assigneeId,
          type: "deadline_warning",
-         title: "Module Deadline Approaching 🚨",
-         body: `Your assigned module "${mod.title}" is due soon.`,
-         link: `/modules/${mod.id}`,
+         title: "Task Deadline Approaching",
+         body: `Your assigned task "${task.title}" is due soon.`,
+         link: `/projects/${task.projectId}`,
       });
-      notificationEmitter.emit("new_notification", mod.assigneeId);
+      notificationEmitter.emit("new_notification", task.assigneeId);
       count++;
     }
   }

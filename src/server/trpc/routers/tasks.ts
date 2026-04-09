@@ -1,55 +1,79 @@
 import { z } from "zod";
-import { router, protectedProcedure, chairmanProcedure } from "../index";
+import { router, protectedProcedure } from "../index";
 import { tasks, priorityEnum } from "@drizzle/schema/tasks";
 import { modules } from "@drizzle/schema/modules";
+import { projectMembers } from "@drizzle/schema/projects";
 import { notifications } from "@drizzle/schema/notifications";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
 import { notificationEmitter } from "@/lib/events";
 import { recordScore, recordActivity, SCORE_POINTS, getTaskScoreType } from "@/lib/scoring";
 import { escapeHtml } from "@/lib/escape-html";
+import type { DB } from "@/server/db";
 
 /** Check if user can manage (edit/delete) a task */
 function canManageTask(
   userRole: string,
   userId: string,
-  task: { createdBy: string | null }
+  task: { createdBy: string | null; assigneeId: string | null }
 ) {
   if (userRole === "admin" || userRole === "chairman") return true;
   if (task.createdBy === userId) return true;
+  if (task.assigneeId === userId) return true;
   return false;
 }
 
+/** Auto-add a checklist item to a module when a task is linked */
+async function addTaskChecklistItem(
+  db: DB,
+  moduleId: string,
+  projectId: string,
+  taskTitle: string
+) {
+  const mod = await db.query.modules.findFirst({
+    where: eq(modules.id, moduleId),
+    columns: { id: true, checklist: true, projectId: true },
+  });
+  if (mod && mod.projectId === projectId) {
+    const currentChecklist = (mod.checklist as { text: string; done: boolean }[]) || [];
+    await db.update(modules).set({
+      checklist: [...currentChecklist, { text: `Task created: ${taskTitle}`, done: false }],
+      updatedAt: new Date(),
+    }).where(eq(modules.id, moduleId));
+  }
+}
+
 export const tasksRouter = router({
-  // List tasks by module
-  listByModule: protectedProcedure
-    .input(z.object({ moduleId: z.string() }))
+  // List tasks by project
+  listByProject: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       return await ctx.db.query.tasks.findMany({
-        where: eq(tasks.moduleId, input.moduleId),
+        where: eq(tasks.projectId, input.projectId),
         orderBy: (tasks, { asc }) => [asc(tasks.createdAt)],
         limit: 200,
         with: {
           assignee: {
             columns: { id: true, name: true, email: true, image: true },
           },
+          module: {
+            columns: { id: true, title: true },
+          },
         },
       });
     }),
 
-  // My tasks across all modules
+  // My tasks across all projects
   myTasks: protectedProcedure.query(async ({ ctx }) => {
     return await ctx.db.query.tasks.findMany({
       where: eq(tasks.assigneeId, ctx.user.id),
       orderBy: (tasks, { desc }) => [desc(tasks.createdAt)],
       with: {
+        project: {
+          columns: { id: true, title: true },
+        },
         module: {
-          columns: { id: true, title: true, projectId: true },
-          with: {
-            project: {
-              columns: { id: true, title: true },
-            },
-          },
+          columns: { id: true, title: true },
         },
         assignee: {
           columns: { id: true, name: true, email: true, image: true },
@@ -65,13 +89,11 @@ export const tasksRouter = router({
       const task = await ctx.db.query.tasks.findFirst({
         where: eq(tasks.id, input.id),
         with: {
+          project: {
+            columns: { id: true, title: true, chairmanId: true },
+          },
           module: {
-            columns: { id: true, title: true, projectId: true },
-            with: {
-              project: {
-                columns: { id: true, title: true, chairmanId: true },
-              },
-            },
+            columns: { id: true, title: true },
           },
           assignee: {
             columns: { id: true, name: true, email: true, image: true },
@@ -82,25 +104,41 @@ export const tasksRouter = router({
       return task;
     }),
 
-  // Create task (Chairman/Admin only)
-  create: chairmanProcedure
+  // Create task (any project member)
+  create: protectedProcedure
     .input(
       z.object({
-        moduleId: z.string(),
+        projectId: z.string(),
+        moduleId: z.string().optional(),
         title: z.string().min(1).max(200),
         description: z.string().max(10000).optional(),
         assigneeId: z.string().optional(),
         priority: z.enum(priorityEnum.enumValues).optional(),
+        estimateDays: z.number().int().positive().optional(),
         deadline: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Verify module exists
-      const mod = await ctx.db.query.modules.findFirst({
-        where: eq(modules.id, input.moduleId),
-        columns: { id: true, title: true },
+      // Verify project membership
+      const membership = await ctx.db.query.projectMembers.findFirst({
+        where: and(
+          eq(projectMembers.projectId, input.projectId),
+          eq(projectMembers.userId, ctx.user.id)
+        ),
       });
-      if (!mod) throw new Error("Module not found");
+      if (!membership) throw new Error("You are not a member of this project");
+
+      // If moduleId provided, verify it exists and belongs to the same project
+      if (input.moduleId) {
+        const mod = await ctx.db.query.modules.findFirst({
+          where: eq(modules.id, input.moduleId),
+          columns: { id: true, projectId: true },
+        });
+        if (!mod) throw new Error("Module not found");
+        if (mod.projectId !== input.projectId) {
+          throw new Error("Module does not belong to this project");
+        }
+      }
 
       const newId = await nextId("TASK", ctx.db);
 
@@ -108,15 +146,22 @@ export const tasksRouter = router({
         .insert(tasks)
         .values({
           id: newId,
-          moduleId: input.moduleId,
+          projectId: input.projectId,
+          moduleId: input.moduleId ?? null,
           title: input.title,
           description: input.description,
           assigneeId: input.assigneeId,
           priority: input.priority || "medium",
+          estimateDays: input.estimateDays ?? null,
           deadline: input.deadline ? new Date(input.deadline) : null,
           createdBy: ctx.user.id,
         })
         .returning();
+
+      // Auto-add checklist item to module
+      if (input.moduleId) {
+        await addTaskChecklistItem(ctx.db, input.moduleId, input.projectId, input.title);
+      }
 
       // Notify assignee
       if (input.assigneeId && input.assigneeId !== ctx.user.id) {
@@ -125,7 +170,7 @@ export const tasksRouter = router({
           type: "task.assigned",
           title: "New Task Assigned",
           body: `You have been assigned to task: ${escapeHtml(input.title)}`,
-          link: `/modules/${input.moduleId}`,
+          link: `/projects/${input.projectId}`,
         });
         notificationEmitter.emit("new_notification", input.assigneeId);
       }
@@ -133,7 +178,7 @@ export const tasksRouter = router({
       return newTask;
     }),
 
-  // Update task (Admin/Chairman/Creator)
+  // Update task (Admin/Chairman/Creator/Assignee)
   update: protectedProcedure
     .input(
       z.object({
@@ -142,17 +187,31 @@ export const tasksRouter = router({
         description: z.string().optional(),
         assigneeId: z.string().nullable().optional(),
         priority: z.enum(priorityEnum.enumValues).optional(),
+        estimateDays: z.number().int().positive().nullable().optional(),
+        moduleId: z.string().nullable().optional(),
         deadline: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const existing = await ctx.db.query.tasks.findFirst({
         where: eq(tasks.id, input.id),
-        columns: { createdBy: true, assigneeId: true, moduleId: true },
+        columns: { createdBy: true, assigneeId: true, projectId: true, moduleId: true },
       });
       if (!existing) throw new Error("Task not found");
       if (!canManageTask(ctx.user.role as string, ctx.user.id, existing)) {
         throw new Error("You don't have permission to edit this task");
+      }
+
+      // If moduleId is changing to a new value, verify it belongs to the same project
+      if (input.moduleId !== undefined && input.moduleId !== null && input.moduleId !== existing.moduleId) {
+        const mod = await ctx.db.query.modules.findFirst({
+          where: eq(modules.id, input.moduleId),
+          columns: { id: true, projectId: true },
+        });
+        if (!mod) throw new Error("Module not found");
+        if (mod.projectId !== existing.projectId) {
+          throw new Error("Module does not belong to this project");
+        }
       }
 
       const [updated] = await ctx.db
@@ -166,6 +225,12 @@ export const tasksRouter = router({
             assigneeId: input.assigneeId,
           }),
           ...(input.priority && { priority: input.priority }),
+          ...(input.estimateDays !== undefined && {
+            estimateDays: input.estimateDays,
+          }),
+          ...(input.moduleId !== undefined && {
+            moduleId: input.moduleId,
+          }),
           ...(input.deadline !== undefined && {
             deadline: input.deadline ? new Date(input.deadline) : null,
           }),
@@ -173,6 +238,11 @@ export const tasksRouter = router({
         })
         .where(eq(tasks.id, input.id))
         .returning();
+
+      // Auto-add checklist item if moduleId changed to a new value
+      if (input.moduleId && input.moduleId !== existing.moduleId) {
+        await addTaskChecklistItem(ctx.db, input.moduleId, existing.projectId, updated.title);
+      }
 
       // Notify new assignee if changed
       if (
@@ -185,7 +255,7 @@ export const tasksRouter = router({
           type: "task.assigned",
           title: "Task Re-assigned to You",
           body: `You have been assigned to task: ${escapeHtml(updated.title)}`,
-          link: `/modules/${existing.moduleId}`,
+          link: `/projects/${existing.projectId}`,
         });
         notificationEmitter.emit("new_notification", input.assigneeId);
       }
@@ -214,7 +284,7 @@ export const tasksRouter = router({
           assigneeId: true,
           createdBy: true,
           deadline: true,
-          moduleId: true,
+          projectId: true,
         },
       });
       if (!existing) throw new Error("Task not found");
@@ -254,13 +324,13 @@ export const tasksRouter = router({
       return updated;
     }),
 
-  // Delete task (Admin/Chairman/Creator)
+  // Delete task (Admin/Chairman/Creator/Assignee)
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const existing = await ctx.db.query.tasks.findFirst({
         where: eq(tasks.id, input.id),
-        columns: { createdBy: true },
+        columns: { createdBy: true, assigneeId: true },
       });
       if (!existing) throw new Error("Task not found");
       if (!canManageTask(ctx.user.role as string, ctx.user.id, existing)) {

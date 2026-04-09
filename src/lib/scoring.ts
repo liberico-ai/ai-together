@@ -64,9 +64,6 @@ export async function recordActivity(db: DbClient, userId: string) {
 
 /**
  * Score points table:
- * - module_early:  +15 (done before deadline)
- * - module_done:   +10 (done on time / no deadline)
- * - module_late:   +5  (done after deadline)
  * - task_early:    +15
  * - task_done:     +10
  * - task_late:     +5
@@ -75,11 +72,7 @@ export async function recordActivity(db: DbClient, userId: string) {
  * - doc_approved:  +3
  */
 export const SCORE_POINTS = {
-  // Module scoring
-  MODULE_EARLY: 15,
-  MODULE_DONE: 10,
-  MODULE_LATE: 5,
-  // Task scoring (same values but separate for flexibility)
+  // Task scoring
   TASK_EARLY: 15,
   TASK_DONE: 10,
   TASK_LATE: 5,
@@ -88,25 +81,6 @@ export const SCORE_POINTS = {
   COMMIT: 2,
   DOC_APPROVED: 3,
 } as const;
-
-/**
- * Determine the score event type based on module deadline.
- */
-export function getModuleScoreType(deadline: Date | null): {
-  eventType: string;
-  points: number;
-} {
-  if (!deadline) {
-    return { eventType: "module_done", points: SCORE_POINTS.MODULE_DONE };
-  }
-
-  const now = new Date();
-  if (now < deadline) {
-    return { eventType: "module_early", points: SCORE_POINTS.MODULE_EARLY };
-  } else {
-    return { eventType: "module_late", points: SCORE_POINTS.MODULE_LATE };
-  }
-}
 
 /**
  * Determine the score event type based on task deadline.

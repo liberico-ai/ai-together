@@ -54,23 +54,23 @@ export default function AnalyticsPage() {
 
   const { data: stats, isLoading: statsLoading } = trpc.dashboard.getStats.useQuery();
   const { data: leaderboard, isLoading: lbLoading } = trpc.dashboard.getLeaderboard.useQuery();
-  const { data: myModules, isLoading: modulesLoading } = trpc.modules.myModules.useQuery();
+  const { data: myTasks, isLoading: tasksLoading } = trpc.tasks.myTasks.useQuery();
   const { data: projectProgress, isLoading: progressLoading } = trpc.dashboard.getProjectProgress.useQuery();
 
-  const isLoading = statsLoading || lbLoading || modulesLoading || progressLoading;
+  const isLoading = statsLoading || lbLoading || tasksLoading || progressLoading;
 
   const myRank = leaderboard?.findIndex(u => u.userId === session?.user?.id);
   const myScore = leaderboard?.find(u => u.userId === session?.user?.id)?.totalPoints ?? 0;
 
-  const modulesByStatus = {
-    planned: myModules?.filter(m => m.status === "planned").length ?? 0,
-    in_progress: myModules?.filter(m => m.status === "in_progress").length ?? 0,
-    in_review: myModules?.filter(m => m.status === "in_review").length ?? 0,
-    done: myModules?.filter(m => m.status === "done").length ?? 0,
-    changes_requested: myModules?.filter(m => m.status === "changes_requested").length ?? 0,
+  const tasksByStatus = {
+    planned: myTasks?.filter(m => m.status === "planned").length ?? 0,
+    in_progress: myTasks?.filter(m => m.status === "in_progress").length ?? 0,
+    in_review: myTasks?.filter(m => m.status === "in_review").length ?? 0,
+    done: myTasks?.filter(m => m.status === "done").length ?? 0,
+    changes_requested: myTasks?.filter(m => m.status === "changes_requested").length ?? 0,
   };
-  const totalModules = Object.values(modulesByStatus).reduce((a, b) => a + b, 0);
-  const completionRate = totalModules > 0 ? Math.round((modulesByStatus.done / totalModules) * 100) : 0;
+  const totalTasks = Object.values(tasksByStatus).reduce((a, b) => a + b, 0);
+  const completionRate = totalTasks > 0 ? Math.round((tasksByStatus.done / totalTasks) * 100) : 0;
 
   // Theme-aware chart colors
   const chartGridColor = isDark ? "#44403c" : "#e7e5e4";
@@ -114,8 +114,8 @@ export default function AnalyticsPage() {
           <section>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Personal Overview</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard title="Modules Assigned" value={stats?.modules?.assigned ?? 0} icon={Clock} color="bg-blue-500" subtitle="Total across all projects" />
-              <StatCard title="Completion Rate" value={`${completionRate}%`} icon={CheckCircle2} color="bg-emerald-500" subtitle={`${modulesByStatus.done} modules done`} />
+              <StatCard title="Tasks Assigned" value={stats?.tasks?.assigned ?? 0} icon={Clock} color="bg-blue-500" subtitle="Total across all projects" />
+              <StatCard title="Completion Rate" value={`${completionRate}%`} icon={CheckCircle2} color="bg-emerald-500" subtitle={`${tasksByStatus.done} tasks done`} />
               <StatCard title="Your Rank" value={myRank !== undefined && myRank >= 0 ? `#${myRank + 1}` : "N/A"} icon={TrendingUp} color="bg-amber-500" subtitle="Platform leaderboard position" />
               <StatCard title="Total Points" value={myScore} icon={BarChart3} color="bg-coral-500" subtitle="Points earned from approvals" />
             </div>
@@ -123,13 +123,13 @@ export default function AnalyticsPage() {
 
           {/* Task Distribution */}
           <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-            <h2 className="text-base font-semibold text-foreground mb-6">Module Status Distribution</h2>
+            <h2 className="text-base font-semibold text-foreground mb-6">Task Status Distribution</h2>
             <div className="space-y-5">
-              <ProgressBar label="Done ✅" value={modulesByStatus.done} max={totalModules} color="bg-emerald-500" />
-              <ProgressBar label="In Review 🔍" value={modulesByStatus.in_review} max={totalModules} color="bg-amber-400" />
-              <ProgressBar label="In Progress 🚀" value={modulesByStatus.in_progress} max={totalModules} color="bg-blue-500" />
-              <ProgressBar label="Planned 📋" value={modulesByStatus.planned} max={totalModules} color="bg-stone-400" />
-              <ProgressBar label="Changes Requested 🔄" value={modulesByStatus.changes_requested} max={totalModules} color="bg-rose-400" />
+              <ProgressBar label="Done ✅" value={tasksByStatus.done} max={totalTasks} color="bg-emerald-500" />
+              <ProgressBar label="In Review 🔍" value={tasksByStatus.in_review} max={totalTasks} color="bg-amber-400" />
+              <ProgressBar label="In Progress 🚀" value={tasksByStatus.in_progress} max={totalTasks} color="bg-blue-500" />
+              <ProgressBar label="Planned 📋" value={tasksByStatus.planned} max={totalTasks} color="bg-stone-400" />
+              <ProgressBar label="Changes Requested 🔄" value={tasksByStatus.changes_requested} max={totalTasks} color="bg-rose-400" />
             </div>
           </section>
 
@@ -154,8 +154,8 @@ export default function AnalyticsPage() {
                       }}
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: 13, paddingTop: '10px' }} />
-                    <Bar dataKey="done" name="Completed Modules" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} />
-                    <Bar dataKey="pending" name="Pending Modules" stackId="a" fill={chartPendingColor} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="done" name="Completed Tasks" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} />
+                    <Bar dataKey="pending" name="Pending Tasks" stackId="a" fill={chartPendingColor} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (

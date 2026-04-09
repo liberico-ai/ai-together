@@ -21,7 +21,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ActiveProjectsList } from "@/components/dashboard/active-projects-list";
 
 const defaultStats = [
-  { label: "Modules Assigned", value: "0", icon: Boxes, color: "text-primary" },
+  { label: "Tasks Assigned", value: "0", icon: Boxes, color: "text-primary" },
   { label: "In Progress", value: "0", icon: LayoutDashboard, color: "text-[var(--color-accent-500)]" },
   { label: "Completed", value: "0", icon: FolderKanban, color: "text-[var(--color-success)]" },
   { label: "Overdue", value: "0", icon: Flame, color: "text-destructive" },
@@ -31,13 +31,13 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const { data: statsData, isLoading: statsLoading } = trpc.dashboard.getStats.useQuery();
   const { data: leaderboard, isLoading: leaderboardLoading } = trpc.dashboard.getLeaderboard.useQuery();
-  const { data: myModules, isLoading: modulesLoading } = trpc.modules.myModules.useQuery();
+  const { data: myTasks, isLoading: tasksLoading } = trpc.tasks.myTasks.useQuery();
 
-  const moduleStats = [
-    { label: "Modules Assigned", value: statsData?.modules?.assigned || 0, icon: Boxes, color: "text-primary" },
-    { label: "In Progress", value: statsData?.modules?.inProgress || 0, icon: LayoutDashboard, color: "text-[var(--color-accent-500)]" },
-    { label: "Completed", value: statsData?.modules?.completed || 0, icon: FolderKanban, color: "text-[var(--color-success)]" },
-    { label: "Overdue", value: statsData?.modules?.overdue || 0, icon: Flame, color: "text-destructive" },
+  const taskStats = [
+    { label: "Tasks Assigned", value: statsData?.tasks?.assigned || 0, icon: Boxes, color: "text-primary" },
+    { label: "In Progress", value: statsData?.tasks?.inProgress || 0, icon: LayoutDashboard, color: "text-[var(--color-accent-500)]" },
+    { label: "Completed", value: statsData?.tasks?.completed || 0, icon: FolderKanban, color: "text-[var(--color-success)]" },
+    { label: "Overdue", value: statsData?.tasks?.overdue || 0, icon: Flame, color: "text-destructive" },
   ];
 
   const projectStats = [
@@ -107,7 +107,7 @@ export default function DashboardPage() {
         {/* Stats Cards Content */}
         <TabsContent value="modules" className="mt-0 outline-none">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {moduleStats.map(renderStatCard)}
+            {taskStats.map(renderStatCard)}
           </div>
         </TabsContent>
         
@@ -122,50 +122,50 @@ export default function DashboardPage() {
         {/* Active Projects */}
         <ActiveProjectsList />
 
-        {/* My Modules */}
+        {/* My Tasks */}
         <div className="rounded-xl bg-card border border-border shadow-sm overflow-hidden flex flex-col">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <h2 className="text-lg font-semibold">My Modules</h2>
+          <h2 className="text-lg font-semibold">My Tasks</h2>
           <Link href="/my-tasks" className="text-sm text-primary hover:text-primary/80 font-medium transition-colors">
             View all →
           </Link>
         </div>
         <div className="divide-y divide-border">
-          {modulesLoading ? (
+          {tasksLoading ? (
             <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-stone-300" /></div>
-          ) : !myModules || myModules.length === 0 ? (
-            <div className="p-8 text-center text-sm text-stone-500">No modules assigned.</div>
+          ) : !myTasks || myTasks.length === 0 ? (
+            <div className="p-8 text-center text-sm text-stone-500">No tasks assigned.</div>
           ) : (
-            myModules.slice(0, 5).map((mod) => (
+            myTasks.slice(0, 5).map((task) => (
               <Link
-                key={mod.id}
-                href={`/modules/${mod.id}`}
+                key={task.id}
+                href={`/projects/${task.project?.id}`}
                 className="px-5 py-3.5 flex items-center gap-4 hover:bg-secondary/30 transition-colors cursor-pointer group"
               >
-                <span className="text-xs font-mono text-muted-foreground w-20">{mod.id}</span>
-                <span className="flex-1 text-sm font-medium group-hover:text-primary transition-colors">{mod.title}</span>
+                <span className="text-xs font-mono text-muted-foreground w-20 truncate">{task.project?.title ?? "No project"}</span>
+                <span className="flex-1 text-sm font-medium group-hover:text-primary transition-colors">{task.title}</span>
                 <span
                   className={`text-xs font-medium px-2.5 py-1 rounded-full
-                    ${mod.status === "done" ? "bg-[var(--color-success-light)] text-[var(--color-success)] dark:bg-[var(--color-success)]/20" : ""}
-                    ${mod.status === "in_progress" ? "bg-[var(--color-info-light)] text-[var(--color-info)] dark:bg-[var(--color-info)]/20" : ""}
-                    ${mod.status === "in_review" ? "bg-[var(--color-warning-light)] text-[var(--color-warning)] dark:bg-[var(--color-warning)]/20" : ""}
-                    ${mod.status === "planned" ? "bg-secondary text-muted-foreground" : ""}
+                    ${task.status === "done" ? "bg-[var(--color-success-light)] text-[var(--color-success)] dark:bg-[var(--color-success)]/20" : ""}
+                    ${task.status === "in_progress" ? "bg-[var(--color-info-light)] text-[var(--color-info)] dark:bg-[var(--color-info)]/20" : ""}
+                    ${task.status === "in_review" ? "bg-[var(--color-warning-light)] text-[var(--color-warning)] dark:bg-[var(--color-warning)]/20" : ""}
+                    ${task.status === "planned" ? "bg-secondary text-muted-foreground" : ""}
                   `}
                 >
-                  {mod.status.replace("_", " ")}
+                  {task.status.replace("_", " ")}
                 </span>
                 <span
                   className={`text-xs font-medium
-                    ${mod.priority === "critical" ? "text-destructive" : ""}
-                    ${mod.priority === "high" ? "text-[var(--color-accent-600)]" : ""}
-                    ${mod.priority === "medium" ? "text-muted-foreground" : ""}
-                    ${mod.priority === "low" ? "text-muted-foreground/60" : ""}
+                    ${task.priority === "critical" ? "text-destructive" : ""}
+                    ${task.priority === "high" ? "text-[var(--color-accent-600)]" : ""}
+                    ${task.priority === "medium" ? "text-muted-foreground" : ""}
+                    ${task.priority === "low" ? "text-muted-foreground/60" : ""}
                   `}
                 >
-                  {mod.priority}
+                  {task.priority}
                 </span>
                 <span className="text-xs text-muted-foreground w-16">
-                  {mod.deadline ? new Date(mod.deadline).toLocaleDateString() : 'N/A'}
+                  {task.deadline ? new Date(task.deadline).toLocaleDateString() : 'N/A'}
                 </span>
                 <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>

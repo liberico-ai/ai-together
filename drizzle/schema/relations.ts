@@ -24,7 +24,6 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   }),
   projectsAsChairman: many(projects),
   projectMemberships: many(projectMembers),
-  assignedModules: many(modules),
   createdModules: many(modules, { relationName: "creator" }),
   assignedTasks: many(tasks),
   createdTasks: many(tasks, { relationName: "taskCreator" }),
@@ -45,6 +44,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   }),
   members: many(projectMembers),
   modules: many(modules),
+  tasks: many(tasks),
   commits: many(githubCommits),
 }));
 
@@ -59,24 +59,23 @@ export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
   }),
 }));
 
-export const modulesRelations = relations(modules, ({ one, many }) => ({
+export const modulesRelations = relations(modules, ({ one }) => ({
   project: one(projects, {
     fields: [modules.projectId],
     references: [projects.id],
-  }),
-  assignee: one(users, {
-    fields: [modules.assigneeId],
-    references: [users.id],
   }),
   creator: one(users, {
     fields: [modules.createdBy],
     references: [users.id],
     relationName: "creator",
   }),
-  tasks: many(tasks),
 }));
 
 export const tasksRelations = relations(tasks, ({ one }) => ({
+  project: one(projects, {
+    fields: [tasks.projectId],
+    references: [projects.id],
+  }),
   module: one(modules, {
     fields: [tasks.moduleId],
     references: [modules.id],
