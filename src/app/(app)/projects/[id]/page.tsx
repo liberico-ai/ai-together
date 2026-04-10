@@ -124,7 +124,7 @@ function ProjectProgress({ projectId }: { projectId: string }) {
             {activeTasks.map((task: any) => {
               const sCfg = STATUS_CONFIG[task.status];
               return (
-                <Link href={`/projects/${projectId}`} key={task.id} className="px-6 py-4 flex items-center gap-4 hover:bg-muted/30 transition-colors cursor-pointer group">
+                <Link href={`/tasks/${task.id}`} key={task.id} className="px-6 py-4 flex items-center gap-4 hover:bg-muted/30 transition-colors cursor-pointer group">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${sCfg.bgColor}`} />
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm text-stone-900 dark:text-stone-100 truncate group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors">{task.title}</div>
