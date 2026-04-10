@@ -174,7 +174,7 @@ export default function MyTasksPage() {
                       <p className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">{task.title}</p>
                       {task.category === "operations" ? (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                          Van hanh
+                          Ops
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">

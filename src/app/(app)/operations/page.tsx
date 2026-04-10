@@ -382,7 +382,7 @@ export default function OperationsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2 text-foreground">
             <LifeBuoy className="h-6 w-6 text-coral-500" />
-            Van hanh (Operations)
+            Operations
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Operations & maintenance tasks across all domains.

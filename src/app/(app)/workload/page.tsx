@@ -113,7 +113,7 @@ function MyWorkloadTab() {
               <p className="text-lg font-bold mt-1">{projectTasks.length}</p>
             </div>
             <div>
-              <Badge variant="secondary" className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">Van hanh</Badge>
+              <Badge variant="secondary" className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">Ops</Badge>
               <p className="text-lg font-bold mt-1">{opsTasks.length}</p>
             </div>
           </div>
@@ -152,7 +152,7 @@ function MyWorkloadTab() {
                       </p>
                       {task.category === "operations" ? (
                         <Badge variant="secondary" className="text-[9px] px-1.5 py-0 shrink-0 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                          Van hanh
+                          Ops
                         </Badge>
                       ) : null}
                     </div>

@@ -18,7 +18,7 @@ import { useState } from "react";
 const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/operations", label: "Vận hành", icon: LifeBuoy },
+  { href: "/operations", label: "Operations", icon: LifeBuoy },
   { href: "/my-tasks", label: "My Tasks", icon: ClipboardList },
   { href: "/workload", label: "Workload", icon: Users },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },

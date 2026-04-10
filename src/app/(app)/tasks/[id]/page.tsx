@@ -354,7 +354,7 @@ export default function TaskDetailPage({
             className="inline-flex items-center text-sm font-medium text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 transition-colors"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            {task.project ? task.project.title : "Van hanh (Operations)"}
+            {task.project ? task.project.title : "Operations"}
           </Link>
         </div>
 
@@ -371,7 +371,7 @@ export default function TaskDetailPage({
               </span>
               {task.category === "operations" ? (
                 <Badge variant="secondary" className="text-[10px] px-2 py-0.5 font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                  Van hanh
+                  Ops
                 </Badge>
               ) : (
                 <Badge variant="secondary" className="text-[10px] px-2 py-0.5 font-medium bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
