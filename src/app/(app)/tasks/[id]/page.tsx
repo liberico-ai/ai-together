@@ -1,7 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
+import { useSession } from "@/lib/auth/client";
 import {
   Loader2,
   ArrowLeft,
@@ -14,11 +16,15 @@ import {
   LifeBuoy,
   Globe,
   MessageSquare,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -28,6 +34,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { CommentSection } from "@/components/comments/comment-section";
 import { DocumentManager } from "@/components/documents/document-manager";
 
@@ -43,58 +58,193 @@ const STATUS_CONFIG: Record<
   string,
   { label: string; dotColor: string; className: string }
 > = {
-  planned: {
-    label: "Planned",
-    dotColor: "bg-stone-400",
-    className: "text-stone-600 dark:text-stone-400",
-  },
-  in_progress: {
-    label: "In Progress",
-    dotColor: "bg-blue-500",
-    className: "text-blue-600 dark:text-blue-400",
-  },
-  in_review: {
-    label: "In Review",
-    dotColor: "bg-amber-500",
-    className: "text-amber-600 dark:text-amber-400",
-  },
-  changes_requested: {
-    label: "Needs Changes",
-    dotColor: "bg-rose-500",
-    className: "text-rose-600 dark:text-rose-400",
-  },
-  done: {
-    label: "Done",
-    dotColor: "bg-emerald-500",
-    className: "text-emerald-600 dark:text-emerald-400",
-  },
+  planned: { label: "Planned", dotColor: "bg-stone-400", className: "text-stone-600 dark:text-stone-400" },
+  in_progress: { label: "In Progress", dotColor: "bg-blue-500", className: "text-blue-600 dark:text-blue-400" },
+  in_review: { label: "In Review", dotColor: "bg-amber-500", className: "text-amber-600 dark:text-amber-400" },
+  changes_requested: { label: "Needs Changes", dotColor: "bg-rose-500", className: "text-rose-600 dark:text-rose-400" },
+  done: { label: "Done", dotColor: "bg-emerald-500", className: "text-emerald-600 dark:text-emerald-400" },
 };
 
-const PRIORITY_CONFIG: Record<
-  string,
-  { label: string; className: string }
-> = {
-  critical: {
-    label: "Critical",
-    className:
-      "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
-  },
-  high: {
-    label: "High",
-    className:
-      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  },
-  medium: {
-    label: "Medium",
-    className:
-      "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  },
-  low: {
-    label: "Low",
-    className:
-      "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400",
-  },
+const PRIORITY_OPTIONS = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
+] as const;
+
+const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
+  critical: { label: "Critical", className: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
+  high: { label: "High", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  medium: { label: "Medium", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  low: { label: "Low", className: "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400" },
 };
+
+function EditTaskDialog({
+  task,
+  onSuccess,
+}: {
+  task: {
+    id: string;
+    title: string;
+    description: string | null;
+    priority: string;
+    deadline: Date | string | null;
+    estimateDays: number | null;
+    assigneeId: string | null;
+    jiraIssueKey: string | null;
+    category: string;
+    domain: string | null;
+    projectId: string | null;
+  };
+  onSuccess: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [priority, setPriority] = useState(task.priority);
+  const [deadline, setDeadline] = useState(
+    task.deadline ? format(new Date(task.deadline), "yyyy-MM-dd") : ""
+  );
+  const [estimateDays, setEstimateDays] = useState(
+    task.estimateDays != null ? String(task.estimateDays) : ""
+  );
+  const [assigneeId, setAssigneeId] = useState(task.assigneeId ?? "");
+  const [jiraIssueKey, setJiraIssueKey] = useState(task.jiraIssueKey ?? "");
+
+  const { data: allUsers } = trpc.users.searchUsers.useQuery(
+    { query: "" },
+    { enabled: open }
+  );
+
+  const updateTask = trpc.tasks.update.useMutation({
+    onSuccess: () => {
+      setOpen(false);
+      onSuccess();
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    updateTask.mutate({
+      id: task.id,
+      title: title.trim(),
+      description: description.trim() || undefined,
+      priority: priority as "low" | "medium" | "high" | "critical",
+      deadline: deadline ? new Date(deadline).toISOString() : null,
+      estimateDays: estimateDays ? parseInt(estimateDays, 10) : null,
+      assigneeId: assigneeId || null,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="outline" size="sm" className="gap-2" />}>
+        <Pencil className="h-3.5 w-3.5" />
+        Edit
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[500px]">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+            <DialogDescription>Update task details.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-title" className="text-right">Title *</Label>
+              <Input
+                id="edit-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-desc" className="text-right">Description</Label>
+              <Input
+                id="edit-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Assignee</Label>
+              <Select value={assigneeId} onValueChange={(val: string | null) => setAssigneeId(val || "")}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select assignee" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Unassigned</SelectItem>
+                  {allUsers?.map((u: { id: string; name: string | null; username: string | null }) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name ?? u.username ?? u.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Priority</Label>
+              <Select value={priority} onValueChange={(val: string | null) => setPriority(val || "medium")}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-deadline" className="text-right">Deadline</Label>
+              <Input
+                id="edit-deadline"
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-estimate" className="text-right">Estimate</Label>
+              <Input
+                id="edit-estimate"
+                type="number"
+                min={1}
+                value={estimateDays}
+                onChange={(e) => setEstimateDays(e.target.value)}
+                placeholder="Days"
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="submit"
+              disabled={updateTask.isPending || !title.trim()}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {updateTask.isPending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function TaskDetailPage({
   params,
@@ -102,6 +252,8 @@ export default function TaskDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
+  const { data: session } = useSession();
   const utils = trpc.useUtils();
   const {
     data: task,
@@ -112,6 +264,17 @@ export default function TaskDetailPage({
   const updateStatus = trpc.tasks.updateStatus.useMutation({
     onSuccess: () => {
       utils.tasks.getById.invalidate({ id });
+    },
+  });
+
+  const deleteTask = trpc.tasks.delete.useMutation({
+    onSuccess: () => {
+      // Navigate back after deletion
+      if (task?.project) {
+        router.push(`/projects/${task.project.id}`);
+      } else {
+        router.push("/operations");
+      }
     },
   });
 
@@ -150,12 +313,25 @@ export default function TaskDetailPage({
   const status = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.planned;
   const priority = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium;
 
+  const userRole = (session?.user as any)?.role;
+  const userId = session?.user?.id;
+  const canManage =
+    userRole === "admin" ||
+    userRole === "chairman" ||
+    task.createdBy === userId ||
+    task.assigneeId === userId;
+
   const handleStatusChange = (newStatus: string | null) => {
     if (!newStatus || newStatus === task.status) return;
     updateStatus.mutate({
       id: task.id,
       status: newStatus as "planned" | "in_progress" | "in_review" | "changes_requested" | "done",
     });
+  };
+
+  const handleDelete = () => {
+    if (!confirm(`Delete task "${task.title}"? This action cannot be undone.`)) return;
+    deleteTask.mutate({ id: task.id });
   };
 
   return (
@@ -201,7 +377,7 @@ export default function TaskDetailPage({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Status Dropdown */}
             <Select
               value={task.status}
@@ -232,6 +408,30 @@ export default function TaskDetailPage({
                 })}
               </SelectContent>
             </Select>
+
+            {/* Edit / Delete — visible to creator, admin, chairman, assignee */}
+            {canManage && (
+              <>
+                <EditTaskDialog
+                  task={task}
+                  onSuccess={() => utils.tasks.getById.invalidate({ id })}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={handleDelete}
+                  disabled={deleteTask.isPending}
+                >
+                  {deleteTask.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  Delete
+                </Button>
+              </>
+            )}
 
             {task.project ? (
               <Link href={`/projects/${task.project.id}`}>
@@ -319,9 +519,7 @@ export default function TaskDetailPage({
                     </span>
                   </div>
                 ) : (
-                  <span className="text-sm text-muted-foreground">
-                    Unassigned
-                  </span>
+                  <span className="text-sm text-muted-foreground">Unassigned</span>
                 )}
               </div>
 
