@@ -18,11 +18,17 @@ export const priorityEnum = pgEnum("priority", [
   "critical",
 ]);
 
+export const taskCategoryEnum = pgEnum("task_category", [
+  "project",
+  "operations",
+]);
+
 export const tasks = pgTable("tasks", {
   id: text("id").primaryKey(), // TASK-001 format
+  category: taskCategoryEnum("category").default("project").notNull(),
+  domain: text("domain"), // e.g. "BTNET", "LBROS", "Xeca" — used for operations tasks
   projectId: text("project_id")
-    .references(() => projects.id, { onDelete: "cascade" })
-    .notNull(),
+    .references(() => projects.id, { onDelete: "cascade" }),
   moduleId: text("module_id")
     .references(() => modules.id, { onDelete: "set null" }),
   jiraIssueKey: text("jira_issue_key"),
@@ -40,4 +46,5 @@ export const tasks = pgTable("tasks", {
   index("idx_tasks_project").on(table.projectId),
   index("idx_tasks_module").on(table.moduleId),
   index("idx_tasks_assignee").on(table.assigneeId),
+  index("idx_tasks_category").on(table.category),
 ]);

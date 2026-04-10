@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../index";
-import { tasks, priorityEnum } from "@drizzle/schema/tasks";
+import { tasks, priorityEnum, taskCategoryEnum } from "@drizzle/schema/tasks";
 import { modules } from "@drizzle/schema/modules";
 import { projectMembers } from "@drizzle/schema/projects";
 import { notifications } from "@drizzle/schema/notifications";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
 import { notificationEmitter } from "@/lib/events";
 import { recordScore, recordActivity, SCORE_POINTS, getTaskScoreType } from "@/lib/scoring";
@@ -240,7 +240,7 @@ export const tasksRouter = router({
         .returning();
 
       // Auto-add checklist item if moduleId changed to a new value
-      if (input.moduleId && input.moduleId !== existing.moduleId) {
+      if (input.moduleId && input.moduleId !== existing.moduleId && existing.projectId) {
         await addTaskChecklistItem(ctx.db, input.moduleId, existing.projectId, updated.title);
       }
 
@@ -339,5 +339,72 @@ export const tasksRouter = router({
 
       await ctx.db.delete(tasks).where(eq(tasks.id, input.id));
       return { success: true };
+    }),
+
+  // ── Operations Tasks ──────────────────────────────────────
+
+  // List operations tasks (category = "operations")
+  listOperations: protectedProcedure
+    .query(async ({ ctx }) => {
+      return await ctx.db.query.tasks.findMany({
+        where: eq(tasks.category, "operations"),
+        orderBy: [desc(tasks.createdAt)],
+        limit: 200,
+        with: {
+          assignee: {
+            columns: { id: true, name: true, email: true, image: true },
+          },
+        },
+      });
+    }),
+
+  // Create operations task
+  createOperations: protectedProcedure
+    .input(
+      z.object({
+        title: z.string().min(1).max(200),
+        description: z.string().max(10000).optional(),
+        domain: z.string().min(1).max(100),
+        assigneeId: z.string().optional(),
+        priority: z.enum(priorityEnum.enumValues).optional(),
+        estimateDays: z.number().int().positive().optional(),
+        deadline: z.string().optional(),
+        jiraIssueKey: z.string().max(50).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const newId = await nextId("TASK", ctx.db);
+
+      const [newTask] = await ctx.db
+        .insert(tasks)
+        .values({
+          id: newId,
+          category: "operations",
+          domain: input.domain,
+          projectId: null,
+          title: input.title,
+          description: input.description,
+          assigneeId: input.assigneeId,
+          priority: input.priority || "medium",
+          estimateDays: input.estimateDays ?? null,
+          deadline: input.deadline ? new Date(input.deadline) : null,
+          jiraIssueKey: input.jiraIssueKey || null,
+          createdBy: ctx.user.id,
+        })
+        .returning();
+
+      // Notify assignee
+      if (input.assigneeId && input.assigneeId !== ctx.user.id) {
+        await ctx.db.insert(notifications).values({
+          userId: input.assigneeId,
+          type: "task.assigned",
+          title: "Operations Task Assigned",
+          body: `You have been assigned to operations task: ${escapeHtml(input.title)}`,
+          link: `/operations`,
+        });
+        notificationEmitter.emit("new_notification", input.assigneeId);
+      }
+
+      return newTask;
     }),
 });

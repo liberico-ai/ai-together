@@ -162,12 +162,21 @@ export default function MyTasksPage() {
               return (
                 <Link
                   key={task.id}
-                  href={`/projects/${task.project?.id}`}
+                  href={`/tasks/${task.id}`}
                   className="grid grid-cols-[1fr_120px_100px_120px_80px_32px] gap-4 items-center px-5 py-4 hover:bg-muted/30 transition-colors cursor-pointer group"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <p className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">{task.title}</p>
+                      {task.category === "operations" ? (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                          Van hanh
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
+                          Project
+                        </Badge>
+                      )}
                       {task.jiraIssueKey && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 font-mono">
                           {task.jiraIssueKey}
@@ -175,7 +184,7 @@ export default function MyTasksPage() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {task.id.slice(0, 8)} {task.project?.title ? `· ${task.project.title}` : ""} {task.module?.title ? `· ${task.module.title}` : ""}
+                      {task.id} {task.project?.title ? `· ${task.project.title}` : ""} {task.domain ? `· ${task.domain}` : ""} {task.module?.title ? `· ${task.module.title}` : ""}
                     </p>
                   </div>
 

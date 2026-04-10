@@ -165,7 +165,7 @@ export default function WorkloadPage() {
                   return (
                     <Link
                       key={task.id}
-                      href={`/projects/${task.projectId}`}
+                      href={`/tasks/${task.id}`}
                       className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors group"
                     >
                       <div className={`w-2 h-2 rounded-full shrink-0 ${sCfg.dotColor}`} />
@@ -174,7 +174,7 @@ export default function WorkloadPage() {
                           {task.title}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {task.project?.title} · {task.id}
+                          {task.project?.title ?? task.domain ?? "Operations"} · {task.id}
                         </p>
                       </div>
                       {task.assignee && (

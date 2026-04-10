@@ -11,6 +11,8 @@ import {
   Boxes,
   FolderOpen,
   ExternalLink,
+  LifeBuoy,
+  Globe,
 } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -129,11 +131,11 @@ export default function TaskDetailPage({
       <div className="px-8 pt-5 pb-6 border-b border-stone-200 dark:border-stone-800">
         <div className="mb-4">
           <Link
-            href={`/projects/${task.project.id}`}
+            href={task.project ? `/projects/${task.project.id}` : "/operations"}
             className="inline-flex items-center text-sm font-medium text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 transition-colors"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            {task.project.title}
+            {task.project ? task.project.title : "Van hanh (Operations)"}
           </Link>
         </div>
 
@@ -158,6 +160,15 @@ export default function TaskDetailPage({
               <span className="text-xs font-mono text-stone-400 bg-stone-100 dark:bg-stone-800 px-2 py-1 rounded-full">
                 {task.id}
               </span>
+              {task.category === "operations" ? (
+                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                  Van hanh
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 font-medium bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
+                  Project
+                </Badge>
+              )}
               <Badge
                 variant="secondary"
                 className={`text-[10px] px-2 py-0.5 font-medium ${priority.className}`}
@@ -167,12 +178,21 @@ export default function TaskDetailPage({
             </div>
           </div>
 
-          <Link href={`/projects/${task.project.id}`}>
-            <Button variant="outline" size="sm" className="gap-2">
-              <FolderOpen className="h-4 w-4" />
-              View Project
-            </Button>
-          </Link>
+          {task.project ? (
+            <Link href={`/projects/${task.project.id}`}>
+              <Button variant="outline" size="sm" className="gap-2">
+                <FolderOpen className="h-4 w-4" />
+                View Project
+              </Button>
+            </Link>
+          ) : (
+            <Link href="/operations">
+              <Button variant="outline" size="sm" className="gap-2">
+                <LifeBuoy className="h-4 w-4" />
+                Operations
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -235,19 +255,31 @@ export default function TaskDetailPage({
                 )}
               </div>
 
-              {/* Project */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <FolderOpen className="h-3.5 w-3.5" />
-                  Project
-                </span>
-                <Link
-                  href={`/projects/${task.project.id}`}
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  {task.project.title}
-                </Link>
-              </div>
+              {/* Project or Domain */}
+              {task.project ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Project
+                  </span>
+                  <Link
+                    href={`/projects/${task.project.id}`}
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    {task.project.title}
+                  </Link>
+                </div>
+              ) : task.domain ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    Domain
+                  </span>
+                  <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                    {task.domain}
+                  </span>
+                </div>
+              ) : null}
 
               {/* Module */}
               {task.module && (
