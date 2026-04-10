@@ -174,9 +174,17 @@ function EditTaskDialog({
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Assignee</Label>
-              <Select value={assigneeId} onValueChange={(val: string | null) => setAssigneeId(val || "")}>
+              <Select
+                value={assigneeId || "__none__"}
+                onValueChange={(val: string | null) => setAssigneeId(val === "__none__" ? "" : (val || ""))}
+              >
                 <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select assignee" />
+                  <SelectValue placeholder="Select assignee">
+                    {assigneeId
+                      ? (allUsers?.find((u: { id: string }) => u.id === assigneeId) as { name: string | null; username: string | null } | undefined)?.name
+                        ?? "Loading..."
+                      : "Unassigned"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Unassigned</SelectItem>
@@ -193,7 +201,9 @@ function EditTaskDialog({
               <Label className="text-right">Priority</Label>
               <Select value={priority} onValueChange={(val: string | null) => setPriority(val || "medium")}>
                 <SelectTrigger className="col-span-3">
-                  <SelectValue />
+                  <SelectValue>
+                    {PRIORITY_OPTIONS.find(o => o.value === priority)?.label ?? "Medium"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {PRIORITY_OPTIONS.map((opt) => (
