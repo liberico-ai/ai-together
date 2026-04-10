@@ -3,7 +3,7 @@ import { scoreEvents, userActivityLog } from "@drizzle/schema/scoring";
 import { users } from "@drizzle/schema/users";
 import { projects } from "@drizzle/schema/projects";
 import { tasks } from "@drizzle/schema/tasks";
-import { eq, sql, desc, gte, and, inArray } from "drizzle-orm";
+import { eq, ne, sql, desc, gte, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { calculateTempoBonus, getCurrentStreak } from "@/lib/scoring";
 
@@ -87,6 +87,7 @@ export const dashboardRouter = router({
             ? and(eq(users.id, scoreEvents.userId), gte(scoreEvents.createdAt, cutoffDate))
             : eq(users.id, scoreEvents.userId)
         )
+        .where(ne(users.role, "admin"))
         .groupBy(users.id, users.name, users.username, users.avatarUrl, users.image)
         .orderBy(desc(sql`SUM(${scoreEvents.points})`));
 
