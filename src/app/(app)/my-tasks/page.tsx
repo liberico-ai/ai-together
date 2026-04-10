@@ -83,9 +83,11 @@ export default function MyTasksPage() {
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <Filter className="h-4 w-4 text-muted-foreground" />
-        <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? "all")}>
+        <Select value={statusFilter} onValueChange={(val: string | null) => setStatusFilter(val ?? "all")}>
           <SelectTrigger className="w-[160px] h-9">
-            <SelectValue placeholder="All Statuses" />
+            <SelectValue>
+              {{ all: "All Statuses", planned: "Planned", in_progress: "In Progress", in_review: "In Review", done: "Done", changes_requested: "Needs Changes" }[statusFilter] ?? "All Statuses"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
@@ -97,9 +99,11 @@ export default function MyTasksPage() {
           </SelectContent>
         </Select>
 
-        <Select value={priorityFilter} onValueChange={(val) => setPriorityFilter(val ?? "all")}>
+        <Select value={priorityFilter} onValueChange={(val: string | null) => setPriorityFilter(val ?? "all")}>
           <SelectTrigger className="w-[150px] h-9">
-            <SelectValue placeholder="All Priorities" />
+            <SelectValue>
+              {{ all: "All Priorities", critical: "Critical", high: "High", medium: "Medium", low: "Low" }[priorityFilter] ?? "All Priorities"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Priorities</SelectItem>

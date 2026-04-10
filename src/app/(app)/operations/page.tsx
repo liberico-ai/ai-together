@@ -432,7 +432,9 @@ export default function OperationsPage() {
           onValueChange={(val: string | null) => setDomainFilter(val ?? "all")}
         >
           <SelectTrigger className="w-[160px] h-9">
-            <SelectValue placeholder="All Domains" />
+            <SelectValue>
+              {domainFilter === "all" ? "All Domains" : domainFilter}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Domains</SelectItem>
@@ -449,7 +451,9 @@ export default function OperationsPage() {
           onValueChange={(val: string | null) => setStatusFilter(val ?? "all")}
         >
           <SelectTrigger className="w-[160px] h-9">
-            <SelectValue placeholder="All Statuses" />
+            <SelectValue>
+              {{ all: "All Statuses", planned: "Planned", in_progress: "In Progress", in_review: "In Review", done: "Done", changes_requested: "Needs Changes" }[statusFilter] ?? "All Statuses"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>

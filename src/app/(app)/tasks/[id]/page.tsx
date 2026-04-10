@@ -401,7 +401,7 @@ export default function TaskDetailPage({
                   ) : (
                     <span className={`h-2 w-2 rounded-full shrink-0 ${status.dotColor}`} />
                   )}
-                  <SelectValue />
+                  <SelectValue>{status.label}</SelectValue>
                 </div>
               </SelectTrigger>
               <SelectContent>
