@@ -13,6 +13,7 @@ import {
   ExternalLink,
   LifeBuoy,
   Globe,
+  MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -20,6 +21,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CommentSection } from "@/components/comments/comment-section";
+import { DocumentManager } from "@/components/documents/document-manager";
+
+const STATUS_OPTIONS = [
+  { value: "planned", label: "Planned" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "in_review", label: "In Review" },
+  { value: "changes_requested", label: "Needs Changes" },
+  { value: "done", label: "Done" },
+] as const;
 
 const STATUS_CONFIG: Record<
   string,
@@ -84,11 +102,18 @@ export default function TaskDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const utils = trpc.useUtils();
   const {
     data: task,
     isLoading,
     error,
   } = trpc.tasks.getById.useQuery({ id });
+
+  const updateStatus = trpc.tasks.updateStatus.useMutation({
+    onSuccess: () => {
+      utils.tasks.getById.invalidate({ id });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -125,6 +150,14 @@ export default function TaskDetailPage({
   const status = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.planned;
   const priority = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium;
 
+  const handleStatusChange = (newStatus: string | null) => {
+    if (!newStatus || newStatus === task.status) return;
+    updateStatus.mutate({
+      id: task.id,
+      status: newStatus as "planned" | "in_progress" | "in_review" | "changes_requested" | "done",
+    });
+  };
+
   return (
     <div className="flex-1 flex flex-col min-h-[calc(100vh-4rem)]">
       {/* Header */}
@@ -145,16 +178,6 @@ export default function TaskDetailPage({
               <h1 className="text-2xl font-extrabold tracking-tight text-stone-900 dark:text-stone-100">
                 {task.title}
               </h1>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`h-2.5 w-2.5 rounded-full shrink-0 ${status.dotColor}`}
-                />
-                <span
-                  className={`text-sm font-medium ${status.className}`}
-                >
-                  {status.label}
-                </span>
-              </div>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs font-mono text-stone-400 bg-stone-100 dark:bg-stone-800 px-2 py-1 rounded-full">
@@ -178,21 +201,54 @@ export default function TaskDetailPage({
             </div>
           </div>
 
-          {task.project ? (
-            <Link href={`/projects/${task.project.id}`}>
-              <Button variant="outline" size="sm" className="gap-2">
-                <FolderOpen className="h-4 w-4" />
-                View Project
-              </Button>
-            </Link>
-          ) : (
-            <Link href="/operations">
-              <Button variant="outline" size="sm" className="gap-2">
-                <LifeBuoy className="h-4 w-4" />
-                Operations
-              </Button>
-            </Link>
-          )}
+          <div className="flex items-center gap-3">
+            {/* Status Dropdown */}
+            <Select
+              value={task.status}
+              onValueChange={handleStatusChange}
+              disabled={updateStatus.isPending}
+            >
+              <SelectTrigger className="w-[170px] h-9">
+                <div className="flex items-center gap-2">
+                  {updateStatus.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${status.dotColor}`} />
+                  )}
+                  <SelectValue />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((opt) => {
+                  const cfg = STATUS_CONFIG[opt.value];
+                  return (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full shrink-0 ${cfg.dotColor}`} />
+                        {opt.label}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+
+            {task.project ? (
+              <Link href={`/projects/${task.project.id}`}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <FolderOpen className="h-4 w-4" />
+                  View Project
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/operations">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <LifeBuoy className="h-4 w-4" />
+                  Operations
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
@@ -215,6 +271,20 @@ export default function TaskDetailPage({
                   No description provided.
                 </p>
               )}
+            </div>
+
+            {/* Attachments */}
+            <div className="rounded-xl border border-stone-200 dark:border-stone-800 p-6">
+              <DocumentManager targetType="task" targetId={task.id} />
+            </div>
+
+            {/* Comments */}
+            <div className="rounded-xl border border-stone-200 dark:border-stone-800 p-6">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Comments
+              </h3>
+              <CommentSection targetType="task" targetId={task.id} />
             </div>
           </div>
 
