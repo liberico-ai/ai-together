@@ -158,7 +158,7 @@ function CreateOperationsTaskDialog() {
         render={
           <Button
             size="sm"
-            className="bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-md hover:shadow-lg transition-all"
+            className="bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-md hover:shadow-lg transition-all"
           />
         }
       >
