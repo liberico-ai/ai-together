@@ -22,10 +22,32 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
       JIRA_WEBHOOK_SECRET: ${JIRA_WEBHOOK_SECRET}
+      CRON_SECRET: ${CRON_SECRET}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     depends_on:
       - minio
     networks:
       - libe_net
+
+  cron:
+    image: alpine:3.19
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      CRON_SECRET: ${CRON_SECRET}
+    networks:
+      - libe_net
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        apk add --no-cache curl >/dev/null 2>&1
+        echo '30 1 * * * curl -fsS -H "Authorization: Bearer $$CRON_SECRET" http://app:3000/api/cron/telegram-daily-standup >> /proc/1/fd/1 2>&1' > /etc/crontabs/root
+        echo "[cron] Registered: 30 1 * * * UTC (08:30 Asia/Ho_Chi_Minh) telegram-daily-standup"
+        exec crond -f -l 8
 
   minio:
     image: minio/minio
