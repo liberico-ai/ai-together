@@ -27,14 +27,28 @@ export async function GET(req: Request) {
   }
 
   // Query tasks in_progress với assignee info
-  const rows = await db.query.tasks.findMany({
-    where: eq(tasks.status, 'in_progress'),
-    limit: MAX_TASKS,
-    columns: { id: true, title: true, deadline: true, assigneeId: true },
-    with: {
-      assignee: { columns: { id: true, name: true } },
-    },
-  });
+  type TaskRow = {
+    id: string;
+    title: string;
+    deadline: Date | null;
+    assigneeId: string | null;
+    assignee: { id: string; name: string | null } | null;
+  };
+  let rows: TaskRow[];
+  try {
+    rows = await db.query.tasks.findMany({
+      where: eq(tasks.status, 'in_progress'),
+      limit: MAX_TASKS,
+      columns: { id: true, title: true, deadline: true, assigneeId: true },
+      with: {
+        assignee: { columns: { id: true, name: true } },
+      },
+    }) as TaskRow[];
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[Cron/telegram-daily-standup] DB query failed:', msg);
+    return NextResponse.json({ success: false, error: 'Database error' }, { status: 500 });
+  }
 
   const standupTasks: StandupTask[] = rows.map((r) => ({
     id: r.id,
