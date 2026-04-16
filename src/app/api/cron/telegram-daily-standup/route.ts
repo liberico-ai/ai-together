@@ -5,6 +5,8 @@ import { eq } from 'drizzle-orm';
 import { formatStandupMessage, type StandupTask } from '@/lib/telegram-standup';
 import { sendTelegramMessage } from '@/lib/telegram';
 
+const MAX_TASKS = 200;
+
 export async function GET(req: Request) {
   // Auth (pattern y hệt /api/cron/deadline-warning)
   const cronSecret = process.env.CRON_SECRET;
@@ -27,6 +29,7 @@ export async function GET(req: Request) {
   // Query tasks in_progress với assignee info
   const rows = await db.query.tasks.findMany({
     where: eq(tasks.status, 'in_progress'),
+    limit: MAX_TASKS,
     columns: { id: true, title: true, deadline: true, assigneeId: true },
     with: {
       assignee: { columns: { id: true, name: true } },
@@ -40,7 +43,14 @@ export async function GET(req: Request) {
     assignee: r.assignee ? { id: r.assignee.id, name: r.assignee.name ?? '(Unknown)' } : null,
   }));
 
-  const chunks = formatStandupMessage(standupTasks, new Date());
+  let chunks: string[];
+  try {
+    chunks = formatStandupMessage(standupTasks, new Date());
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[Cron/telegram-daily-standup] Format failed:', msg);
+    return NextResponse.json({ success: false, error: 'Format error' }, { status: 500 });
+  }
 
   // Best-effort send. Failure 1 chunk không block chunks khác.
   let sent = 0;
@@ -66,6 +76,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     success: failed === 0,
     totalTasks: standupTasks.length,
+    truncated: rows.length === MAX_TASKS,
     chunksTotal: chunks.length,
     chunksSent: sent,
     chunksFailed: failed,
