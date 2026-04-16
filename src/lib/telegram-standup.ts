@@ -23,7 +23,7 @@ interface Group {
 
 function renderTaskLine(task: StandupTask, now: Date): string {
   const title = escapeHtml(task.title);
-  const head = `• ${task.id} — ${title}`;
+  const head = `• ${escapeHtml(task.id)} — ${title}`;
   if (!task.deadline) {
     return `${head}\n  (không có deadline)`;
   }
