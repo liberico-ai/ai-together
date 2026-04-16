@@ -49,7 +49,7 @@ export async function sendTelegramMessage(text: string): Promise<void> {
   }
 
   if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`Telegram API ${response.status}: ${text.slice(0, 500)}`);
+    const responseBody = await response.text().catch(() => '');
+    throw new Error(`Telegram API ${response.status}: ${responseBody.slice(0, 500)}`);
   }
 }
