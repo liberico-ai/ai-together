@@ -112,4 +112,19 @@ describe('formatStandupMessage', () => {
       expect(combined).toContain(`TASK-${i}`);
     }
   });
+
+  it('falls back to line-splitting when a single block exceeds maxChunkLen', () => {
+    // Single task with large title that, when rendered with the header, exceeds maxLen=200
+    const hugeTitle = 'y'.repeat(300);
+    const chunks = formatStandupMessage(
+      [makeTask({ id: 'BIG-1', title: hugeTitle })],
+      NOW,
+      { maxChunkLen: 200 }
+    );
+    expect(chunks.length).toBeGreaterThanOrEqual(2);
+    chunks.forEach((c) => expect(c.length).toBeLessThanOrEqual(200));
+    // Title content must still be present across chunks (combined)
+    const combined = chunks.join('');
+    expect(combined).toContain('BIG-1');
+  });
 });
