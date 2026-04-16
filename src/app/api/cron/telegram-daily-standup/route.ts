@@ -73,8 +73,8 @@ export async function GET(req: Request) {
 
   for (let i = 0; i < chunks.length; i++) {
     try {
-      if (i > 0 && chunks.length > 5) {
-        // Rate-limit guard khi >5 chunks
+      if (i > 0 && chunks.length > 1) {
+        // Rate-limit guard giữa các chunk (Telegram: 1 msg/sec cùng chat)
         await new Promise((r) => setTimeout(r, 1100));
       }
       await sendTelegramMessage(chunks[i]);
