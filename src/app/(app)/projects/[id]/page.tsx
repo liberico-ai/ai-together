@@ -1,25 +1,29 @@
 "use client";
 
 import { use } from "react";
+import type { inferRouterOutputs } from "@trpc/server";
 import { trpc } from "@/lib/trpc/client";
-import { Loader2, ArrowLeft, Plus, Layout, Settings, FileText, GitCommit, Calendar, User2, Activity, Boxes, ClipboardList } from "lucide-react";
+import type { AppRouter } from "@/server/trpc/routers";
+import { ArrowLeft, Layout, FileText, GitCommit, Calendar, Activity, Boxes, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { formatDistanceToNow } from "date-fns";
 import { ModuleList } from "@/components/modules/module-list";
 import { CreateModuleDialog } from "@/components/modules/create-module-dialog";
 import { TaskList } from "@/components/tasks/task-list";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { DocumentManager } from "@/components/documents/document-manager";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ProjectSettingsDialog } from "@/components/projects/project-settings-dialog";
 import { CommitsTab } from "@/components/projects/commits-tab";
 import { ManageTeamDialog } from "@/components/projects/manage-team-dialog";
+
+type RouterOutputs = inferRouterOutputs<AppRouter>;
+type ProjectTask = RouterOutputs["tasks"]["listByProject"][number];
+type ProjectMember = RouterOutputs["projects"]["getById"]["members"][number];
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   planned: { label: "Planned", color: "text-stone-500", bgColor: "bg-stone-500" },
@@ -43,15 +47,15 @@ function ProjectProgress({ projectId }: { projectId: string }) {
 
   const total = tasks?.length ?? 0;
   const counts = {
-    planned: tasks?.filter((t: any) => t.status === "planned").length ?? 0,
-    in_progress: tasks?.filter((t: any) => t.status === "in_progress").length ?? 0,
-    in_review: tasks?.filter((t: any) => t.status === "in_review").length ?? 0,
-    changes_requested: tasks?.filter((t: any) => t.status === "changes_requested").length ?? 0,
-    done: tasks?.filter((t: any) => t.status === "done").length ?? 0,
+    planned: tasks?.filter((t: ProjectTask) => t.status === "planned").length ?? 0,
+    in_progress: tasks?.filter((t: ProjectTask) => t.status === "in_progress").length ?? 0,
+    in_review: tasks?.filter((t: ProjectTask) => t.status === "in_review").length ?? 0,
+    changes_requested: tasks?.filter((t: ProjectTask) => t.status === "changes_requested").length ?? 0,
+    done: tasks?.filter((t: ProjectTask) => t.status === "done").length ?? 0,
   };
 
   const progressPercent = total === 0 ? 0 : Math.round((counts.done / total) * 100);
-  const activeTasks = tasks?.filter((t: any) => t.status === "in_progress" || t.status === "in_review" || t.status === "changes_requested") ?? [];
+  const activeTasks = tasks?.filter((t: ProjectTask) => t.status === "in_progress" || t.status === "in_review" || t.status === "changes_requested") ?? [];
 
   return (
     <div className="space-y-6">
@@ -121,7 +125,7 @@ function ProjectProgress({ projectId }: { projectId: string }) {
           </div>
         ) : (
           <div className="divide-y divide-stone-100 dark:divide-stone-800">
-            {activeTasks.map((task: any) => {
+            {activeTasks.map((task: ProjectTask) => {
               const sCfg = STATUS_CONFIG[task.status];
               return (
                 <Link href={`/tasks/${task.id}`} key={task.id} className="px-6 py-4 flex items-center gap-4 hover:bg-muted/30 transition-colors cursor-pointer group">
@@ -315,8 +319,8 @@ export default function ProjectDetailPage({
                     </div>
                     {/* Members (exclude PM to avoid duplicate) */}
                     {project.members
-                      .filter((m: any) => m.user.id !== project.chairman?.id)
-                      .map((m: any) => (
+                      .filter((m: ProjectMember) => m.user.id !== project.chairman?.id)
+                      .map((m: ProjectMember) => (
                       <div key={m.user.id} className="flex items-center space-x-3">
                         <Avatar className="h-9 w-9">
                           <AvatarFallback className="bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 font-semibold">

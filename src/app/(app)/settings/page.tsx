@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 export default function SettingsPage() {
   const [githubAppId, setGithubAppId] = useState("");
   const [githubWebhookSecret, setGithubWebhookSecret] = useState("");
-  const [minioEndpoint, setMinioEndpoint] = useState(process.env.NEXT_PUBLIC_MINIO_ENDPOINT || "127.0.0.1:9000");
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -53,7 +52,7 @@ export default function SettingsPage() {
                 onChange={(e) => setGithubAppId(e.target.value)}
                 className="font-mono"
               />
-              <p className="text-xs text-stone-500">Found in your GitHub App's settings page.</p>
+              <p className="text-xs text-stone-500">Found in your GitHub App&apos;s settings page.</p>
             </div>
 
             <div className="space-y-2">

@@ -78,7 +78,7 @@ export function CreateTaskDialog({ projectId }: { projectId: string }) {
       projectId,
       title: title.trim(),
       description: description.trim() || undefined,
-      assigneeId: assigneeId || undefined,
+      assigneeIds: assigneeId ? [assigneeId] : undefined,
       priority,
       deadline: deadline ? new Date(deadline).toISOString() : undefined,
       estimateDays: estimateDays ? parseInt(estimateDays, 10) : undefined,
@@ -134,7 +134,7 @@ export function CreateTaskDialog({ projectId }: { projectId: string }) {
             {/* Assignee */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Assignee</Label>
-              <Select value={assigneeId} onValueChange={(val: any) => setAssigneeId(val || "")}>
+              <Select value={assigneeId} onValueChange={(val: string | null) => setAssigneeId(val || "")}>
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select assignee" />
                 </SelectTrigger>
@@ -151,7 +151,7 @@ export function CreateTaskDialog({ projectId }: { projectId: string }) {
             {/* Priority */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Priority</Label>
-              <Select value={priority} onValueChange={(val: any) => setPriority(val || "medium")}>
+              <Select value={priority} onValueChange={(val: string | null) => setPriority((val || "medium") as typeof priority)}>
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
@@ -198,7 +198,7 @@ export function CreateTaskDialog({ projectId }: { projectId: string }) {
             {/* Module */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Module</Label>
-              <Select value={moduleId} onValueChange={(val: any) => setModuleId(val || "")}>
+              <Select value={moduleId} onValueChange={(val: string | null) => setModuleId(val || "")}>
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Optional module" />
                 </SelectTrigger>

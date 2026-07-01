@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { projects } from "@drizzle/schema/projects";
 import { githubCommits } from "@drizzle/schema/github";
-import { userGithubMap } from "@drizzle/schema/users";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { githubEmitter } from "@/lib/events";
@@ -30,7 +29,16 @@ function verifySignature(payload: string, signature: string | null, secret: stri
 // ==========================================
 // Push Event Handler — auto-save commits
 // ==========================================
-async function handlePushEvent(body: Record<string, any>) {
+async function handlePushEvent(body: {
+  repository?: { full_name?: string };
+  ref?: string;
+  commits?: Array<{
+    id: string;
+    message?: string;
+    author?: { username?: string; name?: string };
+    timestamp?: string;
+  }>;
+}) {
   const repoFullName = body.repository?.full_name;
   if (!repoFullName) {
     return NextResponse.json({ error: "Missing repo info" }, { status: 400 });
@@ -117,7 +125,12 @@ async function handlePushEvent(body: Record<string, any>) {
 // Status Event Handler — CI commit statuses
 // GitHub sends this for external CI systems (CircleCI, Jenkins, etc.)
 // ==========================================
-async function handleStatusEvent(body: Record<string, any>) {
+async function handleStatusEvent(body: {
+  sha?: string;
+  state?: string;
+  target_url?: string | null;
+  repository?: { full_name?: string };
+}) {
   const sha = body.sha;
   const state = body.state; // "pending" | "success" | "failure" | "error"
   const targetUrl = body.target_url || null;
@@ -170,7 +183,17 @@ async function handleStatusEvent(body: Record<string, any>) {
 // ==========================================
 // Check Run Event Handler — GitHub Actions
 // ==========================================
-async function handleCheckRunEvent(body: Record<string, any>) {
+async function handleCheckRunEvent(body: {
+  check_run?: {
+    head_sha?: string;
+    html_url?: string | null;
+    details_url?: string | null;
+    status?: string;
+    conclusion?: string | null;
+  };
+  action?: string;
+  repository?: { full_name?: string };
+}) {
   const checkRun = body.check_run;
   if (!checkRun) {
     return NextResponse.json({ message: "Missing check_run" }, { status: 200 });

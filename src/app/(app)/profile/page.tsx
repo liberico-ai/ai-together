@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
-import { useSession } from "@/lib/auth/client";
 import { Loader2, User as UserIcon, Shield, Key, Github, Copy, Check, ExternalLink, ShieldCheck, ShieldAlert, Flame, Zap, Trophy, Lock, Camera, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +14,6 @@ import { AvatarEditorDialog } from "@/components/profile/avatar-editor-dialog";
 
 export default function ProfilePage() {
   const utils = trpc.useUtils();
-  const { data: session } = useSession();
   const searchParams = useSearchParams();
   
   const { data: profile, isLoading } = trpc.users.me.useQuery();
@@ -112,7 +110,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAvatarSuccess = (avatarUrl: string) => {
+  const handleAvatarSuccess = (_avatarUrl: string) => {
     utils.users.me.invalidate();
   };
 

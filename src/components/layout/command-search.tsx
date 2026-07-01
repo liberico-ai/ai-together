@@ -86,7 +86,7 @@ export function CommandSearch() {
             {/* Projects */}
             {projects && projects.length > 0 && (
               <CommandGroup heading="Projects">
-                {projects.map((project: any) => (
+                {projects.map((project: { id: string; title: string; code?: string | null }) => (
                   <CommandItem
                     key={project.id}
                     value={`${project.title} ${project.code || ""}`}
@@ -111,7 +111,7 @@ export function CommandSearch() {
             {/* Tasks */}
             {myTasks && myTasks.length > 0 && (
               <CommandGroup heading="My Tasks">
-                {myTasks.map((task: any) => (
+                {myTasks.map((task: { id: string; title: string; projectId: string | null; project?: { title: string } | null }) => (
                   <CommandItem
                     key={task.id}
                     value={`${task.title} ${task.project?.title || ""}`}
@@ -136,7 +136,7 @@ export function CommandSearch() {
             {/* Members */}
             {users && users.length > 0 && (
               <CommandGroup heading="Members">
-                {users.map((user: any) => (
+                {users.map((user: { id: string; name: string; email?: string | null }) => (
                   <CommandItem
                     key={user.id}
                     value={`${user.name} ${user.email || ""}`}

@@ -12,17 +12,25 @@ import {
   ChevronLeft,
   LifeBuoy,
   Flame,
+  LayoutGrid,
+  Gauge,
+  Wallet,
+  Banknote,
 } from "lucide-react";
 import { useState } from "react";
 
 const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
+  { href: "/bu-board", label: "BU Board", icon: LayoutGrid },
   { href: "/operations", label: "Operations", icon: LifeBuoy },
   { href: "/my-tasks", label: "My Tasks", icon: ClipboardList },
   { href: "/workload", label: "Workload", icon: Users },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+  { href: "/kpi", label: "KPI", icon: Gauge },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/finance", label: "Tài chính", icon: Wallet },
+  { href: "/payroll", label: "Bảng lương", icon: Banknote },
 ];
 
 export function Sidebar() {

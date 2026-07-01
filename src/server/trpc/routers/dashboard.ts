@@ -16,7 +16,7 @@ export const dashboardRouter = router({
     });
 
     const now = new Date();
-    let assigned = allTasks.length;
+    const assigned = allTasks.length;
     let inProgress = 0;
     let completed = 0;
     let overdue = 0;
@@ -32,7 +32,7 @@ export const dashboardRouter = router({
       columns: { id: true, status: true, deadline: true },
     });
 
-    let pTotal = allProjects.length;
+    const pTotal = allProjects.length;
     let pActive = 0;
     let pCompleted = 0;
     let pOverdue = 0;

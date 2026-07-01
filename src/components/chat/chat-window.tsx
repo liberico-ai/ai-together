@@ -6,7 +6,7 @@ import { useChat } from "./chat-provider";
 import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
 import { TypingIndicator } from "./typing-indicator";
-import { ArrowLeft, Settings, Loader2, Users } from "lucide-react";
+import { ArrowLeft, Settings, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { GroupSettings } from "./group-settings";
 
@@ -71,7 +71,7 @@ export function ChatWindow({ conversationId, onBack }: Props) {
   // Display info
   const displayName =
     conv?.type === "direct"
-      ? conv.participants.find((p) => true)?.name ?? "Chat"
+      ? conv.participants.find((_p) => true)?.name ?? "Chat"
       : conv?.title ?? "Nhóm chat";
 
   const isOnline =

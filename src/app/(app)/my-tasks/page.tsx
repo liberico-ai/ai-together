@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { Loader2, ClipboardList, Filter, Calendar, ChevronRight } from "lucide-react";
+import { ClipboardList, Filter, Calendar, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {

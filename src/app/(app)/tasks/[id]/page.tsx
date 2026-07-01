@@ -18,6 +18,10 @@ import {
   MessageSquare,
   Pencil,
   Trash2,
+  AlertTriangle,
+  ListTree,
+  Unlock,
+  Plus,
 } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -45,6 +49,8 @@ import {
 } from "@/components/ui/dialog";
 import { CommentSection } from "@/components/comments/comment-section";
 import { DocumentManager } from "@/components/documents/document-manager";
+import { CreateTaskDialogV2 } from "@/components/tasks/create-task-dialog-v2";
+import { BlockerDialog } from "@/components/tasks/blocker-dialog";
 
 const STATUS_OPTIONS = [
   { value: "planned", label: "Planned" },
@@ -61,6 +67,7 @@ const STATUS_CONFIG: Record<
   planned: { label: "Planned", dotColor: "bg-stone-400", className: "text-stone-600 dark:text-stone-400" },
   in_progress: { label: "In Progress", dotColor: "bg-blue-500", className: "text-blue-600 dark:text-blue-400" },
   in_review: { label: "In Review", dotColor: "bg-amber-500", className: "text-amber-600 dark:text-amber-400" },
+  blocked: { label: "Blocked", dotColor: "bg-orange-500", className: "text-orange-600 dark:text-orange-400" },
   changes_requested: { label: "Needs Changes", dotColor: "bg-rose-500", className: "text-rose-600 dark:text-rose-400" },
   done: { label: "Done", dotColor: "bg-emerald-500", className: "text-emerald-600 dark:text-emerald-400" },
 };
@@ -109,7 +116,6 @@ function EditTaskDialog({
     task.estimateDays != null ? String(task.estimateDays) : ""
   );
   const [assigneeId, setAssigneeId] = useState(task.assigneeId ?? "");
-  const [jiraIssueKey, setJiraIssueKey] = useState(task.jiraIssueKey ?? "");
 
   const { data: allUsers } = trpc.users.searchUsers.useQuery(
     { query: "" },
@@ -134,7 +140,6 @@ function EditTaskDialog({
       priority: priority as "low" | "medium" | "high" | "critical",
       deadline: deadline ? new Date(deadline).toISOString() : null,
       estimateDays: estimateDays ? parseInt(estimateDays, 10) : null,
-      assigneeId: assigneeId || null,
     });
   };
 
@@ -265,15 +270,30 @@ export default function TaskDetailPage({
   const router = useRouter();
   const { data: session } = useSession();
   const utils = trpc.useUtils();
+  const [statusError, setStatusError] = useState<string | null>(null);
   const {
     data: task,
     isLoading,
     error,
   } = trpc.tasks.getById.useQuery({ id });
 
+  // Việc con (kèm assignee)
+  const { data: subtasks } = trpc.tasks.subtasks.useQuery({ parentTaskId: id });
+
   const updateStatus = trpc.tasks.updateStatus.useMutation({
     onSuccess: () => {
+      setStatusError(null);
       utils.tasks.getById.invalidate({ id });
+    },
+    // Hiện lỗi (vd chỉ creator được đóng / còn việc con) thay vì âm thầm revert.
+    onError: (err) => setStatusError(err.message),
+  });
+
+  const resolveBlocker = trpc.tasks.resolveBlocker.useMutation({
+    onSuccess: () => {
+      utils.tasks.getById.invalidate({ id });
+      utils.businessUnits.status.invalidate();
+      utils.businessUnits.blockers.invalidate();
     },
   });
 
@@ -323,7 +343,7 @@ export default function TaskDetailPage({
   const status = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.planned;
   const priority = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium;
 
-  const userRole = (session?.user as any)?.role;
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
   const userId = session?.user?.id;
   const canManage =
     userRole === "admin" ||
@@ -333,6 +353,7 @@ export default function TaskDetailPage({
 
   const handleStatusChange = (newStatus: string | null) => {
     if (!newStatus || newStatus === task.status) return;
+    setStatusError(null);
     updateStatus.mutate({
       id: task.id,
       status: newStatus as "planned" | "in_progress" | "in_review" | "changes_requested" | "done",
@@ -419,6 +440,27 @@ export default function TaskDetailPage({
               </SelectContent>
             </Select>
 
+            {/* Vướng mắc: Báo / Gỡ */}
+            {canManage &&
+              (task.status === "blocked" ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                  onClick={() => resolveBlocker.mutate({ id: task.id })}
+                  disabled={resolveBlocker.isPending}
+                >
+                  {resolveBlocker.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Unlock className="h-3.5 w-3.5" />
+                  )}
+                  Gỡ vướng mắc
+                </Button>
+              ) : (
+                <BlockerDialog taskId={task.id} />
+              ))}
+
             {/* Edit / Delete — visible to creator, admin, chairman, assignee */}
             {canManage && (
               <>
@@ -462,6 +504,31 @@ export default function TaskDetailPage({
         </div>
       </div>
 
+      {/* Lỗi đổi trạng thái (vd chỉ creator được đóng / còn việc con chưa xong) */}
+      {statusError && (
+        <div className="mx-8 mt-4 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{statusError}</span>
+        </div>
+      )}
+
+      {/* Banner vướng mắc */}
+      {task.status === "blocked" && task.blockedReason && (
+        <div className="mx-8 mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <span className="font-medium">Đang vướng mắc:</span>{" "}
+            {task.blockedReason}
+            {task.blockedBy ? (
+              <span className="text-muted-foreground">
+                {" "}
+                · chờ {task.blockedBy}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="px-8 py-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -480,6 +547,74 @@ export default function TaskDetailPage({
                 <p className="text-sm text-muted-foreground italic">
                   No description provided.
                 </p>
+              )}
+            </div>
+
+            {/* Việc con (subtasks) */}
+            <div className="rounded-xl border border-stone-200 dark:border-stone-800 p-6">
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  <ListTree className="h-4 w-4" />
+                  Việc con
+                  {subtasks && subtasks.length > 0 ? ` (${subtasks.length})` : ""}
+                </h3>
+                {canManage && (
+                  <CreateTaskDialogV2
+                    parentTaskId={task.id}
+                    defaultBuId={task.buId ?? undefined}
+                    onCreated={() => {
+                      utils.tasks.subtasks.invalidate({ parentTaskId: id });
+                      utils.tasks.getById.invalidate({ id });
+                    }}
+                    trigger={
+                      <Button size="sm" variant="outline" className="gap-2">
+                        <Plus className="h-4 w-4" /> Thêm việc con
+                      </Button>
+                    }
+                  />
+                )}
+              </div>
+              {!subtasks || subtasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">
+                  Chưa có việc con.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {subtasks.map((st) => {
+                    const stCfg =
+                      STATUS_CONFIG[st.status] ?? STATUS_CONFIG.planned;
+                    return (
+                      <li key={st.id}>
+                        <Link
+                          href={`/tasks/${st.id}`}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 dark:border-stone-800 px-3 py-2 transition-colors hover:bg-muted/50"
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span
+                              className={`h-2 w-2 shrink-0 rounded-full ${stCfg.dotColor}`}
+                            />
+                            <span className="truncate text-sm font-medium text-foreground">
+                              {st.title}
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {st.assignee ? (
+                              <span className="text-xs text-muted-foreground">
+                                {st.assignee.name}
+                              </span>
+                            ) : null}
+                            <Badge
+                              variant="secondary"
+                              className={`px-2 py-0.5 text-[10px] ${stCfg.className}`}
+                            >
+                              {stCfg.label}
+                            </Badge>
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
 

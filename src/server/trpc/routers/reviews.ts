@@ -5,7 +5,7 @@ import { modules } from "@drizzle/schema/modules";
 import { notifications } from "@drizzle/schema/notifications";
 import { eq, and, desc } from "drizzle-orm";
 import { notificationEmitter } from "@/lib/events";
-import { recordScore, recordActivity } from "@/lib/scoring";
+import { recordActivity } from "@/lib/scoring";
 import { escapeHtml } from "@/lib/escape-html";
 
 export const reviewsRouter = router({

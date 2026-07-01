@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, Layout, Activity, Calendar, ChevronDown } from "lucide-react";
 import Link from "next/link";

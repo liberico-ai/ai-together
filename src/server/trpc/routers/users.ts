@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure, adminProcedure } from "../index";
-import { users, userGithubMap, roleEnum } from "@drizzle/schema/users";
+import { users, userGithubMap } from "@drizzle/schema/users";
 import { sessions, accounts } from "@drizzle/schema/auth";
 import { eq, desc } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -274,7 +274,7 @@ export const usersRouter = router({
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || `${proto}://${host}`;
     const redirectUri = `${appUrl}/api/github-verify`;
     // S-03 FIX: Use random nonce instead of userId as OAuth state to prevent CSRF
-    const { createOAuthNonce } = require("@/lib/oauth-nonce");
+    const { createOAuthNonce } = await import("@/lib/oauth-nonce");
     const state = createOAuthNonce(ctx.user.id);
     const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user&state=${state}`;
     return { url, configured: true };

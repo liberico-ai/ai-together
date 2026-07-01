@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { tasks } from "@drizzle/schema/tasks";
 import { userJiraMap } from "@drizzle/schema/users";
+import { businessUnits } from "@drizzle/schema/business-units";
 import { eq } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
 
@@ -47,6 +48,17 @@ export async function POST(req: NextRequest) {
       if (mapping) mappedUserId = mapping.userId;
     }
 
+    // Resolve Business Unit từ project key (jiraProjectKey === jiraProject).
+    // Phòng thủ: nếu không tìm thấy BU tương ứng thì buId = null.
+    let buId: string | null = null;
+    if (jiraProject) {
+      const bu = await db.query.businessUnits.findFirst({
+        where: eq(businessUnits.jiraProjectKey, jiraProject),
+        columns: { id: true },
+      });
+      if (bu) buId = bu.id;
+    }
+
     // Attempt to find existing task by jiraIssueKey
     if (webhookEvent === "jira:issue_updated") {
       const existingTask = await db.query.tasks.findFirst({
@@ -59,6 +71,7 @@ export async function POST(req: NextRequest) {
           title: summary,
           description: description.slice(0, 5000),
           assigneeId: mappedUserId,
+          buId,
           updatedAt: new Date()
         }).where(eq(tasks.id, existingTask.id));
         return NextResponse.json({ message: "Task Updated", taskId: existingTask.id });
@@ -70,7 +83,8 @@ export async function POST(req: NextRequest) {
     const [insertedTask] = await db.insert(tasks).values({
       id: newTaskId,
       category: "operations",
-      domain: jiraProject || null,
+      domain: jiraProject || null, // giữ legacy domain để tương thích
+      buId, // ← map project key → BU
       projectId: null,
       title: summary,
       description: description.slice(0, 5000),

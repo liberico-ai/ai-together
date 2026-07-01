@@ -33,7 +33,7 @@ export function CreateUserDialog() {
 
   const utils = trpc.useUtils();
   const createUser = trpc.users.createUser.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       setOpen(false);
       setUsername("");
       setPassword("");
@@ -127,7 +127,7 @@ export function CreateUserDialog() {
             <Label htmlFor="role" className="text-right text-sm">
               Role
             </Label>
-            <Select value={role} onValueChange={(val: any) => setRole(val)}>
+            <Select value={role} onValueChange={(val) => setRole(val as "admin" | "chairman" | "user")}>
               <SelectTrigger className="col-span-3">
                 <SelectValue />
               </SelectTrigger>

@@ -1,13 +1,15 @@
 import { relations } from "drizzle-orm";
 import { users, userGithubMap } from "./users";
 import { projects, projectMembers } from "./projects";
+import { businessUnits } from "./business-units";
 import { modules } from "./modules";
 import { tasks } from "./tasks";
+import { taskAssignees } from "./task-assignees";
 import { documents } from "./documents";
 import { comments, commentAttachments } from "./comments";
 import { notifications, activityLogs } from "./notifications";
 import { scoreEvents, reviewScores, userActivityLog } from "./scoring";
-import { githubCommits, githubIssueMap } from "./github";
+import { githubCommits } from "./github";
 import { reviews } from "./reviews";
 import {
   conversations,
@@ -27,6 +29,8 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   createdModules: many(modules, { relationName: "creator" }),
   assignedTasks: many(tasks),
   createdTasks: many(tasks, { relationName: "taskCreator" }),
+  taskAssignments: many(taskAssignees), // việc được giao (đa người nhận)
+  ledBusinessUnits: many(businessUnits), // BU do người này làm lead (BOM)
   uploadedDocuments: many(documents),
   authoredComments: many(comments),
   notifications: many(notifications),
@@ -71,10 +75,14 @@ export const modulesRelations = relations(modules, ({ one }) => ({
   }),
 }));
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
   project: one(projects, {
     fields: [tasks.projectId],
     references: [projects.id],
+  }),
+  bu: one(businessUnits, {
+    fields: [tasks.buId],
+    references: [businessUnits.id],
   }),
   module: one(modules, {
     fields: [tasks.moduleId],
@@ -88,6 +96,36 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
     fields: [tasks.createdBy],
     references: [users.id],
     relationName: "taskCreator",
+  }),
+  // Việc con (subtask)
+  parent: one(tasks, {
+    fields: [tasks.parentTaskId],
+    references: [tasks.id],
+    relationName: "subtasks",
+  }),
+  subtasks: many(tasks, { relationName: "subtasks" }),
+  // Nhiều người nhận việc
+  assignees: many(taskAssignees),
+}));
+
+// ── Business Unit Relations ────────────────────────────────
+export const businessUnitsRelations = relations(businessUnits, ({ one, many }) => ({
+  lead: one(users, {
+    fields: [businessUnits.leadUserId],
+    references: [users.id],
+  }),
+  tasks: many(tasks),
+}));
+
+// ── Task Assignees Relations (đa người nhận) ───────────────
+export const taskAssigneesRelations = relations(taskAssignees, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskAssignees.taskId],
+    references: [tasks.id],
+  }),
+  user: one(users, {
+    fields: [taskAssignees.userId],
+    references: [users.id],
   }),
 }));
 

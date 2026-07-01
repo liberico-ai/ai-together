@@ -38,8 +38,9 @@ export function ProjectSettingsDialog({
   useEffect(() => {
     if (project.scoringRubric) {
       try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing prop-derived rubric data into local state on open
         setCriteria(JSON.parse(project.scoringRubric));
-      } catch (e) {
+      } catch {
         setCriteria([]);
       }
     } else {
@@ -142,7 +143,7 @@ export function ProjectSettingsDialog({
               </div>
               
               <div className="space-y-4 pb-4">
-                {criteria.map((criterion, idx) => (
+                {criteria.map((criterion, _idx) => (
                   <div key={criterion.id} className="p-4 border border-stone-200 dark:border-stone-800 rounded-lg space-y-3 bg-stone-50 dark:bg-stone-900/30">
                     <div className="flex space-x-3">
                       <div className="flex-1 space-y-1">

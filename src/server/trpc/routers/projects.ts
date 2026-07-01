@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { router, protectedProcedure, chairmanProcedure } from "../index";
 import { projects, projectMembers, projectStatusEnum } from "@drizzle/schema/projects";
-import { users, userGithubMap } from "@drizzle/schema/users";
+import { users } from "@drizzle/schema/users";
 import { githubCommits } from "@drizzle/schema/github";
-import { eq, and, or, inArray, sql } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
 
 export const projectsRouter = router({
@@ -182,7 +182,6 @@ export const projectsRouter = router({
       const { comments } = await import("@drizzle/schema/comments");
       const { documents } = await import("@drizzle/schema/documents");
       const { scoreEvents } = await import("@drizzle/schema/scoring");
-      const { notifications } = await import("@drizzle/schema/notifications");
 
       await ctx.db.transaction(async (tx) => {
         // Get all module IDs in this project
@@ -307,7 +306,15 @@ export const projectsRouter = router({
         );
       }
 
-      const apiCommits = await response.json();
+      type GithubApiCommit = {
+        sha: string;
+        commit?: {
+          message?: string;
+          author?: { name?: string; date?: string };
+        };
+        author?: { login?: string };
+      };
+      const apiCommits = (await response.json()) as GithubApiCommit[];
 
       // Get all GitHub username mappings for linking authors
       const allMappings = await ctx.db.query.userGithubMap.findMany();
@@ -316,7 +323,7 @@ export const projectsRouter = router({
       );
 
       // Build all commit values at once for bulk insert
-      const commitValues = apiCommits.map((apiCommit: any) => {
+      const commitValues = apiCommits.map((apiCommit) => {
         const sha = apiCommit.sha;
         const message = apiCommit.commit?.message || "";
         const authorGithub = apiCommit.author?.login || apiCommit.commit?.author?.name || "Unknown";

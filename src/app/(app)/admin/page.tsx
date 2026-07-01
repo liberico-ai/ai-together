@@ -4,7 +4,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { useSession } from "@/lib/auth/client";
 import {
-  Loader2, ShieldAlert, Shield, ShieldCheck, User as UserIcon, Github,
+  Loader2, ShieldAlert, ShieldCheck, User as UserIcon, Github,
   MoreHorizontal, Ban, CheckCircle, KeyRound, LogOut, Trash2,
 } from "lucide-react";
 import { 
@@ -196,7 +196,7 @@ export default function AdminPage() {
                         <Select 
                           disabled={updatingId === user.id || (isMe && user.role === 'admin')}
                           value={user.role} 
-                          onValueChange={(val: any) => handleRoleChange(user.id, val)}
+                          onValueChange={(val) => handleRoleChange(user.id, val as "admin" | "chairman" | "user")}
                         >
                           <SelectTrigger className="w-[110px] h-8 text-xs">
                             {updatingId === user.id ? (

@@ -16,6 +16,7 @@ export function useViewMode(storageKey: string, defaultView: ViewMode = "card") 
 
   useEffect(() => {
     const saved = localStorage.getItem(storageKey);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing persisted localStorage value into state on mount
     if (saved === "card" || saved === "table") setView(saved);
   }, [storageKey]);
 

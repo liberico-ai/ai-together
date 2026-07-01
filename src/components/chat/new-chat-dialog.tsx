@@ -20,7 +20,7 @@ export function NewChatDialog({ onClose }: Props) {
   const [search, setSearch] = useState("");
   const [groupTitle, setGroupTitle] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const { setActiveConversationId, setWidgetOpen } = useChat();
+  const { setActiveConversationId } = useChat();
 
   const utils = trpc.useUtils();
   const { data: allUsers, isLoading } = trpc.users.searchUsers.useQuery(

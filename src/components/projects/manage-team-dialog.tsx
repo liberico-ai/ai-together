@@ -16,8 +16,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Search, X, Shield, Plus } from "lucide-react";
 import { useSession } from "@/lib/auth/client";
 import { Badge } from "@/components/ui/badge";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "@/server/trpc/routers";
 
-export function ManageTeamDialog({ project }: { project: any }) {
+type ManageTeamProject = inferRouterOutputs<AppRouter>["projects"]["getById"];
+
+export function ManageTeamDialog({ project }: { project: ManageTeamProject }) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { data: session } = useSession();
@@ -44,7 +48,8 @@ export function ManageTeamDialog({ project }: { project: any }) {
 
   // Only chairman or admin can manage
   const isChairman = session?.user?.id === project.chairmanId;
-  const isAdmin = (session?.user as any)?.role === "admin" || (session?.user as any)?.role === "chairman";
+  const sessionRole = (session?.user as { role?: string | null } | undefined)?.role;
+  const isAdmin = sessionRole === "admin" || sessionRole === "chairman";
   const canManage = isChairman || isAdmin;
 
   if (!canManage) {
@@ -65,7 +70,7 @@ export function ManageTeamDialog({ project }: { project: any }) {
     }
   };
 
-  const existingMemberIds = new Set([project.chairmanId, ...project.members.map((m: any) => m.user.id)]);
+  const existingMemberIds = new Set([project.chairmanId, ...project.members.map((m) => m.user.id)]);
   const filteredSearch = searchResults?.filter(u => !existingMemberIds.has(u.id)) || [];
 
   return (
@@ -165,7 +170,7 @@ export function ManageTeamDialog({ project }: { project: any }) {
               </div>
 
               {/* Members */}
-              {project.members.map((m: any) => (
+              {project.members.map((m) => (
                 <div key={m.user.id} className="flex items-center justify-between group">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">

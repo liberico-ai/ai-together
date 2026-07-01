@@ -12,6 +12,7 @@ import {
   Folder,
   PlayCircle,
   CheckCircle2,
+  type LucideIcon,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { useSession } from "@/lib/auth/client";
@@ -20,16 +21,16 @@ import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ActiveProjectsList } from "@/components/dashboard/active-projects-list";
 
-const defaultStats = [
-  { label: "Tasks Assigned", value: "0", icon: Boxes, color: "text-primary" },
-  { label: "In Progress", value: "0", icon: LayoutDashboard, color: "text-[var(--color-accent-500)]" },
-  { label: "Completed", value: "0", icon: FolderKanban, color: "text-[var(--color-success)]" },
-  { label: "Overdue", value: "0", icon: Flame, color: "text-destructive" },
-];
+type StatCard = {
+  label: string;
+  value: string | number;
+  icon: LucideIcon;
+  color: string;
+};
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const { data: statsData, isLoading: statsLoading } = trpc.dashboard.getStats.useQuery();
+  const { data: statsData } = trpc.dashboard.getStats.useQuery();
   const { data: leaderboard, isLoading: leaderboardLoading } = trpc.dashboard.getLeaderboard.useQuery();
   const { data: myTasks, isLoading: tasksLoading } = trpc.tasks.myTasks.useQuery();
 
@@ -47,7 +48,7 @@ export default function DashboardPage() {
     { label: "Overdue", value: statsData?.projects?.overdue || 0, icon: Flame, color: "text-destructive" },
   ];
 
-  const renderStatCard = (stat: any) => {
+  const renderStatCard = (stat: StatCard) => {
     const Icon = stat.icon;
     return (
       <div
