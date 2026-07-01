@@ -55,7 +55,6 @@ function MyWorkloadTab() {
   }
 
   const allTasks = tasks ?? [];
-  const now = new Date();
 
   const totalTasks = allTasks.length;
   const inProgress = allTasks.filter(t => t.status === "in_progress" || t.status === "in_review").length;
@@ -130,7 +129,7 @@ function MyWorkloadTab() {
 
         {activeTasks.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">
-            No active tasks. You're all caught up!
+            No active tasks. You&apos;re all caught up!
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -303,7 +302,16 @@ function TeamWorkloadTab() {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {data.upcoming.map((task: any) => {
+            {data.upcoming.map((task: {
+              id: string;
+              status: string;
+              deadline: string | Date | null;
+              estimateDays: number | null;
+              title?: string | null;
+              domain?: string | null;
+              project?: { title: string | null } | null;
+              assignee?: { name: string | null } | null;
+            }) => {
               const sCfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.planned;
               const isOverdue = task.deadline && isPast(new Date(task.deadline));
 

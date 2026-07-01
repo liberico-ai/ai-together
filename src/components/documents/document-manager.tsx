@@ -202,7 +202,7 @@ export function DocumentManager({ targetType, targetId }: DocumentManagerProps) 
                 </div>
                 
                 {/* Delete button: only show if user is uploader or chairman/admin. We assume true for simplicity in UI, backend guards it */}
-                {(session?.user?.id === doc.uploadedBy || (session?.user as any)?.role === 'chairman' || (session?.user as any)?.role === 'admin') && (
+                {(session?.user?.id === doc.uploadedBy || (session?.user as { role?: string } | undefined)?.role === 'chairman' || (session?.user as { role?: string } | undefined)?.role === 'admin') && (
                   <Button 
                     variant="ghost" 
                     size="icon" 

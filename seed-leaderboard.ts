@@ -2,8 +2,10 @@
 import postgres from "postgres";
 
 async function seed() {
-  // Connect to local DB that dev server actually uses
-  const sql = postgres("postgresql://libe:libepass@localhost:5434/libe_aios");
+  // Connect to the DB from env (dev: local docker; set DATABASE_URL to override).
+  const DATABASE_URL = process.env.DATABASE_URL;
+  if (!DATABASE_URL) throw new Error("DATABASE_URL is required");
+  const sql = postgres(DATABASE_URL);
 
   // Check existing users
   const users = await sql`SELECT id, name, username FROM users`;

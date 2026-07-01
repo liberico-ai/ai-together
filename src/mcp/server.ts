@@ -16,7 +16,7 @@ import {
 const API_URL = process.env.LIBE_API_URL || "http://localhost:3000";
 const API_KEY = process.env.LIBE_API_KEY || "";
 
-async function callAPI(action: string, params: Record<string, any> = {}) {
+async function callAPI(action: string, params: Record<string, unknown> = {}) {
   if (!API_KEY) {
     throw new McpError(ErrorCode.InvalidRequest, "LIBE_API_KEY environment variable is not set.");
   }
@@ -287,6 +287,57 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["taskId"],
         },
       },
+      {
+        name: "set_task_blocker",
+        description: "Mark a task as blocked with a reason. Sets status to 'blocked' and records who/what it is waiting on and the time it became blocked.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            taskId: { type: "string" },
+            reason: { type: "string", description: "Why the task is blocked" },
+            blockedBy: { type: "string", description: "Optional: who/which BU/external party is blocking it" },
+          },
+          required: ["taskId", "reason"],
+        },
+      },
+      {
+        name: "assign_task_multi",
+        description: "Assign a task to multiple users at once (multi-assignee). Adds each user to the task's assignee list; sets the primary assignee if none exists yet.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            taskId: { type: "string" },
+            userIds: { type: "array", items: { type: "string" }, description: "User IDs to assign" },
+          },
+          required: ["taskId", "userIds"],
+        },
+      },
+      {
+        name: "add_subtask",
+        description: "Create a child task (subtask) under a parent task. Inherits the parent's business unit, project, and module. Optionally assigns users.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            parentTaskId: { type: "string", description: "Parent task ID" },
+            title: { type: "string", description: "Subtask title" },
+            description: { type: "string", description: "Optional subtask description" },
+            assigneeIds: { type: "array", items: { type: "string" }, description: "Optional: user IDs to assign" },
+          },
+          required: ["parentTaskId", "title"],
+        },
+      },
+
+      // ---- BUSINESS UNITS ----
+      {
+        name: "get_bu_status",
+        description: "Get the status dashboard for every business unit (BU): IVP-weighted progress percentage, open task count, overdue count, blocker count, and health indicator (green/yellow/red).",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "get_blockers",
+        description: "List all blocked tasks across the system, sorted by days blocked (descending). Includes BU code, assignee, blocked reason, and who/what is blocking each task.",
+        inputSchema: { type: "object", properties: {} },
+      },
 
       // ---- COMMENTS ----
       {
@@ -525,6 +576,38 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["conversationId", "query"],
         },
       },
+
+      // ---- KPI & FINANCE ----
+      {
+        name: "get_kpi_scores",
+        description: "Get the KPI composite scoreboard for everyone in a period (Tempo, Completion, Quality, AIAdoption axes + composite), joined with user names. Uses the latest period if periodId is omitted.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            periodId: { type: "string", description: "Optional: KPI period ID. Defaults to the latest quarter." },
+          },
+        },
+      },
+      {
+        name: "get_my_kpi",
+        description: "Get the current user's KPI composite score and its 4 axes (Tempo, Completion, Quality, AIAdoption) for a period. Uses the latest period if periodId is omitted.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            periodId: { type: "string", description: "Optional: KPI period ID. Defaults to the latest quarter." },
+          },
+        },
+      },
+      {
+        name: "get_cover_ratio",
+        description: "Get the 24-month cover ratio (the key operational finance metric): 24-month cost, 24-month revenue, ratio, surplus/deficit (diff), and health (green/yellow/red). Amounts are in million VND.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "get_bu_finance",
+        description: "Get profit/loss per business unit: revenue, allocated cost (shared cost split by revenue share), and profit. Amounts are in million VND.",
+        inputSchema: { type: "object", properties: {} },
+      },
     ],
   };
 });
@@ -538,7 +621,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     // Special handling for upload_document: read local file and base64-encode
     if (name === "upload_document") {
-      const { filePath, targetType, targetId, contentType } = (args as Record<string, any>) || {};
+      const { filePath, targetType, targetId, contentType } =
+        (args as {
+          filePath?: string;
+          targetType?: string;
+          targetId?: string;
+          contentType?: string;
+        }) || {};
       if (!filePath) {
         return {
           content: [{ type: "text", text: "Error: filePath is required" }],
@@ -594,7 +683,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
-    const result = await callAPI(name, (args as Record<string, any>) || {});
+    const result = await callAPI(name, (args as Record<string, unknown>) || {});
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };

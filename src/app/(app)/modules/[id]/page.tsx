@@ -192,7 +192,6 @@ export default function ModuleDetailPage({
   const { id } = use(params);
   const router = useRouter();
   const { data: session } = useSession();
-  const utils = trpc.useUtils();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 

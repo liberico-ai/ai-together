@@ -30,7 +30,7 @@ export function Header() {
     router.push("/login");
   };
 
-  const userRole = (session?.user as any)?.role || "user";
+  const userRole = (session?.user as { role?: string } | undefined)?.role || "user";
   const avatarUrl = profile?.avatarUrl || profile?.image;
 
   const roleBadgeClass =

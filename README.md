@@ -75,3 +75,50 @@ Kiểm tra group Telegram nhận được message. Response JSON:
 ```json
 { "success": true, "totalTasks": 7, "chunksTotal": 1, "chunksSent": 1, "chunksFailed": 0 }
 ```
+
+## KPI Data Sync (Copilot + GitHub Quality)
+
+Pipeline cấp dữ liệu cho KPI Mục tiêu 2 (AI Adoption + Quality). Chạy 2 cron mỗi ngày (giờ UTC, không lệ thuộc timezone group):
+
+- **06:00 UTC** — `/api/cron/sync-copilot-metrics`: kéo Copilot Usage Metrics của org → upsert vào bảng `ai_usage_logs` (map `githubUsername` → `userId` qua `user_github_map`).
+- **06:15 UTC** — `/api/cron/sync-github-quality`: quét `github_commits` có `ciStatus='failure'` trong 30 ngày → ghi `quality_events` type `ci_fail` cho tác giả (chống trùng theo `userId + sha`).
+
+Cả hai dùng `GET` + auth `Authorization: Bearer $CRON_SECRET` (y hệt telegram-daily-standup).
+
+### Setup ENV
+
+Set trong `.env.local`:
+
+```
+GITHUB_ORG=liberico-ai
+GITHUB_TOKEN=ghp_...   # token có quyền đọc Copilot org metrics
+```
+
+- `GITHUB_ORG`: org GitHub để gọi Copilot metrics API.
+- `GITHUB_TOKEN`: PAT/token có scope đọc Copilot billing/metrics của org.
+- `CRON_SECRET`: dùng chung với các cron khác.
+
+### Cron
+
+Trong `docker-compose.prod.yml`, service `cron` đã đăng ký sẵn (gọi qua network nội bộ `http://app:3000`):
+
+```cron
+# 06:00 UTC — đồng bộ Copilot usage metrics
+0 6 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/sync-copilot-metrics
+# 06:15 UTC — đồng bộ tín hiệu chất lượng GitHub (CI fail)
+15 6 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/sync-github-quality
+```
+
+### Manual smoke test
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync-copilot-metrics
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync-github-quality
+```
+
+Response JSON mẫu:
+
+```json
+{ "success": true, "synced": 12, "skipped": 3 }
+{ "success": true, "created": 5, "skipped": 40 }
+```

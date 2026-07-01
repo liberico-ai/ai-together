@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { differenceInCalendarDays } from "date-fns";
 import { db } from "@/server/db";
 import { users } from "@drizzle/schema/users";
 import { projects, projectMembers } from "@drizzle/schema/projects";
 import { modules } from "@drizzle/schema/modules";
 import { tasks } from "@drizzle/schema/tasks";
+import { businessUnits } from "@drizzle/schema/business-units";
+import { taskAssignees } from "@drizzle/schema/task-assignees";
 import { comments } from "@drizzle/schema/comments";
 import { documents } from "@drizzle/schema/documents";
 import { scoreEvents, reviewScores, userActivityLog } from "@drizzle/schema/scoring";
 import { activityLogs, notifications } from "@drizzle/schema/notifications";
 import { githubCommits } from "@drizzle/schema/github";
 import { reviews } from "@drizzle/schema/reviews";
-import { eq, and, or, sql, desc, asc, inArray, gte } from "drizzle-orm";
+import { kpiPeriods, kpiScores } from "@drizzle/schema/kpi";
+import { costItems, buRevenues } from "@drizzle/schema/finance";
+import { eq, and, or, sql, desc, inArray, gte } from "drizzle-orm";
 import { nextId } from "@/lib/id-gen";
 import { s3Client, MINIO_BUCKET, getPublicUrl, ensureBucket } from "@/lib/minio";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
@@ -43,7 +48,7 @@ function badRequest(msg: string) {
   return NextResponse.json({ error: msg }, { status: 400 });
 }
 
-function ok(data: any) {
+function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
 }
 
@@ -236,11 +241,15 @@ export async function POST(req: NextRequest) {
         if (!response.ok) return badRequest(`GitHub API error: ${response.status}`);
 
         const apiCommits = await response.json();
-        const { userGithubMap } = await import("@drizzle/schema/users");
+        await import("@drizzle/schema/users");
         const allMappings = await db.query.userGithubMap.findMany();
         const usernameToUserId = new Map(allMappings.map(m => [m.githubUsername.toLowerCase(), m.userId]));
 
-        const commitValues = apiCommits.map((c: any) => ({
+        const commitValues = (apiCommits as Array<{
+          sha: string;
+          commit?: { message?: string; author?: { name?: string; date?: string } };
+          author?: { login?: string };
+        }>).map((c) => ({
           projectId: params.projectId,
           sha: c.sha,
           message: c.commit?.message || "",
@@ -405,6 +414,179 @@ export async function POST(req: NextRequest) {
         if (!params.taskId) return badRequest("Missing taskId");
         await db.delete(tasks).where(eq(tasks.id, params.taskId));
         return ok({ deleted: true });
+      }
+
+      // =================
+      // BUSINESS UNITS
+      // =================
+      case "get_bu_status": {
+        const bus = await db.query.businessUnits.findMany({
+          orderBy: (bu, { asc }) => [asc(bu.code)],
+          with: { lead: { columns: { id: true, name: true, image: true } } },
+        });
+
+        const now = new Date();
+        const result = [];
+
+        for (const bu of bus) {
+          const rows = await db.query.tasks.findMany({
+            where: eq(tasks.buId, bu.id),
+            columns: {
+              id: true, status: true, ivp: true, deadline: true, blockedSince: true,
+            },
+          });
+
+          const totalIvp = rows.reduce((s, t) => s + (t.ivp ?? 0), 0);
+          const doneIvp = rows
+            .filter((t) => t.status === "done")
+            .reduce((s, t) => s + (t.ivp ?? 0), 0);
+          const openTasks = rows.filter((t) => t.status !== "done");
+          const overdue = openTasks.filter((t) => t.deadline && t.deadline < now).length;
+          const blockers = rows.filter((t) => t.status === "blocked");
+          const staleBlockers = blockers.filter(
+            (t) => t.blockedSince && differenceInCalendarDays(now, t.blockedSince) > 3
+          ).length;
+
+          const progressPct = totalIvp > 0 ? Math.round((doneIvp / totalIvp) * 100) : 0;
+          const overdueRatio = openTasks.length > 0 ? overdue / openTasks.length : 0;
+
+          let health: "green" | "yellow" | "red" = "green";
+          if (overdueRatio > 0.2 || staleBlockers > 0) health = "red";
+          else if (overdueRatio > 0 || blockers.length > 0) health = "yellow";
+
+          result.push({
+            id: bu.id,
+            code: bu.code,
+            name: bu.name,
+            lead: bu.lead,
+            progressPct,
+            totalTasks: rows.length,
+            openTasks: openTasks.length,
+            overdue,
+            blockers: blockers.length,
+            staleBlockers,
+            health,
+          });
+        }
+        return ok(result);
+      }
+
+      case "get_blockers": {
+        const rows = await db.query.tasks.findMany({
+          where: eq(tasks.status, "blocked"),
+          columns: {
+            id: true, title: true, buId: true, assigneeId: true,
+            blockedReason: true, blockedBy: true, blockedSince: true, priority: true,
+          },
+          with: {
+            bu: { columns: { code: true } },
+            assignee: { columns: { id: true, name: true } },
+          },
+        });
+        const now = Date.now();
+        const result = rows
+          .map((t) => ({
+            taskId: t.id,
+            title: t.title,
+            buCode: t.bu?.code ?? null,
+            assignee: t.assignee,
+            blockedReason: t.blockedReason,
+            blockedBy: t.blockedBy,
+            priority: t.priority,
+            daysBlocked: t.blockedSince
+              ? differenceInCalendarDays(now, t.blockedSince)
+              : 0,
+          }))
+          .sort((a, b) => b.daysBlocked - a.daysBlocked);
+        return ok(result);
+      }
+
+      case "set_task_blocker": {
+        if (!params.taskId || !params.reason) return badRequest("Missing taskId or reason");
+        const existing = await db.query.tasks.findFirst({
+          where: eq(tasks.id, params.taskId),
+          columns: { id: true },
+        });
+        if (!existing) return badRequest("Task not found");
+        const [updated] = await db.update(tasks)
+          .set({
+            status: "blocked",
+            blockedReason: params.reason,
+            blockedBy: params.blockedBy || null,
+            blockedSince: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(tasks.id, params.taskId))
+          .returning();
+        return ok(updated);
+      }
+
+      case "assign_task_multi": {
+        if (!params.taskId || !Array.isArray(params.userIds) || params.userIds.length === 0)
+          return badRequest("Missing taskId or userIds");
+        const task = await db.query.tasks.findFirst({
+          where: eq(tasks.id, params.taskId),
+          columns: { id: true, assigneeId: true },
+        });
+        if (!task) return badRequest("Task not found");
+
+        const userIds: string[] = params.userIds;
+        await db.insert(taskAssignees)
+          .values(userIds.map((uid) => ({
+            taskId: params.taskId,
+            userId: uid,
+            addedBy: user.id,
+          })))
+          .onConflictDoNothing();
+
+        // Set primary assignee if none yet
+        if (!task.assigneeId) {
+          await db.update(tasks)
+            .set({ assigneeId: userIds[0], updatedAt: new Date() })
+            .where(eq(tasks.id, params.taskId));
+        }
+
+        const assignees = await db.query.taskAssignees.findMany({
+          where: eq(taskAssignees.taskId, params.taskId),
+          with: { user: { columns: { id: true, name: true, email: true } } },
+        });
+        return ok({ taskId: params.taskId, assignees: assignees.map((a) => a.user) });
+      }
+
+      case "add_subtask": {
+        if (!params.parentTaskId || !params.title) return badRequest("Missing parentTaskId or title");
+        const parent = await db.query.tasks.findFirst({
+          where: eq(tasks.id, params.parentTaskId),
+          columns: { id: true, buId: true, projectId: true, moduleId: true },
+        });
+        if (!parent) return badRequest("Parent task not found");
+
+        const newId = await nextId("TASK", db);
+        const [subtask] = await db.insert(tasks).values({
+          id: newId,
+          parentTaskId: parent.id,
+          buId: parent.buId,
+          projectId: parent.projectId,
+          moduleId: parent.moduleId,
+          title: params.title,
+          description: params.description,
+          createdBy: user.id,
+        }).returning();
+
+        if (Array.isArray(params.assigneeIds) && params.assigneeIds.length > 0) {
+          const assigneeIds: string[] = params.assigneeIds;
+          await db.insert(taskAssignees)
+            .values(assigneeIds.map((uid) => ({
+              taskId: newId,
+              userId: uid,
+              addedBy: user.id,
+            })))
+            .onConflictDoNothing();
+          await db.update(tasks)
+            .set({ assigneeId: assigneeIds[0], updatedAt: new Date() })
+            .where(eq(tasks.id, newId));
+        }
+        return ok(subtask);
       }
 
       // =================
@@ -983,8 +1165,142 @@ export async function POST(req: NextRequest) {
       }
 
       // =================
+      // KPI & FINANCE
+      // =================
+      case "get_kpi_scores": {
+        // Resolve period: explicit periodId, else latest (by quarter desc).
+        let periodId: string | undefined = params.periodId;
+        if (!periodId) {
+          const [latest] = await db
+            .select({ id: kpiPeriods.id, quarter: kpiPeriods.quarter })
+            .from(kpiPeriods)
+            .orderBy(desc(kpiPeriods.quarter))
+            .limit(1);
+          if (!latest) return ok({ periodId: null, scores: [] });
+          periodId = latest.id;
+        }
+
+        const rows = await db
+          .select({
+            id: kpiScores.id,
+            userId: kpiScores.userId,
+            userName: users.name,
+            userImage: users.image,
+            tempoScore: kpiScores.tempoScore,
+            completionScore: kpiScores.completionScore,
+            qualityScore: kpiScores.qualityScore,
+            aiScore: kpiScores.aiScore,
+            compositeScore: kpiScores.compositeScore,
+            status: kpiScores.status,
+            note: kpiScores.note,
+            updatedAt: kpiScores.updatedAt,
+          })
+          .from(kpiScores)
+          .innerJoin(users, eq(kpiScores.userId, users.id))
+          .where(eq(kpiScores.periodId, periodId))
+          .orderBy(sql`${kpiScores.compositeScore} desc`);
+
+        return ok({ periodId, scores: rows });
+      }
+
+      case "get_my_kpi": {
+        let periodId: string | undefined = params.periodId;
+        if (!periodId) {
+          const [latest] = await db
+            .select({ id: kpiPeriods.id })
+            .from(kpiPeriods)
+            .orderBy(desc(kpiPeriods.quarter))
+            .limit(1);
+          if (!latest) return ok(null);
+          periodId = latest.id;
+        }
+
+        const [row] = await db
+          .select({
+            id: kpiScores.id,
+            userId: kpiScores.userId,
+            periodId: kpiScores.periodId,
+            tempoScore: kpiScores.tempoScore,
+            completionScore: kpiScores.completionScore,
+            qualityScore: kpiScores.qualityScore,
+            aiScore: kpiScores.aiScore,
+            compositeScore: kpiScores.compositeScore,
+            status: kpiScores.status,
+            note: kpiScores.note,
+            updatedAt: kpiScores.updatedAt,
+          })
+          .from(kpiScores)
+          .where(and(eq(kpiScores.userId, user.id), eq(kpiScores.periodId, periodId)))
+          .limit(1);
+
+        return ok(row ?? null);
+      }
+
+      case "get_cover_ratio": {
+        // Reproduce finance.coverRatio. DB stores VND; return in triệu VND.
+        const toMil = (vnd: number) => Math.round(vnd / 1_000_000);
+        const COVER_TARGET = 1.05;
+        const coverHealth = (r: number): "green" | "yellow" | "red" =>
+          r >= COVER_TARGET ? "green" : r >= 1.0 ? "yellow" : "red";
+
+        const costs = await db.select().from(costItems);
+        const revs = await db.select().from(buRevenues);
+
+        const costMonthVnd = costs.reduce((s, c) => s + c.amountVnd, 0);
+        const cost24Vnd = costMonthVnd * 24;
+
+        const totalRevVnd = revs.reduce((s, r) => s + r.amountVnd, 0);
+        const months = new Set(revs.map((r) => r.month)).size;
+        const monthsCount = Math.max(months, 1);
+        const revAvgMonthVnd = totalRevVnd / monthsCount;
+        const rev24Vnd = revAvgMonthVnd * 24;
+
+        const ratio = cost24Vnd > 0 ? rev24Vnd / cost24Vnd : 0;
+        return ok({
+          cost24: toMil(cost24Vnd),
+          rev24: toMil(rev24Vnd),
+          ratio: Math.round(ratio * 1000) / 1000,
+          diff: toMil(rev24Vnd - cost24Vnd),
+          health: coverHealth(ratio),
+          monthsWithData: monthsCount,
+          target: COVER_TARGET,
+        });
+      }
+
+      case "get_bu_finance": {
+        // Reproduce finance.buProfit. Return amounts in triệu VND.
+        const toMil = (vnd: number) => Math.round(vnd / 1_000_000);
+
+        const bus = await db.select().from(businessUnits);
+        const revs = await db.select().from(buRevenues);
+        const costs = await db.select().from(costItems);
+
+        const totalCostVnd = costs.reduce((s, c) => s + c.amountVnd, 0);
+
+        const revByBu = new Map<string, number>();
+        for (const r of revs) {
+          revByBu.set(r.buId, (revByBu.get(r.buId) ?? 0) + r.amountVnd);
+        }
+        const totalRevVnd = [...revByBu.values()].reduce((s, v) => s + v, 0);
+        const buCount = Math.max(bus.length, 1);
+
+        const result = bus.map((bu) => {
+          const revenueVnd = revByBu.get(bu.id) ?? 0;
+          const share = totalRevVnd > 0 ? revenueVnd / totalRevVnd : 1 / buCount;
+          const costVnd = totalCostVnd * share;
+          return {
+            buCode: bu.code,
+            revenue: toMil(revenueVnd),
+            cost: toMil(costVnd),
+            profit: toMil(revenueVnd - costVnd),
+          };
+        });
+        return ok(result);
+      }
+
+      // =================
       default:
-        return badRequest(`Unknown action: ${action}. Use get_projects, get_modules, create_module, add_comment, upload_document, get_leaderboard, list_conversations, send_chat_message, etc.`);
+        return badRequest(`Unknown action: ${action}. Use get_projects, get_modules, create_module, add_comment, upload_document, get_leaderboard, list_conversations, send_chat_message, get_kpi_scores, get_cover_ratio, etc.`);
     }
   } catch (error: unknown) {
     console.error(`[MCP API] Error in action "${action}":`, error);

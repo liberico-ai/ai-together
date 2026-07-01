@@ -127,7 +127,7 @@ export function CreateProjectDialog() {
                   <SelectValue placeholder="Default (Chairman)" />
                 </SelectTrigger>
                 <SelectContent>
-                  {allUsers?.map((user: any) => (
+                  {allUsers?.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.name}{user.username ? ` (@${user.username})` : ""}
                     </SelectItem>

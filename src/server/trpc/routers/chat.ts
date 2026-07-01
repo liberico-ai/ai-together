@@ -7,7 +7,7 @@ import {
   messageReactions,
 } from "@drizzle/schema/chat";
 import { users } from "@drizzle/schema/users";
-import { eq, and, desc, lt, inArray, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, lt, inArray, sql, ne, or, isNull, gt } from "drizzle-orm";
 import { chatEmitter } from "@/lib/events";
 import { escapeHtml } from "@/lib/escape-html";
 import { s3Client, MINIO_BUCKET, ensureBucket } from "@/lib/minio";
@@ -847,98 +847,47 @@ export const chatRouter = router({
   getUnreadCounts: protectedProcedure.query(async ({ ctx }) => {
     const participantRows = await ctx.db.query.conversationParticipants.findMany({
       where: eq(conversationParticipants.userId, ctx.user.id),
-      columns: { conversationId: true, lastReadAt: true },
+      columns: { conversationId: true },
     });
 
     if (participantRows.length === 0) return {};
 
     const convIds = participantRows.map((p) => p.conversationId);
-    const lastReadMap = new Map(
-      participantRows.map((p) => [p.conversationId, p.lastReadAt])
-    );
 
-    // Single batch query: count unread messages per conversation
-    const unreadRows = await ctx.db
+    // Đếm tin CHƯA ĐỌC mỗi hội thoại trong 1 query duy nhất.
+    // Join sang conversation_participants của chính user để lấy last_read_at,
+    // rồi so per-conversation ngay trong SQL (không interpolate Date thô).
+    // Chưa đọc = tin KHÔNG phải của mình, chưa xoá, và
+    //   (chưa từng đọc hội thoại — last_read_at NULL — HOẶC gửi SAU last_read_at).
+    const rows = await ctx.db
       .select({
         conversationId: messages.conversationId,
-        count: sql<number>`count(*)`,
+        count: sql<number>`cast(count(*) as integer)`,
       })
       .from(messages)
+      .innerJoin(
+        conversationParticipants,
+        and(
+          eq(conversationParticipants.conversationId, messages.conversationId),
+          eq(conversationParticipants.userId, ctx.user.id)
+        )
+      )
       .where(
         and(
           inArray(messages.conversationId, convIds),
           eq(messages.isDeleted, false),
-          sql`${messages.senderId} != ${ctx.user.id}`
+          ne(messages.senderId, ctx.user.id),
+          or(
+            isNull(conversationParticipants.lastReadAt),
+            gt(messages.createdAt, conversationParticipants.lastReadAt)
+          )
         )
       )
       .groupBy(messages.conversationId);
 
-    // Filter by lastReadAt per conversation in JS (since each conv has different lastReadAt)
     const counts: Record<string, number> = {};
-    for (const convId of convIds) {
-      counts[convId] = 0;
-    }
-
-    // For conversations with lastReadAt, we need per-conv filtering
-    // Use a single query with CASE WHEN for each conversation's lastReadAt
-    const convsWithLastRead = participantRows.filter((p) => p.lastReadAt);
-    const convsWithoutLastRead = participantRows.filter((p) => !p.lastReadAt);
-
-    if (convsWithoutLastRead.length > 0) {
-      const noReadConvIds = convsWithoutLastRead.map((p) => p.conversationId);
-      const noReadRows = await ctx.db
-        .select({
-          conversationId: messages.conversationId,
-          count: sql<number>`cast(count(*) as integer)`,
-        })
-        .from(messages)
-        .where(
-          and(
-            inArray(messages.conversationId, noReadConvIds),
-            eq(messages.isDeleted, false),
-            sql`${messages.senderId} != ${ctx.user.id}`
-          )
-        )
-        .groupBy(messages.conversationId);
-
-      for (const row of noReadRows) {
-        counts[row.conversationId] = row.count;
-      }
-    }
-
-    if (convsWithLastRead.length > 0) {
-      const readConvIds = convsWithLastRead.map((p) => p.conversationId);
-      // Build OR conditions for each conversation's lastReadAt
-      const readRows = await ctx.db
-        .select({
-          conversationId: messages.conversationId,
-          count: sql<number>`cast(count(*) as integer)`,
-        })
-        .from(messages)
-        .where(
-          and(
-            inArray(messages.conversationId, readConvIds),
-            eq(messages.isDeleted, false),
-            sql`${messages.senderId} != ${ctx.user.id}`,
-            // Use earliest lastReadAt as floor filter — then refine in JS
-            sql`${messages.createdAt} > ${
-              convsWithLastRead.reduce(
-                (earliest, p) =>
-                  !earliest || p.lastReadAt! < earliest ? p.lastReadAt! : earliest,
-                null as Date | null
-              )
-            }`
-          )
-        )
-        .groupBy(messages.conversationId);
-
-      // Re-count in JS with per-conversation lastReadAt precision
-      // This is still much better than N queries — at most 2 queries total
-      for (const row of readRows) {
-        counts[row.conversationId] = row.count;
-      }
-    }
-
+    for (const convId of convIds) counts[convId] = 0;
+    for (const row of rows) counts[row.conversationId] = row.count;
     return counts;
   }),
 

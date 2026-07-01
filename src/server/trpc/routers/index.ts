@@ -10,8 +10,16 @@ import { notificationsRouter } from "./notifications";
 import { usersRouter } from "./users";
 import { chatRouter } from "./chat";
 import { operationsRouter } from "./operations";
+import { businessUnitsRouter } from "./business-units";
+import { kpiRouter } from "./kpi";
+import { financeRouter } from "./finance";
+import { payrollRouter } from "./payroll";
 
 export const appRouter = router({
+  businessUnits: businessUnitsRouter,
+  kpi: kpiRouter,
+  finance: financeRouter,
+  payroll: payrollRouter,
   projects: projectsRouter,
   modules: modulesRouter,
   tasks: tasksRouter,

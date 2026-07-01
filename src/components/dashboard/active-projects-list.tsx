@@ -1,7 +1,7 @@
 "use client";
 
 import { trpc } from "@/lib/trpc/client";
-import { Loader2, Target, Users, Calendar, ArrowRight } from "lucide-react";
+import { Loader2, Target, Calendar } from "lucide-react";
 import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { format } from "date-fns";
@@ -87,7 +87,7 @@ export function ActiveProjectsList() {
 
                   {/* Team Members */}
                   <div className="flex -space-x-2 shrink-0">
-                    {project.members.slice(0, 3).map((member, i) => (
+                    {project.members.slice(0, 3).map((member, _i) => (
                       <Avatar key={member.id} className="w-7 h-7 border-2 border-card shadow-sm">
                         <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-medium">
                           {member.name.charAt(0)}

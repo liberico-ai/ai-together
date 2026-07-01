@@ -59,6 +59,19 @@ export const chairmanProcedure = protectedProcedure.use(({ ctx, next }) => {
 });
 
 /**
+ * BOM procedure — requires bom (BU lead), chairman or admin role.
+ * Dùng cho KPI: BU lead (bom) được chấm điểm/quản target cho team,
+ * NHƯNG lương & tài chính (payroll/finance) vẫn giữ chairmanProcedure.
+ */
+export const bomProcedure = protectedProcedure.use(({ ctx, next }) => {
+  const role = (ctx.user as Record<string, unknown>).role as string;
+  if (role !== "chairman" && role !== "admin" && role !== "bom") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "BOM, Chairman or Admin role required" });
+  }
+  return next({ ctx });
+});
+
+/**
  * Admin procedure — requires admin role
  */
 export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {

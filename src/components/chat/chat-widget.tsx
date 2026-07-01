@@ -4,7 +4,6 @@ import { useChat } from "./chat-provider";
 import { ChatSidebar } from "./chat-sidebar";
 import { ChatWindow } from "./chat-window";
 import { MessageSquare, X, Minus } from "lucide-react";
-import { trpc } from "@/lib/trpc/client";
 import { useMemo } from "react";
 
 export function ChatWidget() {

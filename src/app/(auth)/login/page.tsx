@@ -65,6 +65,7 @@ function LoginContent() {
 
   useEffect(() => {
     if (searchParams.get("error") === "disabled") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing error query param into local state on mount
       setError("Your account has been disabled. Contact an administrator.");
     }
   }, [searchParams]);

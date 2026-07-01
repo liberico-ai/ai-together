@@ -4,7 +4,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
-import { Check, CheckCheck, CornerUpLeft, Trash2, Pencil, Smile } from "lucide-react";
+import { Trash2, Smile } from "lucide-react";
 import { EmojiPicker } from "./emoji-picker";
 import { MediaPreview } from "./media-preview";
 

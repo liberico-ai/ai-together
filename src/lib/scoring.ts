@@ -101,6 +101,55 @@ export function getTaskScoreType(deadline: Date | null): {
   }
 }
 
+/**
+ * Chia CREDIT khi 1 việc (có thể nhiều người nhận) hoàn thành.
+ *
+ * - Điểm gamification (scoreEvents): mỗi người nhận điểm task_early/done/late,
+ *   nhân theo tỉ trọng đóng góp (weight) và IVP để phản ánh khối lượng.
+ * - Đồng thời ghi 1 score event loại "ivp_credit" với `points = IVP share × 10`
+ *   (lưu số nguyên) — dùng để tổng hợp IVP/quý cho trục Tempo (Mục tiêu 2).
+ *
+ * refId unique theo (userId, eventType, taskId) nhờ ràng buộc uq_score_user_event_ref,
+ * nên gọi lại (done 2 lần) sẽ không cộng trùng.
+ */
+export async function creditTaskCompletion(
+  db: DbClient,
+  params: {
+    taskId: string;
+    ivp: number;
+    deadline: Date | null;
+    assignees: { userId: string; weight: number }[];
+  }
+) {
+  const { taskId, ivp, deadline, assignees } = params;
+  if (assignees.length === 0) return;
+
+  const totalWeight = assignees.reduce((s, a) => s + (a.weight || 1), 0) || 1;
+  const { eventType, points } = getTaskScoreType(deadline);
+
+  for (const a of assignees) {
+    const share = (a.weight || 1) / totalWeight;
+
+    // 1) Điểm gamification theo tỉ trọng (tối thiểu 1 điểm để không mất trắng)
+    await recordScore(db, {
+      userId: a.userId,
+      eventType,
+      points: Math.max(1, Math.round(points * share)),
+      refType: "task",
+      refId: taskId,
+    });
+
+    // 2) IVP credit (cho KPI Tempo) — lưu points = phần IVP × 10 (số nguyên)
+    await recordScore(db, {
+      userId: a.userId,
+      eventType: "ivp_credit",
+      points: Math.round(ivp * share * 10),
+      refType: "task",
+      refId: taskId,
+    });
+  }
+}
+
 // ─── Tempo Bonus Calculation ──────────────────────────────
 
 export const TEMPO_BONUS = {

@@ -10,7 +10,6 @@ import {
   UserMinus,
   LogOut,
   Check,
-  Search,
   Pencil,
   Users,
 } from "lucide-react";
@@ -40,7 +39,6 @@ export function GroupSettings({ conversation, onClose }: Props) {
   const conv = conversation;
   const [isEditing, setEditing] = useState(false);
   const [title, setTitle] = useState(conv.title ?? "");
-  const [search, setSearch] = useState("");
   const [showAddMember, setShowAddMember] = useState(false);
 
   const utils = trpc.useUtils();

@@ -2,7 +2,7 @@
 
 import { trpc } from "@/lib/trpc/client";
 import { useSession } from "@/lib/auth/client";
-import { Loader2, BarChart3, TrendingUp, CheckCircle2, Clock } from "lucide-react";
+import { BarChart3, TrendingUp, CheckCircle2, Clock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "next-themes";

@@ -6,6 +6,7 @@ const tableMap = {
   MOD: "modules",
   TASK: "tasks",
   OP: "operations",
+  BU: "business_units",
 } as const;
 
 type IdPrefix = keyof typeof tableMap;

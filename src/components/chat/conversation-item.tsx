@@ -37,15 +37,10 @@ export function ConversationItem({
 }: Props) {
   const conv = conversation;
 
-  // For direct chats, show the other person's info
-  const otherParticipants = conv.participants.filter(
-    (p) => conv.type !== "direct" || conv.participants.length <= 2
-  );
-
   const displayName =
     conv.type === "direct" && conv.participants.length >= 2
       ? conv.participants.find(
-          (p) =>
+          (_p) =>
             /* show the other user — but we don't know current user here,
              * so show first participant whose name looks different from title */
             true

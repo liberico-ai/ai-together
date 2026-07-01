@@ -4,7 +4,9 @@ import fs from "fs";
 const sqlContent = fs.readFileSync("./drizzle/migrations/0006_sticky_runaways.sql", "utf-8");
 const statements = sqlContent.split("--> statement-breakpoint");
 
-const sql = postgres("postgresql://ai_together:l6871F0PyOVU@103.141.177.194:15432/ai_together?sslmode=require");
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) throw new Error("DATABASE_URL is required");
+const sql = postgres(DATABASE_URL);
 
 async function run() {
   for (const statement of statements) {

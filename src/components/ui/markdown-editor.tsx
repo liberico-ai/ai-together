@@ -40,7 +40,7 @@ export function MarkdownEditor({
         }}
         textareaProps={{
           placeholder: placeholder || "Type your markdown here...",
-          onKeyDown: onKeyDown as any,
+          onKeyDown: onKeyDown as React.KeyboardEventHandler<HTMLTextAreaElement>,
         }}
         minHeight={minHeight}
         height={height}

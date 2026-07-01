@@ -32,6 +32,7 @@ function MentionPopup({
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset highlighted index when the mention query changes
     setSelectedIndex(0);
   }, [query]);
 
@@ -165,14 +166,6 @@ export function CommentSection({ targetType, targetId }: CommentSectionProps) {
     [content, mentionState]
   );
 
-  // Render @mentions in comment content as styled tags
-  const renderContent = (text: string) => {
-    return text.replace(
-      /\*\*@(\w+(?:\s\w+)*)\*\*/g,
-      '<span class="mention-tag">@$1</span>'
-    );
-  };
-
   return (
     <div className="flex flex-col h-full">
       {/* Comments List */}
@@ -204,7 +197,7 @@ export function CommentSection({ targetType, targetId }: CommentSectionProps) {
                     </span>
                   </div>
                   
-                  {(session?.user?.id === comment.authorId || (session?.user as any)?.role === 'chairman' || (session?.user as any)?.role === 'admin') && (
+                  {(session?.user?.id === comment.authorId || (session?.user as { role?: string } | undefined)?.role === 'chairman' || (session?.user as { role?: string } | undefined)?.role === 'admin') && (
                     <button 
                       onClick={() => {
                         if (confirm('Delete this comment?')) deleteComment.mutate({ id: comment.id });

@@ -25,7 +25,7 @@ export const modulesRouter = router({
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      const module = await ctx.db.query.modules.findFirst({
+      const mod = await ctx.db.query.modules.findFirst({
         where: eq(modules.id, input.id),
         with: {
           project: {
@@ -33,8 +33,8 @@ export const modulesRouter = router({
           },
         },
       });
-      if (!module) throw new Error("Module not found");
-      return module;
+      if (!mod) throw new Error("Module not found");
+      return mod;
     }),
 
   // Create module
