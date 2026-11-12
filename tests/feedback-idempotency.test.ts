@@ -48,9 +48,25 @@ test('resolve: same key reused in another project is FEEDBACK_KEY_CONFLICT altho
  await expect(service.resolve(two,cmd(c,k,{projectId:ids.transport}))).rejects.toMatchObject({code:'FEEDBACK_KEY_CONFLICT',status:409});
  expect(await state(c)).toMatchObject({state:'new',version:1});expect(await actions()).toBe(1);
 });
+test('resolve: a used key sent for an unknown report is SCOPE_DENIED and changes nothing',async()=>{
+ const k=randomUUID();await service.resolve(p,cmd(a,k));
+ await expect(service.resolve(p,cmd(randomUUID(),k))).rejects.toMatchObject({code:'SCOPE_DENIED',status:404});
+ expect(await actions()).toBe(1);
+});
 test('create: same key with a different payload is rejected (guard)',async()=>{
  const k=randomUUID(),first=await service.create(p,{...base,title:'Guard report',requestKey:k});
  expect(await service.create(p,{...base,title:'Guard report',requestKey:k})).toEqual({id:first.id,replayed:true});
  await expect(service.create(p,{...base,title:'Guard changed',requestKey:k})).rejects.toMatchObject({code:'FEEDBACK_KEY_CONFLICT'});
  await expect(service.create(p,{...base,title:'Guard report',kind:'idea',requestKey:k})).rejects.toMatchObject({code:'FEEDBACK_KEY_CONFLICT'});
+});
+test('resolve: stale expectedVersion after the claim is VERSION_CONFLICT and leaves no action row',async()=>{
+ const before=await actions();
+ await expect(service.resolve(p,cmd(a,randomUUID(),{expectedVersion:7}))).rejects.toMatchObject({code:'VERSION_CONFLICT',status:409});
+ expect(await actions()).toBe(before);expect(await state(a)).toMatchObject({state:'new',version:1});
+});
+test('resolve: invalid transition after the claim is FEEDBACK_STATE_CONFLICT and leaves no action row',async()=>{
+ await service.resolve(p,cmd(a,randomUUID()));
+ const before=await actions();
+ await expect(service.resolve(p,cmd(a,randomUUID(),{expectedVersion:2,state:'reviewing'}))).rejects.toMatchObject({code:'FEEDBACK_STATE_CONFLICT',status:409});
+ expect(await actions()).toBe(before);expect(await state(a)).toMatchObject({state:'closed',version:2});
 });

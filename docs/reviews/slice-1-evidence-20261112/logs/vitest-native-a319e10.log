@@ -1,0 +1,247 @@
+
+ RUN  v5.1.0 /Users/huyenleduy/Documents/GitHub/libetech-ai-os/.claude/worktrees/jolly-dewdney-bbabf0
+
+ ✓ tests/fix-wave-db.test.ts > item 1 rollback safety > rollback files carry no CASCADE 197ms
+ ✓ tests/fix-wave-db.test.ts > item 1 rollback safety > an out-of-order rollback raises and changes nothing 194ms
+ ✓ tests/fix-wave-db.test.ts > item 1 rollback safety > forward → rollback 015,014,013 → forward restores an identical catalog 214ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > registry_events: the columns the service writes work, protected columns are denied 175ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > project_profiles: the columns the service writes work, protected columns are denied 174ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > project_channels: the columns the service writes work, protected columns are denied 170ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > document_records: the columns the service writes work, protected columns are denied 175ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > document_revisions: the columns the service writes work, protected columns are denied 178ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > document_commands: the columns the service writes work, protected columns are denied 169ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > the revision service insert leaves quality_score and hash_verification to the defaults 176ms
+ ✓ tests/fix-wave-db.test.ts > item 3 FK index > document_revisions has a (tenant_id, project_id, created_at DESC) index 161ms
+ ✓ tests/fix-wave-db.test.ts > item 4 template index script > refuses without an operator URL or with a bad tenant id, before any connection 840ms
+ ✓ tests/fix-wave-db.test.ts > item 4 template index script > source only syncs inside a transaction and prints just tenantId and inserted 153ms
+ ✓ tests/fix-wave-db.test.ts > item 5 UPDATE isolation > project A cannot update project B rows (0 rows, unchanged) 183ms
+ ✓ tests/fix-wave-db.test.ts > item 5 UPDATE isolation > a tenant outsider updates nothing 180ms
+ ✓ tests/fix-wave-db.test.ts > item 5 UPDATE isolation > moving a row to another project or tenant is rejected 188ms
+ ✓ tests/fix-wave-db.test.ts > item 6 repoUrl > an invalid repoUrl is a ZodError, never a thrown TypeError 169ms
+ ✓ tests/fix-wave-db.test.ts > item 7 source link hardening > DB refuses a non-https canonical_uri and revision source_id 175ms
+ ✓ tests/fix-wave-db.test.ts > item 7 source link hardening > registration refuses a credential-bearing query parameter (any case) with a Vietnamese message 173ms
+ ✓ tests/fix-wave-db.test.ts > item 7 source link hardening > url source refs are checked and normalised like canonicalUri 176ms
+ ✓ tests/fix-wave-db.test.ts > item 7 source link hardening > openSource re-validates the stored URI and returns the host 181ms
+ ✓ tests/fix-wave-db.test.ts > round 1: fragment, path and normalised secret names > registration and url refs reject them; a normal Google Docs link is accepted 177ms
+ ✓ tests/fix-wave-db.test.ts > round 1: fragment, path and normalised secret names > openSource on a stored bad URI is SOURCE_UNAVAILABLE without the uri 187ms
+ ✓ tests/fix-wave-db.test.ts > round 1: fragment, path and normalised secret names > template_version is ordered numerically (0.10.0 beats 0.9.0) 189ms
+ ✓ tests/fix-wave-db.test.ts > round 2 > plain heading anchors are accepted; fragments with parameters are still checked 173ms
+ ✓ tests/fix-wave-db.test.ts > round 2 > percent-encoded fragment parameters are decoded and checked; a malformed escape is a validation error 187ms
+ ✓ tests/fix-wave-db.test.ts > round 2 > template_version must be dotted digits 183ms
+ ✓ tests/fix-wave-db.test.ts > item 8 toChannel > registry returns the stored state, approver and enabled_from 164ms
+ ✓ tests/fix-wave-db.test.ts > item 9 chat and topic caps > chatId and topicId are length-capped 172ms
+ ✓ tests/fix-wave-db.test.ts > item 10 revision event versions > revision_proposed payload carries versionBefore and versionAfter 172ms
+ ✓ tests/fix-wave-db.test.ts > item 13 deterministic template choice > same created_at: the higher template_version wins whatever the id order 180ms
+ ✓ tests/fix-wave-db.test.ts > item 14 CSV export cap > more than 5000 rows is EXPORT_TOO_LARGE 809ms
+ ✓ tests/fix-wave-db.test.ts > item 15 projector overlap > an older record version never overwrites a newer index row 187ms
+ ✓ tests/fix-wave-db.test.ts > item 15 projector overlap > a newer record version still updates the row 178ms
+ ✓ tests/documents.test.ts > document registration > register creates one record with an empty approved pointer and SOURCE_NOT_FROZEN 197ms
+ ✓ tests/documents.test.ts > document registration > unknown template code is TEMPLATE_UNKNOWN 178ms
+ ✓ tests/documents.test.ts > document registration > same key and same request replays; no second record 181ms
+ ✓ tests/documents.test.ts > document registration > same key for a different document in the same project is IDEMPOTENCY_CONFLICT 182ms
+ ✓ tests/documents.test.ts > document registration > same key reused to register in another project is IDEMPOTENCY_CONFLICT and creates nothing there 186ms
+ ✓ tests/documents.test.ts > document registration > document operations no longer write to the shared commands table 183ms
+ ✓ tests/documents.test.ts > document registration > the same source cannot be registered twice in a project 184ms
+ ✓ tests/documents.test.ts > document registration > malformed source pointers are rejected 165ms
+ ✓ tests/documents.test.ts > document registration > identity, approval and snapshot fields in the body are rejected 157ms
+ ✓ tests/documents.test.ts > document registration > bot, viewer and outsider cannot register 161ms
+ ✓ tests/documents.test.ts > document registration > detail is denied for bot and out of scope with one sentence 174ms
+ ✓ tests/documents.test.ts > document tables > document tables return nothing without RLS context 180ms
+ ✓ tests/documents.test.ts > document tables > document_commands returns nothing without RLS context and rejects another project or tenant 184ms
+ ✓ tests/documents.test.ts > document tables > runtime cannot insert for another project or tenant 169ms
+ ✓ tests/documents.test.ts > document tables > runtime cannot set the approved pointer, a verified hash or a snapshot 200ms
+ ✓ tests/documents.test.ts > document tables > runtime cannot claim a source state or a source check time 172ms
+ ✓ tests/documents.test.ts > document tables > a pointer cannot reference a revision of another record 190ms
+ ✓ tests/documents.test.ts > document tables > no document table has a content column 159ms
+ ✓ tests/documents.test.ts > document tables > template index holds T0..T6 with the manifest hashes and refuses a reused version 175ms
+ ✓ tests/documents.test.ts > document revision proposals > proposing a revision moves only the draft pointer 193ms
+ ✓ tests/documents.test.ts > document revision proposals > revisions are immutable and numbered without gaps 200ms
+ ✓ tests/documents.test.ts > document revision proposals > every stored hash is self-declared and no snapshot exists 189ms
+ ✓ tests/documents.test.ts > document revision proposals > stale expectedVersion or stale base is REVISION_CONFLICT with no revision, event or version change 192ms
+ ✓ tests/documents.test.ts > document revision proposals > same key and same request replays; same key with another revision or document conflicts 200ms
+ ✓ tests/documents.test.ts > document revision proposals > same key reused for a revision in another project is IDEMPOTENCY_CONFLICT 189ms
+ ✓ tests/documents.test.ts > document revision proposals > the approved pointer cannot point at another document's revision 206ms
+ ✓ tests/documents.test.ts > document revision proposals > bot and viewer cannot propose; fields outside the schema are rejected 183ms
+ ✓ tests/project-registry.test.ts > new registry tables return nothing without RLS context 186ms
+ ✓ tests/project-registry.test.ts > runtime cannot insert a registry row for another project or tenant 175ms
+ ✓ tests/project-registry.test.ts > a project member cannot insert profile or channel rows for another project or tenant 179ms
+ ✓ tests/project-registry.test.ts > runtime cannot create an active channel or a domain mapping 182ms
+ ✓ tests/project-registry.test.ts > history tables reject update and delete 184ms
+ ✓ tests/project-registry.test.ts > migration 013 ships no domain mapping row 157ms
+ ✓ tests/project-registry.test.ts > saveProfile creates then updates with expectedVersion and writes one event each 183ms
+ ✓ tests/project-registry.test.ts > stale expectedVersion is REVISION_CONFLICT with no event and no version change 180ms
+ ✓ tests/project-registry.test.ts > same key and same request replays; same key with different content is IDEMPOTENCY_CONFLICT 176ms
+ ✓ tests/project-registry.test.ts > non-manager, viewer, bot and outsider cannot write 163ms
+ ✓ tests/project-registry.test.ts > identity fields in the body are rejected 161ms
+ ✓ tests/project-registry.test.ts > a proposed channel grants nothing 198ms
+ ✓ tests/project-registry.test.ts > unmapped project shows Chưa xác nhận and counts toward no total 181ms
+ ✓ tests/project-registry.test.ts > R5: runtime cannot insert a non-proposed or version-2 profile 175ms
+ ✓ tests/project-registry.test.ts > R5: creation as active is PROJECT_STATUS_CONFLICT 165ms
+ ✓ tests/project-registry.test.ts > R5: status lifecycle follows the state machine 194ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > success inserts a proposed channel, bumps the profile version and writes channel_proposed with before/after 173ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > stale expectedVersion is REVISION_CONFLICT: no channel, no event, no version change 178ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > no profile is PROFILE_REQUIRED and writes nothing 170ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > expectedVersion is required, an integer >= 1 164ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > same key replays; same key with another expectedVersion is IDEMPOTENCY_CONFLICT 176ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > two different proposals from the same version: one success, one REVISION_CONFLICT (native) 229ms
+ ✓ tests/foundation.test.ts > scope and identity > all scoped tables fail closed without RLS context 571ms
+ ✓ tests/foundation.test.ts > scope and identity > tenant/project isolation covers every table and details 459ms
+ ✓ tests/foundation.test.ts > scope and identity > RLS blocks cross-project insert and tenant mismatch even with a valid foreign key 422ms
+ ✓ tests/foundation.test.ts > scope and identity > bot and customer cannot write, even with a forged body 421ms
+ ✓ tests/foundation.test.ts > scope and identity > authentication requires explicit flag and loopback; headers cannot select a principal 430ms
+ ✓ tests/foundation.test.ts > scope and identity > legitimate loopback origin survives Next internal URL normalization 414ms
+ ✓ tests/foundation.test.ts > state and acceptance > done requires BOTH acceptances; ticket closure does not change either 430ms
+ ✓ tests/foundation.test.ts > state and acceptance > rejects implementer, wrong acceptor, old SHA and wrong evidence 422ms
+ ✓ tests/foundation.test.ts > state and acceptance > full technical → UAT → business → completion succeeds and preserves provenance 430ms
+ ✓ tests/foundation.test.ts > state and acceptance > changing revision invalidates approvals and keeps old evidence immutable 428ms
+ ✓ tests/foundation.test.ts > state and acceptance > return from review invalidates previous acceptance 423ms
+ ✓ tests/foundation.test.ts > state and acceptance > stale writes and failed mutations have no audit or version side effects 449ms
+ ✓ tests/foundation.test.ts > state and acceptance > two concurrent writes at the same version produce one commit and one conflict 417ms
+ ✓ tests/foundation.test.ts > state and acceptance > idempotent retries return the original result and key reuse conflicts 407ms
+ ✓ tests/foundation.test.ts > state and acceptance > audit and evidence cannot be updated or removed under runtime role 424ms
+ ✓ tests/foundation.test.ts > state and acceptance > create validates assignment and scoped service; fresh work enters planned state 418ms
+ ✓ tests/foundation.test.ts > HTTP contract > unauthenticated, scoped reads, bot denials and CSRF boundary 413ms
+ ✓ tests/foundation.test.ts > HTTP contract > shared handler exposes useful GETs, validation errors and successful commands 413ms
+ ✓ tests/foundation.test.ts > persistent store survives close/reopen; bootstrap does not overwrite edits 1092ms
+ ✓ tests/document-index.test.ts > document index projector > projector writes one index row per record and is idempotent 236ms
+ ✓ tests/document-index.test.ts > document index projector > projector records when it ran 201ms
+ ✓ tests/document-index.test.ts > document index projector > index is stale, not wrong, until the projector runs again 208ms
+ ✓ tests/document-index.test.ts > document index projector > the index returns nothing without RLS context and cannot be written by runtime 216ms
+ ✓ tests/document-index.test.ts > document index projector > projector is confined to the project it was given 207ms
+ ✓ tests/document-index.test.ts > document index projector > a lost source keeps its history 215ms
+stdout | tests/document-index.test.ts > document index on the web login > the web login cannot assume the projector role
+OQ-22 evidence: 42501 permission denied to set role "libetech_projector"
+
+ ✓ tests/document-index.test.ts > document index on the web login > the web login cannot assume the projector role 207ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > C2: unprojected registration and unprojected revisions are visible as pendingProjection / stale 212ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > C2: the freshness check stays inside the granted project (synthetic — chờ tin gốc) 179ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > list by project returns only that project's index rows with total and projectedAt (synthetic — chờ tin gốc) 240ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > an unprojected project has total 0 and projectedAt null (synthetic — chờ tin gốc) 207ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > search matches title, type and code case-insensitively and treats wildcards literally (synthetic — chờ tin gốc) 208ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > cross-project and cross-tenant reads are denied before any query (synthetic — chờ tin gốc) 206ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > a call without projectId is rejected 166ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > a principal recomputed after membership removal can no longer list, search or export (synthetic — chờ tin gốc) 208ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > bot cannot read the document index (synthetic — chờ tin gốc) 192ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > limit is capped at 200 and unknown fields are rejected 159ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > export has the fixed header, shows Chưa có for an empty approved pointer and neutralises formulas 189ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > export is denied across projects (synthetic — chờ tin gốc) 190ms
+ ✓ tests/identity.test.ts > invitation activates once, password is Argon2id, session survives a new service instance 618ms
+ ✓ tests/identity.test.ts > unknown/wrong passwords fail generically and account rate limit persists 528ms
+ ✓ tests/identity.test.ts > logout, expiration and disable revoke sessions 463ms
+ ✓ tests/identity.test.ts > strict inputs reject role/tenant injection, expired invite and weak password 436ms
+ ✓ tests/identity.test.ts > every identity table isolates tenant and business runtime has no identity access 436ms
+ ✓ tests/identity.test.ts > Telegram pairing requires private proof; replay, expiry and replacing another identity fail 435ms
+ ✓ tests/identity.test.ts > bridge verifies signature, freshness and nonce then applies both user and chat project scope 483ms
+ ✓ tests/identity.test.ts > server mode requires exact HTTPS origin and rejects demo identity 423ms
+ ✓ tests/identity.test.ts > HTTP identity flow sets secure cookies and enforces authentication and CSRF 458ms
+ ✓ tests/identity.test.ts > deployment chat mapping permits LibeAI and denies Dragon Forge and Xeca 439ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-13 XECA006 and XECA005 are two separate index entries (synthetic — chờ tin gốc) 225ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > XECA006 lists its missing fields as Chưa có and has no approved baseline (synthetic — chờ tin gốc) 200ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-14 LBRC014 keeps the earlier revision and the iOS supplement, with what is present and what is missing 205ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > source links keep the Z2 source_ref labelled chưa đối soát and create no work item (synthetic — chờ tin gốc) 203ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > PM-08 indexing leaves the Z2 source rows unchanged (synthetic — chờ tin gốc) 193ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-18 a vanished source row leaves the record and its history (synthetic — chờ tin gốc) 192ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-18 a vanished linked source row shows as stale on the index; the record and history stay (synthetic — chờ tin gốc) 205ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-18 the record own unavailable/denied state wins over the lost-source stale 187ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > openSource re-checks scope on every call and never leaks across projects 202ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > no reporting-domain row exists after indexing both cases (synthetic — chờ tin gốc) 204ms
+ ✓ tests/onboarding-feedback.test.ts > registration waits for Chairman and one BoM Telegram approval before invitation and pairing 630ms
+ ✓ tests/onboarding-feedback.test.ts > registered username does not reveal whether an account exists; rejection creates no grant 450ms
+ ✓ tests/onboarding-feedback.test.ts > one-time pilot exception activates only its exact invitation; later registrations still need votes 459ms
+ ✓ tests/onboarding-feedback.test.ts > BoM rejection permits another BoM; direct invite and legacy invitation cannot bypass approval 443ms
+ ✓ tests/onboarding-feedback.test.ts > one verified BoM is sufficient; Chairman rejection closes the ballot 447ms
+ ✓ tests/onboarding-feedback.test.ts > an unavailable BoM seat does not block the other verified BoM 426ms
+ ✓ tests/onboarding-feedback.test.ts > web Yes/No and Telegram share the same frozen ballot and two-person quorum 445ms
+ ✓ tests/onboarding-feedback.test.ts > newly linked BoM seat does not invalidate an existing frozen ballot 418ms
+ ✓ tests/onboarding-feedback.test.ts > feedback is idempotent, project scoped and hidden from other members 437ms
+ ✓ tests/spec004.test.ts > STT 5 applies once at 3/3 and preserves the LBRC014 SHA and acceptance snapshot 606ms
+ ✓ tests/spec004.test.ts > two proposals at the same version create just one receipt 456ms
+ ✓ tests/spec004.test.ts > source drift after 2/3 holds the work for reconciliation 440ms
+ ✓ tests/spec004.test.ts > a revised proposal starts from 0/3 and keeps the previous decisions 436ms
+ ✓ tests/spec004.test.ts > cross-BU, cross-tenant, chair and forged actor cannot access decisions 436ms
+ ✓ tests/spec004.test.ts > revise cannot bypass 3/3, and BoM vote never grants acceptance 436ms
+ ✓ tests/spec004.test.ts > revoked Telegram and out-of-project recipients prevent application 431ms
+ ✓ tests/spec004.test.ts > reject, cancel and expiry all preserve the original STT 5 assignment 438ms
+ ✓ tests/spec004.test.ts > receipt write failure rolls back the third vote and assignment together 439ms
+ ✓ tests/documents-http.test.ts > documents HTTP > register -> propose -> list -> search -> export -> source round trip over HTTP 247ms
+ ✓ tests/documents-http.test.ts > documents HTTP > project registry routes round trip 183ms
+ ✓ tests/documents-http.test.ts > documents HTTP > a body carrying tenantId or actorId is INVALID_INPUT 176ms
+ ✓ tests/documents-http.test.ts > documents HTTP > a write without Idempotency-Key is IDEMPOTENCY_REQUIRED 184ms
+ ✓ tests/documents-http.test.ts > documents HTTP > a request without a session is 401 and a foreign Origin is rejected 174ms
+ ✓ tests/documents-http.test.ts > documents HTTP > bot and viewer sessions get 403; another project's document id gets 404 with the generic message 208ms
+ ✓ tests/documents-http.test.ts > documents HTTP > the same document URI registered twice returns DOCUMENT_ALREADY_REGISTERED, not DUPLICATE_CODE 187ms
+ ✓ tests/documents-http.test.ts > documents HTTP > export responds with text/csv and no-store 181ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: same key and identical request replays without a second state change 584ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: same key for a different report is FEEDBACK_KEY_CONFLICT and leaves it unchanged 436ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: same key and report with different status, reason or version is FEEDBACK_KEY_CONFLICT 439ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: same key reused in another project is FEEDBACK_KEY_CONFLICT although RLS hides the prior action 427ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: a used key sent for an unknown report is SCOPE_DENIED and changes nothing 419ms
+ ✓ tests/feedback-idempotency.test.ts > create: same key with a different payload is rejected (guard) 422ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: stale expectedVersion after the claim is VERSION_CONFLICT and leaves no action row 420ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: invalid transition after the claim is FEEDBACK_STATE_CONFLICT and leaves no action row 420ms
+ ✓ tests/spec003.test.ts > invites expire when replaced, private bridge pairing uses current project rights, disabled account loses access 53ms
+ ✓ tests/spec003.test.ts > a manager for one project cannot create or mutate a work item outside that role 1ms
+ ✓ tests/spec003.test.ts > score projection dedupes evidence, distinguishes missing data, scopes people and audits correction 35ms
+ ✓ tests/spec003.test.ts > SLA spans the weekend and configured holidays in Vietnam time 1ms
+ ✓ tests/migrations-rollback.test.ts > every migration from 013 has a rollback file with the same name 1ms
+ ✓ tests/migrations-rollback.test.ts > forward → rollback → forward leaves source tables untouched 255ms
+ ✓ tests/slice1-harness.test.ts > assertIsolated rejects non-loopback host, wrong port and unexpected database name 1ms
+ ✓ tests/slice1-harness.test.ts > harness applies every forward migration and seeds synthetic projects 106ms
+ ✓ tests/slice1-harness.test.ts > native > runtime login is not superuser and cannot bypass RLS 85ms
+ ✓ tests/team-catalog.test.ts > source catalog enforces project RLS and does not create canonical work 587ms
+ ✓ tests/rls-catalog.test.ts > migrations 013-015 create tables, and every one has FORCE RLS plus USING and WITH CHECK from the catalog 11ms
+ ✓ tests/documents-ui.test.tsx > documents UI > pageState ranks loading, denied, error, empty, ready 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > each of the four non-ready states renders its own copy 4ms
+ ✓ tests/documents-ui.test.tsx > documents UI > empty and denied are different text 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > all six source states render distinct labels 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > an empty approved pointer renders the neutral Chưa có tag 7ms
+ ✓ tests/documents-ui.test.tsx > documents UI > a self-declared hash is never shown as verified 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > a stale projection is labelled from the Z1 version check, not from the Z2 row itself 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > a stale row shows the text, a fresh row does not 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > pending registrations survive a reload as a notice, in the list and in the empty state 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > denied source hides source metadata and the open action 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > long hashes and URLs do not force a fixed width 3ms
+ ✓ tests/documents-ui.test.tsx > documents UI > mobile (<=700px) stacks pointers and columns without a 200px flex-basis as height 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > pageState: no-results only when a term is applied and rows=0 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > no-results shows the term and a clear button, not the empty-project copy 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > empty state mentions that the index has not been projected yet 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > register notice is a status with the title escaped 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > source link: https renders a safe anchor with host, other schemes render none 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > no component or view copy says đã duyệt, and window.open is gone 0ms
+ ✓ tests/documents-ui.test.tsx > document detail > LBRC014-like: two revisions newest first, three SHAs, neutral approved tag, self-declared hash, no approval wording 1ms
+ ✓ tests/documents-ui.test.tsx > document detail > XECA006-like: seven missing fields, unreconciled links, a gone source row 1ms
+ ✓ tests/documents-ui.test.tsx > document detail > a document with no revision shows Chưa có and no open button when denied source 0ms
+ ✓ tests/documents-ui.test.tsx > document detail > denied block is generic and carries no title or code 0ms
+ ✓ tests/documents-ui.test.tsx > document detail > the list card links to the detail page 0ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > demo on + loopback host + valid demo cookie resolves the demo principal 9ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > demo on + loopback host + no/invalid cookie throws (page redirects to /login) 1ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > demo on + non-loopback host does not take the demo path 0ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > demo off takes the identity path even on a loopback host 0ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > identity failure propagates 0ms
+ ✓ tests/source-snapshot.test.ts > reports source exceptions without turning source done into acceptance 2ms
+ ✓ tests/source-snapshot.test.ts > detects a changed or removed source row but does not infer a task identity 1ms
+ ✓ tests/source-snapshot.test.ts > rejects another source and malformed or duplicate input 1ms
+ ✓ tests/source-snapshot.test.ts > keeps a US month/day date as a format conflict instead of falsely invalidating it 0ms
+ ✓ tests/source-snapshot.test.ts > accepts Sheets date-only cells exported as midnight timestamps 0ms
+ ✓ tests/document-templates.test.ts > PM document templates T0-T6 > manifest lists exactly T0..T6 once each with semver versions 1ms
+ ✓ tests/document-templates.test.ts > PM document templates T0-T6 > every manifest hash equals the sha256 of the file bytes 1ms
+ ✓ tests/document-templates.test.ts > PM document templates T0-T6 > every template carries its code, version and the nine metadata rows 1ms
+ ✓ tests/document-templates.test.ts > PM document templates T0-T6 > templates contain no credential or real chat identifier 0ms
+ ✓ tests/version-status.test.ts > APP_VERSION equals package.json version 1ms
+ ✓ tests/version-status.test.ts > no hard-coded release number remains in bridge, health and workspace 0ms
+ ✓ tests/version-status.test.ts > configuration alone never yields the verified label 0ms
+ ✓ tests/version-status.test.ts > missing configuration shows not-configured and no write flow 0ms
+ ✓ tests/version-status.test.ts > a recorded verification shows all three labels 0ms
+ ✓ tests/version-status.test.ts > slice 1 has no verification source 0ms
+ ✓ tests/documents-concurrency.test.ts > document revision concurrency (native PostgreSQL) > two concurrent proposals on one version yield one revision and one REVISION_CONFLICT 275ms
+ ✓ tests/documents-concurrency.test.ts > document revision concurrency (native PostgreSQL) > two identical concurrent proposals with one key apply once and replay once 245ms
+ ✓ tests/documents-concurrency.test.ts > document revision concurrency (native PostgreSQL) > one key raced across two projects applies once and conflicts once 244ms
+ ✓ tests/feedback-concurrency.test.ts > feedback resolve concurrency (native PostgreSQL) > resolve: two identical concurrent requests apply once and replay once 248ms
+ ✓ tests/feedback-concurrency.test.ts > feedback resolve concurrency (native PostgreSQL) > resolve: one key raced across two reports applies once and conflicts once 244ms
+ ✓ tests/feedback-concurrency.test.ts > feedback resolve concurrency (native PostgreSQL) > resolve: one key reused in another project conflicts although RLS hides the prior action (native) 187ms
+
+ Test Files  23 passed (23)
+      Tests  235 passed (235)
+   Start at  18:44:11
+   Duration  54.31s (tests 99%, import 1%)
+

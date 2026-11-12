@@ -1,4 +1,5 @@
 import {createHmac,timingSafeEqual} from 'node:crypto';
+import { APP_VERSION } from './version';
 import {z} from 'zod';
 import {IdentityService} from './identity';
 import {invariant,AppError} from './errors';
@@ -40,5 +41,5 @@ export async function handleBridge(request:Request,db:Database,identity:Identity
  invariant(projectIds.length,'SCOPE_DENIED','Không có quyền đọc dự án trong hội thoại này.',403);
  const result=await scoped(db,{...p,role:'bot',projectIds},async tx=>(await tx.query<{code:string;source_sha:string;source_id:string;source_type:string;ingested_at:string;quality_score:string;result:unknown}>(`SELECT code,source_sha,source_id,source_type,ingested_at,quality_score,result FROM analytics.reconciliations WHERE code=$1 AND source_sha=$2 ORDER BY ingested_at DESC LIMIT 1`,[data.code,data.sourceSha])).rows[0]);
  if(!result) throw new AppError('SCOPE_DENIED','Không tìm thấy hồ sơ đúng SHA trong phạm vi được cấp.',404);
- return {operation:'reconciliation',record:result,readOnly:true,acceptance:'not-inferred',identityBinding:'verified-telegram',version:'0.3.0'};
+ return {operation:'reconciliation',record:result,readOnly:true,acceptance:'not-inferred',identityBinding:'verified-telegram',version:APP_VERSION};
 }

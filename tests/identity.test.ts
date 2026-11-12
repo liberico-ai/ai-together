@@ -8,6 +8,7 @@ import {seed,demoSha} from '../src/server/seed';
 import {ids,demoProfiles} from '../src/server/identities';
 import {checkOrigin,createSession} from '../src/server/auth';
 import {handleAuth} from '../src/server/auth-http';
+import {APP_VERSION} from '../src/server/version';
 let db:Database,auth:IdentityService,invite:string;
 const user=demoProfiles.manager.id,password='Test-only passphrase 2026!',telegram='123456789',key=secret();
 beforeEach(async()=>{
@@ -70,7 +71,7 @@ test('Telegram pairing requires private proof; replay, expiry and replacing anot
 test('bridge verifies signature, freshness and nonce then applies both user and chat project scope',async()=>{
  await paired();await db.query(`INSERT INTO analytics.reconciliations(tenant_id,project_id,code,source_id,source_type,ingested_at,quality_score,source_sha,snapshot_hash,result) VALUES($1,$2,'TEST-014','https://github.com/example/test','github',now(),1,$3,$4,$5)`,[ids.tenant,ids.sales,demoSha,'a'.repeat(64),{checks:0,accepted:false}]);
  const data={operation:'reconciliation',context,code:'TEST-014',sourceSha:demoSha};const scopes={'-1001':[ids.sales],'-1002':[ids.transport]};
- expect(await handleBridge(signed(data),db,auth,key,scopes)).toMatchObject({readOnly:true,acceptance:'not-inferred'});
+ expect(await handleBridge(signed(data),db,auth,key,scopes)).toMatchObject({readOnly:true,acceptance:'not-inferred',version:APP_VERSION});
  for(const req of [signed(data,{key:secret()}),signed(data,{timestamp:String(Date.now()-120000)})]) await expect(handleBridge(req,db,auth,key,scopes)).rejects.toMatchObject({code:'BRIDGE_AUTH_DENIED'});
  const nonce=secret();await handleBridge(signed(data,{nonce}),db,auth,key,scopes);await expect(handleBridge(signed(data,{nonce}),db,auth,key,scopes)).rejects.toMatchObject({code:'BRIDGE_REPLAY'});
  await expect(handleBridge(signed({...data,context:{...context,chatId:'-1002'}}),db,auth,key,scopes)).rejects.toMatchObject({code:'SCOPE_DENIED'});
