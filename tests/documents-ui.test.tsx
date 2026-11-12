@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
 import { pageState, approvedLabel, draftLabel, hashLabel, freshnessLabel, SOURCE_STATE_VIEW, registerNotice } from '../src/components/documents-view';
 import { DocumentCard, SourceAvailability, DocumentsBody, SourceLink } from '../src/components/documents';
-import type { DocumentIndexRow, SourceState } from '../src/server/types';
+import { DocumentDetailView, DocumentDeniedBlock } from '../src/components/document-detail';
+import type { DocumentIndexRow, SourceState, DocumentDetail } from '../src/server/types';
 
 // The XECA006 fixture below is synthetic — chờ tin gốc (not the real source record).
 const row: DocumentIndexRow = { document_id: '11111111-1111-4111-8111-111111111111', project_id: '22222222-2222-4222-8222-222222222222', ref_code: 'XECA006', doc_type: 'plan',
@@ -143,5 +144,61 @@ describe('documents UI', () => {
   it('no component or view copy says đã duyệt, and window.open is gone', () => {
     for (const f of ['src/components/documents.tsx', 'src/components/documents-view.ts']) expect(readFileSync(f, 'utf8')).not.toContain('đã duyệt');
     expect(readFileSync('src/components/documents.tsx', 'utf8')).not.toContain('window.open');
+  });
+});
+
+const SHA1 = 'a'.repeat(40), SHA2 = 'b'.repeat(40), SHA3 = 'c'.repeat(40);
+const rec = (over: Partial<DocumentDetail['record']> = {}): DocumentDetail['record'] => ({ id: row.document_id, project_id: row.project_id, ref_code: 'LBRC014', doc_type: 'plan', title: 'Kế hoạch tổng hợp',
+  source_type: 'git', canonical_uri: 'https://example.org/x', owner_label: '', classification: 'unclassified', metadata: { missingFields: [] }, source_links: [], source_state: 'fresh',
+  source_checked_at: null, review_due_at: null, freeze_state: 'SOURCE_NOT_FROZEN', latest_revision_id: 'rev2', approved_revision_id: null, version: 3, created_at: '2026-11-12T01:00:00Z', updated_at: '2026-11-12T02:00:00Z', ...over });
+const revision = (no: number, over: Partial<DocumentDetail['revisions'][number]> = {}): DocumentDetail['revisions'][number] => ({ id: 'rev' + no, document_id: row.document_id, revision_no: no, based_on_revision_id: null,
+  source_revision: null, source_hash: null, hash_verification: 'self_declared', source_modified_at: null, snapshot_ref: null, changes: { summary: 'Tóm tắt r' + no, present: ['Mục A'], missing: ['Mục B'] },
+  source_refs: [], proposed_by: 'actor-secret-id', created_at: '2026-11-12T0' + no + ':00:00Z', ...over });
+const view = (d: DocumentDetail, canOpen = true) => renderToStaticMarkup(<DocumentDetailView detail={d} projectLabel="Dự án Xeca" canOpen={canOpen} />);
+
+describe('document detail', () => {
+  it('LBRC014-like: two revisions newest first, three SHAs, neutral approved tag, self-declared hash, no approval wording', () => {
+    const m = view({ record: rec(), events: [{ id: 'e1', entity_type: 'document', entity_id: 'x', actor_id: 'actor-secret-id', kind: 'revision_proposed', payload: {}, created_at: '2026-11-12T02:00:00Z' }],
+      revisions: [revision(1, { source_revision: SHA1, source_hash: 'd'.repeat(64) }), revision(2, { source_revision: SHA2, source_refs: [{ kind: 'git_sha', label: 'commit', value: SHA3 }, { kind: 'url', label: 'bản nháp', value: 'https://example.org/a/very/long/path' }] })] });
+    expect(m).toContain('r1'); expect(m).toContain('r2');
+    expect(m.indexOf('Tóm tắt r2')).toBeLessThan(m.indexOf('Tóm tắt r1'));
+    for (const s of [SHA1, SHA2, SHA3]) expect(m).toContain(s);
+    expect(m).toMatch(/class="doc-tag-neutral"[^>]*>Bản chuẩn: Chưa có</);
+    expect(m).toContain('Bản đang soạn: r2');
+    expect(m).toContain('Hash tự khai — chưa kiểm');
+    expect(m).toContain('Chưa có hash');
+    expect(m).toContain('Đã có:'); expect(m).toContain('Còn thiếu:'); expect(m).toContain('Mục B');
+    expect(m).toContain('commit: ' + SHA3);
+    expect(m).toContain('Nguồn chưa đóng băng (SOURCE_NOT_FROZEN)');
+    expect(m).toContain('Chưa phân loại');
+    expect(m).toContain('Chưa có'); // owner
+    expect(m).toContain('href="/documents?projectId=' + row.project_id + '"');
+    expect(m).not.toContain('đã duyệt'); expect(m).not.toContain('Hash đã kiểm');
+    expect(m).not.toContain('actor-secret-id');
+    expect(m).toContain('Mở nguồn');
+  });
+  it('XECA006-like: seven missing fields, unreconciled links, a gone source row', () => {
+    const fields = ['author', 'reviewer', 'authorityNote', 'audienceNote', 'readingLimits', 'reviewDueAt', 'ownerLabel'];
+    const m = view({ record: rec({ ref_code: 'XECA006', metadata: { missingFields: fields }, source_links: [{ kind: 'z2_source_ref', value: 'sheet#12', label: 'chưa đối soát' },
+      { kind: 'z2_source_ref', value: 'sheet#99', label: 'chưa đối soát', present: false }] }), revisions: [revision(1)], events: [] });
+    for (const f of fields) expect(m).toContain(f + ': Chưa có');
+    expect((m.match(/: Chưa có</g) ?? []).length).toBeGreaterThanOrEqual(7);
+    expect(m).toContain('sheet#12 · chưa đối soát');
+    expect(m).toContain('sheet#99 · chưa đối soát');
+    expect(m.match(/Dòng nguồn không còn trong bảng việc — lịch sử trong sổ vẫn giữ/g)).toHaveLength(1);
+  });
+  it('a document with no revision shows Chưa có and no open button when denied source', () => {
+    const m = view({ record: rec({ latest_revision_id: null, source_state: 'denied' }), revisions: [], events: [] }, true);
+    expect(m).toContain('Bản đang soạn: Chưa có');
+    expect(m).not.toContain('Mở nguồn');
+  });
+  it('denied block is generic and carries no title or code', () => {
+    const m = renderToStaticMarkup(<DocumentDeniedBlock />);
+    expect(m).toContain('Không tìm thấy tài liệu trong phạm vi được cấp');
+    expect(m).not.toContain('LBRC014'); expect(m).not.toContain('Kế hoạch tổng hợp'); expect(m).not.toContain('Dự án Xeca');
+  });
+  it('the list card links to the detail page', () => {
+    const m = renderToStaticMarkup(<DocumentCard row={row} projectLabel="Xeca" canOpen />);
+    expect(m).toMatch(/<a [^>]*href="\/documents\/11111111-1111-4111-8111-111111111111"[^>]*>Xem chi tiết</);
   });
 });

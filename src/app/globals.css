@@ -90,3 +90,21 @@ html,body{max-width:100%;overflow-x:clip}
 @media(max-width:700px){.doc-filters{flex-direction:column;align-items:stretch}.doc-card{padding:12px}.doc-action{width:100%}.doc-actions{align-items:stretch}}
 @media(min-width:950px){.doc-card{flex-direction:row;flex-wrap:wrap;align-items:flex-start}.doc-main{flex:2 1 280px;min-width:0}.doc-revs{flex:1 1 200px}.doc-source{flex:1 1 200px}.doc-actions{flex:0 0 auto}}
 @media(min-width:1200px){.doc-card{flex-wrap:nowrap;gap:24px}.doc-main{flex:0 0 32%}.doc-revs{flex:0 0 24%}.doc-source{flex:1 1 auto}.doc-actions{flex:0 0 auto}}
+
+/* Chi tiết tài liệu (.doc-*) */
+.doc-detail-head{margin-bottom:12px}
+.doc-pointers{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.doc-pointer{flex:1 1 200px;min-width:0;padding:12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white)}
+.doc-section{margin:16px 0;padding:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);min-width:0}
+.doc-section h2{margin:0 0 8px;font-size:16px}
+.doc-section ul,.doc-section ol{margin:0;padding-left:20px}
+.doc-section li{overflow-wrap:anywhere}
+.doc-revlist{list-style:none;padding:0}
+.doc-rev-item{padding:12px 0;border-top:1px solid var(--line);min-width:0}
+.doc-rev-item:first-child{border-top:0}
+.doc-rev-head{margin:0 0 4px;font-size:16px}
+.doc-cols{display:flex;gap:16px;flex-wrap:wrap}
+.doc-cols>div{flex:1 1 200px;min-width:0}
+.doc-wrap{overflow-wrap:anywhere;word-break:break-word}
+.doc-refs{margin:4px 0 0}
+@media(max-width:700px){.doc-pointers{flex-direction:column}.doc-section{padding:12px}.doc-cols{flex-direction:column}}

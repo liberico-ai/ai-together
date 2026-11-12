@@ -1,7 +1,7 @@
 # Bàn giao giao diện — «Tài liệu dự án» (lát 1)
 
 Nguồn: `docs/DESIGN-SYSTEM-PM-DOCUMENTS.md`. Mã: `src/components/documents.tsx`, `src/components/documents-view.ts`, `src/app/documents/*`, lớp `.doc-*` cuối `src/app/globals.css`.
-Lát này chỉ có danh sách, tìm, mở nguồn và đăng ký. Chưa có chi tiết, diff, quyết định (đặc tả chỉ ghi biến thể).
+Lát này có danh sách, tìm, mở nguồn, đăng ký và màn chi tiết (phần «Màn chi tiết» cuối tệp). Chưa có diff, quyết định (đặc tả chỉ ghi biến thể).
 
 ## 1. Bố cục
 Đọc từ trên xuống: liên kết «← Về không gian làm việc» (về `/`, cao ≥44px) → tiêu đề «<Dự án> / Tài liệu» + nút «Đăng ký tài liệu» (chỉ khi có quyền) → ô «Tìm trong dự án» → (form đăng ký, mở khi bấm) → vùng dữ liệu (skeleton / lỗi / từ chối / rỗng / danh sách) → thông báo sau đăng ký (nếu có) → dòng «n / tổng tài liệu». Mỗi trang 50 tài liệu (mặc định của API, trần 200); chưa có nút phân trang.
@@ -9,7 +9,7 @@ Không có `?projectId=` và nhiều dự án: chỉ hiện danh sách liên k�
 Biến thể:
 - **card** (<950px): một cột; khối tiêu đề → bản chuẩn/đang soạn/hash → nguồn → hành động.
 - **row** (≥1200px): cùng `DocumentCard`, CSS xếp ngang theo cột cố định tỉ lệ (32% / 24% / còn lại / hành động). 950–1199px: bố cục ngang có xuống dòng.
-- **detail header**: chưa làm ở lát này.
+- **detail header**: xem «Màn chi tiết».
 
 ## 2. Token
 | Token | Giá trị | Dùng cho |
@@ -84,6 +84,41 @@ Chụp ở 360×740 và 1280×800:
 - Đo contrast thực tế (nhãn phụ 12px, nhãn trung tính, cảnh báo).
 - Kiểm zoom 200%.
 - Kiểm screen reader (danh sách `role=list`, `role=alert`, `aria-busy`).
-- Bộ lọc Loại/Trạng thái/Chủ nội dung; phân trang; chi tiết tài liệu; «Xem việc liên quan».
+- Bộ lọc Loại/Trạng thái/Chủ nội dung; phân trang; diff giữa hai bản; «Xem việc liên quan».
 - Ảnh chụp (chưa có công cụ trình duyệt).
 Theo `DESIGN-SYSTEM-PM-DOCUMENTS.md:107`.
+
+## Màn chi tiết `/documents/<id>`
+Mã: `src/app/documents/[id]/{page,loading,error}.tsx`, `src/components/document-detail.tsx`. Dùng lại `SourceAvailability`, `SourceOpener` (mở nguồn hai bước, như thẻ danh sách), nhãn trong `documents-view.ts`.
+
+### 1. Bố cục
+Từ trên xuống: liên kết «← Về danh sách tài liệu» (về `/documents?projectId=<project_id>`, ≥44px) → tiêu đề, mã tham chiếu · loại · dự án, «Chủ nội dung» (rỗng → «Chưa có») → hai con trỏ cạnh nhau: «Bản đang soạn: r<n>|Chưa có» và «Bản chuẩn: Chưa có» (thẻ `.doc-tag-neutral`) → dòng «Nguồn chưa đóng băng (SOURCE_NOT_FROZEN) · Phân loại: Chưa phân loại» → «Thông tin còn thiếu» (mỗi trường «<tên>: Chưa có») → «Dòng nguồn liên kết» (mỗi dòng «<giá trị> · chưa đối soát») → «Nguồn» (trạng thái + «Mở nguồn») → «Các bản (mới nhất trước)» → «Sự kiện» (tên loại + thời điểm, không hiện mã người thực hiện).
+Mỗi bản: «r<n>», thời điểm, tóm tắt, «Đã có:» / «Còn thiếu:», «Bản nguồn», từng tham chiếu «nhãn: giá trị», nhãn hash (`hashLabel`: tự khai → «Hash tự khai — chưa kiểm»; không có hash → «Chưa có hash»). Không có chữ «đã duyệt» hay «Hash đã kiểm».
+
+### 2. Token
+Như danh sách. Lớp thêm: `.doc-detail-head .doc-pointers .doc-pointer .doc-section .doc-revlist .doc-rev-item .doc-rev-head .doc-cols .doc-wrap .doc-refs`. SHA/URL dùng `overflow-wrap:anywhere`; không phần tử nào rộng cố định >328px.
+
+### 3. Props
+```ts
+DocumentDetailView({detail:DocumentDetail; projectLabel:string; canOpen:boolean})
+DocumentDeniedBlock()   // không prop
+SourceOpener({documentId:string; sourceState:SourceState; canOpen:boolean})  // 'use client', dùng chung với thẻ danh sách
+```
+Trang server lấy phiên bằng `pagePrincipal()` (không phiên → `/login`), gọi `DocumentService.detail(principal, id)`.
+
+### 4. Trạng thái
+- loading: `loading.tsx`, skeleton, `aria-busy="true"`.
+- error: `error.tsx`, `role="alert"`, «Thử lại»; dữ liệu không đổi.
+- denied (`SCOPE_DENIED`, `READ_ONLY`, mã không hợp lệ, tài liệu không tồn tại): một khối chung «Không tìm thấy tài liệu trong phạm vi được cấp»; không tiêu đề, mã, tên dự án hay số đếm.
+- ready: như «Bố cục». Không có bản nào → «Bản đang soạn: Chưa có», «Chưa có bản nào.»
+
+### 5. Breakpoint
+- ≤700px: hai con trỏ xếp dọc, hai cột «Đã có/Còn thiếu» xếp dọc, một cột, nút full-width, không cuộn ngang ở 360px.
+- >700px: hai con trỏ cạnh nhau; hai cột cạnh nhau.
+
+### 6. Edge case
+- Hai bản với ba SHA (`source_revision` r1, `source_revision` r2 và một tham chiếu `git_sha`): cả ba hiện đủ, bản r2 trước r1.
+- Bảy trường thiếu (XECA006): bảy dòng «<trường>: Chưa có».
+- Dòng nguồn đã mất khỏi bảng việc (`present:false`): vẫn hiện «<giá trị> · chưa đối soát» kèm «Dòng nguồn không còn trong bảng việc — lịch sử trong sổ vẫn giữ».
+- Nguồn `denied`/`unavailable`: không có nút «Mở nguồn».
+- Không phiên, không quyền, id sai: `/login` hoặc khối denied như trên.

@@ -40,6 +40,23 @@ test('runtime cannot insert a registry row for another project or tenant',async(
   await expect(scoped(h.db,pm,tx=>tx.query(...event(ids.sales,ids.tenant,pm.id)))).resolves.toBeTruthy();
 });
 
+test('a project member cannot insert profile or channel rows for another project or tenant',async()=>{
+  // member belongs to ids.sales only; ids.transport is a real project of the same tenant, so only the scope_insert policy can refuse it.
+  const profileSql="INSERT INTO project_profiles(tenant_id,project_id,updated_by) VALUES($1,$2,$3)";
+  const channelSql="INSERT INTO project_channels(tenant_id,project_id,chat_id,mode,policy_version,proposed_by) VALUES($1,$2,'-100777','command_reply','p1',$3)";
+  for(const [name,sql] of [['profile',profileSql],['channel',channelSql]] as const){
+    await expect(scoped(h.db,member,tx=>tx.query(sql,[ids.tenant,ids.transport,member.id])),name+' other project').rejects.toThrow();
+    await expect(scoped(h.db,member,tx=>tx.query(sql,[ids.otherTenant,ids.sales,member.id])),name+' other tenant').rejects.toThrow();
+    await expect(scoped(h.db,member,tx=>tx.query(sql,[ids.otherTenant,ids.otherProject,member.id])),name+' other tenant and project').rejects.toThrow();
+  }
+  const n=async(t:string)=>(await h.operator.query<{n:number}>(`SELECT count(*)::int n FROM ${t}`)).rows[0].n;
+  expect(await n('project_profiles')).toBe(0);
+  expect(await n('project_channels')).toBe(0);
+  // control: the same statements are accepted for the member's own project, so the refusals above come from the scope check
+  await expect(scoped(h.db,member,tx=>tx.query(profileSql,[ids.tenant,ids.sales,member.id]))).resolves.toBeTruthy();
+  await expect(scoped(h.db,member,tx=>tx.query(channelSql,[ids.tenant,ids.sales,member.id]))).resolves.toBeTruthy();
+});
+
 test('runtime cannot create an active channel or a domain mapping',async()=>{
   const ch=(state:string,approver:string|null)=>scoped(h.db,pm,tx=>tx.query(
     "INSERT INTO project_channels(tenant_id,project_id,chat_id,mode,state,approver_id,policy_version,proposed_by) VALUES($1,$2,'-100999','active',$3,$4,'p1',$5)",

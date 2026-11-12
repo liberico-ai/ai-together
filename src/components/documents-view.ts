@@ -19,6 +19,12 @@ export const SOURCE_STATE_VIEW: Record<SourceState, { label: string; nextStep: s
   'partially-received': { label: 'Mới nhận một phần', nextStep: 'Chờ nhận đủ hoặc kiểm lại nguồn.', tone: 'warn' },
 };
 
+export const TYPE_NAMES: Record<string, string> = { project_index: 'Mục lục dự án', change_brief: 'Phiếu thay đổi', requirements: 'Yêu cầu', design: 'Thiết kế', plan: 'Kế hoạch', verification: 'Kiểm chứng', guide: 'Hướng dẫn', other: 'Khác' };
+export const DETAIL_DENIED_COPY = 'Không tìm thấy tài liệu trong phạm vi được cấp';
+export const SOURCE_GONE_COPY = 'Dòng nguồn không còn trong bảng việc — lịch sử trong sổ vẫn giữ';
+export const EVENT_KIND_LABELS: Record<string, string> = { registered: 'Đã đăng ký tài liệu', revision_proposed: 'Đề xuất bản mới', source_checked: 'Đã kiểm nguồn' };
+export const eventKindLabel = (kind: string): string => EVENT_KIND_LABELS[kind] ?? kind;
+
 export const approvedLabel = (revisionNo: number | null): string => revisionNo === null ? 'Chưa có' : 'r' + revisionNo;
 export const draftLabel = (revisionNo: number | null, missing: number): string =>
   revisionNo === null ? 'Chưa có' : 'r' + revisionNo + (missing > 0 ? ' · Cần bổ sung' : '');

@@ -3,9 +3,8 @@ import { useState, type FormEvent } from 'react';
 import type { DocumentIndexRow, SourceState } from '@/server/types';
 import type { DocumentIndexPage } from '@/server/document-index';
 import { api } from './api';
-import { SOURCE_STATE_VIEW, approvedLabel, draftLabel, hashLabel, freshnessLabel, pendingProjectionCopy, formatTime, pageState, noResultsCopy, emptyProjectionCopy, registerNotice, safeHttpsHost, type PageState } from './documents-view';
+import { TYPE_NAMES, SOURCE_STATE_VIEW, approvedLabel, draftLabel, hashLabel, freshnessLabel, pendingProjectionCopy, formatTime, pageState, noResultsCopy, emptyProjectionCopy, registerNotice, safeHttpsHost, type PageState } from './documents-view';
 
-const TYPE_NAMES: Record<string, string> = { project_index: 'Mục lục dự án', change_brief: 'Phiếu thay đổi', requirements: 'Yêu cầu', design: 'Thiết kế', plan: 'Kế hoạch', verification: 'Kiểm chứng', guide: 'Hướng dẫn', other: 'Khác' };
 
 export function SourceAvailability({ state, lastSuccessAt }: { state: SourceState; lastSuccessAt: string | null }) {
   const v = SOURCE_STATE_VIEW[state];
@@ -23,16 +22,25 @@ export function SourceLink({ uri }: { uri: string }) {
     <a className="doc-action" href={uri} target="_blank" rel="noreferrer noopener">Mở liên kết tại {host}</a></div>;
 }
 
-export function DocumentCard({ row, projectLabel, canOpen }: { row: DocumentIndexRow; projectLabel: string; canOpen: boolean }) {
+/** Two-step source open shared by the list card and the detail page: fetch the checked URI, then show host + https link. */
+export function SourceOpener({ documentId, sourceState, canOpen }: { documentId: string; sourceState: SourceState; canOpen: boolean }) {
   const [busy, setBusy] = useState(false), [problem, setProblem] = useState(''), [uri, setUri] = useState<string | null>(null);
   async function openSource() {
     setBusy(true); setProblem(''); setUri(null);
     try {
-      const s = await api<{ uri: string; host?: string }>('/api/documents/' + row.document_id + '/source');
+      const s = await api<{ uri: string; host?: string }>('/api/documents/' + documentId + '/source');
       setUri(s.uri);
     } catch (e) { setProblem((e as Error).message); } finally { setBusy(false); }
   }
-  const showOpen = canOpen && row.source_state !== 'denied' && row.source_state !== 'unavailable';
+  const showOpen = canOpen && sourceState !== 'denied' && sourceState !== 'unavailable';
+  return <>
+    {showOpen && <button type="button" className="doc-action" disabled={busy} onClick={openSource}>Mở nguồn</button>}
+    {uri && <SourceLink uri={uri} />}
+    {problem && <p role="alert" className="doc-problem">{problem}</p>}
+  </>;
+}
+
+export function DocumentCard({ row, projectLabel, canOpen }: { row: DocumentIndexRow; projectLabel: string; canOpen: boolean }) {
   return <article className="doc-card" aria-label={row.title}>
     <div className="doc-main">
       <h3 className="doc-title">{row.title}</h3>
@@ -47,9 +55,8 @@ export function DocumentCard({ row, projectLabel, canOpen }: { row: DocumentInde
     </div>
     <SourceAvailability state={row.source_state} lastSuccessAt={null} />
     <div className="doc-actions">
-      {showOpen && <button type="button" className="doc-action" disabled={busy} onClick={openSource}>Mở nguồn</button>}
-      {uri && <SourceLink uri={uri} />}
-      {problem && <p role="alert" className="doc-problem">{problem}</p>}
+      <a className="doc-action" href={'/documents/' + row.document_id}>Xem chi tiết</a>
+      <SourceOpener documentId={row.document_id} sourceState={row.source_state} canOpen={canOpen} />
     </div>
   </article>;
 }
