@@ -5,6 +5,7 @@ import { pageState, approvedLabel, draftLabel, hashLabel, freshnessLabel, SOURCE
 import { DocumentCard, SourceAvailability, DocumentsBody, SourceLink } from '../src/components/documents';
 import type { DocumentIndexRow, SourceState } from '../src/server/types';
 
+// The XECA006 fixture below is synthetic — chờ tin gốc (not the real source record).
 const row: DocumentIndexRow = { document_id: '11111111-1111-4111-8111-111111111111', project_id: '22222222-2222-4222-8222-222222222222', ref_code: 'XECA006', doc_type: 'plan',
   title: 'Nâng package theo npm audit', owner_label: '', source_type: 'drive', latest_revision_no: 2, approved_revision_no: null, hash_verification: 'self_declared',
   source_state: 'fresh', freeze_state: 'SOURCE_NOT_FROZEN', missing_count: 3, review_due_at: null, record_updated_at: '2026-11-12T01:00:00Z', projected_at: '2026-11-12T02:00:00Z' };

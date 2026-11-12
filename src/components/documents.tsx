@@ -79,17 +79,18 @@ export function Documents({ projects, projectId, initial, denied, canRegister, t
   { projects: { id: string; name: string }[]; projectId: string | null; initial: DocumentIndexPage | null; denied: boolean; canRegister: boolean; templates: { code: string; title: string }[] }) {
   const [page, setPage] = useState<DocumentIndexPage | null>(initial), [loading, setLoading] = useState(false), [error, setError] = useState<string | null>(null),
     [q, setQ] = useState(''), [applied, setApplied] = useState(''), [notice, setNotice] = useState(''), [form, setForm] = useState(false), [saving, setSaving] = useState(false), [formError, setFormError] = useState('');
-  if (!projectId && !denied) return <main className="doc-page"><h1>Tài liệu dự án</h1>
+  if (!projectId && !denied) return <main className="doc-page"><a className="doc-action doc-back" href="/">← Về không gian làm việc</a><h1>Tài liệu dự án</h1>
     <nav className="doc-picker" aria-label="Chọn dự án"><p className="doc-meta">Chọn dự án để xem tài liệu.</p>
       {projects.length === 0 ? <p>Chưa có dự án được cấp.</p> : projects.map(p => <a key={p.id} className="doc-action" href={'/documents?projectId=' + p.id}>{p.name}</a>)}</nav></main>;
   const projectLabel = projects.find(p => p.id === projectId)?.name ?? 'Dự án trong phạm vi';
   const state = pageState({ loading, error, denied, rows: page?.rows.length ?? 0, term: applied });
-  async function load(term: string) {
+  async function load(term: string): Promise<DocumentIndexPage | null> {
     setLoading(true); setError(null); setApplied(term.trim());
     try {
       const qs = new URLSearchParams({ projectId: projectId! }); if (term.trim()) qs.set('q', term.trim());
-      setPage(await api<DocumentIndexPage>('/api/documents' + (term.trim() ? '/search' : '') + '?' + qs.toString()));
-    } catch (e) { setError((e as Error).message); } finally { setLoading(false); }
+      const fresh = await api<DocumentIndexPage>('/api/documents' + (term.trim() ? '/search' : '') + '?' + qs.toString());
+      setPage(fresh); return fresh;
+    } catch (e) { setError((e as Error).message); return null; } finally { setLoading(false); }
   }
   async function register(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); setSaving(true); setFormError(''); setNotice('');
@@ -98,7 +99,7 @@ export function Documents({ projects, projectId, initial, denied, canRegister, t
       const title = get('title');
       await api('/api/documents/register', { projectId, refCode: get('refCode'), docType: get('docType'), title: get('title'), ...(get('templateCode') ? { templateCode: get('templateCode') } : {}),
         sourceType: get('sourceType'), canonicalUri: get('canonicalUri'), ownerLabel: get('ownerLabel'), reviewDueAt: null, metadata: { missingFields: [] }, sourceLinks: [] });
-      setForm(false); await load(q); setNotice(registerNotice(title, page?.projectedAt ?? null));
+      setForm(false); const fresh = await load(q); setNotice(registerNotice(title, fresh?.projectedAt ?? null));
     } catch (err) { setFormError((err as Error).message); } finally { setSaving(false); }
   }
   return <main className="doc-page">

@@ -9,9 +9,13 @@ const DOC_TYPES = ['project_index', 'change_brief', 'requirements', 'design', 'p
 const NOT_FOUND = 'Không tìm thấy tài liệu trong phạm vi được cấp.';
 const denied = () => new AppError('SCOPE_DENIED', NOT_FOUND, 404);
 
-/** Query parameter names that carry credentials or signatures; a source link must never hold one (case-insensitive). */
-const SECRET_PARAMS = new Set(['token', 'access_token', 'id_token', 'auth', 'authorization', 'key', 'api_key', 'apikey', 'sig', 'signature',
-  'x-amz-signature', 'x-amz-credential', 'x-amz-security-token', 'x-goog-signature', 'x-goog-credential', 'code', 'password', 'secret']);
+/** A name is secret-bearing when, normalised (lowercase, letters and digits only), it contains or equals one of these. */
+const SECRET_PARTS = ['token', 'secret', 'signature', 'credential', 'password', 'passwd', 'pwd', 'session', 'apikey', 'resourcekey', 'authorization'];
+const SECRET_EXACT = new Set(['sig', 'key', 'code', 'auth']);
+function secretName(raw: string): boolean {
+  const n = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return SECRET_EXACT.has(n) || SECRET_PARTS.some(p => n.includes(p));
+}
 const BAD_CREDENTIALS = 'Dùng URL HTTPS không chứa thông tin đăng nhập.';
 const BAD_PARAMS = 'Liên kết không được chứa tham số xác thực (token, key, sig, code, password, secret…).';
 /** Shared by registration, url source refs and openSource: https only, no user info, no credential-bearing query parameter. */
@@ -19,7 +23,8 @@ function checkPointer(v: string): { ok: true; href: string; host: string } | { o
   let u: URL;
   try { u = new URL(v.trim()); } catch { return { ok: false, message: BAD_CREDENTIALS }; }
   if (u.protocol !== 'https:' || u.username || u.password) return { ok: false, message: BAD_CREDENTIALS };
-  for (const name of u.searchParams.keys()) if (SECRET_PARAMS.has(name.toLowerCase())) return { ok: false, message: BAD_PARAMS };
+  const groups = [u.search, u.hash.replace(/^#\??/, ''), ...u.pathname.split('/').flatMap(seg => seg.includes(';') ? [seg.slice(seg.indexOf(';') + 1).replaceAll(';', '&')] : [])];
+  for (const g of groups) for (const name of new URLSearchParams(g.replace(/^\?/, '')).keys()) if (secretName(name)) return { ok: false, message: BAD_PARAMS };
   return { ok: true, href: u.href, host: u.hostname };
 }
 const httpsPointer = z.string().transform(v => v.trim()).pipe(z.string().max(1000)).transform((v, ctx) => {
@@ -128,7 +133,7 @@ export class DocumentService {
     return scoped(this.db, { ...p, projectIds: [projectId] }, tx => claimDocumentCommand(tx, p, projectId, key, { op: 'document.register', ...input }, async () => {
       let templateId: string | null = null;
       if (input.templateCode) {
-        templateId = (await tx.query<{ id: string }>('SELECT id FROM document_templates WHERE tenant_id=$1 AND code=$2 ORDER BY created_at DESC, template_version DESC, id LIMIT 1', [p.tenantId, input.templateCode])).rows[0]?.id ?? null;
+        templateId = (await tx.query<{ id: string }>(`SELECT id FROM document_templates WHERE tenant_id=$1 AND code=$2 ORDER BY created_at DESC, string_to_array(template_version,'.')::int[] DESC, id LIMIT 1`, [p.tenantId, input.templateCode])).rows[0]?.id ?? null;
         invariant(templateId, 'TEMPLATE_UNKNOWN', 'Mẫu tài liệu không có trong chỉ mục.', 422);
       }
       const row = (await tx.query<RecordRow>(`INSERT INTO document_records(tenant_id,project_id,ref_code,doc_type,title,template_id,source_type,canonical_uri,owner_label,metadata,source_links,review_due_at,registered_by)

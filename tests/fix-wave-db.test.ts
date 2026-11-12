@@ -194,7 +194,7 @@ describe('item 7 source link hardening',()=>{
         expect((e as ZodError).issues[0].message,spelled).toMatch(/tham số/);
       }
     expect(await count('document_records')).toBe(0);
-    await expect(svc().register(pm,base({canonicalUri:'https://example.com/d?page=2&tokens=ok'}),key())).resolves.toBeTruthy();
+    await expect(svc().register(pm,base({canonicalUri:'https://example.com/d?page=2&q=ok'}),key())).resolves.toBeTruthy();
   });
   test('url source refs are checked and normalised like canonicalUri',async()=>{
     const d=await svc().register(pm,base(),key());
@@ -210,6 +210,35 @@ describe('item 7 source link hardening',()=>{
       await h.operator.query('UPDATE document_records SET canonical_uri=$1 WHERE id=$2',[bad,d.record.id]);
       expect(await codeOf(svc().openSource(pm,d.record.id)),bad).toEqual({code:'SOURCE_UNAVAILABLE',status:409});
     }
+  });
+});
+
+describe('round 1: fragment, path and normalised secret names',()=>{
+  const bad=['https://example.com/d#access_token=x','https://example.com/d#?token=x','https://example.com/doc;token=x','https://example.com/d?token[]=x',
+    'https://example.com/d?resourcekey=x','https://example.com/d?X-Goog-Credential=x','https://example.com/d?%74oken=x','https://example.com/a;v=1;sig=x/b',
+    'https://example.com/d?session_id=x','https://example.com/d#x=1&client-secret=y'];
+  test('registration and url refs reject them; a normal Google Docs link is accepted',async()=>{
+    for(const u of bad) expect(await svc().register(pm,base({canonicalUri:u}),key()).catch(e=>e),u).toBeInstanceOf(ZodError);
+    const d=await svc().register(pm,base({canonicalUri:'https://docs.google.com/document/d/abc/edit#heading=h.1'}),key());
+    for(const u of bad) expect(await svc().proposeRevision(pm,d.record.id,revBody({sourceRefs:[{kind:'url',label:'l',value:u}]}),key()).catch(e=>e),u).toBeInstanceOf(ZodError);
+    expect(d.record.canonical_uri).toBe('https://docs.google.com/document/d/abc/edit#heading=h.1');
+  });
+  test('openSource on a stored bad URI is SOURCE_UNAVAILABLE without the uri',async()=>{
+    const d=await svc().register(pm,base(),key());
+    for(const u of bad){
+      await h.operator.query('UPDATE document_records SET canonical_uri=$1 WHERE id=$2',[u,d.record.id]);
+      const e=await svc().openSource(pm,d.record.id).catch(x=>x);
+      expect(e,u).toMatchObject({code:'SOURCE_UNAVAILABLE',status:409});
+      expect(JSON.stringify(e),u).not.toContain('example.com');
+    }
+  });
+  test('template_version is ordered numerically (0.10.0 beats 0.9.0)',async()=>{
+    await h.exec('TRUNCATE document_templates CASCADE');
+    await h.operator.transaction(async tx=>{
+      for(const v of ['0.10.0','0.9.0']) await tx.query("INSERT INTO document_templates(tenant_id,code,template_version,doc_type,title,path,content_hash) VALUES($1,'T3',$2,'design','t','p',$3)",[ids.tenant,v,'a'.repeat(64)]);
+    });
+    const d=await svc().register(pm,base({templateCode:'T3'}),key());
+    expect((await h.operator.query<{template_version:string}>('SELECT t.template_version FROM document_records r JOIN document_templates t ON t.id=r.template_id WHERE r.id=$1',[d.record.id])).rows[0].template_version).toBe('0.10.0');
   });
 });
 
@@ -263,7 +292,7 @@ describe('item 14 CSV export cap',()=>{
     await projectDocumentIndex(h.operator,ids.tenant,ids.sales);
     expect(await count('analytics.document_index')).toBe(5001);
     const e=await exportDocumentsCsv(h.db,pm,ids.sales).catch(x=>x);
-    expect(e).toMatchObject({code:'EXPORT_TOO_LARGE',status:422,message:'Danh sách quá dài để xuất một lần. Lọc theo loại rồi xuất lại.'});
+    expect(e).toMatchObject({code:'EXPORT_TOO_LARGE',status:422,message:'Danh sách quá dài để xuất một lần (trên 5000 tài liệu). Liên hệ quản trị để xuất theo đợt.'});
   },60000);
 });
 

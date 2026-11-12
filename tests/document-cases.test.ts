@@ -107,7 +107,7 @@ describe('slice 1 document cases',()=>{
     const det=await svc().detail(pm,d.record.id);
     expect(det.revisions).toHaveLength(2);
   });
-  test('no reporting-domain row exists after indexing both cases',async()=>{
+  test('no reporting-domain row exists after indexing both cases (synthetic — chờ tin gốc)',async()=>{
     await xecaPair();await lbrc();
     await projectDocumentIndex(h.operator,ids.tenant,ids.sales);
     expect(await count('project_domain_mappings')).toBe(0);
