@@ -76,19 +76,21 @@ Nguồn: **CH** = Chairman nêu tên · **CX** = hàng Codex §4 · **=** = trù
 
 Lát 4 mở rộng chỉ mục này sang tìm nội dung; không dựng chỉ mục thứ hai.
 
-## 5. Lời văn đề xuất cho `AGENTS.md` — AI không tự sửa (R10)
+## 5. Lời văn cho `AGENTS.md` — đã duyệt (R10)
 
-| Dòng | Lời văn đề xuất | Áp khi | OQ |
-|---|---|---|---|
-| `:9` | Thêm: «Every migration from 013 has a rollback file in `migrations/rollback/`, which the runner does not scan; rollback is never run on a real database without Chairman approval.» | Ký ADR-002 1.1 | 20 |
-| `:11` Z1 | «Z1: owned work/service/acceptance records, project registry, proposed channel mappings and document governance metadata (ADR-002 v1.1).» | Ký ADR-002 1.1 | 02 |
-| `:11` Z2 | «Z2: derived summary tables and the document metadata index, each populated by a named projector.» | Ký ADR-002 1.1 | R-02 |
-| `:11` Z4 | «Z4: AI draft tables and contracts may exist but are not enabled: no model call and no AI-pipeline credential until Chairman approves a data-classification-to-model table.» | Xong lát 3 | 14 |
-| mới | «Reports never aggregate across reporting domains (Liberico BU · Xeca · IBS HI). A domain label is not tenant_id, organization_id or entity_code. Project-to-domain rows are created or confirmed by an authorized person with a source; unmapped projects show "Chưa xác nhận". IBS HI: pointers, hashes and Tech work metadata only.» | Ký ADR-002 1.1 | 04 |
-| `:5` | Thêm: «Its ticket ledger stays the single owner of ticket state; AI OS stores ticket IDs as external references only.» | Hai chứng minh OQ-09 đạt | 09 |
-| `:11` Z1 | Thêm vào danh sách Z1: «source events, intake candidates, outbox and delivery receipts». | Hai chứng minh OQ-09 đạt | 02, 09 |
-| `:13` | «Bot principal is read-only (existing exception: account-approval ballots). A separate intake/delivery service principal may write only source events, intake candidates and delivery receipts. No machine principal may create, assign, close or accept work, approve a document, or grant access.» | Hai chứng minh OQ-09 đạt | 08, 11 |
-| mới | «Self-reported health, including this service's `/api/health`, is report information, never evidence of observed runtime state.» | Bất kỳ lúc nào | 19 |
+**Duyệt ngày 12/11/2026 (Chairman, nguyên văn):** «Duyệt lời văn AGENTS.md mục 5». Lời duyệt áp cho lời văn của cả chín dòng, nhưng không bỏ cột «Áp khi»: chỉ dòng có điều kiện đã đạt mới được ghi vào `AGENTS.md`. Ngày 12/11 đã áp năm dòng có điều kiện «Ký ADR-002 1.1» hoặc «Bất kỳ lúc nào». Bốn dòng còn lại giữ nguyên lời văn đã duyệt và chỉ áp khi điều kiện được ghi nhận là đạt. Dòng Z4 hiện tại («Z4: future AI suggestions; not enabled.») giữ nguyên cho tới khi xong lát 3. Số dòng ở cột «Dòng» là số dòng của `AGENTS.md` trước lần áp này.
+
+| Dòng | Lời văn đề xuất | Áp khi | OQ | Trạng thái |
+|---|---|---|---|---|
+| `:9` | Thêm: «Every migration from 013 has a rollback file in `migrations/rollback/`, which the runner does not scan; rollback is never run on a real database without Chairman approval.» | Ký ADR-002 1.1 | 20 | Đã áp 12/11/2026 |
+| `:11` Z1 | «Z1: owned work/service/acceptance records, project registry, proposed channel mappings and document governance metadata (ADR-002 v1.1).» | Ký ADR-002 1.1 | 02 | Đã áp 12/11/2026 |
+| `:11` Z2 | «Z2: derived summary tables and the document metadata index, each populated by a named projector.» | Ký ADR-002 1.1 | R-02 | Đã áp 12/11/2026 |
+| `:11` Z4 | «Z4: AI draft tables and contracts may exist but are not enabled: no model call and no AI-pipeline credential until Chairman approves a data-classification-to-model table.» | Xong lát 3 | 14 | Chưa áp — chờ xong lát 3 |
+| mới | «Reports never aggregate across reporting domains (Liberico BU · Xeca · IBS HI). A domain label is not tenant_id, organization_id or entity_code. Project-to-domain rows are created or confirmed by an authorized person with a source; unmapped projects show "Chưa xác nhận". IBS HI: pointers, hashes and Tech work metadata only.» | Ký ADR-002 1.1 | 04 | Đã áp 12/11/2026 |
+| `:5` | Thêm: «Its ticket ledger stays the single owner of ticket state; AI OS stores ticket IDs as external references only.» | Hai chứng minh OQ-09 đạt | 09 | Chưa áp — chờ hai chứng minh OQ-09 |
+| `:11` Z1 | Thêm vào danh sách Z1: «source events, intake candidates, outbox and delivery receipts». | Hai chứng minh OQ-09 đạt | 02, 09 | Chưa áp — chờ hai chứng minh OQ-09 |
+| `:13` | «Bot principal is read-only (existing exception: account-approval ballots). A separate intake/delivery service principal may write only source events, intake candidates and delivery receipts. No machine principal may create, assign, close or accept work, approve a document, or grant access.» | Hai chứng minh OQ-09 đạt | 08, 11 | Chưa áp — chờ hai chứng minh OQ-09 |
+| mới | «Self-reported health, including this service's `/api/health`, is report information, never evidence of observed runtime state.» | Bất kỳ lúc nào | 19 | Đã áp 12/11/2026 |
 
 ## 6. Chỗ lời Chairman và bảng Codex chưa khớp hẳn, và chỗ chưa chắc
 
