@@ -40,7 +40,7 @@ export async function openHarness():Promise<Harness>{
       reset:async()=>{
         await operator.query('TRUNCATE projects, identity.users, identity.memberships, identity.telegram_links, analytics.reconciliations, analytics.tech_source_imports CASCADE');
         if((await operator.query<{t:string|null}>("SELECT to_regclass('public.document_templates')::text AS t")).rows[0].t)
-          await operator.query('TRUNCATE document_templates');
+          await operator.query('TRUNCATE document_templates CASCADE');
       },
       close:async()=>{if(db!==operator) await db.close();await operator.close();}};
   }

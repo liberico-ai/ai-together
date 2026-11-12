@@ -1,6 +1,7 @@
 import type { Database } from './db';
 import { ids, demoProfiles, otherPrincipal } from './identities';
 import { projectWorkSummary } from './projector';
+import { syncTemplateIndex } from './document-templates';
 export const demoSha = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 export async function seed(db: Database) {
   await db.transaction(async tx => {
@@ -36,6 +37,7 @@ export async function seed(db: Database) {
     }
     await tx.query(`INSERT INTO evidence(tenant_id,project_id,work_id,kind,source_id,source_type,source_sha,revision,quality_score,note,actor_id)
       VALUES($1,$2,$3,'checks',$4,'manual',$5,1,0,$6,$7)`, [ids.tenant,ids.sales,ids.pilot,'https://example.com/demo/checks/014',demoSha,'Bản ghi mô phỏng. Chưa truy GitHub, chưa xác nhận checks thực tế.',demoProfiles.engineer.id]);
+    for (const tenant of [ids.tenant, ids.otherTenant]) await syncTemplateIndex(tx, tenant);
     for (const [tenant, project] of [[ids.tenant,ids.sales],[ids.tenant,ids.transport],[ids.otherTenant,ids.otherProject]]) await projectWorkSummary(tx,tenant,project);
   });
 }
