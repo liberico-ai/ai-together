@@ -43,6 +43,11 @@ export class FeedbackService {
   invariant(p.projectIds.includes(x.projectId)&&projectRole(p,x.projectId)==='manager',
     'FEEDBACK_MANAGER_REQUIRED','Cần quyền điều phối trong dự án.',403);
   return scoped(this.db,{...p,projectIds:[x.projectId]},async tx=>{
+   // Lock the report first so identical concurrent requests serialize: the second sees the first's action.
+   const report=(await tx.query<{state:string;version:number}>(`
+    SELECT state,version FROM feedback_reports WHERE id=$1 AND project_id=$2 FOR UPDATE`,
+    [x.reportId,x.projectId])).rows[0];
+   invariant(report,'SCOPE_DENIED','Không tìm thấy phản hồi trong dự án.',404);
    const prior=(await tx.query<{id:string;project_id:string;report_id:string;prior_version:number;next_state:string;reason:string}>(`
     SELECT id,project_id,report_id,prior_version,next_state,reason FROM feedback_actions
     WHERE tenant_id=$1 AND actor_id=$2 AND request_key=$3`,[p.tenantId,p.id,x.requestKey])).rows[0];
@@ -52,10 +57,6 @@ export class FeedbackService {
       'FEEDBACK_KEY_CONFLICT','Yêu cầu đã dùng cho nội dung khác.',409);
     return {id:prior.id,replayed:true};
    }
-   const report=(await tx.query<{state:string;version:number}>(`
-    SELECT state,version FROM feedback_reports WHERE id=$1 AND project_id=$2 FOR UPDATE`,
-    [x.reportId,x.projectId])).rows[0];
-   invariant(report,'SCOPE_DENIED','Không tìm thấy phản hồi trong dự án.',404);
    invariant(report.version===x.expectedVersion,'VERSION_CONFLICT','Phản hồi đã đổi. Tải lại trước khi xử lý.',409);
    invariant((report.state==='new'&&['reviewing','closed'].includes(x.state))||
     (report.state==='reviewing'&&x.state==='closed'),
