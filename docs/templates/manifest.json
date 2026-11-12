@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "templates": [
+    {
+      "code": "T0",
+      "version": "0.1.0",
+      "docType": "project_index",
+      "title": "Chỉ mục dự án và trách nhiệm",
+      "path": "docs/templates/T0-chi-muc-du-an.md",
+      "sha256": "babffd5391976817a139d374127b69cb4747c51845f4f5a6e517779d6c85d26f"
+    },
+    {
+      "code": "T1",
+      "version": "0.1.0",
+      "docType": "change_brief",
+      "title": "Ghi nhận yêu cầu / change brief",
+      "path": "docs/templates/T1-ghi-nhan-yeu-cau.md",
+      "sha256": "f68810dcd2bc1ef547182f9b17f30323e874695593cf0d1631fa40046a985433"
+    },
+    {
+      "code": "T2",
+      "version": "0.1.0",
+      "docType": "requirements",
+      "title": "Yêu cầu nghiệp vụ / user story",
+      "path": "docs/templates/T2-yeu-cau-nghiep-vu.md",
+      "sha256": "16d5221151f6a18498e17e425818c28857e9c955653bf0fc612cb1843f04ca51"
+    },
+    {
+      "code": "T3",
+      "version": "0.1.0",
+      "docType": "design",
+      "title": "Thiết kế phần thay đổi / quyết định kỹ thuật",
+      "path": "docs/templates/T3-thiet-ke-thay-doi.md",
+      "sha256": "ad6ddb8db849fec6437a27b54870845b037fe9072ba6b836e1c3c5dadb9fc568"
+    },
+    {
+      "code": "T4",
+      "version": "0.1.0",
+      "docType": "plan",
+      "title": "Kế hoạch, milestone và sổ quyết định",
+      "path": "docs/templates/T4-ke-hoach-quyet-dinh.md",
+      "sha256": "43a33f7875020708ac8ca13906323f05e846fee3963b1b4b48d00618d36b611c"
+    },
+    {
+      "code": "T5",
+      "version": "0.1.0",
+      "docType": "verification",
+      "title": "Kiểm chứng và nghiệm thu",
+      "path": "docs/templates/T5-kiem-chung-nghiem-thu.md",
+      "sha256": "e1baaf0f13b4269149860220b705d5403c6b8ba3f6269bd530b629fd42dd6022"
+    },
+    {
+      "code": "T6",
+      "version": "0.1.0",
+      "docType": "guide",
+      "title": "Hướng dẫn, bàn giao và cập nhật tài liệu",
+      "path": "docs/templates/T6-huong-dan-ban-giao.md",
+      "sha256": "ff5b4240f2e5e60fc16eed181859f2346358817e9eb7b094a0260511e2979320"
+    }
+  ]
+}

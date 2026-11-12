@@ -225,3 +225,47 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phương án:** (a) tệp mẫu có version trong repo + bảng đăng ký mẫu (mã, version, hash) trong AI OS; (b) mẫu nằm trong skill của bot; (c) cả hai, AI OS là nơi giữ version chuẩn.
 - **Ai quyết:** BoM Tech (Phương).
 - **Quyết định 12/11/2026 (Chairman, duyệt hướng):** chọn (a): tệp mẫu T0–T6 có version và hash trong repo, AI OS giữ chỉ mục mẫu; không cài skill bot ở P1.0. Builder ghi vị trí thư mục và test trong kế hoạch. Nguồn: Codex §4 `reviews/CODEX-STEP0-P1-READINESS-20261112.md:87` (thay đề xuất (c) của gói 0.1).
+
+---
+
+**Bổ sung 12/11/2026 khi lập kế hoạch lát 1** (`docs/plans/slice-1-doc-ownership.md`, base `208d37b`). Ba mục dưới đây ghi lúc lập kế hoạch khi **chưa có quyết định**; câu «cả 21 mục đã có quyết định» ở đầu tệp chỉ nói về OQ-01…OQ-21. **Cả ba đã được Chairman chốt ngày 12/11/2026** (dòng «Quyết định» dưới từng mục).
+
+## OQ-22 — Ai chạy projector chỉ mục tài liệu Z2 lúc vận hành, bằng role nào
+
+- **Lát:** 1 (chỉ phần nối projector vào đường chạy của web; bảng, hàm projector, tìm/xuất và test vẫn làm), 4 (mở rộng chỉ mục sang tìm nội dung).
+- **Phía A:** `docs/SLICE-BRIEFS.md:51` — bảng chỉ mục ở schema `analytics` có «policy ghi riêng cho projector, đọc cho runtime», mẫu `migrations/005_evidence_dashboards.sql:43-44`, `:49-50` (policy `TO libetech_projector`). Role này chỉ được nhận trong `src/server/evidence-projector.ts:59`, chạy từ `scripts/project-evidence.ts` bằng login vận hành (`MIGRATION_DATABASE_URL`).
+- **Phía B:** `docs/SLICE-BRIEFS.md:34` lấy mẫu `src/server/projector.ts:3` — projector chạy **trong** transaction của yêu cầu web bằng role `libetech_runtime` (`migrations/001_foundation.sql:89` cấp INSERT/UPDATE cho runtime). Login web `libetech_web` chỉ là thành viên của `libetech_runtime` (`migrations/003_runtime_roles.sql:11`), không nhận được `libetech_projector`. `docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:193` đề xuất «bản chiếu cập nhật trong 5 phút» nhưng chưa ai chốt. Hệ quả: theo phía A, người dùng đăng ký tài liệu qua web xong thì chỉ mục tìm kiếm chưa có dòng mới cho tới khi có ai đó chạy projector.
+- **Phương án:** (a) tiến trình web gọi projector ngay sau khi commit, bằng một role projector cấp cho `libetech_web` — phải thêm quyền cho login runtime; kèm câu hỏi dùng lại `libetech_projector` (đang có quyền ghi `analytics.evidence_runs`) hay tạo role hẹp riêng cho chỉ mục tài liệu; (b) chỉ login vận hành chạy projector theo lịch hoặc bằng tay (`scripts/`), giao diện hiện thời điểm chiếu — cần thêm job trên máy chủ, là điểm dừng triển khai; (c) cho `libetech_runtime` ghi chỉ mục trong cùng transaction như `projectWorkSummary` — trái câu «policy ghi riêng cho projector».
+- **Ai quyết:** BoM Tech (Quân) cho cơ chế; Chairman nếu phương án đổi quyền của login runtime hoặc thêm job trên d1-ai1.
+- **Quyết định 12/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối):** «(b) Login vận hành (Recommended)». Projector chỉ mục tài liệu Z2 chỉ chạy bằng login vận hành, theo lịch hoặc bằng tay qua `scripts/`; giao diện hiện thời điểm chiếu; không cấp role nào cho `libetech_web`. Job trên d1-ai1 thuộc điểm dừng triển khai, lát 1 không dựng. Trường «Ai quyết» ghi BoM Tech, lần này Chairman tự chốt.
+- **Trạng thái lúc lập kế hoạch (trước quyết định):** chưa quyết. Kế hoạch lát 1 viết bảng và policy theo con trỏ phía A (role `libetech_projector`), hàm projector gọi được bằng login vận hành, test gọi projector tường minh; **không** nối vào đường chạy web, **không** cấp role nào cho `libetech_web`.
+
+## OQ-23 — Bằng chứng nào cho nhãn «đã kiểm thực tế» của cầu nối bot
+
+- **Lát:** 1 (chỉ điều kiện bật nhãn «đã kiểm thực tế»; hai nhãn còn lại và việc gom số bản vẫn làm).
+- **Phía A:** `docs/IMPLEMENTATION-ROADMAP.md:44` và quyết định OQ-03 (b) đòi hiện ba trạng thái `đã cấu hình` / `đã kiểm thực tế` / `chưa nối luồng ghi`; `docs/reviews/CODEX-STEP0-P1-READINESS-20261112.md:71` — không gắn «đã kiểm thực tế» chỉ từ biến cấu hình.
+- **Phía B:** nguồn duy nhất tiến trình web đang có là biến `LIBETECH_BRIDGE_CONFIG` (`src/app/api/health/route.ts:10`, giá trị `configured-not-runtime-verified`). Dấu vết lần gọi cầu nối đã ký nằm ở `identity.bridge_nonces` (`src/server/bridge.ts:25`), thuộc schema danh tính mà login web không đọc được và dòng có hạn 2 phút. Quyết định OQ-19 coi health tự khai là «thông tin báo cáo», không phải sự thật đã quan sát. Không tài liệu nào nói bằng chứng nào, mới tới mức nào, do ai ghi thì được gọi «đã kiểm thực tế».
+- **Phương án:** (a) lát 1 chỉ dựng mô hình ba trạng thái; nhãn «đã kiểm thực tế» chưa bao giờ bật cho tới khi có nguồn quan sát độc lập (gộp vào SPEC-010 của OQ-19); (b) bật khi AI OS đã nhận một lần gọi cầu nối có chữ ký hợp lệ trong N giờ gần nhất — cần ghi mốc thời gian vào một bảng mới hoặc đọc qua dịch vụ danh tính, và cần chốt N; (c) bật theo một biên nhận kiểm do người vận hành ghi có thời điểm và người ghi.
+- **Ai quyết:** BoM Tech (Quân); Chairman nếu chọn (c) vì là lời khẳng định vận hành.
+- **Quyết định 12/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối):** «(a) Chưa bật (Recommended)». Lát 1 chỉ dựng mô hình ba trạng thái; nhãn «đã kiểm thực tế» không bao giờ bật cho tới khi có nguồn quan sát độc lập (gộp vào SPEC-010). Trường «Ai quyết» ghi BoM Tech, lần này Chairman tự chốt.
+- **Trạng thái lúc lập kế hoạch (trước quyết định):** chưa quyết. Kế hoạch lát 1 để hàm cung cấp mốc kiểm trả «chưa có» (nhãn không bật) và có test khẳng định biến cấu hình không bao giờ sinh nhãn này.
+
+## OQ-24 — Cùng mã thao tác dùng lại ở dự án khác cho thao tác tài liệu
+
+- **Lát:** 1 (chỉ ca «cùng khoá, tài liệu ở dự án khác»; các ca cùng dự án vẫn làm).
+- **Phía A:** `docs/SLICE-BRIEFS.md:67` ca (5) «cùng khoá cho đối tượng khác bị từ chối» và hàng R-01 `:64` «cùng khoá + tài liệu/revision khác → xung đột». Với phản hồi, khoá duy nhất theo `(tenant_id,actor_id,request_key)` (`migrations/007_team_onboarding_feedback.sql:55`) nên dùng lại ở dự án khác bị từ chối — đúng yêu cầu của Codex vòng 1 (`docs/reviews/REVIEW-R01-fix-feedback-20261112.md:9-11`).
+- **Phía B:** brief buộc thao tác tài liệu đi qua `deduplicate` (`src/server/service.ts:57-70`), mà bảng `commands` khoá theo `(tenant_id,project_id,actor_id,command_key)` (`migrations/001_foundation.sql:57`). Cùng người, cùng khoá, tài liệu ở **dự án khác** là một dòng `commands` khác: thao tác thứ hai được áp dụng, không báo xung đột. `WorkService` chạy như vậy từ bản 001; `tests/foundation.test.ts:133-140` chỉ kiểm cùng một việc.
+- **Phương án:** (a) giữ phạm vi khoá theo dự án như `commands` hiện có, ghi rõ trong đặc tả API và có test khẳng định; (b) từ chối dùng lại khoá khác dự án cho thao tác tài liệu — cần ràng buộc duy nhất mới không chứa `project_id` (bảng riêng cho lệnh tài liệu, hoặc sửa bảng `commands` cũ, đụng `WorkService`); (c) như (b) cho mọi thao tác, kể cả việc.
+- **Ai quyết:** BoM Tech (Quân).
+- **Quyết định 12/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối):** «(b) Từ chối, chỉ tài liệu (Recommended)». Thêm ràng buộc UNIQUE không chứa `project_id` cho lệnh tài liệu, đặt ở bảng riêng, không đụng `WorkService` hay bảng `commands` cũ. Theo cách sửa R-01: nếu RLS giấu dòng cũ thì xung đột phải trả mã 409, không phải lỗi chung. Viết test cho ca dùng lại khoá ở dự án khác. Trường «Ai quyết» ghi BoM Tech, lần này Chairman tự chốt.
+- **Trạng thái lúc lập kế hoạch (trước quyết định):** chưa quyết. Kế hoạch lát 1 dùng `deduplicate` nguyên trạng, kiểm đủ các ca cùng dự án, và **không** viết test khẳng định hành vi chéo dự án theo hướng nào.
+
+## OQ-25 — Danh sách host được phép cho liên kết nguồn tài liệu
+
+- **Lát:** 1 (chỉ phần chặn host; phần còn lại của biện pháp chống liên kết giả đã làm), 2–4 (mọi nơi mở nguồn).
+- **Phía A:** review bảo mật tầng 1 ngày 12/11/2026 (`liberico-security-reviewer`, mục M-1, mức Medium): liên kết nguồn chỉ cần `https:` và không chứa thông tin đăng nhập, nên một thành viên có quyền ghi có thể đăng ký liên kết «Drive» giả trỏ tới trang lừa đảo; đề nghị allowlist host theo `source_type`, kiểm lại khi mở.
+- **Phía B:** ADR-002 1.1 «Nội dung quyết định» chỉ nói nội dung nằm ở nguồn hiện có (Drive/Docs, Git, Vault), không liệt kê host; `docs/SLICE-BRIEFS.md:29-31` không nêu danh sách host; repo có Vault dạng đường dẫn, chưa có host https chuẩn.
+- **Đã làm ở lát 1 (không cần quyết):** giao diện hiện host trước khi mở và chỉ mở khi người dùng bấm liên kết; từ chối liên kết mang tham số dạng khoá/chữ ký (token, signature…); DB chỉ nhận `https://`; `openSource` kiểm lại mỗi lần.
+- **Phương án:** (a) allowlist cố định trong mã: `drive` → `docs.google.com`, `drive.google.com`; `git` → `github.com`; `vault` → chưa nhận https (giữ con trỏ đường dẫn ở hồ sơ dự án); (b) allowlist cấu hình theo môi trường do vận hành cấp, mặc định rỗng = chặn hết; (c) không chặn host, chỉ cảnh báo trên giao diện khi host lạ.
+- **Ai quyết:** Chairman (chính sách nguồn), BoM Tech (danh sách cụ thể).
+- **Trạng thái:** chưa quyết. Phải chốt trước khi đưa `/documents` và `/api/documents` ra proxy công khai (điểm dừng triển khai).

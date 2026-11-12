@@ -1,0 +1,22 @@
+{
+  "slice": 1,
+  "branch": "slice-1-doc-ownership",
+  "codeHead": "a319e1065891574d54a8eb7661b1613336866c77",
+  "base": "ac01cf215deb0d384d7b519cc209ff9aa3e79ac1",
+  "observedAt": "2026-11-12T18:45+07:00",
+  "nativeDatabase": "PostgreSQL 16.15, Docker container on 127.0.0.1:55471 only, fresh database slice1_verify, synthetic data, runtime login libetech_web (no superuser, no BYPASSRLS)",
+  "commands": [
+    {"name": "vitest-pglite", "command": "npx vitest run --reporter=verbose", "exit": 0, "files": "21 passed | 2 skipped (23)", "tests": "226 passed | 9 skipped (235)", "log": "logs/vitest-pglite-a319e10.log", "note": "9 skipped are native-only concurrency/role cases"},
+    {"name": "vitest-native", "command": "set -a; . $SLICE1_ENV_FILE; set +a; npx vitest run --reporter=verbose", "exit": 0, "files": "23 passed (23)", "tests": "235 passed (235)", "log": "logs/vitest-native-a319e10.log"},
+    {"name": "coverage", "command": "npx vitest run --coverage", "exit": 0, "totals": {"statements": 92.82, "branches": 81.34, "functions": 94.84, "lines": 94.01}, "log": "logs/coverage-a319e10.log"},
+    {"name": "typecheck", "command": "npx tsc --noEmit", "exit": 0, "log": "logs/tsc-a319e10.log", "note": "empty output; duplicate .next/types/* N.ts files (iCloud copies of gitignored build output) removed before running"},
+    {"name": "build", "command": "rm -rf .next && npm run build", "exit": 0, "log": "logs/build-a319e10.log"},
+    {"name": "pytest-bridge", "command": "python3 -m pytest tests/test_bot_bridge.py -q", "exit": 0, "tests": "11 passed", "log": "logs/pytest-a319e10.log"}
+  ],
+  "codex": [
+    {"round": 1, "head": "4f9771e", "verdict": "CHANGES_REQUIRED", "file": "codex-round-1.md"},
+    {"round": 2, "head": "24c67f5", "verdict": "CHANGES_REQUIRED (one P2, no P0/P1)", "file": "codex-round-2.md"},
+    {"round": 3, "head": "a319e1065891574d54a8eb7661b1613336866c77", "verdict": "PASS", "file": "codex-round-3.md"}
+  ],
+  "connectionStringsInLogs": 0
+}
