@@ -95,6 +95,16 @@ describe('documents UI', () => {
       expect(px ? Number(px[1]) <= 328 : /^(0|\d+%|auto)$/.test(v)).toBe(true);
     }
   });
+  it('mobile (<=700px) stacks pointers and columns without a 200px flex-basis as height', () => {
+    const css = readFileSync('src/app/globals.css', 'utf8');
+    const blocks = [...css.matchAll(/@media\(max-width:700px\)\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g)].map((m) => m[1]);
+    expect(blocks.length).toBeGreaterThan(0);
+    const body = blocks.join('\n');
+    expect(body).toMatch(/\.doc-pointers\{[^}]*flex-direction:column/);
+    expect(body).toMatch(/\.doc-cols\{[^}]*flex-direction:column/);
+    expect(body).toMatch(/\.doc-pointer\{[^}]*flex-basis:auto/);
+    expect(body).toMatch(/\.doc-cols>div\{[^}]*flex-basis:auto/);
+  });
   it('pageState: no-results only when a term is applied and rows=0', () => {
     const b = { loading: false, error: null, denied: false, rows: 0 };
     expect(pageState({ ...b, term: 'abc' })).toBe('no-results');

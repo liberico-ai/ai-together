@@ -107,4 +107,4 @@ html,body{max-width:100%;overflow-x:clip}
 .doc-cols>div{flex:1 1 200px;min-width:0}
 .doc-wrap{overflow-wrap:anywhere;word-break:break-word}
 .doc-refs{margin:4px 0 0}
-@media(max-width:700px){.doc-pointers{flex-direction:column}.doc-section{padding:12px}.doc-cols{flex-direction:column}}
+@media(max-width:700px){.doc-pointers{flex-direction:column}.doc-pointer{flex-basis:auto}.doc-section{padding:12px}.doc-cols{flex-direction:column}.doc-cols>div{flex-basis:auto}}
