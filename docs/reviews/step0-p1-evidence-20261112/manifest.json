@@ -1,0 +1,18 @@
+{
+  "createdAt": "2026-11-12T03:19:26.925740+00:00",
+  "reviewedHead": "82292339584f5c6937c4d7c7a9ce39d3536619d8",
+  "files": {
+    "CODEX-STEP0-P1-READINESS-20261112.md": "8555e79d49987904266fa60304da4d6974a3c55d36c369f81c43b4e7dec2794b",
+    "step0-p1-evidence-20261112/bridge-test.log": "bb694b324b4319c91905d69899df9d978b64574c7f7a4facbb9d0c4f432e021b",
+    "step0-p1-evidence-20261112/build.log": "86aaf452d6863d35262c647c7d02fbce6ba4a6a86861ec21e6704d977a8aff90",
+    "step0-p1-evidence-20261112/digest-comparison.json": "34c4e7425cae5ba17b444b28aae858b3708b2ce5ccb702e9cad9e23fc2372465",
+    "step0-p1-evidence-20261112/github-refs.json": "f788361b4604235c18f06c267bbfbec1496062a3bd42daa85369f39e340d57ba",
+    "step0-p1-evidence-20261112/health.json": "73598c71ace96d88e20e0a6b92f0886074a78a8df1e6698a89379326cbe9413c",
+    "step0-p1-evidence-20261112/review-feedback-idempotency.log": "9d097525a3ba56a5fefe69795c724491930d954ddaa3ef9061d08f0fc2d72a0d",
+    "step0-p1-evidence-20261112/review-feedback-idempotency.test.ts.txt": "2a5723a4682172da2750b0aeec51ba80656121a30043da1c2f3591c32870aa89",
+    "step0-p1-evidence-20261112/source.json": "7657e9fa76cbae74b1b286ddf46388c0ad7b3fc9711ee4d9bd09bb743be28d53",
+    "step0-p1-evidence-20261112/typecheck.log": "4a114c0eacb92b0dafbb02203873e543ac66884cb41a9ac13580520b1d9c907b",
+    "step0-p1-evidence-20261112/verification.json": "7d8b71c13ae1aab82b177c6b1e25c1449b28b6f8d9463b14f395d5d710d3b315",
+    "step0-p1-evidence-20261112/vitest.log": "66c2c1a0a15b66d25f2a3ab368dce7a5c6af2ec51b91d336c35899cd0f1f10b0"
+  }
+}

@@ -24,3 +24,5 @@ venv/
 *.key
 # Real team work catalog; source of truth is Drive. Chairman chose not to commit it (2026-11-11).
 data/
+# Claude Code agent worktrees (local only)
+.claude/worktrees/

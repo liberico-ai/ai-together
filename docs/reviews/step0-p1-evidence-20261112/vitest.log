@@ -1,0 +1,13 @@
+
+> libetech-ai-os@0.7.1 test
+> vitest run
+
+
+ RUN  v5.1.0 /private/tmp/libetech-resume-20261112-01/repo
+
+
+ Test Files  7 passed (7)
+      Tests  57 passed (57)
+   Start at  10:10:36
+   Duration  22.76s (tests 98%, import 1%, transform 1%)
+
