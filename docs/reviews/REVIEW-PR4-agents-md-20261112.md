@@ -44,6 +44,6 @@ VERDICT: CHANGES_REQUIRED
 
 
 
-**Trạng thái:** đã hết hai vòng sửa được phép. Finding P2 vòng 3 **chưa xử lý** và chờ Chairman quyết định.
-- Phần cần sửa là câu ghi chú trong §5: «mọi con trỏ … vẫn trỏ đúng dòng». Câu này nói rộng hơn điều đã kiểm. Điều đã kiểm là các con trỏ giữ nguyên vị trí so với base.
-- Con trỏ `SLICE-BRIEFS.md:9` → `AGENTS.md:9` đã trỏ sai nội dung từ trước PR này. Nội dung kiến trúc nằm ở dòng 8.
+**Quyết định sau vòng 3:** đã hết hai vòng sửa được phép. Chairman quyết ngày 12/11/2026, nguyên văn: «Sửa câu rồi merge».
+
+**Xử lý P2 vòng 3:** câu ghi chú trong §5 đã được thu hẹp. Câu mới chỉ khẳng định điều đã kiểm: các con trỏ `AGENTS.md:N` giữ nguyên vị trí so với base. Câu mới nói rõ lần áp không kiểm nội dung mà từng con trỏ muốn chỉ tới, và nêu con trỏ `SLICE-BRIEFS.md:9` đã sai từ trước nhưng chưa sửa. Không chạy thêm vòng Codex, theo quyết định trên.
