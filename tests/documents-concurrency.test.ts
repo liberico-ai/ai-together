@@ -56,11 +56,20 @@ describe.skipIf(!native)('document revision concurrency (native PostgreSQL)',()=
     const svc=new DocumentService(h.db);
     const reg=(projectId:string,uri:string)=>svc.register(pm,{projectId,refCode:'',docType:'design',title:'Tài liệu chạy đua',sourceType:'drive',canonicalUri:uri,
       ownerLabel:'',reviewDueAt:null,metadata:{missingFields:[]},sourceLinks:[]},'race-key-0001');
-    const res=await Promise.allSettled([reg(ids.sales,'https://example.com/docs/r1'),reg(ids.transport,'https://example.com/docs/r2')]);
+    // SHARE ROW EXCLUSIVE conflicts with the ROW EXCLUSIVE lock an INSERT takes, so both registers run up to their
+    // claim INSERT into document_commands and park there (pg_stat_activity wait_event_type='Lock'). Releasing the
+    // lock then lets both claims hit the UNIQUE key at once instead of one finishing before the other starts.
+    let both!:Promise<PromiseSettledResult<DocumentDetail>[]>;
+    await h.operator.transaction(async tx=>{
+      await tx.query('LOCK TABLE document_commands IN SHARE ROW EXCLUSIVE MODE');
+      both=Promise.allSettled([reg(ids.sales,'https://example.com/docs/r1'),reg(ids.transport,'https://example.com/docs/r2')]);
+      await waitForBlocked(h,2);
+    });
+    const res=await both;
     expect(res.filter(r=>r.status==='fulfilled')).toHaveLength(1);
     const bad=res.filter(r=>r.status==='rejected') as PromiseRejectedResult[];
     expect(bad).toHaveLength(1);expect(bad[0].reason).toMatchObject({code:'IDEMPOTENCY_CONFLICT',status:409});
-    expect(await n('document_records')).toBe(1);
-    expect(await n('document_commands')).toBe(1);
+    expect(await n("document_records WHERE canonical_uri IN ('https://example.com/docs/r1','https://example.com/docs/r2')")).toBe(1);
+    expect(await n("document_commands WHERE command_key='race-key-0001'")).toBe(1);
   });
 });
