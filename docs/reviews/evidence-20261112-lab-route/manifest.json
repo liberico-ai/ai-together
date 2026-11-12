@@ -1,0 +1,14 @@
+{
+ "capturedAt": "2026-11-12T04:39:12.395627+00:00",
+ "repo": "liberico-ai/ai-together",
+ "commands": [
+  "gh run list -R liberico-ai/ai-together --limit 8 --json ...",
+  "gh api repos/liberico-ai/ai-together/deployments?per_page=5",
+  "git show d23e516:.github/workflows/deploy.yml (lines 1-10)"
+ ],
+ "files": {
+  "actions-runs.json": "3bb2a49c8f2e89d88513d5e200350bae0a6ff597e93910e7193222b8c8eb3935",
+  "deploy-workflow-trigger.txt": "4d33cfbde51bfc40f1f8b0524baca50ccc4c0fe3b45c870d52d8309ff495ff22",
+  "deployments.json": "d4029e3baa823898601764ba956361f565e38f2ab3c01946fde2db39d591f6b4"
+ }
+}
