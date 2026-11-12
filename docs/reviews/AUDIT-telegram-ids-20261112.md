@@ -138,3 +138,14 @@ Nếu repo còn công khai lâu dài, nên xử lý trước những phần lộ
 ## Câu hỏi cho Chairman
 
 Chairman chọn phương án nào cho 3 mã nhóm Telegram trong repo `ai-together`: (a) giữ nguyên, (b) che trong commit mới, (c) chuyển ra ngoài repo, hay (d) viết lại lịch sử? Khuyến nghị ở mục 6 là (a) kèm (c) cho riêng `deploy/pilot-scope.json`.
+
+## Quyết định
+
+Chairman trả lời ngày 12/11/2026, nguyên văn: «(a) + (c) pilot-scope».
+
+Phạm vi thực hiện theo quyết định này:
+
+- **(a)** Lịch sử git, tài liệu bằng chứng (tệp 6–18), script thử (tệp 3–5) giữ nguyên.
+- **(c) cho `deploy/pilot-scope.json`:** tệp chỉ còn `tenantId`, `projectId` và nguồn quan sát. Mã nhóm người nhận và mã nhóm bị từ chối chuyển sang một tệp trên máy chủ. Bộ cài đọc tệp đó qua biến `LIBETECH_PILOT_CHATS`: tệp phải là tệp thường, không phải symlink, quyền 0600, mã nhóm đúng dạng. Thiếu hoặc sai thì dừng, không cài.
+- `tests/identity.test.ts` dùng mã tổng hợp và kiểm `pilot-scope.json` không còn mã nhóm. `docs/DEPLOY-002.md` chỉ sửa câu nói `pilot-scope.json` là bản đồ người nhận.
+- Không chạy bộ cài trên d1-ai1. Cấu hình đang chạy ở đó (`bridge.json`, `home_channel`) không đổi.
