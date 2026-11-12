@@ -1,5 +1,5 @@
 """Regression guards for restoring a data archive into an existing schema."""
-import hashlib,importlib.util,json,sys,tempfile,unittest
+import hashlib,importlib.util,json,re,sys,tempfile,unittest
 from pathlib import Path
 sys.dont_write_bytecode=True
 spec=importlib.util.spec_from_file_location('user_installer',Path(__file__).resolve().parents[1]/'deploy/install-user.py')
@@ -27,4 +27,43 @@ class ArchiveGuards(unittest.TestCase):
             (root/'deploy/BUNDLE-MANIFEST.json').write_text(json.dumps(manifest))
             installer.verify_bundle(root);(root/'code.txt').write_text('team change')
             with self.assertRaisesRegex(RuntimeError,'content mismatch'):installer.verify_bundle(root)
+
+class PilotChats(unittest.TestCase):
+    """Real chat IDs stay on the server (audit 2026-11-12, option c); the loader fails closed."""
+    def write(self,d,data,mode=0o600):
+        p=Path(d)/'pilot-chats.json';p.write_text(data if isinstance(data,str) else json.dumps(data));p.chmod(mode);return p
+    def test_valid_file_is_loaded(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=self.write(d,{'internalChatId':'-10012345','deniedChatIds':['-10067890']})
+            self.assertEqual(installer.load_pilot_chats(str(p)),('-10012345',['-10067890']))
+    def test_unset_setting_stops_installation(self):
+        for value in (None,''):
+            with self.assertRaisesRegex(RuntimeError,'LIBETECH_PILOT_CHATS'):installer.load_pilot_chats(value)
+    def test_missing_file_stops_installation(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaisesRegex(RuntimeError,'regular file'):installer.load_pilot_chats(str(Path(d)/'absent.json'))
+    def test_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            target=self.write(d,{'internalChatId':'-10012345','deniedChatIds':[]});link=Path(d)/'link.json';link.symlink_to(target)
+            with self.assertRaisesRegex(RuntimeError,'regular file'):installer.load_pilot_chats(str(link))
+    def test_file_readable_by_others_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=self.write(d,{'internalChatId':'-10012345','deniedChatIds':[]},mode=0o644)
+            with self.assertRaisesRegex(RuntimeError,'0600'):installer.load_pilot_chats(str(p))
+    def test_malformed_content_is_rejected(self):
+        bad=['not json','[]',{'deniedChatIds':[]},{'internalChatId':'-10012345'},
+             {'internalChatId':'10012345','deniedChatIds':[]},{'internalChatId':'-12','deniedChatIds':[]},
+             {'internalChatId':-10012345,'deniedChatIds':[]},{'internalChatId':'-10012345','deniedChatIds':'-10067890'},
+             {'internalChatId':'-10012345','deniedChatIds':['-10067890',7]},{'internalChatId':'-10012345','deniedChatIds':['-10012345']}]
+        with tempfile.TemporaryDirectory() as d:
+            for data in bad:
+                with self.subTest(data=data):
+                    p=self.write(d,data)
+                    with self.assertRaisesRegex(RuntimeError,'pilot chat file'):installer.load_pilot_chats(str(p))
+                    p.unlink()
+    def test_repository_scope_has_no_chat_ids(self):
+        text=(Path(__file__).resolve().parents[1]/'deploy/pilot-scope.json').read_text()
+        scope=json.loads(text)
+        self.assertNotIn('internalChatId',scope);self.assertNotIn('deniedChatIds',scope)
+        self.assertIsNone(re.search(r'(?<![\w-])-\d{5,}',text))
 if __name__=='__main__':unittest.main()

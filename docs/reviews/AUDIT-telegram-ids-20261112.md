@@ -149,3 +149,10 @@ Phạm vi thực hiện theo quyết định này:
 - **(c) cho `deploy/pilot-scope.json`:** tệp chỉ còn `tenantId`, `projectId` và nguồn quan sát. Mã nhóm người nhận và mã nhóm bị từ chối chuyển sang một tệp trên máy chủ. Bộ cài đọc tệp đó qua biến `LIBETECH_PILOT_CHATS`: tệp phải là tệp thường, không phải symlink, quyền 0600, mã nhóm đúng dạng. Thiếu hoặc sai thì dừng, không cài.
 - `tests/identity.test.ts` dùng mã tổng hợp và kiểm `pilot-scope.json` không còn mã nhóm. `docs/DEPLOY-002.md` chỉ sửa câu nói `pilot-scope.json` là bản đồ người nhận.
 - Không chạy bộ cài trên d1-ai1. Cấu hình đang chạy ở đó (`bridge.json`, `home_channel`) không đổi.
+
+Thực hiện trên nhánh cục bộ `fix/pilot-chat-ids-out-of-repo`, chưa push:
+
+- Hàm nạp `load_pilot_chats` nằm trong `deploy/install-user.py`; `deploy/provision-server.py` dùng lại hàm này.
+- Hai bộ cài giờ ghi mọi nhóm bị từ chối với quyền rỗng. Trước đây bộ cài user chỉ ghi nhóm đầu tiên. Cầu nối xử lý nhóm có quyền rỗng như nhóm lạ nên kết quả không đổi.
+- Kiểm tại commit này: `npm run test` 63/63, `npm run typecheck` sạch, `python3 -m pytest tests/` 23 đạt (thêm 7 ca cho hàm nạp và 1 ca chặn mã nhóm quay lại `pilot-scope.json`).
+- Manifest 0.2.0 trong repo không sinh lại ở đây; `scripts/package-release.py` sinh lại khi đóng gói.
