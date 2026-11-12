@@ -9,3 +9,18 @@ BASELINE.json
 coverage/
 test-results/
 *.tsbuildinfo
+# Step 0 (2026-11-11): mandatory entries per Chairman rules §9
+.DS_Store
+__pycache__/
+*.pyc
+*.sqlite
+*.sqlite3
+*.db
+venv/
+.venv/
+/dist/
+/build/
+*.pem
+*.key
+# Real team work catalog; source of truth is Drive. Chairman chose not to commit it (2026-11-11).
+data/
