@@ -50,4 +50,17 @@ describe.skipIf(!native)('document revision concurrency (native PostgreSQL)',()=
     expect(await n('document_revisions')).toBe(1);
     expect(await n("registry_events WHERE kind='revision_proposed'")).toBe(1);
   });
+
+  test('one key raced across two projects applies once and conflicts once',async()=>{
+    await h.operator.transaction(tx=>syncTemplateIndex(tx,ids.tenant));
+    const svc=new DocumentService(h.db);
+    const reg=(projectId:string,uri:string)=>svc.register(pm,{projectId,refCode:'',docType:'design',title:'Tài liệu chạy đua',sourceType:'drive',canonicalUri:uri,
+      ownerLabel:'',reviewDueAt:null,metadata:{missingFields:[]},sourceLinks:[]},'race-key-0001');
+    const res=await Promise.allSettled([reg(ids.sales,'https://example.com/docs/r1'),reg(ids.transport,'https://example.com/docs/r2')]);
+    expect(res.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+    const bad=res.filter(r=>r.status==='rejected') as PromiseRejectedResult[];
+    expect(bad).toHaveLength(1);expect(bad[0].reason).toMatchObject({code:'IDEMPOTENCY_CONFLICT',status:409});
+    expect(await n('document_records')).toBe(1);
+    expect(await n('document_commands')).toBe(1);
+  });
 });

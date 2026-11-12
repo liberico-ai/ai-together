@@ -41,6 +41,15 @@ CREATE TABLE IF NOT EXISTS document_revisions (
   FOREIGN KEY(document_id,tenant_id,project_id) REFERENCES document_records(id,tenant_id,project_id),
   UNIQUE(id,document_id), UNIQUE(document_id,revision_no), UNIQUE(id,tenant_id,project_id)
 );
+-- Idempotency for document operations is unique per person across projects (OQ-24 b): no project_id in the key.
+CREATE TABLE IF NOT EXISTS document_commands (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL, project_id uuid NOT NULL, actor_id uuid NOT NULL,
+  command_key text NOT NULL, request_hash text NOT NULL, response jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
+  UNIQUE(tenant_id,actor_id,command_key)
+);
 -- Pointer foreign keys need both tables; guarded so the file can run twice.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='fk_document_records_latest_revision') THEN
@@ -63,6 +72,23 @@ CREATE INDEX IF NOT EXISTS idx_document_records_latest_revision ON document_reco
 CREATE INDEX IF NOT EXISTS idx_document_records_approved_revision ON document_records(approved_revision_id);
 CREATE INDEX IF NOT EXISTS idx_document_revisions_document_scope_created ON document_revisions(document_id,tenant_id,project_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_document_revisions_based_on ON document_revisions(based_on_revision_id);
+CREATE INDEX IF NOT EXISTS idx_document_commands_scope_created ON document_commands(tenant_id,project_id,created_at DESC);
+ALTER TABLE document_commands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_commands FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS scope_select ON document_commands;
+CREATE POLICY scope_select ON document_commands FOR SELECT
+  USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]));
+DROP POLICY IF EXISTS scope_insert ON document_commands;
+CREATE POLICY scope_insert ON document_commands FOR INSERT
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]));
+DROP POLICY IF EXISTS scope_update ON document_commands;
+CREATE POLICY scope_update ON document_commands FOR UPDATE
+  USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]))
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]));
 ALTER TABLE document_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE document_templates FORCE ROW LEVEL SECURITY;
 ALTER TABLE document_records ENABLE ROW LEVEL SECURITY;
@@ -106,6 +132,8 @@ DROP TRIGGER IF EXISTS document_records_no_delete ON document_records;
 CREATE TRIGGER document_records_no_delete BEFORE DELETE ON document_records FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 GRANT SELECT ON document_templates, document_records, document_revisions TO libetech_runtime;
 GRANT INSERT ON document_records, document_revisions TO libetech_runtime;
+GRANT SELECT, INSERT ON document_commands TO libetech_runtime;
+GRANT UPDATE(response,updated_at) ON document_commands TO libetech_runtime;
 GRANT UPDATE(latest_revision_id,version,updated_at) ON document_records TO libetech_runtime;
 INSERT INTO schema_migrations(version) VALUES('014') ON CONFLICT(version) DO NOTHING;
 COMMIT;

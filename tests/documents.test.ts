@@ -53,6 +53,22 @@ describe('document registration',()=>{
     expect(await codeOf(svc().register(pm,{...base(),canonicalUri:'https://example.com/docs/other'},'doc-key-0001'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
     expect(await count('document_records')).toBe(1);
   });
+  test('same key reused to register in another project is IDEMPOTENCY_CONFLICT and creates nothing there',async()=>{
+    await templates();
+    await svc().register(pm,base(),'doc-key-0001');
+    expect(await codeOf(svc().register(pm,{...base(),projectId:ids.transport,canonicalUri:'https://example.com/docs/transport-1'},'doc-key-0001'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
+    expect(await count(`document_records WHERE project_id='${ids.transport}'`)).toBe(0);
+    expect(await count('document_records')).toBe(1);
+  });
+  test('document operations no longer write to the shared commands table',async()=>{
+    await templates();
+    const before=await count('commands');
+    const d=await svc().register(pm,base(),'doc-key-0001');
+    await svc().proposeRevision(pm,d.record.id,{expectedVersion:1,basedOnRevisionId:null,sourceRevision:null,sourceHash:null,sourceModifiedAt:null,
+      changes:{summary:'Tóm tắt thay đổi tổng hợp',present:[],missing:[]},sourceRefs:[]},'rev-key-0001');
+    expect(await count('commands')).toBe(before);
+    expect(await count('document_commands')).toBe(2);
+  });
   test('the same source cannot be registered twice in a project',async()=>{
     await templates();
     await svc().register(pm,base(),'doc-key-0001');
@@ -104,6 +120,18 @@ describe('document tables',()=>{
       const rows=await h.db.transaction(async tx=>{await tx.query('SET LOCAL ROLE libetech_runtime');return (await tx.query(`SELECT * FROM ${t}`)).rows;});
       expect(rows,t).toHaveLength(0);
     }
+  });
+  test('document_commands returns nothing without RLS context and rejects another project or tenant',async()=>{
+    await templates();
+    await svc().register(pm,base(),'doc-key-0001');
+    const rows=await h.db.transaction(async tx=>{await tx.query('SET LOCAL ROLE libetech_runtime');return (await tx.query('SELECT * FROM document_commands')).rows;});
+    expect(rows).toHaveLength(0);
+    const ins=(p:typeof pm,project:string,tenant:string)=>scoped(h.db,p,tx=>tx.query(
+      "INSERT INTO document_commands(tenant_id,project_id,actor_id,command_key,request_hash) VALUES($1,$2,$3,'cmd-key-9999',$4)",[tenant,project,p.id,'h']));
+    await expect(ins(pm,ids.sales,ids.otherTenant)).rejects.toThrow();
+    await expect(ins(outsider,ids.sales,ids.tenant)).rejects.toThrow();
+    await expect(ins(member,ids.transport,ids.tenant)).rejects.toThrow();
+    await expect(ins(pm,ids.sales,ids.tenant)).resolves.toBeTruthy();
   });
   const rec=(project:string,tenant:string,uri:string)=>scoped(h.db,pm,tx=>tx.query(
     "INSERT INTO document_records(tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by) VALUES($1,$2,'design','Tiêu đề thử nghiệm','drive',$3,$4)",[tenant,project,uri,pm.id]));
@@ -225,6 +253,15 @@ describe('document revision proposals',()=>{
     expect(await codeOf(propose(o.record.id,{},'rev-key-0002'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
     expect((await svc().detail(pm,o.record.id)).record.version).toBe(1);
     expect(await count('document_revisions')).toBe(2);
+  });
+  test('same key reused for a revision in another project is IDEMPOTENCY_CONFLICT',async()=>{
+    await templates();
+    await svc().register(pm,base(),'shared-key-01');
+    const o=await svc().register(pm,{...base(),projectId:ids.transport,templateCode:undefined,canonicalUri:'https://example.com/docs/transport-1'},'doc-key-0009');
+    const before=await snap(o.record.id);
+    expect(await codeOf(propose(o.record.id,{},'shared-key-01'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
+    expect(await snap(o.record.id)).toEqual(before);
+    expect(before.v).toBe(1);expect(before.rev).toBe(0);
   });
   test('the approved pointer cannot point at another document\'s revision',async()=>{
     const {d,r1}=await two();

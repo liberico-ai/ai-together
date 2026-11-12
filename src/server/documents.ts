@@ -1,7 +1,7 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { scoped, type Database, type Queryable } from './db';
 import { AppError, invariant } from './errors';
-import { deduplicate } from './service';
 import { projectRole } from './types';
 import type { DocumentDetail, DocumentRecord, DocumentRevision, Principal, RegistryEvent, SourceLink, SourceState, SourceType } from './types';
 
@@ -43,6 +43,30 @@ const proposeSchema = z.object({
   sourceRefs: z.array(sourceRef).max(20),
 }).strict();
 
+/** Document idempotency: unique per person across projects (OQ-24 b). A key owned by a project hidden by RLS also conflicts. */
+async function claimDocumentCommand<T>(tx: Queryable, p: Principal, projectId: string, key: string, input: unknown, action: () => Promise<T>): Promise<T> {
+  invariant(/^[A-Za-z0-9_-]{8,100}$/.test(key), 'IDEMPOTENCY_REQUIRED', 'Cần mã thao tác hợp lệ để chống ghi lặp.', 400);
+  const conflict = () => new AppError('IDEMPOTENCY_CONFLICT', 'Mã thao tác đã được dùng với nội dung khác.', 409);
+  const hash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
+  let created: { id: string } | undefined;
+  try {
+    created = (await tx.query<{ id: string }>(`INSERT INTO document_commands(tenant_id,project_id,actor_id,command_key,request_hash) VALUES($1,$2,$3,$4,$5)
+      ON CONFLICT(tenant_id,actor_id,command_key) DO NOTHING RETURNING id`, [p.tenantId, projectId, p.id, key, hash])).rows[0];
+  } catch (e) {
+    if ((e as { code?: string })?.code === '23505') throw conflict();
+    throw e;
+  }
+  if (!created) {
+    const old = (await tx.query<{ request_hash: string; response: T }>('SELECT request_hash,response FROM document_commands WHERE tenant_id=$1 AND actor_id=$2 AND command_key=$3',
+      [p.tenantId, p.id, key])).rows[0];
+    if (!old || old.request_hash !== hash) throw conflict();
+    return old.response;
+  }
+  const result = await action();
+  await tx.query('UPDATE document_commands SET response=$1, updated_at=now() WHERE id=$2', [JSON.stringify(result), created.id]);
+  return result;
+}
+
 const iso = (v: unknown) => v == null ? null : new Date(v as string).toISOString();
 type RecordRow = Omit<DocumentRecord, 'created_at' | 'updated_at' | 'source_checked_at' | 'review_due_at'> & { created_at: unknown; updated_at: unknown; source_checked_at: unknown; review_due_at: unknown };
 const toRecord = (r: RecordRow, present?: Set<string>): DocumentRecord => ({
@@ -79,7 +103,7 @@ export class DocumentService {
     const role = projectRole(p, projectId);
     invariant(role !== 'viewer' && role !== 'bot', 'READ_ONLY', 'Vai này không được ghi sổ tài liệu.', 403);
     const input = registerSchema.parse(raw);
-    return scoped(this.db, { ...p, projectIds: [projectId] }, tx => deduplicate(tx, p, projectId, key, { op: 'document.register', ...input }, async () => {
+    return scoped(this.db, { ...p, projectIds: [projectId] }, tx => claimDocumentCommand(tx, p, projectId, key, { op: 'document.register', ...input }, async () => {
       let templateId: string | null = null;
       if (input.templateCode) {
         templateId = (await tx.query<{ id: string }>('SELECT id FROM document_templates WHERE tenant_id=$1 AND code=$2 ORDER BY created_at DESC, id LIMIT 1', [p.tenantId, input.templateCode])).rows[0]?.id ?? null;
@@ -104,7 +128,7 @@ export class DocumentService {
       invariant(record, 'SCOPE_DENIED', NOT_FOUND, 404);
       const role = projectRole(p, record.project_id);
       invariant(role !== 'viewer' && role !== 'bot', 'READ_ONLY', 'Vai này không được ghi sổ tài liệu.', 403);
-      return deduplicate(tx, p, record.project_id, key, { op: 'document.propose_revision', documentId, ...input }, async () => {
+      return claimDocumentCommand(tx, p, record.project_id, key, { op: 'document.propose_revision', documentId, ...input }, async () => {
         invariant(record.version === input.expectedVersion && input.basedOnRevisionId === record.latest_revision_id,
           'REVISION_CONFLICT', 'Tài liệu đã đổi. Đọc bản mới trước khi gửi lại.', 409);
         const no = (await tx.query<{ n: number }>('SELECT coalesce(max(revision_no),0)+1 AS n FROM document_revisions WHERE document_id=$1', [documentId])).rows[0].n;
