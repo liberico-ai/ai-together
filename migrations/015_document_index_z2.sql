@@ -34,5 +34,7 @@ GRANT USAGE ON SCHEMA analytics TO libetech_projector;
 GRANT SELECT ON analytics.document_index TO libetech_runtime;
 GRANT SELECT,INSERT,UPDATE ON analytics.document_index TO libetech_projector;
 GRANT SELECT ON document_records, document_revisions TO libetech_projector;
+-- DOC-18: the projector reads the Z2 source rows (RLS scope_policy of 011 applies with the projector's tenant/project context) to mark a lost source as stale.
+GRANT SELECT ON analytics.tech_source_tasks TO libetech_projector;
 INSERT INTO schema_migrations(version) VALUES('015') ON CONFLICT(version) DO NOTHING;
 COMMIT;

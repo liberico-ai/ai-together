@@ -2,6 +2,7 @@
 BEGIN;
 DROP TABLE IF EXISTS analytics.document_index;
 DO $$ BEGIN
+  IF to_regclass('analytics.tech_source_tasks') IS NOT NULL THEN REVOKE SELECT ON analytics.tech_source_tasks FROM libetech_projector; END IF;
   IF to_regclass('public.document_records') IS NOT NULL THEN REVOKE SELECT ON public.document_records FROM libetech_projector; END IF;
   IF to_regclass('public.document_revisions') IS NOT NULL THEN REVOKE SELECT ON public.document_revisions FROM libetech_projector; END IF;
 END $$;

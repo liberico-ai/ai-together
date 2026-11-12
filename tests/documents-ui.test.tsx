@@ -8,7 +8,7 @@ import type { DocumentIndexRow, SourceState } from '../src/server/types';
 // The XECA006 fixture below is synthetic — chờ tin gốc (not the real source record).
 const row: DocumentIndexRow = { document_id: '11111111-1111-4111-8111-111111111111', project_id: '22222222-2222-4222-8222-222222222222', ref_code: 'XECA006', doc_type: 'plan',
   title: 'Nâng package theo npm audit', owner_label: '', source_type: 'drive', latest_revision_no: 2, approved_revision_no: null, hash_verification: 'self_declared',
-  source_state: 'fresh', freeze_state: 'SOURCE_NOT_FROZEN', missing_count: 3, review_due_at: null, record_updated_at: '2026-11-12T01:00:00Z', projected_at: '2026-11-12T02:00:00Z' };
+  source_state: 'fresh', freeze_state: 'SOURCE_NOT_FROZEN', missing_count: 3, review_due_at: null, record_updated_at: '2026-11-12T01:00:00Z', projected_at: '2026-11-12T02:00:00Z', z1_version: 1, stale: false };
 const STATES: SourceState[] = ['fresh', 'stale', 'unavailable', 'denied', 'not-configured', 'partially-received'];
 const body = (state: Parameters<typeof DocumentsBody>[0]['state']) => renderToStaticMarkup(
   <DocumentsBody state={state} rows={[]} projectedAt={null} canRegister={false} error="Lỗi mạng" projectLabel="Dự án Bí Mật" />);
@@ -58,10 +58,25 @@ describe('documents UI', () => {
     expect(draftLabel(2, 0)).toBe('r2');
     expect(hashLabel(null)).toBe('Chưa có hash');
   });
-  it('a stale projection is labelled', () => {
-    expect(freshnessLabel('2026-11-12T01:00:00Z', '2026-11-12T02:00:00Z').startsWith('Chưa kiểm mới')).toBe(true);
-    expect(freshnessLabel(null, '2026-11-12T02:00:00Z')).toBe('Chưa chiếu');
-    expect(freshnessLabel('2026-11-12T03:00:00Z', '2026-11-12T02:00:00Z').startsWith('Chiếu lúc')).toBe(true);
+  it('a stale projection is labelled from the Z1 version check, not from the Z2 row itself', () => {
+    expect(freshnessLabel('2026-11-12T02:00:00Z', true)).toContain('Có thay đổi sau lần chiếu — chờ chiếu lại');
+    expect(freshnessLabel(null, false)).toBe('Chưa chiếu');
+    expect(freshnessLabel('2026-11-12T03:00:00Z', false).startsWith('Chiếu lúc')).toBe(true);
+    // a row whose own timestamps look "stale" is not stale unless Z1 moved on
+    expect(freshnessLabel('2026-11-12T01:00:00Z', false)).not.toContain('Có thay đổi');
+  });
+  it('a stale row shows the text, a fresh row does not', () => {
+    const stale = renderToStaticMarkup(<DocumentCard row={{ ...row, stale: true, z1_version: 3 }} projectLabel="X" canOpen />);
+    expect(stale).toContain('Có thay đổi sau lần chiếu — chờ chiếu lại');
+    expect(renderToStaticMarkup(<DocumentCard row={row} projectLabel="X" canOpen />)).not.toContain('Có thay đổi sau lần chiếu');
+  });
+  it('pending registrations survive a reload as a notice, in the list and in the empty state', () => {
+    const list = renderToStaticMarkup(<DocumentsBody state="ready" rows={[row]} projectedAt="2026-11-12T02:00:00Z" pendingProjection={2} canRegister={false} error={null} projectLabel="X" />);
+    expect(list).toContain('2 tài liệu mới đăng ký chưa có trong chỉ mục; sẽ hiện sau lần chiếu kế tiếp.');
+    const empty = renderToStaticMarkup(<DocumentsBody state="empty" rows={[]} projectedAt={null} pendingProjection={1} canRegister={false} error={null} projectLabel="X" />);
+    expect(empty).toContain('1 tài liệu mới đăng ký chưa có trong chỉ mục; sẽ hiện sau lần chiếu kế tiếp.');
+    const none = renderToStaticMarkup(<DocumentsBody state="ready" rows={[row]} projectedAt="2026-11-12T02:00:00Z" pendingProjection={0} canRegister={false} error={null} projectLabel="X" />);
+    expect(none).not.toContain('chưa có trong chỉ mục');
   });
   it('denied source hides source metadata and the open action', () => {
     const m = renderToStaticMarkup(<SourceAvailability state="denied" lastSuccessAt="2026-11-12T01:00:00Z" />);

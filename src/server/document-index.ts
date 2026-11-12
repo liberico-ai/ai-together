@@ -3,13 +3,13 @@ import { scoped, type Database } from './db';
 import { AppError, invariant } from './errors';
 import type { DocumentIndexRow, Principal } from './types';
 
-/** DOC-10: list/search/export read ONLY analytics.document_index (Z2). Slice 1 requires projectId (controller ruling R1). */
+/** DOC-10: list/search/export read ONLY analytics.document_index (Z2); the freshness check reads only ids/versions of the caller's own project in Z1. Slice 1 requires projectId (controller ruling R1). */
 const DOC_TYPES = ['project_index', 'change_brief', 'requirements', 'design', 'plan', 'verification', 'guide', 'other'] as const;
 const NOT_FOUND = 'Không tìm thấy tài liệu trong phạm vi được cấp.';
 const denied = () => new AppError('SCOPE_DENIED', NOT_FOUND, 404);
 const EXPORT_MAX = 5000;
 
-export type DocumentIndexPage = { rows: DocumentIndexRow[]; total: number; projectedAt: string | null; source: 'Z2' };
+export type DocumentIndexPage = { rows: DocumentIndexRow[]; total: number; projectedAt: string | null; pendingProjection: number; source: 'Z2' };
 
 const findSchema = z.object({
   projectId: z.uuid(),
@@ -38,14 +38,18 @@ async function query(db: Database, p: Principal, f: Filter, limit: number, offse
     where += ` AND (title ILIKE '%'||$${n}||'%' ESCAPE '\\' OR ref_code ILIKE '%'||$${n}||'%' ESCAPE '\\' OR doc_type ILIKE '%'||$${n}||'%' ESCAPE '\\')`;
   }
   if (f.docType !== undefined) { params.push(f.docType); where += ` AND doc_type = $${params.length}`; }
-  const { rows, total, at } = await scoped(db, { ...p, projectIds: scope }, async tx => {
+  const { rows, total, at, z1, pending } = await scoped(db, { ...p, projectIds: scope }, async tx => {
     const list = (await tx.query<Record<string, unknown>>(`SELECT document_id,project_id,ref_code,doc_type,title,owner_label,source_type,latest_revision_no,
-        approved_revision_no,hash_verification,source_state,freeze_state,missing_count,review_due_at,record_updated_at,projected_at
+        approved_revision_no,hash_verification,source_state,freeze_state,missing_count,review_due_at,record_version,record_updated_at,projected_at
       FROM analytics.document_index WHERE ${where} ORDER BY record_updated_at DESC, document_id LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limit, offset])).rows;
     const agg = (await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM analytics.document_index WHERE ${where}`, params)).rows[0];
     const m = (await tx.query<{ at: unknown }>('SELECT min(projected_at) AS at FROM analytics.document_index WHERE project_id = $1', [f.projectId])).rows[0];
-    return { rows: list, total: agg.n, at: m.at };
+    // Freshness: identifiers and versions only, same transaction, same single project. No aggregation across projects.
+    const ids = list.map(r => r.document_id as string);
+    const z1 = new Map((ids.length ? (await tx.query<{ id: string; version: number }>('SELECT id,version FROM document_records WHERE project_id = $1 AND id = ANY($2::uuid[])', [f.projectId, ids])).rows : []).map(r => [r.id, r.version]));
+    const pending = (await tx.query<{ n: number }>('SELECT count(*)::int AS n FROM document_records r WHERE r.project_id = $1 AND NOT EXISTS (SELECT 1 FROM analytics.document_index i WHERE i.document_id = r.id)', [f.projectId])).rows[0].n;
+    return { rows: list, total: agg.n, at: m.at, z1, pending };
   });
   const out: DocumentIndexRow[] = rows.map(r => ({
     document_id: r.document_id as string, project_id: r.project_id as string, ref_code: r.ref_code as string, doc_type: r.doc_type as DocumentIndexRow['doc_type'],
@@ -54,9 +58,10 @@ async function query(db: Database, p: Principal, f: Filter, limit: number, offse
     hash_verification: r.hash_verification as DocumentIndexRow['hash_verification'], source_state: r.source_state as DocumentIndexRow['source_state'],
     freeze_state: 'SOURCE_NOT_FROZEN', missing_count: r.missing_count as number, review_due_at: iso(r.review_due_at),
     record_updated_at: iso(r.record_updated_at)!, projected_at: iso(r.projected_at)!,
+    z1_version: z1.get(r.document_id as string) ?? null, stale: (z1.get(r.document_id as string) ?? 0) > (r.record_version as number),
   }));
   if (out.some(r => !scope.includes(r.project_id))) throw denied(); // never a partial result
-  return { rows: out, total, projectedAt: iso(at), source: 'Z2' };
+  return { rows: out, total, projectedAt: iso(at), pendingProjection: pending, source: 'Z2' };
 }
 
 export async function findDocuments(db: Database, p: Principal, raw: unknown): Promise<DocumentIndexPage> {

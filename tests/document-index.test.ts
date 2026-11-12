@@ -117,6 +117,35 @@ describe('document index reads (DOC-10, R-02)',()=>{
     await projectDocumentIndex(h.operator,ids.tenant,ids.transport);
     return {a,b,c,t};
   }
+  test('C2: unprojected registration and unprojected revisions are visible as pendingProjection / stale',async()=>{
+    for(const t of [ids.tenant,ids.otherTenant]) await h.operator.transaction(tx=>syncTemplateIndex(tx,t));
+    const a=await reg('C2-A','Tài liệu C2 A');
+    await projectDocumentIndex(h.operator,ids.tenant,ids.sales);
+    let r=await findDocuments(h.db,pm,{projectId:ids.sales});
+    expect(r.pendingProjection).toBe(0);
+    expect(r.rows[0]).toMatchObject({stale:false,z1_version:a.version});
+    await reg('C2-B','Tài liệu C2 B chưa chiếu');
+    await reg('C2-T','Tài liệu vận tải chưa chiếu',{projectId:ids.transport});
+    r=await findDocuments(h.db,pm,{projectId:ids.sales});
+    expect(r).toMatchObject({pendingProjection:1,total:1});
+    expect(r.rows.map(x=>x.ref_code)).toEqual(['C2-A']);
+    await propose(a.id);
+    r=await findDocuments(h.db,pm,{projectId:ids.sales});
+    expect(r.rows[0]).toMatchObject({stale:true,z1_version:a.version+1,latest_revision_no:null});
+    expect(r.rows[0].z1_version).toBeGreaterThan(await h.operator.query<{v:number}>('SELECT record_version v FROM analytics.document_index WHERE document_id=$1',[a.id]).then(x=>x.rows[0].v));
+    await projectDocumentIndex(h.operator,ids.tenant,ids.sales);
+    r=await findDocuments(h.db,pm,{projectId:ids.sales});
+    expect(r.pendingProjection).toBe(0);
+    expect(r.rows.every(x=>x.stale===false)).toBe(true);
+    expect(r.rows.find(x=>x.ref_code==='C2-A')!.latest_revision_no).toBe(1);
+    expect(r.total).toBe(2);
+  });
+  test('C2: the freshness check stays inside the granted project (synthetic — chờ tin gốc)',async()=>{
+    for(const t of [ids.tenant,ids.otherTenant]) await h.operator.transaction(tx=>syncTemplateIndex(tx,t));
+    await reg('C2-T','Tài liệu vận tải chưa chiếu',{projectId:ids.transport});
+    expect(await findDocuments(h.db,member,{projectId:ids.sales})).toMatchObject({pendingProjection:0,total:0});
+    expect(await findDocuments(h.db,pm,{projectId:ids.transport})).toMatchObject({pendingProjection:1,total:0});
+  });
   test('list by project returns only that project\'s index rows with total and projectedAt (synthetic — chờ tin gốc)',async()=>{
     await seedRead();
     const r=await findDocuments(h.db,pm,{projectId:ids.sales});

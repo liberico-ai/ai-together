@@ -29,11 +29,14 @@ export function hashLabel(v: 'self_declared' | 'verified' | null): string {
 }
 export const formatTime = (v: string): string =>
   new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(v));
-export function freshnessLabel(projectedAt: string | null, recordUpdatedAt: string): string {
+/** `stale` comes from the Z1 version check in findDocuments (Z1 version > projected record_version), never from comparing two timestamps of the same Z2 row. */
+export function freshnessLabel(projectedAt: string | null, stale: boolean): string {
   if (!projectedAt) return 'Chưa chiếu';
   const at = formatTime(projectedAt);
-  return new Date(projectedAt).getTime() < new Date(recordUpdatedAt).getTime() ? 'Chưa kiểm mới · chiếu lúc ' + at : 'Chiếu lúc ' + at;
+  return stale ? STALE_COPY + ' · chiếu lúc ' + at : 'Chiếu lúc ' + at;
 }
+export const STALE_COPY = 'Có thay đổi sau lần chiếu — chờ chiếu lại';
+export const pendingProjectionCopy = (n: number): string => n + ' tài liệu mới đăng ký chưa có trong chỉ mục; sẽ hiện sau lần chiếu kế tiếp.';
 
 export const noResultsCopy = (term: string): string => 'Không tìm thấy tài liệu khớp "' + term + '"';
 export const emptyProjectionCopy = (projectedAt: string | null): string => projectedAt

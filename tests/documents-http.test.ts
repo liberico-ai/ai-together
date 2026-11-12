@@ -57,7 +57,7 @@ describe('documents HTTP',()=>{
     const cookie=login('manager');
     const profile={expectedVersion:0,objective:'Mục tiêu tổng hợp',ownerBu:'BU mẫu',pmLabel:'PM mẫu',vaultPointer:null,repoUrl:null,status:'proposed'};
     expect((await call('PUT',`/api/projects/${ids.sales}/profile`,{cookie,payload:profile})).status).toBe(200);
-    expect((await call('POST',`/api/projects/${ids.sales}/channels`,{cookie,payload:{chatId:'-100123',topicId:'',mode:'command_reply',policyVersion:'v1'}})).status).toBe(200);
+    expect((await call('POST',`/api/projects/${ids.sales}/channels`,{cookie,payload:{expectedVersion:1,chatId:'-100123',topicId:'',mode:'command_reply',policyVersion:'v1'}})).status).toBe(200);
     const reg=await json(await call('GET',`/api/projects/${ids.sales}/registry`,{cookie}));
     expect(reg.data.profile.objective).toBe('Mục tiêu tổng hợp'); expect(reg.data.channels).toHaveLength(1);
   });

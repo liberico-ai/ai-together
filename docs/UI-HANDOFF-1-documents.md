@@ -71,7 +71,7 @@ Nhãn:
 - Bot không dùng màn này; viewer thấy danh sách nhưng không có nút đăng ký.
 
 ## Kiểm tay (người điều phối chụp ảnh vào `docs/screenshots/`)
-Chạy bản local có đăng nhập theo `scripts/setup-local-verification.ts` (đọc trước khi dùng) hoặc chế độ demo (`LIBETECH_DEMO=1`, loopback) rồi mở `/documents?projectId=<id>`.
+Chạy bản local có đăng nhập theo `scripts/setup-local-verification.ts` (đọc trước khi dùng) hoặc chế độ demo (`LIBETECH_DEMO=1`, loopback) rồi mở `/documents?projectId=<id>`. Ở chế độ demo trang dùng phiên demo (cookie `libetech_demo_session`, chỉ khi host là loopback), giống trang chủ; chọn vai ở `/` trước khi mở `/documents`.
 Chụp ở 360×740 và 1280×800:
 - [ ] có dữ liệu
 - [ ] rỗng (dự án chưa có tài liệu)

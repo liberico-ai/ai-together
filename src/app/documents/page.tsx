@@ -1,6 +1,5 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { identityService, SESSION_COOKIE } from '@/server/identity';
+import { pagePrincipal } from '@/server/page-session';
 import { database } from '@/server/db';
 import { projectRole } from '@/server/types';
 import { WorkService } from '@/server/service';
@@ -10,7 +9,7 @@ import { Documents } from '@/components/documents';
 export const dynamic = 'force-dynamic';
 export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ projectId?: string | string[] }> }) {
   let principal;
-  try { principal = await identityService().session((await cookies()).get(SESSION_COOKIE)?.value); }
+  try { principal = await pagePrincipal(); }
   catch { redirect('/login'); }
   const raw = (await searchParams).projectId;
   const projectId = typeof raw === 'string' && raw ? raw : null;

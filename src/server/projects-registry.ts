@@ -16,7 +16,7 @@ const profileSchema = z.object({
   vaultPointer: z.string().max(500).nullable(), repoUrl: httpsUrl.nullable(), status: z.enum(['proposed', 'active', 'paused', 'closed']),
 }).strict();
 const channelSchema = z.object({
-  chatId: z.string().regex(/^-[1-9][0-9]{0,18}$/), topicId: z.string().regex(/^(?:[0-9]{1,10})?$/), mode: z.enum(['command_reply', 'active']), policyVersion: z.string().min(1).max(40),
+  expectedVersion: z.number().int().min(1), chatId: z.string().regex(/^-[1-9][0-9]{0,18}$/), topicId: z.string().regex(/^(?:[0-9]{1,10})?$/), mode: z.enum(['command_reply', 'active']), policyVersion: z.string().min(1).max(40),
 }).strict();
 
 const iso = (v: unknown) => new Date(v as string).toISOString();
@@ -85,11 +85,18 @@ export class ProjectRegistryService {
     manager(p, projectId);
     const input = channelSchema.parse(raw);
     return scoped(this.db, { ...p, projectIds: [projectId] }, tx => deduplicate(tx, p, projectId, key, { op: 'project.propose_channel', projectId, ...input }, async () => {
+      // The registry is one aggregate: the profile version guards every channel proposal.
+      const cur = (await tx.query<{ version: number }>('SELECT version FROM project_profiles WHERE tenant_id=$1 AND project_id=$2 FOR UPDATE', [p.tenantId, projectId])).rows[0];
+      invariant(cur, 'PROFILE_REQUIRED', 'Cần lập hồ sơ dự án trước khi đề xuất kênh.', 409);
+      invariant(cur.version === input.expectedVersion, 'REVISION_CONFLICT', 'Hồ sơ dự án đã thay đổi; tải lại rồi đề xuất lại.', 409);
+      const { expectedVersion, ...channel } = input;
       const row = (await tx.query<ChannelRow>(`INSERT INTO project_channels(tenant_id,project_id,chat_id,topic_id,mode,policy_version,proposed_by)
         VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(tenant_id,project_id,chat_id,topic_id) DO NOTHING RETURNING *`,
-        [p.tenantId, projectId, input.chatId, input.topicId, input.mode, input.policyVersion, p.id])).rows[0];
+        [p.tenantId, projectId, channel.chatId, channel.topicId, channel.mode, channel.policyVersion, p.id])).rows[0];
       invariant(row, 'CHANNEL_ALREADY_PROPOSED', 'Kênh này đã được đề xuất cho dự án.', 409);
-      await event(tx, p, projectId, 'project_channel', row.id, 'channel_proposed', key, { ...input, versionBefore: 0, versionAfter: 1 });
+      const bumped = (await tx.query<{ version: number }>('UPDATE project_profiles SET version=version+1,updated_by=$3,updated_at=now() WHERE tenant_id=$1 AND project_id=$2 AND version=$4 RETURNING version', [p.tenantId, projectId, p.id, expectedVersion])).rows[0];
+      invariant(bumped, 'REVISION_CONFLICT', 'Hồ sơ dự án đã thay đổi; tải lại rồi đề xuất lại.', 409);
+      await event(tx, p, projectId, 'project_channel', row.id, 'channel_proposed', key, { ...input, versionBefore: expectedVersion, versionAfter: bumped.version });
       return toChannel(row);
     }));
   }

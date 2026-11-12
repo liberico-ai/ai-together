@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import type { DocumentIndexRow, SourceState } from '@/server/types';
 import type { DocumentIndexPage } from '@/server/document-index';
 import { api } from './api';
-import { SOURCE_STATE_VIEW, approvedLabel, draftLabel, hashLabel, freshnessLabel, formatTime, pageState, noResultsCopy, emptyProjectionCopy, registerNotice, safeHttpsHost, type PageState } from './documents-view';
+import { SOURCE_STATE_VIEW, approvedLabel, draftLabel, hashLabel, freshnessLabel, pendingProjectionCopy, formatTime, pageState, noResultsCopy, emptyProjectionCopy, registerNotice, safeHttpsHost, type PageState } from './documents-view';
 
 const TYPE_NAMES: Record<string, string> = { project_index: 'Mục lục dự án', change_brief: 'Phiếu thay đổi', requirements: 'Yêu cầu', design: 'Thiết kế', plan: 'Kế hoạch', verification: 'Kiểm chứng', guide: 'Hướng dẫn', other: 'Khác' };
 
@@ -38,7 +38,7 @@ export function DocumentCard({ row, projectLabel, canOpen }: { row: DocumentInde
       <h3 className="doc-title">{row.title}</h3>
       <p className="doc-meta"><span className="doc-ref">{row.ref_code || 'Chưa có mã'}</span> · {TYPE_NAMES[row.doc_type] ?? row.doc_type} · {projectLabel}</p>
       <p className="doc-meta">Chủ nội dung: {row.owner_label.trim() || 'Chưa có'}</p>
-      <p className="doc-meta">{freshnessLabel(row.projected_at, row.record_updated_at)}</p>
+      <p className={row.stale ? 'doc-meta doc-stale' : 'doc-meta'} role={row.stale ? 'status' : undefined}>{freshnessLabel(row.projected_at, row.stale)}</p>
     </div>
     <div className="doc-revs">
       <span className="doc-tag-neutral">Bản chuẩn: {approvedLabel(row.approved_revision_no)}</span>
@@ -54,8 +54,8 @@ export function DocumentCard({ row, projectLabel, canOpen }: { row: DocumentInde
   </article>;
 }
 
-export function DocumentsBody({ state, rows, projectedAt, canRegister, error, projectLabel, term, onRetry, onRegister, onClearSearch }:
-  { state: PageState; term?: string; onClearSearch?: () => void; rows: DocumentIndexRow[]; projectedAt: string | null; canRegister: boolean; error: string | null; projectLabel: string; onRetry?: () => void; onRegister?: () => void }) {
+export function DocumentsBody({ state, rows, projectedAt, pendingProjection = 0, canRegister, error, projectLabel, term, onRetry, onRegister, onClearSearch }:
+  { state: PageState; term?: string; onClearSearch?: () => void; rows: DocumentIndexRow[]; projectedAt: string | null; pendingProjection?: number; canRegister: boolean; error: string | null; projectLabel: string; onRetry?: () => void; onRegister?: () => void }) {
   if (state === 'loading') return <div className="doc-list doc-skeleton" aria-busy="true" aria-label="Đang tải danh sách tài liệu">
     {[0, 1, 2].map(i => <div key={i} className="doc-skel-row" aria-hidden="true" />)}</div>;
   if (state === 'denied') return <div className="doc-state doc-denied" role="status"><h2>Tài khoản chưa được cấp dự án này</h2>
@@ -66,8 +66,10 @@ export function DocumentsBody({ state, rows, projectedAt, canRegister, error, pr
     <button type="button" className="doc-action" onClick={onClearSearch}>Xoá tìm kiếm</button></div>;
   if (state === 'empty') return <div className="doc-state doc-empty"><h2>Chưa có tài liệu đã đăng ký</h2>
     <p>{emptyProjectionCopy(projectedAt)}</p>
+    {pendingProjection > 0 && <p className="doc-notice" role="status">{pendingProjectionCopy(pendingProjection)}</p>}
     {canRegister ? <button type="button" className="doc-action" onClick={onRegister}>Đăng ký tài liệu</button> : <p>Cần quyền thành viên dự án để đăng ký</p>}</div>;
   return <div className="doc-list" role="list">
+    {pendingProjection > 0 && <p className="doc-notice" role="status">{pendingProjectionCopy(pendingProjection)}</p>}
     {projectedAt && <p className="doc-meta doc-projected">Chỉ mục cập nhật lúc {formatTime(projectedAt)}</p>}
     {rows.map(r => <div role="listitem" key={r.document_id}><DocumentCard row={r} projectLabel={projectLabel} canOpen /></div>)}</div>;
 }
@@ -118,7 +120,7 @@ export function Documents({ projects, projectId, initial, denied, canRegister, t
       {formError && <p role="alert" className="doc-problem">{formError}</p>}
       <button type="submit" className="doc-action" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu đăng ký'}</button></form>}
     {notice && <p className="doc-notice" role="status">{notice}</p>}
-    <DocumentsBody state={state} term={applied} onClearSearch={() => { setQ(''); void load(''); }} rows={page?.rows ?? []} projectedAt={page?.projectedAt ?? null} canRegister={canRegister} error={error} projectLabel={projectLabel}
+    <DocumentsBody state={state} term={applied} onClearSearch={() => { setQ(''); void load(''); }} rows={page?.rows ?? []} projectedAt={page?.projectedAt ?? null} pendingProjection={page?.pendingProjection ?? 0} canRegister={canRegister} error={error} projectLabel={projectLabel}
       onRetry={() => void load(q)} onRegister={() => setForm(true)} />
     {state === 'ready' && page && <p className="doc-meta" role="status">{page.rows.length} / {page.total} tài liệu</p>}
   </main>;

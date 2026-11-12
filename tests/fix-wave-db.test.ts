@@ -278,13 +278,14 @@ describe('item 8 toChannel',()=>{
 });
 
 describe('item 9 chat and topic caps',()=>{
-  const ch=(over:Record<string,unknown>)=>({chatId:'-100123',topicId:'',mode:'command_reply',policyVersion:'p1',...over});
+  const ch=(over:Record<string,unknown>)=>({expectedVersion:1,chatId:'-100123',topicId:'',mode:'command_reply',policyVersion:'p1',...over});
   test('chatId and topicId are length-capped',async()=>{
     const s=new ProjectRegistryService(h.db);
+    await s.saveProfile(pm,ids.sales,{expectedVersion:0,objective:'Mục tiêu mẫu',ownerBu:'BU mẫu',pmLabel:'PM mẫu',vaultPointer:null,repoUrl:null,status:'proposed'},key());
     for(const bad of [{chatId:'-'+'1'.repeat(20)},{chatId:'-0'},{chatId:'100'},{topicId:'1'.repeat(11)},{topicId:'abc'},{topicId:'-1'}])
       expect(await s.proposeChannel(pm,ids.sales,ch(bad),key()).catch(e=>e),JSON.stringify(bad)).toBeInstanceOf(ZodError);
-    await expect(s.proposeChannel(pm,ids.sales,ch({chatId:'-'+'1'.repeat(19),topicId:'1'.repeat(10)}),key())).resolves.toBeTruthy();
-    await expect(s.proposeChannel(pm,ids.sales,ch({chatId:'-100124',topicId:''}),key())).resolves.toBeTruthy();
+    await expect(s.proposeChannel(pm,ids.sales,ch({expectedVersion:1,chatId:'-'+'1'.repeat(19),topicId:'1'.repeat(10)}),key())).resolves.toBeTruthy();
+    await expect(s.proposeChannel(pm,ids.sales,ch({expectedVersion:2,chatId:'-100124',topicId:''}),key())).resolves.toBeTruthy();
   });
 });
 

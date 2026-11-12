@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,describe,expect,test} from 'vitest';
-import {openHarness,type Harness} from './slice1-db';
+import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
 import {scoped} from '../src/server/db';
 import {ids} from '../src/server/identities';
@@ -9,6 +9,7 @@ import {IdentityService,secret} from '../src/server/identity';
 import {handleBridge,signingText} from '../src/server/bridge';
 import {demoSha} from '../src/server/seed';
 import {ProjectRegistryService} from '../src/server/projects-registry';
+import type {ProjectChannel} from '../src/server/types';
 
 let h:Harness;
 beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);});
@@ -101,7 +102,7 @@ test('same key and same request replays; same key with different content is IDEM
 
 test('non-manager, viewer, bot and outsider cannot write',async()=>{
   const s=new ProjectRegistryService(h.db);
-  const chan={chatId:'-1009990002',topicId:'',mode:'command_reply',policyVersion:'p1.0'};
+  const chan={expectedVersion:1,chatId:'-1009990002',topicId:'',mode:'command_reply',policyVersion:'p1.0'};
   await expect(s.saveProfile(member,ids.sales,profile(),key())).rejects.toMatchObject({code:'MANAGER_REQUIRED',status:403});
   await expect(s.proposeChannel(member,ids.sales,chan,key())).rejects.toMatchObject({code:'MANAGER_REQUIRED'});
   await expect(s.saveProfile(viewer,ids.transport,profile(),key())).rejects.toMatchObject({code:'MANAGER_REQUIRED'});
@@ -119,7 +120,7 @@ test('identity fields in the body are rejected',async()=>{
   const s=new ProjectRegistryService(h.db);
   await expect(s.saveProfile(pm,ids.sales,profile({tenantId:ids.otherTenant}),key())).rejects.toBeInstanceOf(ZodError);
   await expect(s.saveProfile(pm,ids.sales,profile({actorId:viewer.id}),key())).rejects.toBeInstanceOf(ZodError);
-  await expect(s.proposeChannel(pm,ids.sales,{chatId:'-100',topicId:'',mode:'active',policyVersion:'p',actorId:viewer.id},key())).rejects.toBeInstanceOf(ZodError);
+  await expect(s.proposeChannel(pm,ids.sales,{expectedVersion:1,chatId:'-100',topicId:'',mode:'active',policyVersion:'p',actorId:viewer.id},key())).rejects.toBeInstanceOf(ZodError);
   await expect(s.saveProfile(pm,ids.sales,profile({repoUrl:'https://user:pw@example.com/x'}),key())).rejects.toBeInstanceOf(ZodError);
 });
 
@@ -136,9 +137,10 @@ const allRows=async()=>{
 
 test('a proposed channel grants nothing',async()=>{
   const s=new ProjectRegistryService(h.db);
-  const c=await s.proposeChannel(pm,ids.sales,{chatId:chat,topicId:'',mode:'command_reply',policyVersion:'p1.0'},key());
+  await s.saveProfile(pm,ids.sales,profile(),key());
+  const c=await s.proposeChannel(pm,ids.sales,{expectedVersion:1,chatId:chat,topicId:'',mode:'command_reply',policyVersion:'p1.0'},key());
   expect(c).toMatchObject({state:'proposed',approver_id:null,enabled_from:null,chat_id:chat});
-  await expect(s.proposeChannel(pm,ids.sales,{chatId:chat,topicId:'',mode:'active',policyVersion:'p1.0'},key())).rejects.toMatchObject({code:'CHANNEL_ALREADY_PROPOSED',status:409});
+  await expect(s.proposeChannel(pm,ids.sales,{expectedVersion:2,chatId:chat,topicId:'',mode:'active',policyVersion:'p1.0'},key())).rejects.toMatchObject({code:'CHANNEL_ALREADY_PROPOSED',status:409});
   await h.operator.query('INSERT INTO identity.memberships(tenant_id,user_id,project_id) VALUES($1,$2,$3)',[ids.tenant,pm.id,ids.sales]);
   await h.operator.query('INSERT INTO identity.telegram_links(tenant_id,user_id,telegram_id) VALUES($1,$2,$3)',[ids.tenant,pm.id,telegram]);
   await h.operator.query(`INSERT INTO analytics.reconciliations(tenant_id,project_id,code,source_id,source_type,ingested_at,quality_score,source_sha,snapshot_hash,result) VALUES($1,$2,'TEST-014','https://github.com/example/test','github',now(),1,$3,$4,$5)`,[ids.tenant,ids.sales,demoSha,'a'.repeat(64),{checks:0,accepted:false}]);
@@ -189,4 +191,70 @@ test('R5: status lifecycle follows the state machine',async()=>{
   await s.saveProfile(pm,ids.transport,profile(),key());
   await expect(s.saveProfile(pm,ids.transport,profile({expectedVersion:1,status:'paused'}),key())).rejects.toMatchObject({code:'PROJECT_STATUS_CONFLICT'});
   expect(await eventCount()).toBe(6);
+});
+
+describe('C4 channel proposal is versioned against the project profile',()=>{
+  const chanBody=(over:Record<string,unknown>={})=>({expectedVersion:1,chatId:'-1009990010',topicId:'',mode:'command_reply',policyVersion:'p1.0',...over});
+  const channelCount=async()=>(await h.operator.query<{n:number}>('SELECT count(*)::int n FROM project_channels')).rows[0].n;
+  const version=async()=>(await h.operator.query<{version:number}>('SELECT version FROM project_profiles')).rows[0].version;
+
+  test('success inserts a proposed channel, bumps the profile version and writes channel_proposed with before/after',async()=>{
+    const s=new ProjectRegistryService(h.db);
+    await s.saveProfile(pm,ids.sales,profile(),key());
+    const c=await s.proposeChannel(pm,ids.sales,chanBody(),key());
+    expect(c.state).toBe('proposed');
+    expect(await version()).toBe(2);
+    const ev=(await h.operator.query<{payload:Record<string,unknown>;actor_id:string}>("SELECT payload,actor_id FROM registry_events WHERE kind='channel_proposed'")).rows;
+    expect(ev).toHaveLength(1);
+    expect(ev[0].payload).toMatchObject({versionBefore:1,versionAfter:2,expectedVersion:1});
+    expect(ev[0].actor_id).toBe(pm.id);
+    expect((await h.operator.query<{updated_by:string}>('SELECT updated_by FROM project_profiles')).rows[0].updated_by).toBe(pm.id);
+    expect((await s.registry(pm,ids.sales)).profile?.version).toBe(2);
+  });
+  test('stale expectedVersion is REVISION_CONFLICT: no channel, no event, no version change',async()=>{
+    const s=new ProjectRegistryService(h.db);
+    await s.saveProfile(pm,ids.sales,profile(),key());
+    await s.saveProfile(pm,ids.sales,profile({expectedVersion:1}),key());
+    const before=await eventCount('project_channel');
+    for(const v of [1,3]) await expect(s.proposeChannel(pm,ids.sales,chanBody({expectedVersion:v}),key())).rejects.toMatchObject({code:'REVISION_CONFLICT',status:409});
+    expect(await channelCount()).toBe(0);
+    expect(await eventCount('project_channel')).toBe(before);
+    expect(await version()).toBe(2);
+  });
+  test('no profile is PROFILE_REQUIRED and writes nothing',async()=>{
+    const s=new ProjectRegistryService(h.db);
+    await expect(s.proposeChannel(pm,ids.sales,chanBody(),key())).rejects.toMatchObject({code:'PROFILE_REQUIRED',status:409,message:'Cần lập hồ sơ dự án trước khi đề xuất kênh.'});
+    expect(await channelCount()).toBe(0);
+    expect(await eventCount('project_channel')).toBe(0);
+  });
+  test('expectedVersion is required, an integer >= 1',async()=>{
+    const s=new ProjectRegistryService(h.db);
+    for(const v of [undefined,0,1.5,'1']) await expect(s.proposeChannel(pm,ids.sales,chanBody({expectedVersion:v}),key())).rejects.toBeInstanceOf(ZodError);
+  });
+  test('same key replays; same key with another expectedVersion is IDEMPOTENCY_CONFLICT',async()=>{
+    const s=new ProjectRegistryService(h.db),k=key();
+    await s.saveProfile(pm,ids.sales,profile(),key());
+    const first=await s.proposeChannel(pm,ids.sales,chanBody(),k);
+    expect(await s.proposeChannel(pm,ids.sales,chanBody(),k)).toEqual(first);
+    expect(await channelCount()).toBe(1);
+    expect(await version()).toBe(2);
+    await expect(s.proposeChannel(pm,ids.sales,chanBody({expectedVersion:2}),k)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+  });
+  test.skipIf(!native)('two different proposals from the same version: one success, one REVISION_CONFLICT (native)',async()=>{
+    const s=new ProjectRegistryService(h.db);
+    await s.saveProfile(pm,ids.sales,profile(),key());
+    let both!:Promise<PromiseSettledResult<ProjectChannel>[]>;
+    await h.operator.transaction(async tx=>{
+      await tx.query('SELECT id FROM project_profiles WHERE project_id=$1 FOR UPDATE',[ids.sales]);
+      both=Promise.allSettled([s.proposeChannel(pm,ids.sales,chanBody({chatId:'-1009990011'}),key()),s.proposeChannel(pm,ids.sales,chanBody({chatId:'-1009990012'}),key())]);
+      await waitForBlocked(h,2);
+    });
+    const res=await both;
+    expect(res.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+    const bad=res.filter(r=>r.status==='rejected') as PromiseRejectedResult[];
+    expect(bad).toHaveLength(1);expect(bad[0].reason).toMatchObject({code:'REVISION_CONFLICT',status:409});
+    expect(await channelCount()).toBe(1);
+    expect(await eventCount('project_channel')).toBe(1);
+    expect(await version()).toBe(2);
+  });
 });

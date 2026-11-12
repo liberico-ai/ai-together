@@ -90,6 +90,31 @@ describe('slice 1 document cases',()=>{
     expect(d.record.source_links[0].present).toBe(false);
     expect(await count('document_records')).toBe(1);
   });
+  test('DOC-18 a vanished linked source row shows as stale on the index; the record and history stay (synthetic — chờ tin gốc)',async()=>{
+    const a=await reg(xeca006,ids.transport,'case-x006-0001');
+    const none=await reg(lbrc014,ids.transport,'case-lbrc-none');
+    await revise(a.record.id,{...lbrc014R1,sourceRefs:[]},1,null,'case-x006-rev1');
+    await projectDocumentIndex(h.operator,ids.tenant,ids.transport);
+    const state=async(id:string)=>(await h.operator.query<{source_state:string}>('SELECT source_state FROM analytics.document_index WHERE document_id=$1',[id])).rows[0].source_state;
+    expect(await state(a.record.id)).toBe(a.record.source_state);
+    await h.operator.query(`DELETE FROM analytics.tech_source_tasks WHERE source_ref='Đầu việc Tech!A42:H42'`);
+    await projectDocumentIndex(h.operator,ids.tenant,ids.transport);
+    expect(await state(a.record.id)).toBe('stale');
+    expect((await findDocuments(h.db,pm,{projectId:ids.transport,q:'XECA006'})).rows[0].source_state).toBe('stale');
+    expect(await state(none.record.id)).toBe(none.record.source_state);
+    const d=await svc().detail(pm,a.record.id);
+    expect(d.record.source_state).toBe(a.record.source_state);
+    expect(d.record.source_links[0].present).toBe(false);
+    expect(d.revisions).toHaveLength(1);
+    expect(await count('analytics.document_index')).toBe(2);
+  });
+  test('DOC-18 the record own unavailable/denied state wins over the lost-source stale',async()=>{
+    const a=await reg(xeca006,ids.transport,'case-x006-0001');
+    await h.operator.query(`UPDATE document_records SET source_state='unavailable' WHERE id=$1`,[a.record.id]);
+    await h.operator.query(`DELETE FROM analytics.tech_source_tasks WHERE source_ref='Đầu việc Tech!A42:H42'`);
+    await projectDocumentIndex(h.operator,ids.tenant,ids.transport);
+    expect((await h.operator.query<{source_state:string}>('SELECT source_state FROM analytics.document_index WHERE document_id=$1',[a.record.id])).rows[0].source_state).toBe('unavailable');
+  });
   test('openSource re-checks scope on every call and never leaks across projects',async()=>{
     const {d}=await lbrc();
     const opened=await svc().openSource(pm,d.record.id);

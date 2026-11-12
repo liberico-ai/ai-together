@@ -10,7 +10,13 @@ export async function projectDocumentIndex(db: Database, tenantId: string, proje
         latest_revision_no,approved_revision_no,hash_verification,source_state,freeze_state,missing_count,review_due_at,
         record_version,record_updated_at,projected_at)
       SELECT r.tenant_id,r.project_id,r.id,r.ref_code,r.doc_type,r.title,r.owner_label,r.source_type,
-        l.revision_no,a.revision_no,l.hash_verification,r.source_state,r.freeze_state,
+        l.revision_no,a.revision_no,l.hash_verification,
+        CASE WHEN r.source_state IN ('unavailable','denied') THEN r.source_state
+          WHEN EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(r.source_links)='array' THEN r.source_links ELSE '[]'::jsonb END) k
+            WHERE k->>'kind'='z2_source_ref' AND NOT EXISTS (SELECT 1 FROM analytics.tech_source_tasks t
+              WHERE t.tenant_id=r.tenant_id AND t.project_id=r.project_id AND t.source_ref=k->>'value')) THEN 'stale'
+          ELSE r.source_state END,
+        r.freeze_state,
         coalesce(jsonb_array_length(CASE WHEN jsonb_typeof(r.metadata->'missingFields')='array' THEN r.metadata->'missingFields' END),0)
           + coalesce(jsonb_array_length(CASE WHEN jsonb_typeof(l.changes->'missing')='array' THEN l.changes->'missing' END),0),
         r.review_due_at,r.version,r.updated_at,now()
