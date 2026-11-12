@@ -4,7 +4,7 @@
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | **Đạt** ở nhánh `slice-1-doc-ownership`, head `a319e10`, PR __PR__ (chưa merge) | Mục «Bằng chứng kiểm» |
+| **Đã có mã** | **Đạt** ở nhánh `slice-1-doc-ownership`, head `a319e10`, PR [liberico-ai/ai-together#6](https://github.com/liberico-ai/ai-together/pull/6) (chưa merge) | Mục «Bằng chứng kiểm» |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1; migration 013–015 chưa áp lên DB thật nào | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Không người dùng thật; mọi dữ liệu là tổng hợp | — |
 | Đã nghiệm thu | **Chưa.** Chưa có UAT hay chữ ký nghiệm thu | — |
