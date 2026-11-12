@@ -61,6 +61,27 @@ class PilotChats(unittest.TestCase):
                     p=self.write(d,data)
                     with self.assertRaisesRegex(RuntimeError,'pilot chat file'):installer.load_pilot_chats(str(p))
                     p.unlink()
+    def test_only_the_approved_group_gets_the_project(self):
+        self.assertEqual(installer.chat_scopes(('-10012345',['-10067890','-10011111'])),
+                         {'-10012345':[installer.PROJECT],'-10067890':[],'-10011111':[]})
+    @unittest.skipUnless(importlib.util.find_spec('yaml'),'PyYAML is required on d1-ai1 and for this check')
+    def test_recipient_must_match_live_home_channel(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d)/'config.yaml').write_text('platforms:\n  telegram:\n    home_channel:\n      chat_id: -10012345\n')
+            installer.check_recipient(('-10012345',[]),Path(d))
+            with self.assertRaisesRegex(RuntimeError,'recipient drift'):installer.check_recipient(('-10099999',[]),Path(d))
+    def test_resume_path_checks_the_recipient_before_writing(self):
+        source=(Path(__file__).resolve().parents[1]/'deploy/install-user.py').read_text()
+        resume=source[source.index('def resume_empty_database'):]
+        self.assertLess(resume.index('check_recipient(chats)'),resume.index('finish_install('))
+    def test_root_installer_validates_chats_before_creating_anything(self):
+        lines=[l for l in (Path(__file__).resolve().parents[1]/'deploy/install-d1.sh').read_text().splitlines() if not l.lstrip().startswith('#')]
+        at=lambda needle:next(i for i,l in enumerate(lines) if needle in l)
+        preflight=at('provision-server.py" --preflight')
+        for mutation in ('apt-get','useradd','install -d','cp -a','pg_createcluster','pg_restore'):
+            self.assertLess(preflight,at(mutation),mutation)
+        provision=(Path(__file__).resolve().parents[1]/'deploy/provision-server.py').read_text()
+        self.assertLess(provision.index('check_recipient('),provision.index("save(state/'bridge.json'"))
     def test_repository_scope_has_no_chat_ids(self):
         text=(Path(__file__).resolve().parents[1]/'deploy/pilot-scope.json').read_text()
         scope=json.loads(text)

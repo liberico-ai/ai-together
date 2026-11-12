@@ -61,7 +61,7 @@ Về manifest: `deploy/BUNDLE-MANIFEST.json` và `docs/SOURCE-MANIFEST.json` v�
 
 ## 4. Lịch sử và nhánh
 
-- #fact `git log --all -G '<3 mẫu>'` chỉ trả về `b91f219` cho các giá trị thật. Không commit nào sau đó thêm hay sửa dòng chứa mã. Ba zip cũng chỉ xuất hiện ở commit này.
+- #fact Tính tới `decc492` (thời điểm rà), `git log --all -G '<3 mẫu>'` chỉ trả về `b91f219` cho các giá trị thật. Không commit nào sau đó thêm hay sửa dòng chứa mã. Ba zip cũng chỉ xuất hiện ở commit này. Từ PR #7 trở đi, điều này không còn đúng; xem mục «Quyết định».
 - #fact `b91f219` nằm trên 6 nhánh từ xa: `libetech-ai-os`, `slice-1-doc-ownership` (PR liberico-ai/ai-together#6, đang mở), `docs/agents-md-sec5-20261112`, `docs/oq-decision-pack-20261112`, `docs/slice-briefs-agents-pointer`, `fix/feedback-resolve-key-binding`. Ba nhánh docs và nhánh `fix/feedback-resolve-key-binding` thuộc các PR đã merge (#2–#5). Hai nhánh cục bộ chưa push (`claude/jolly-dewdney-bbabf0`, `worktree-agent-a970a36635aa68110`) không chứa commit này.
 - #fact Từ `b91f219` tới đỉnh 6 nhánh có 53 commit. 26 commit trong đó được trích SHA (7 ký tự) trong 21 tệp tài liệu trên `slice-1-doc-ownership`.
 - #fact `main` (`d23e516`) không chứa giá trị thật. Workflow lab `.github/workflows/deploy.yml` trên `main` chỉ chạy khi có push vào `main` (`on: push: branches: [main]`; bản chụp tại `docs/reviews/evidence-20261112-lab-route/deploy-workflow-trigger.txt`).
@@ -150,9 +150,11 @@ Phạm vi thực hiện theo quyết định này:
 - `tests/identity.test.ts` dùng mã tổng hợp và kiểm `pilot-scope.json` không còn mã nhóm. `docs/DEPLOY-002.md` chỉ sửa câu nói `pilot-scope.json` là bản đồ người nhận.
 - Không chạy bộ cài trên d1-ai1. Cấu hình đang chạy ở đó (`bridge.json`, `home_channel`) không đổi.
 
-Thực hiện trên nhánh cục bộ `fix/pilot-chat-ids-out-of-repo`, chưa push:
+Thực hiện trong PR liberico-ai/ai-together#7 (nhánh `fix/pilot-chat-ids-out-of-repo`):
 
+- PR sửa câu ở `docs/DEPLOY-002.md:36`. Theo (a), dòng đó vẫn giữ G1 và G3, nên `git log -G` sẽ trả thêm commit `daf7e92` của PR. Không có giá trị mới nào được thêm.
+- Codex vòng 1 yêu cầu, và PR đã làm: `check_recipient` đối chiếu nhóm được duyệt với `home_channel` thật trước khi ghi quyền, trên cả ba đường (`inspect`, `--resume-empty-db`, `provision-server.py`). `deploy/install-d1.sh` chạy `provision-server.py --preflight` trước mọi bước tạo cluster, tạo thư mục hay restore.
 - Hàm nạp `load_pilot_chats` nằm trong `deploy/install-user.py`; `deploy/provision-server.py` dùng lại hàm này.
 - Hai bộ cài giờ ghi mọi nhóm bị từ chối với quyền rỗng. Trước đây bộ cài user chỉ ghi nhóm đầu tiên. Cầu nối xử lý nhóm có quyền rỗng như nhóm lạ nên kết quả không đổi.
-- Kiểm tại commit này: `npm run test` 63/63, `npm run typecheck` sạch, `python3 -m pytest tests/` 23 đạt (thêm 7 ca cho hàm nạp và 1 ca chặn mã nhóm quay lại `pilot-scope.json`).
+- Kết quả kiểm từng vòng ghi ở `docs/reviews/REVIEW-PR7-pilot-chat-ids-20261112.md`.
 - Manifest 0.2.0 trong repo không sinh lại ở đây; `scripts/package-release.py` sinh lại khi đóng gói.

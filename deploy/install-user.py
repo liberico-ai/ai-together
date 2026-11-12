@@ -38,6 +38,12 @@ def chat_scopes(chats):
     internal,denied=chats
     return {internal:[PROJECT],**{chat:[] for chat in denied}}
 
+def check_recipient(chats,profile:Path=PROFILE):
+    """The approved group must equal the live Hermes home_channel before any grant is written."""
+    import yaml
+    live=yaml.safe_load((profile/'config.yaml').read_text())
+    if str(live['platforms']['telegram']['home_channel']['chat_id'])!=chats[0]:raise RuntimeError('LibeAI recipient drift; reconcile before installing')
+
 def exclusive(path:Path,value:str):
     fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
     with os.fdopen(fd,'w') as out:out.write(value)
@@ -79,9 +85,7 @@ def inspect(bundle:Path,dump:Path,chats):
     if shutil.disk_usage(BASE.parent).free<4*1024**3:raise RuntimeError('Less than 4 GiB free')
     if run(['loginctl','show-user','iptech','-p','Linger','--value'],quiet=True).strip()!='yes':raise RuntimeError('User service persistence unavailable')
     if run(['systemctl','--user','is-system-running'],quiet=True).strip()!='running':raise RuntimeError('User service manager unavailable')
-    import yaml
-    live=yaml.safe_load((PROFILE/'config.yaml').read_text())
-    if str(live['platforms']['telegram']['home_channel']['chat_id'])!=chats[0]:raise RuntimeError('LibeAI recipient drift; reconcile before installing')
+    check_recipient(chats)
     return verify_bundle(bundle)
 
 def main():
@@ -179,6 +183,7 @@ def resume_empty_database(bundle,dump,chats):
     # Narrow recovery for the observed first attempt. Never a force reinstall.
     import re
     if socket.gethostname()!='d1-ai1' or os.getuid()!=1000:raise RuntimeError('Wrong recovery host or principal')
+    check_recipient(chats)
     if not dump.is_file() or dump.is_symlink() or stat.S_IMODE(dump.stat().st_mode)&0o077:raise RuntimeError('Expected protected regular data archive')
     prior=json.loads((BASE/'installation.json').read_text())
     if prior['sourceDigest']!='2a5bd497e07ca89dd12b5fe63e04d4974927ac43bacf5a39a93ff57ad94fac51':raise RuntimeError('Recovery is only for the recorded first attempt')
