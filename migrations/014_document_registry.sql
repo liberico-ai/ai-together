@@ -81,7 +81,8 @@ DROP POLICY IF EXISTS scope_insert ON document_records;
 CREATE POLICY scope_insert ON document_records FOR INSERT
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
     AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
-    AND approved_revision_id IS NULL AND freeze_state = 'SOURCE_NOT_FROZEN');
+    AND approved_revision_id IS NULL AND freeze_state = 'SOURCE_NOT_FROZEN'
+    AND source_state = 'not-configured' AND source_checked_at IS NULL);
 DROP POLICY IF EXISTS scope_update ON document_records;
 CREATE POLICY scope_update ON document_records FOR UPDATE
   USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
