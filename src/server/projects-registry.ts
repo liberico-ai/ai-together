@@ -10,20 +10,20 @@ export type ReportingDomain = typeof REPORTING_DOMAINS[number];
 const LABELS: Record<ReportingDomain, string> = { LIBERICO_BU: 'Liberico BU', XECA: 'Xeca', IBS_HI: 'IBS HI' };
 export function reportingDomainLabel(code: ReportingDomain | null): string { return code ? LABELS[code] : 'Chưa xác nhận'; }
 
-const httpsUrl = z.string().url().max(1000).refine(v => { const u = new URL(v); return u.protocol === 'https:' && !u.username && !u.password; }, 'Dùng URL HTTPS không chứa thông tin đăng nhập.');
+const httpsUrl = z.string().url().max(1000).refine(v => { try { const u = new URL(v); return u.protocol === 'https:' && !u.username && !u.password; } catch { return false; } }, 'Dùng URL HTTPS không chứa thông tin đăng nhập.');
 const profileSchema = z.object({
   expectedVersion: z.number().int().min(0), objective: z.string().max(2000), ownerBu: z.string().max(120), pmLabel: z.string().max(120),
   vaultPointer: z.string().max(500).nullable(), repoUrl: httpsUrl.nullable(), status: z.enum(['proposed', 'active', 'paused', 'closed']),
 }).strict();
 const channelSchema = z.object({
-  chatId: z.string().regex(/^-[1-9][0-9]*$/), topicId: z.string().regex(/^[0-9]*$/), mode: z.enum(['command_reply', 'active']), policyVersion: z.string().min(1).max(40),
+  chatId: z.string().regex(/^-[1-9][0-9]{0,18}$/), topicId: z.string().regex(/^(?:[0-9]{1,10})?$/), mode: z.enum(['command_reply', 'active']), policyVersion: z.string().min(1).max(40),
 }).strict();
 
 const iso = (v: unknown) => new Date(v as string).toISOString();
 type ProfileRow = ProjectProfile & { id: string };
-type ChannelRow = Omit<ProjectChannel, 'created_at'> & { created_at: unknown };
+type ChannelRow = Omit<ProjectChannel, 'created_at' | 'enabled_from'> & { created_at: unknown; enabled_from: unknown };
 const toProfile = (r: ProfileRow): ProjectProfile => ({ project_id: r.project_id, objective: r.objective, owner_bu: r.owner_bu, pm_label: r.pm_label, vault_pointer: r.vault_pointer, repo_url: r.repo_url, status: r.status, version: r.version, updated_at: iso(r.updated_at) });
-const toChannel = (r: ChannelRow): ProjectChannel => ({ id: r.id, project_id: r.project_id, chat_id: r.chat_id, topic_id: r.topic_id, mode: r.mode, state: 'proposed', policy_version: r.policy_version, enabled_from: null, approver_id: null, created_at: iso(r.created_at) });
+const toChannel = (r: ChannelRow): ProjectChannel => ({ id: r.id, project_id: r.project_id, chat_id: r.chat_id, topic_id: r.topic_id, mode: r.mode, state: r.state, policy_version: r.policy_version, enabled_from: r.enabled_from == null ? null : iso(r.enabled_from), approver_id: r.approver_id ?? null, created_at: iso(r.created_at) });
 type Status = ProjectProfile['status'];
 const NEXT: Record<Status, Status[]> = { proposed: ['active'], active: ['paused', 'closed'], paused: ['active', 'closed'], closed: [] };
 export function nextProjectStatus(current: Status | null, requested: Status): Status {

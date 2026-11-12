@@ -9,9 +9,24 @@ const DOC_TYPES = ['project_index', 'change_brief', 'requirements', 'design', 'p
 const NOT_FOUND = 'Không tìm thấy tài liệu trong phạm vi được cấp.';
 const denied = () => new AppError('SCOPE_DENIED', NOT_FOUND, 404);
 
-const httpsPointer = z.string().transform(v => v.trim()).pipe(z.string().max(1000)).refine(v => {
-  try { const u = new URL(v); return u.protocol === 'https:' && !u.username && !u.password; } catch { return false; }
-}, 'Dùng URL HTTPS không chứa thông tin đăng nhập.').transform(v => new URL(v).href);
+/** Query parameter names that carry credentials or signatures; a source link must never hold one (case-insensitive). */
+const SECRET_PARAMS = new Set(['token', 'access_token', 'id_token', 'auth', 'authorization', 'key', 'api_key', 'apikey', 'sig', 'signature',
+  'x-amz-signature', 'x-amz-credential', 'x-amz-security-token', 'x-goog-signature', 'x-goog-credential', 'code', 'password', 'secret']);
+const BAD_CREDENTIALS = 'Dùng URL HTTPS không chứa thông tin đăng nhập.';
+const BAD_PARAMS = 'Liên kết không được chứa tham số xác thực (token, key, sig, code, password, secret…).';
+/** Shared by registration, url source refs and openSource: https only, no user info, no credential-bearing query parameter. */
+function checkPointer(v: string): { ok: true; href: string; host: string } | { ok: false; message: string } {
+  let u: URL;
+  try { u = new URL(v.trim()); } catch { return { ok: false, message: BAD_CREDENTIALS }; }
+  if (u.protocol !== 'https:' || u.username || u.password) return { ok: false, message: BAD_CREDENTIALS };
+  for (const name of u.searchParams.keys()) if (SECRET_PARAMS.has(name.toLowerCase())) return { ok: false, message: BAD_PARAMS };
+  return { ok: true, href: u.href, host: u.hostname };
+}
+const httpsPointer = z.string().transform(v => v.trim()).pipe(z.string().max(1000)).transform((v, ctx) => {
+  const r = checkPointer(v);
+  if (!r.ok) { ctx.addIssue({ code: 'custom', message: r.message }); return z.NEVER; }
+  return r.href;
+});
 const note = z.string().max(500).optional();
 const registerSchema = z.object({
   projectId: z.string().uuid(),
@@ -31,7 +46,14 @@ const registerSchema = z.object({
 const line = z.string().max(200);
 const sourceRef = z.object({ kind: z.enum(['git_sha', 'url', 'z2_source_ref']), label: z.string().min(1).max(80), value: z.string().min(1).max(1000) }).strict().superRefine((r, ctx) => {
   if (r.kind === 'git_sha' && !/^[a-f0-9]{40}$/.test(r.value)) ctx.addIssue({ code: 'custom', path: ['value'], message: 'Mã commit gồm 40 ký tự thập lục phân thường.' });
-  if (r.kind === 'url' && !httpsPointer.safeParse(r.value).success) ctx.addIssue({ code: 'custom', path: ['value'], message: 'Dùng URL HTTPS không chứa thông tin đăng nhập.' });
+  if (r.kind === 'url') {
+    const c = checkPointer(r.value);
+    if (!c.ok) ctx.addIssue({ code: 'custom', path: ['value'], message: c.message });
+  }
+}).transform(r => {
+  if (r.kind !== 'url') return r;
+  const c = checkPointer(r.value);
+  return c.ok ? { ...r, value: c.href } : r;
 });
 const proposeSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -106,7 +128,7 @@ export class DocumentService {
     return scoped(this.db, { ...p, projectIds: [projectId] }, tx => claimDocumentCommand(tx, p, projectId, key, { op: 'document.register', ...input }, async () => {
       let templateId: string | null = null;
       if (input.templateCode) {
-        templateId = (await tx.query<{ id: string }>('SELECT id FROM document_templates WHERE tenant_id=$1 AND code=$2 ORDER BY created_at DESC, id LIMIT 1', [p.tenantId, input.templateCode])).rows[0]?.id ?? null;
+        templateId = (await tx.query<{ id: string }>('SELECT id FROM document_templates WHERE tenant_id=$1 AND code=$2 ORDER BY created_at DESC, template_version DESC, id LIMIT 1', [p.tenantId, input.templateCode])).rows[0]?.id ?? null;
         invariant(templateId, 'TEMPLATE_UNKNOWN', 'Mẫu tài liệu không có trong chỉ mục.', 422);
       }
       const row = (await tx.query<RecordRow>(`INSERT INTO document_records(tenant_id,project_id,ref_code,doc_type,title,template_id,source_type,canonical_uri,owner_label,metadata,source_links,review_due_at,registered_by)
@@ -132,15 +154,15 @@ export class DocumentService {
         invariant(record.version === input.expectedVersion && input.basedOnRevisionId === record.latest_revision_id,
           'REVISION_CONFLICT', 'Tài liệu đã đổi. Đọc bản mới trước khi gửi lại.', 409);
         const no = (await tx.query<{ n: number }>('SELECT coalesce(max(revision_no),0)+1 AS n FROM document_revisions WHERE document_id=$1', [documentId])).rows[0].n;
-        const rev = (await tx.query<{ id: string }>(`INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,based_on_revision_id,source_id,source_type,quality_score,
-          source_revision,source_hash,hash_verification,source_modified_at,changes,source_refs,proposed_by)
-          VALUES($1,$2,$3,$4,$5,$6,$7,0,$8,$9,'self_declared',$10,$11,$12,$13) RETURNING id`,
+        const rev = (await tx.query<{ id: string }>(`INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,based_on_revision_id,source_id,source_type,
+          source_revision,source_hash,source_modified_at,changes,source_refs,proposed_by)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
           [p.tenantId, record.project_id, documentId, no, input.basedOnRevisionId, record.canonical_uri, record.source_type, input.sourceRevision, input.sourceHash,
             input.sourceModifiedAt, JSON.stringify(input.changes), JSON.stringify(input.sourceRefs), p.id])).rows[0];
         await tx.query('UPDATE document_records SET latest_revision_id=$1, version=version+1, updated_at=now() WHERE id=$2', [rev.id, documentId]);
         await tx.query(`INSERT INTO registry_events(tenant_id,project_id,entity_type,entity_id,actor_id,kind,command_key,payload) VALUES($1,$2,'document_revision',$3,$4,'revision_proposed',$5,$6)`,
           [p.tenantId, record.project_id, rev.id, p.id, key, JSON.stringify({ revisionNo: no, basedOnRevisionId: input.basedOnRevisionId, expectedVersion: input.expectedVersion,
-            sourceHash: input.sourceHash, hashVerification: 'self_declared' })]);
+            sourceHash: input.sourceHash, hashVerification: 'self_declared', versionBefore: record.version, versionAfter: record.version + 1 })]);
         return load(tx, documentId);
       });
     });
@@ -150,7 +172,7 @@ export class DocumentService {
     invariant(z.string().uuid().safeParse(documentId).success, 'SCOPE_DENIED', NOT_FOUND, 404);
     return scoped(this.db, p, tx => load(tx, documentId));
   }
-  async openSource(p: Principal, documentId: string): Promise<{ uri: string; sourceType: SourceType; sourceState: SourceState; title: string }> {
+  async openSource(p: Principal, documentId: string): Promise<{ uri: string; host: string; sourceType: SourceType; sourceState: SourceState; title: string }> {
     invariant(p?.role !== 'bot', 'READ_ONLY', 'Vai này không được dùng sổ tài liệu.', 403);
     invariant(z.string().uuid().safeParse(documentId).success, 'SCOPE_DENIED', NOT_FOUND, 404);
     return scoped(this.db, p, async tx => {
@@ -158,7 +180,9 @@ export class DocumentService {
         'SELECT canonical_uri,source_type,source_state,title FROM document_records WHERE id=$1', [documentId])).rows[0];
       if (!r) throw denied();
       invariant(r.source_state !== 'unavailable' && r.source_state !== 'denied', 'SOURCE_UNAVAILABLE', 'Nguồn hiện không mở được. Lịch sử trong sổ vẫn còn.', 409);
-      return { uri: r.canonical_uri, sourceType: r.source_type, sourceState: r.source_state, title: r.title };
+      const safe = checkPointer(r.canonical_uri);
+      invariant(safe.ok, 'SOURCE_UNAVAILABLE', 'Nguồn hiện không mở được. Lịch sử trong sổ vẫn còn.', 409);
+      return { uri: r.canonical_uri, host: safe.host, sourceType: r.source_type, sourceState: r.source_state, title: r.title };
     });
   }
 }

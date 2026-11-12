@@ -66,13 +66,13 @@ describe('slice 1 document cases',()=>{
     expect(r2.record.latest_revision_id).toBe(latest.id);
     expect(r2.record.approved_revision_id).toBeNull();
   });
-  test('source links keep the Z2 source_ref labelled chưa đối soát and create no work item',async()=>{
+  test('source links keep the Z2 source_ref labelled chưa đối soát and create no work item (synthetic — chờ tin gốc)',async()=>{
     const wi=await count('work_items');
     const a=await reg(xeca006,ids.transport,'case-x006-0001');
     expect(a.record.source_links[0]).toEqual({kind:'z2_source_ref',value:'Đầu việc Tech!A42:H42',label:'chưa đối soát',present:true});
     expect(await count('work_items')).toBe(wi);
   });
-  test('PM-08 indexing leaves the Z2 source rows unchanged',async()=>{
+  test('PM-08 indexing leaves the Z2 source rows unchanged (synthetic — chờ tin gốc)',async()=>{
     const before=await sourceDigest();
     await xecaPair();
     expect(await sourceDigest()).toEqual(before);
@@ -80,7 +80,7 @@ describe('slice 1 document cases',()=>{
     const st=(await h.operator.query<{source_status:string}>(`SELECT source_status FROM analytics.tech_source_tasks WHERE source_ref='Đầu việc Tech!A34:H34'`)).rows[0];
     expect(st.source_status).toBe('Hoàn thành');
   });
-  test('DOC-18 a vanished source row leaves the record and its history',async()=>{
+  test('DOC-18 a vanished source row leaves the record and its history (synthetic — chờ tin gốc)',async()=>{
     const a=await reg(xeca006,ids.transport,'case-x006-0001');
     const r=await revise(a.record.id,{...lbrc014R1,sourceRefs:[]},1,null,'case-x006-rev1');
     await h.operator.query(`DELETE FROM analytics.tech_source_tasks WHERE source_ref='Đầu việc Tech!A42:H42'`);
@@ -93,7 +93,7 @@ describe('slice 1 document cases',()=>{
   test('openSource re-checks scope on every call and never leaks across projects',async()=>{
     const {d}=await lbrc();
     const opened=await svc().openSource(pm,d.record.id);
-    expect(opened).toEqual({uri:lbrc014.canonicalUri,sourceType:'drive',sourceState:expect.any(String),title:lbrc014.title});
+    expect(opened).toEqual({uri:lbrc014.canonicalUri,host:'example.com',sourceType:'drive',sourceState:expect.any(String),title:lbrc014.title});
     for(const who of [viewer,outsider]){
       const e=await svc().openSource(who,d.record.id).catch(x=>x);
       expect(e).toMatchObject({code:'SCOPE_DENIED',status:404});

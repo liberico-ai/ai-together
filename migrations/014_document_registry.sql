@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS document_records (
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
   ref_code text NOT NULL DEFAULT '', doc_type text NOT NULL, title text NOT NULL, template_id uuid,
   source_type text NOT NULL CHECK(source_type IN ('drive','git','vault')),
-  canonical_uri text NOT NULL, owner_label text NOT NULL DEFAULT '', classification text NOT NULL DEFAULT 'unclassified',
+  canonical_uri text NOT NULL CHECK(canonical_uri ~ '^https://'), owner_label text NOT NULL DEFAULT '', classification text NOT NULL DEFAULT 'unclassified',
   metadata jsonb NOT NULL DEFAULT '{}', source_links jsonb NOT NULL DEFAULT '[]',
   source_state text NOT NULL DEFAULT 'not-configured' CHECK(source_state IN ('fresh','stale','unavailable','denied','not-configured','partially-received')),
   source_checked_at timestamptz, review_due_at timestamptz,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS document_revisions (
   tenant_id uuid NOT NULL, project_id uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
   document_id uuid NOT NULL, revision_no integer NOT NULL CHECK(revision_no > 0), based_on_revision_id uuid,
-  source_id text NOT NULL, source_type text NOT NULL, ingested_at timestamptz NOT NULL DEFAULT now(),
+  source_id text NOT NULL CHECK(source_id ~ '^https://'), source_type text NOT NULL, ingested_at timestamptz NOT NULL DEFAULT now(),
   quality_score numeric(3,2) NOT NULL DEFAULT 0 CHECK(quality_score BETWEEN 0 AND 1),
   source_revision text, source_hash text CHECK(source_hash IS NULL OR source_hash ~ '^[a-f0-9]{64}$'),
   hash_verification text NOT NULL DEFAULT 'self_declared' CHECK(hash_verification IN ('self_declared','verified')),
@@ -71,6 +71,7 @@ CREATE INDEX IF NOT EXISTS idx_document_records_template ON document_records(tem
 CREATE INDEX IF NOT EXISTS idx_document_records_latest_revision ON document_records(latest_revision_id);
 CREATE INDEX IF NOT EXISTS idx_document_records_approved_revision ON document_records(approved_revision_id);
 CREATE INDEX IF NOT EXISTS idx_document_revisions_document_scope_created ON document_revisions(document_id,tenant_id,project_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_document_revisions_scope_created ON document_revisions(tenant_id,project_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_document_revisions_based_on ON document_revisions(based_on_revision_id);
 CREATE INDEX IF NOT EXISTS idx_document_commands_scope_created ON document_commands(tenant_id,project_id,created_at DESC);
 ALTER TABLE document_commands ENABLE ROW LEVEL SECURITY;
@@ -130,9 +131,13 @@ DROP TRIGGER IF EXISTS document_revisions_immutable ON document_revisions;
 CREATE TRIGGER document_revisions_immutable BEFORE UPDATE OR DELETE ON document_revisions FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 DROP TRIGGER IF EXISTS document_records_no_delete ON document_records;
 CREATE TRIGGER document_records_no_delete BEFORE DELETE ON document_records FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
-GRANT SELECT ON document_templates, document_records, document_revisions TO libetech_runtime;
-GRANT INSERT ON document_records, document_revisions TO libetech_runtime;
-GRANT SELECT, INSERT ON document_commands TO libetech_runtime;
+GRANT SELECT ON document_templates, document_records, document_revisions, document_commands TO libetech_runtime;
+-- Column-level INSERT (pattern 007): id, timestamps, quality_score, ingested_at, classification, hash_verification, snapshot_ref, version
+-- and the source/freeze/approval columns come from defaults; runtime cannot set them.
+REVOKE INSERT ON document_records, document_revisions, document_commands FROM libetech_runtime;
+GRANT INSERT(tenant_id,project_id,ref_code,doc_type,title,template_id,source_type,canonical_uri,owner_label,metadata,source_links,review_due_at,registered_by) ON document_records TO libetech_runtime;
+GRANT INSERT(tenant_id,project_id,document_id,revision_no,based_on_revision_id,source_id,source_type,source_revision,source_hash,source_modified_at,changes,source_refs,proposed_by) ON document_revisions TO libetech_runtime;
+GRANT INSERT(tenant_id,project_id,actor_id,command_key,request_hash) ON document_commands TO libetech_runtime;
 GRANT UPDATE(response,updated_at) ON document_commands TO libetech_runtime;
 GRANT UPDATE(latest_revision_id,version,updated_at) ON document_records TO libetech_runtime;
 INSERT INTO schema_migrations(version) VALUES('014') ON CONFLICT(version) DO NOTHING;

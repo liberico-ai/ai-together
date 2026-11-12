@@ -146,18 +146,19 @@ describe('document tables',()=>{
     await expect(rec(ids.sales,ids.tenant,'https://example.com/t4')).resolves.toBeTruthy();
     const revision=(p:typeof pm,project:string,tenant:string)=>scoped(h.db,p,async tx=>{
       const id=(await tx.query<{id:string}>("SELECT id FROM document_records LIMIT 1")).rows[0].id;
-      return tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'u','drive',$4)",[tenant,project,id,p.id]);
+      return tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://example.com/u','drive',$4)",[tenant,project,id,p.id]);
     });
     await expect(revision(pm,ids.sales,ids.otherTenant)).rejects.toThrow();
   });
   test('runtime cannot set the approved pointer, a verified hash or a snapshot',async()=>{
     const d=await (async()=>{await templates();return svc().register(pm,base(),'doc-key-0001');})();
     const ins=(extra:string,val:unknown)=>scoped(h.db,pm,tx=>tx.query(
-      `INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by,${extra}) VALUES($1,$2,$3,1,'u','drive',$4,$5)`,
+      `INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by,${extra}) VALUES($1,$2,$3,1,'https://example.com/u','drive',$4,$5)`,
       [ids.tenant,ids.sales,d.record.id,pm.id,val]));
     await expect(ins('hash_verification','verified')).rejects.toThrow();
     await expect(ins('snapshot_ref','x')).rejects.toThrow();
-    await expect(ins('hash_verification','self_declared')).resolves.toBeTruthy();
+    await expect(ins('hash_verification','self_declared')).rejects.toThrow(/permission denied/); // column not granted; the default is self_declared
+    await expect(ins('source_revision','abc')).resolves.toBeTruthy();
     const revId=(await h.operator.query<{id:string}>('SELECT id FROM document_revisions LIMIT 1')).rows[0].id;
     await expect(scoped(h.db,pm,tx=>tx.query('UPDATE document_records SET approved_revision_id=$1 WHERE id=$2',[revId,d.record.id]))).rejects.toThrow();
     await expect(scoped(h.db,pm,tx=>tx.query("UPDATE document_records SET freeze_state='FROZEN' WHERE id=$1",[d.record.id]))).rejects.toThrow();
@@ -176,7 +177,7 @@ describe('document tables',()=>{
     await templates();
     const a=await svc().register(pm,base(),'doc-key-0001');
     const b=await svc().register(pm,{...base(),canonicalUri:'https://example.com/docs/b'},'doc-key-0002');
-    await scoped(h.db,pm,tx=>tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'u','drive',$4)",[ids.tenant,ids.sales,a.record.id,pm.id]));
+    await scoped(h.db,pm,tx=>tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://example.com/u','drive',$4)",[ids.tenant,ids.sales,a.record.id,pm.id]));
     const rev=(await h.operator.query<{id:string}>('SELECT id FROM document_revisions')).rows[0].id;
     await expect(scoped(h.db,pm,tx=>tx.query('UPDATE document_records SET latest_revision_id=$1 WHERE id=$2',[rev,b.record.id]))).rejects.toThrow();
   });

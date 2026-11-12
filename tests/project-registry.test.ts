@@ -45,7 +45,10 @@ test('runtime cannot create an active channel or a domain mapping',async()=>{
     [ids.tenant,ids.sales,state,approver,pm.id]));
   await expect(ch('active',null)).rejects.toThrow();
   await expect(ch('proposed',pm.id)).rejects.toThrow();
-  await expect(ch('proposed',null)).resolves.toBeTruthy();
+  await expect(ch('proposed',null)).rejects.toThrow(/permission denied/); // state is not an insertable column; the default is proposed
+  await expect(scoped(h.db,pm,tx=>tx.query(
+    "INSERT INTO project_channels(tenant_id,project_id,chat_id,mode,policy_version,proposed_by) VALUES($1,$2,'-100999','active','p1',$3)",
+    [ids.tenant,ids.sales,pm.id]))).resolves.toBeTruthy();
   await expect(scoped(h.db,pm,tx=>tx.query(
     "INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,'XECA',$3,'synthetic-source',1)",
     [ids.tenant,ids.sales,pm.id]))).rejects.toThrow();
@@ -161,7 +164,9 @@ test('R5: runtime cannot insert a non-proposed or version-2 profile',async()=>{
     'INSERT INTO project_profiles(tenant_id,project_id,status,version,updated_by) VALUES($1,$2,$3,$4,$5)',[ids.tenant,ids.sales,status,version,pm.id]));
   await expect(ins('active',1)).rejects.toThrow();
   await expect(ins('proposed',2)).rejects.toThrow();
-  await expect(ins('proposed',1)).resolves.toBeTruthy();
+  await expect(ins('proposed',1)).rejects.toThrow(/permission denied/); // version is not an insertable column; the default is 1
+  await expect(scoped(h.db,pm,tx=>tx.query(
+    'INSERT INTO project_profiles(tenant_id,project_id,status,updated_by) VALUES($1,$2,$3,$4)',[ids.tenant,ids.sales,'proposed',pm.id]))).resolves.toBeTruthy();
 });
 
 test('R5: creation as active is PROJECT_STATUS_CONFLICT',async()=>{

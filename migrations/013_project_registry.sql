@@ -99,7 +99,11 @@ CREATE TRIGGER project_domain_mappings_immutable BEFORE UPDATE OR DELETE ON proj
 DROP TRIGGER IF EXISTS registry_events_immutable ON registry_events;
 CREATE TRIGGER registry_events_immutable BEFORE UPDATE OR DELETE ON registry_events FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 GRANT SELECT ON project_profiles, project_channels, project_domain_mappings, registry_events TO libetech_runtime;
-GRANT INSERT ON project_profiles, project_channels, registry_events TO libetech_runtime;
+-- Column-level INSERT (pattern 007): id, timestamps, version and the approval columns come from defaults; runtime cannot set them.
+REVOKE INSERT ON project_profiles, project_channels, registry_events FROM libetech_runtime;
+GRANT INSERT(tenant_id,project_id,objective,owner_bu,pm_label,vault_pointer,repo_url,status,updated_by) ON project_profiles TO libetech_runtime;
+GRANT INSERT(tenant_id,project_id,chat_id,topic_id,mode,policy_version,proposed_by) ON project_channels TO libetech_runtime;
+GRANT INSERT(tenant_id,project_id,entity_type,entity_id,actor_id,kind,command_key,payload) ON registry_events TO libetech_runtime;
 GRANT UPDATE(objective,owner_bu,pm_label,vault_pointer,repo_url,status,version,updated_by,updated_at) ON project_profiles TO libetech_runtime;
 INSERT INTO schema_migrations(version) VALUES('013') ON CONFLICT(version) DO NOTHING;
 COMMIT;

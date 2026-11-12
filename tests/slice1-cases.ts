@@ -1,4 +1,5 @@
 // Synthetic case data only. Values copied from repo documents; no outside source is called.
+// XECA006 and XECA005 below are synthetic — chờ tin gốc: not the real source records; a green test is not an acceptance.
 export const xeca006={refCode:'XECA006',docType:'design',templateCode:'T3',title:'Nâng package theo npm audit',sourceType:'drive',
   canonicalUri:'https://example.com/synthetic/xeca006-change-brief',
   metadata:{missingFields:['repo/phạm vi package','báo cáo trước–sau','commit/lockfile','ảnh hưởng tương thích','acceptance','rollback','bản thực thử']},

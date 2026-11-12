@@ -74,7 +74,8 @@ export async function exportDocumentsCsv(db: Database, p: Principal, projectId: 
   invariant(p?.role !== 'bot', 'READ_ONLY', 'Vai này không được dùng sổ tài liệu.', 403);
   if (!z.uuid().safeParse(projectId).success) throw denied();
   authorise(p, projectId);
-  const page = await query(db, p, { projectId }, EXPORT_MAX, 0);
+  const page = await query(db, p, { projectId }, EXPORT_MAX + 1, 0);
+  if (page.rows.length > EXPORT_MAX) throw new AppError('EXPORT_TOO_LARGE', 'Danh sách quá dài để xuất một lần. Lọc theo loại rồi xuất lại.', 422);
   const lines = page.rows.map(r => [r.ref_code, r.doc_type, r.title, r.owner_label, r.source_type, rev(r.latest_revision_no), rev(r.approved_revision_no),
     r.hash_verification === 'self_declared' ? 'tự khai' : r.hash_verification === 'verified' ? 'đã kiểm' : '', r.source_state, r.freeze_state, r.projected_at].map(cell).join(','));
   return [CSV_HEADER, ...lines].join('\n');

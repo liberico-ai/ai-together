@@ -11,5 +11,5 @@ export function bridgeLabels(s:BridgeStatus):string[] {
   labels.push('chưa nối luồng ghi');
   return labels;
 }
-// Slice 1: no verification source exists (OQ-23 undecided). Configuration never counts as verification.
+// Slice 1: no verification source exists (OQ-23 (a) decided: bridge verification stays off in this slice). Configuration never counts as verification.
 export async function bridgeVerifiedAt():Promise<string|null> { return null; }

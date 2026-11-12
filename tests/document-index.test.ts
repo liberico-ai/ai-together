@@ -117,7 +117,7 @@ describe('document index reads (DOC-10, R-02)',()=>{
     await projectDocumentIndex(h.operator,ids.tenant,ids.transport);
     return {a,b,c,t};
   }
-  test('list by project returns only that project\'s index rows with total and projectedAt',async()=>{
+  test('list by project returns only that project\'s index rows with total and projectedAt (synthetic — chờ tin gốc)',async()=>{
     await seedRead();
     const r=await findDocuments(h.db,pm,{projectId:ids.sales});
     expect(r.source).toBe('Z2');
@@ -132,13 +132,13 @@ describe('document index reads (DOC-10, R-02)',()=>{
     expect(page.rows).toHaveLength(1);
     expect(page.total).toBe(3);
   });
-  test('an unprojected project has total 0 and projectedAt null',async()=>{
+  test('an unprojected project has total 0 and projectedAt null (synthetic — chờ tin gốc)',async()=>{
     await seedRead();
     expect(await findDocuments(h.db,pm,{projectId:ids.transport,q:'zzzz'})).toMatchObject({rows:[],total:0});
     await h.operator.query('DELETE FROM analytics.document_index WHERE project_id=$1',[ids.transport]);
     expect(await findDocuments(h.db,pm,{projectId:ids.transport})).toMatchObject({rows:[],total:0,projectedAt:null});
   });
-  test('search matches title, type and code case-insensitively and treats wildcards literally',async()=>{
+  test('search matches title, type and code case-insensitively and treats wildcards literally (synthetic — chờ tin gốc)',async()=>{
     await seedRead();
     const f=async(q:string)=>(await findDocuments(h.db,pm,{projectId:ids.sales,q})).rows.map(x=>x.ref_code).sort();
     expect(await f('nâng PACKAGE')).toEqual(['XECA006']);
@@ -150,7 +150,7 @@ describe('document index reads (DOC-10, R-02)',()=>{
     expect((await findDocuments(h.db,pm,{projectId:ids.sales,q:'design',docType:'design'})).total).toBe(2);
     expect((await findDocuments(h.db,pm,{projectId:ids.sales,docType:'plan'})).total).toBe(1);
   });
-  test('cross-project and cross-tenant reads are denied before any query',async()=>{
+  test('cross-project and cross-tenant reads are denied before any query (synthetic — chờ tin gốc)',async()=>{
     await seedRead();
     let calls=0;
     const spy=new Proxy(h.db,{get:(t,k,r)=>{const v=Reflect.get(t,k,r);
@@ -169,7 +169,7 @@ describe('document index reads (DOC-10, R-02)',()=>{
     await expect(findDocuments(h.db,pm,{})).rejects.toBeInstanceOf(ZodError);
     await expect(findDocuments(h.db,pm,{q:'x'})).rejects.toBeInstanceOf(ZodError);
   });
-  test('a principal recomputed after membership removal can no longer list, search or export',async()=>{
+  test('a principal recomputed after membership removal can no longer list, search or export (synthetic — chờ tin gốc)',async()=>{
     await seedRead();
     const before={...member};
     const after={...member,projectIds:[sameBuProject],grants:[{projectId:sameBuProject,role:'engineer' as const,reportPermissions:[]}]};
@@ -180,7 +180,7 @@ describe('document index reads (DOC-10, R-02)',()=>{
     await expect(findDocuments(h.db,after,{})).rejects.toBeInstanceOf(ZodError);
     expect(await findDocuments(h.db,after,{projectId:sameBuProject})).toMatchObject({rows:[],total:0});
   });
-  test('bot cannot read the document index',async()=>{
+  test('bot cannot read the document index (synthetic — chờ tin gốc)',async()=>{
     await seedRead();
     expect(await codeOf(findDocuments(h.db,bot,{projectId:ids.transport}))).toMatchObject({code:'READ_ONLY'});
     expect(await codeOf(exportDocumentsCsv(h.db,bot,ids.transport))).toMatchObject({code:'READ_ONLY'});
@@ -209,7 +209,7 @@ describe('document index reads (DOC-10, R-02)',()=>{
     expect(csv).toContain('"Chưa có","Chưa có",""');
     expect(csv).not.toContain('đã duyệt');
   });
-  test('export is denied across projects',async()=>{
+  test('export is denied across projects (synthetic — chờ tin gốc)',async()=>{
     await seedRead();
     expect(await codeOf(exportDocumentsCsv(h.db,member,ids.transport))).toMatchObject({code:'SCOPE_DENIED',status:404,message:GENERIC});
     expect(await codeOf(exportDocumentsCsv(h.db,outsider,ids.sales))).toMatchObject({code:'SCOPE_DENIED'});

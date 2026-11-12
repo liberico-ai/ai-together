@@ -24,6 +24,7 @@ export async function projectDocumentIndex(db: Database, tenantId: string, proje
         hash_verification=EXCLUDED.hash_verification,source_state=EXCLUDED.source_state,freeze_state=EXCLUDED.freeze_state,
         missing_count=EXCLUDED.missing_count,review_due_at=EXCLUDED.review_due_at,record_version=EXCLUDED.record_version,
         record_updated_at=EXCLUDED.record_updated_at,projected_at=now(),updated_at=now()
+      WHERE analytics.document_index.record_version <= EXCLUDED.record_version
       RETURNING projected_at`, [tenantId, projectId])).rows;
     const at = written[0]?.projected_at ?? (await tx.query<{ n: Date | string }>('SELECT now() AS n')).rows[0].n;
     return { rows: written.length, projectedAt: new Date(at).toISOString() };
