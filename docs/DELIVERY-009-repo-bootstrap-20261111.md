@@ -145,7 +145,24 @@ Ghi chú vận hành: hook `check-git-push.js` trên máy chặn lần push đ�
 
 ## 9. Còn mở
 
-- Chỉ đổi nhánh mặc định hoặc merge vào `main` khi Quân xác nhận lab 192.168.17.10 (cổng 7060) không tự kéo `main`, và Chairman duyệt.
-- `libe-tech`: đối chiếu bản plugin đang chạy trên gateway với `a08b63c` và với thư mục máy (cả hai khai 1.1.4) trước khi chọn tệp đưa lên (quyết định 6.3).
+- ~~Chỉ đổi nhánh mặc định hoặc merge vào `main` khi Quân xác nhận lab…~~ Thay bằng quyết định Chairman 12/11 (mục 10).
+- ~~`libe-tech`: đối chiếu bản plugin đang chạy trên gateway…~~ Đã đối chiếu (mục 10).
 - Health trả `sourceSha: null`. Lần triển khai sau có thể đặt `SOURCE_SHA` bằng SHA commit để server tự khai bản đang chạy; việc này là triển khai, cần Chairman duyệt.
 - 21 câu hỏi mở trong `docs/OPEN-QUESTIONS.md`; lát 1 dừng trước migration tại OQ-01 (ADR-002 chưa ký), OQ-02, OQ-04.
+
+## 10. Bổ sung 12/11/2026 — nhánh `main` của ai-together và repo `libe-tech`
+
+### 10.1 Máy lab 192.168.17.10 và nhánh `main`
+
+- **Cơ chế cập nhật lab (#fact, đọc repo):** `main` cũ có `.github/workflows/deploy.yml` «Deploy Libe Aios», chạy khi push vào `main`. Workflow build image `ghcr.io/liberico-ai/ai-together` rồi POST webhook ký HMAC tới `vars.LAB_WEBHOOK_URL`. Lần chạy gần nhất 01/07/2026 triển khai `d23e516`. Lần push nhánh `libetech-ai-os` ngày 12/11 không kích hoạt run nào (cây `libetech-ai-os` không còn thư mục `.github/`).
+- **Hồ sơ Codex (#fact, 89 phiên có nhắc 192.168.17.10):** không phiên nào triển khai lên 192.168.17.10. Đó là máy Nginx chạy AiTogether cũ ở cổng 7060, nằm ở trung tâm dữ liệu khác d1-ai1 và không có đường tới («Không thông đâu ạ. 2 DC khác nhau», phiên 08–09/11). Codex triển khai AI OS lên d1-ai1 qua terminal của Hermes dashboard, theo thư mục release, không qua GitHub.
+- **Quyết định Chairman 12/11:** «Giữ main của ai-together cho lab, làm và review AI OS trên nhánh libetech-ai-os, phát hành d1-ai1 theo tuyến riêng.» Không đổi nhánh mặc định, không merge vào `main`.
+
+### 10.2 Repo `libe-tech`
+
+- **Bản đang chạy trên gateway (#fact):** `dist/deploy-checks-1.1.4-20261107/installed-readback-20261108.json` (cài 08/11 01:32Z, gói `85add82a…c842f`). Cả 9 tệp plugin đã cài trùng hash với **cây trên máy**: `__init__.py`, `core.py`, `guard.py`, `intake.py`, `lanes.py`, `plugin.yaml`, `registry.json` (`0161a700…`), `sheets.py`, `state.py`. `origin/main` `a08b63c` khác ở 7/9 tệp.
+- **Bản chất chênh lệch:** `6398a1e`/`a08b63c` do Codex tạo từ một root sạch, chủ ý giữ cấu hình thật ngoài GitHub. Trên GitHub, chat ID, mã workbook, tên người, đường dẫn và host server được thay bằng biến môi trường/placeholder; `registry.json` là mẫu `UNCONFIGURED_TEMPLATE`. Logic giống nhau; bản GitHub còn thêm chốt `WORKBOOK_SOURCE_NOT_CONFIGURED` và test cho chốt đó.
+- **Quyết định Chairman 12/11:** «giữ cây gateway làm bằng chứng, chuyển có chọn lọc phần mã an toàn lên từ origin/main; không push nguyên 30 thay đổi.»
+- **Kết quả chọn lọc: không có tệp mã nào cần chuyển.** Mọi tệp mã/test có ở cả hai bên chỉ khác ở phần lược cấu hình. Bảy tệp chỉ có ở cây gateway (`build_customer_scope.py`, `build_lanes_intake.py`, `install_customer_scope.py`, `install_identity_fix.py`, `install_lanes_intake.py`, `customer_data_cleanup.py`, `tests/test_install_lanes_intake.py`) là bộ cài một lần cho bản 1.0.1→1.0.2 và 1.1.0. Chúng chốt theo hash trạng thái cũ, viết cứng đường dẫn hồ sơ và chat ID; riêng `customer_data_cleanup.py` xoá dữ liệu trên hồ sơ đang chạy. `origin/main` không tham chiếu tệp nào trong số đó. Tài liệu, `profile/` và `registry.json` mang dữ liệu riêng. **Không push gì lên `libe-tech`.**
+- **Bằng chứng giữ lại:** cây máy không đổi (`git status` vẫn 30 mục). Manifest hash `hermes-libetech-priority1/dist/gateway-tree-evidence-20261112.json` (thư mục đã gitignore, cạnh biên nhận cũ): 54 tệp, tree `bd8e6358ac75690e0ed36baec5b3899a0fb1286ef4411fcb955e03abc2675e2d`, tệp manifest `d024677e0bb52d48ca6d27836dc6c412dcacd154e7168fc9311b6be2491e53c8`. Readback là ngày 08/11; không đọc lại gateway trong lượt này.
+- **Việc về sau (cần duyệt riêng, là điểm dừng):** muốn mã đang chạy trùng GitHub thì cài bản `origin/main` lên gateway với cấu hình đưa ra biến môi trường/registry riêng. Việc này phải khởi động lại gateway chung.

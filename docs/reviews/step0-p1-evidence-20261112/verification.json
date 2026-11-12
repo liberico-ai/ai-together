@@ -1,0 +1,42 @@
+{
+  "checkedAt": "2026-11-12T03:15:53.135498+00:00",
+  "head": "82292339584f5c6937c4d7c7a9ce39d3536619d8",
+  "baseline": {
+    "vitest": {
+      "passed": 57,
+      "files": 7,
+      "exit": 0
+    },
+    "pythonBridge": {
+      "passed": 11,
+      "exit": 0
+    },
+    "typecheck": {
+      "exit": 0
+    },
+    "build": {
+      "exit": 0
+    }
+  },
+  "diagnostic": {
+    "test": "review-feedback-idempotency.test.ts",
+    "expected": "FEEDBACK_KEY_CONFLICT when requestKey reused for different reportId",
+    "observed": "returned original action id with replayed true",
+    "exit": 1,
+    "classification": "confirmed pre-existing bug in feedback resolve; not introduced by Step 0"
+  },
+  "isolation": {
+    "source": "git archive HEAD",
+    "dependencies": "copy of local node_modules, not a fresh npm ci",
+    "database": "PGlite in-memory, synthetic only",
+    "externalDatabaseEnvUnset": true,
+    "sourceRepoModified": false,
+    "serverWrites": false
+  },
+  "limits": [
+    "No direct server filesystem hash",
+    "No new Telegram message or user-session test",
+    "No native PostgreSQL test in this run",
+    "No P1.0 implementation exists to review"
+  ]
+}

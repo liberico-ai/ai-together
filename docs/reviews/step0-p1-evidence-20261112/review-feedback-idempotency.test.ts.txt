@@ -1,0 +1,26 @@
+import { expect,test } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { embeddedDatabase } from '../src/server/db';
+import { seed } from '../src/server/seed';
+import { demoProfiles as profiles,ids } from '../src/server/identities';
+import { FeedbackService } from '../src/server/feedback';
+test('reused resolve key must be bound to the original report',async()=>{
+ const db=await embeddedDatabase();
+ try {
+  await seed(db); const service=new FeedbackService(db);
+  const p={...profiles.manager,grants:[{projectId:ids.sales,role:'manager' as const,reportPermissions:[]}]};
+  await db.query("INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,'review.synthetic','Review Synthetic','manager','fixture-only')",[p.id,p.tenantId]);
+  const base={projectId:ids.sales,kind:'bug',description:'Synthetic review-only description of a reported issue',pagePath:'/feedback'};
+  const a=await service.create(p,{...base,title:'Review report Alpha',requestKey:randomUUID()});
+  const b=await service.create(p,{...base,title:'Review report Bravo',requestKey:randomUUID()});
+  const command={projectId:ids.sales,requestKey:randomUUID(),expectedVersion:1,state:'closed',reason:'Review-only resolution'};
+  await service.resolve(p,{...command,reportId:a.id});
+  let result:unknown;
+  try { result=await service.resolve(p,{...command,reportId:b.id}); }
+  catch(error) { result={code:(error as {code?:string}).code}; }
+  const row=(await db.query<{state:string}>('SELECT state FROM feedback_reports WHERE id=$1',[b.id])).rows[0];
+  console.info(JSON.stringify({result,secondReportState:row.state}));
+  expect(row.state).toBe('new');
+  expect(result).toMatchObject({code:'FEEDBACK_KEY_CONFLICT'});
+ } finally {await db.close();}
+});
