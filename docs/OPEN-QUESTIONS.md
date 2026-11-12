@@ -4,7 +4,7 @@ Version 0.2 · 12/11/2026 (0.1 lập 11/11/2026) · Lập bởi agent `planner` 
 
 Cách đọc: mỗi mục nêu lát bị ảnh hưởng, hai phía mâu thuẫn kèm con trỏ `tệp:dòng` (đường dẫn tính từ gốc repo; tài liệu nằm trong `docs/`), các phương án, và người quyết. Khi có quyết định, ghi ngày, người quyết và nội dung ngay dưới mục; không xoá mục. Con trỏ `ADR-002…:dòng` trong phần «Phía A/B» chỉ bản 1.0 của ADR; bản 1.1 đã đổi số dòng.
 
-**Trạng thái 0.2:** cả 21 mục đã có quyết định hướng ngày 12/11/2026, ghi dưới từng mục; bản tổng hợp ở [DECISION-PACK-OQ-20261112](DECISION-PACK-OQ-20261112.md) bản 0.2. OQ-01, OQ-02, OQ-04 **chốt khi ký ADR-002 1.1** — tới lúc đó migration 013+ chưa được viết. Mục Chairman nêu tên thắng; mục còn lại theo bảng §4 của `reviews/CODEX-STEP0-P1-READINESS-20261112.md:68-87`.
+**Trạng thái 0.2:** cả 21 mục đã có quyết định hướng ngày 12/11/2026, ghi dưới từng mục; bản tổng hợp ở [DECISION-PACK-OQ-20261112](DECISION-PACK-OQ-20261112.md) bản 0.2. OQ-01, OQ-02, OQ-04 **đã chốt**: Chairman ký ADR-002 1.1 ngày 12/11/2026 («Ký ADR-002 1.1») — tới lúc đó migration 013+ chưa được viết. Mục Chairman nêu tên thắng; mục còn lại theo bảng §4 của `reviews/CODEX-STEP0-P1-READINESS-20261112.md:68-87`.
 
 Lời Chairman 12/11/2026 (nguyên văn):
 
@@ -13,10 +13,10 @@ Lời Chairman 12/11/2026 (nguyên văn):
 
 | Mã | Lát | Một dòng | Người quyết | Chốt 12/11 |
 |---|---|---|---|---|
-| OQ-01 | 1 (kéo theo 2–4) | ADR-002 chưa ký mà lát 1 dựa vào | Chairman | (b), chờ ký |
-| OQ-02 | 1, 2 | ADR-002 không phủ ProjectChannel, SourceEvent, sổ dự án | Chairman | (a), chờ ký |
+| OQ-01 | 1 (kéo theo 2–4) | ADR-002 chưa ký mà lát 1 dựa vào | Chairman | (b), đã ký 12/11 |
+| OQ-02 | 1, 2 | ADR-002 không phủ ProjectChannel, SourceEvent, sổ dự án | Chairman | (a), đã ký 12/11 |
 | OQ-03 | 1 | Nhãn cũ và footer `0.3.0` không còn ở chỗ handoff chỉ | BoM Tech | (b) |
-| OQ-04 | 1, 4, 5 | Trục thực thể Liberico BU · Xeca · IBS HI chưa có trong schema | Chairman | (a) có sửa, chờ ký |
+| OQ-04 | 1, 4, 5 | Trục thực thể Liberico BU · Xeca · IBS HI chưa có trong schema | Chairman | (a) có sửa, đã ký 12/11 |
 | OQ-05 | 1 | Cổng P1.0 «bản chuẩn riêng» khi chưa có bản chuẩn, người duyệt, tin gốc Xeca | Chairman | (a) |
 | OQ-06 | 1, 3, 4 | Tài liệu gắn vào «việc» nào khi Z1 chưa có work item | BoM Tech | (a) |
 | OQ-07 | 1, 3, 4 | Nơi giữ snapshot bản chuẩn, retention, quyền đọc Drive/Git | Chairman + BoM Tech | (a) cho P1.0; kho có cổng |
@@ -44,7 +44,7 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phía B:** `docs/HANDOFF-CLAUDE-CODE-20261111.md:53` giao lát 1 xây sổ tài liệu; `:96` yêu cầu hỏi nếu tới lúc cần mà chưa ký. `docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:18` cũng ghi ADR chưa phải quyết định đã ký.
 - **Phương án:** (a) Chairman ký ADR-002 nguyên văn, điền `:27`; (b) ký có sửa, planner cập nhật brief theo bản ký; (c) chưa ký — lát 1 chỉ làm phần không tạo entity mới (sửa nhãn theo OQ-03, test quyền âm trên mã hiện có), không viết migration 013+.
 - **Ai quyết:** Chairman.
-- **Quyết định 12/11/2026 (Chairman, duyệt hướng):** chọn (b): ký ADR-002 có sửa, bản 1.1 (đã sửa 12/11, vẫn Proposed). Nguồn: Codex §4 `reviews/CODEX-STEP0-P1-READINESS-20261112.md:70`, trùng gói 0.1. Lời duyệt hướng không thay chữ ký; migration 013+ chỉ viết sau khi ký. **Chốt khi ký ADR-002 1.1.**
+- **Quyết định 12/11/2026 (Chairman, duyệt hướng):** chọn (b): ký ADR-002 có sửa, bản 1.1 (đã sửa 12/11, vẫn Proposed). Nguồn: Codex §4 `reviews/CODEX-STEP0-P1-READINESS-20261112.md:70`, trùng gói 0.1. Lời duyệt hướng không thay chữ ký; migration 013+ chỉ viết sau khi ký. **Chốt khi ký ADR-002 1.1.** **Đã chốt:** Chairman ký ADR-002 1.1 ngày 12/11/2026 («Ký ADR-002 1.1»).
 
 ## OQ-02 — ADR-002 không phủ ProjectChannel, SourceEvent và sổ dự án
 
@@ -53,7 +53,7 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phía B:** `docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:135-136` định nghĩa SourceEvent, ProjectChannel; `docs/SPEC-008-PM-operating-loop-20261111.md:53` đòi «ADR về entity và cutover trước migration» theo AR-09; `:137` đặt «Chốt ADR và quyền» làm lát 0. Luật: E-AI-02 (không tạo schema ngoài canonical model khi chưa duyệt).
 - **Phương án:** (a) mở rộng ADR-002 trước khi ký để phủ cả ba; (b) ADR-003 riêng cho sổ dự án/kênh/sự kiện nguồn; (c) Chairman xác nhận bằng văn bản rằng các bảng này là mở rộng của `projects` hiện có (`migrations/001_foundation.sql:13`) và không cần ADR mới.
 - **Ai quyết:** Chairman.
-- **Quyết định 12/11/2026 (Chairman, duyệt hướng):** chọn (a): mở rộng ADR-002 phủ sổ dự án, ProjectChannel, SourceEvent/intake, outbox; quyền chủ SourceEvent/intake chỉ có hiệu lực ở P1.1. Nguồn: Codex §4 `reviews/CODEX-STEP0-P1-READINESS-20261112.md:70` và §5 `:95-97`. **Chốt khi ký ADR-002 1.1.**
+- **Quyết định 12/11/2026 (Chairman, duyệt hướng):** chọn (a): mở rộng ADR-002 phủ sổ dự án, ProjectChannel, SourceEvent/intake, outbox; quyền chủ SourceEvent/intake chỉ có hiệu lực ở P1.1. Nguồn: Codex §4 `reviews/CODEX-STEP0-P1-READINESS-20261112.md:70` và §5 `:95-97`. **Chốt khi ký ADR-002 1.1.** **Đã chốt:** Chairman ký ADR-002 1.1 ngày 12/11/2026 («Ký ADR-002 1.1»).
 
 ## OQ-03 — Nhãn cũ và footer `0.3.0` không còn ở chỗ handoff chỉ
 
@@ -71,7 +71,7 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phía B:** mã chỉ có một tenant và cột chữ `projects.bu` (`migrations/001_foundation.sql:14`), giá trị đang dùng `XECA`, `LBRC`, `IBS HI` (`migrations/011_team_source_catalog.sql:51`) và `LibeTech` (`migrations/008_platform_workspace.sql:9`); `src/app/portfolio/page.tsx:9` sắp theo `bu`. Không có trường thực thể; `LibeTech` nội bộ thuộc nhóm nào chưa nêu.
 - **Phương án:** (a) thêm cột thực thể có ràng buộc trên `projects` và bảng ánh xạ `bu → thực thể` do người có quyền duyệt; (b) giữ `bu`, quy ước ánh xạ trong mã; (c) tách tenant theo pháp nhân (đổi mô hình RLS, cần ADR).
 - **Ai quyết:** Chairman (ranh giới pháp nhân); BoM Tech thực hiện.
-- **Quyết định 12/11/2026 (Chairman, duyệt hướng):** chọn (a) có sửa: ba nhãn miền báo cáo tách khỏi tenant/BU/pháp nhân; giữ project ID, membership, RLS; không tách tenant. AI không tạo hay đề xuất dòng ánh xạ nào — LibeTech nội bộ không được nêu cả ở dạng gợi ý; dòng ánh xạ do người có quyền tạo/xác nhận, có nguồn; thiếu ánh xạ hiện «Chưa xác nhận», không cộng vào tổng nào. Nguồn: Chairman nêu tên + Codex §4 `reviews/CODEX-STEP0-P1-READINESS-20261112.md:72`. **Chốt khi ký ADR-002 1.1.**
+- **Quyết định 12/11/2026 (Chairman, duyệt hướng):** chọn (a) có sửa: ba nhãn miền báo cáo tách khỏi tenant/BU/pháp nhân; giữ project ID, membership, RLS; không tách tenant. AI không tạo hay đề xuất dòng ánh xạ nào — LibeTech nội bộ không được nêu cả ở dạng gợi ý; dòng ánh xạ do người có quyền tạo/xác nhận, có nguồn; thiếu ánh xạ hiện «Chưa xác nhận», không cộng vào tổng nào. Nguồn: Chairman nêu tên + Codex §4 `reviews/CODEX-STEP0-P1-READINESS-20261112.md:72`. **Chốt khi ký ADR-002 1.1.** **Đã chốt:** Chairman ký ADR-002 1.1 ngày 12/11/2026 («Ký ADR-002 1.1»).
 
 ## OQ-05 — Cổng P1.0 «bản nháp và bản chuẩn riêng» khi chưa có bản chuẩn, người duyệt và tin gốc Xeca
 

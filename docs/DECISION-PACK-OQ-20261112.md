@@ -1,6 +1,6 @@
 # Gói quyết định OQ-01…OQ-21 — LibeTech AI OS
 
-Version 0.2 · 12/11/2026 · Lập bởi agent `planner`. **Trạng thái: BẢN CHỐT trình ký.** Hướng đã được Chairman duyệt ngày 12/11/2026; [ADR-002](ADR-002-project-document-ownership.md) bản 1.1 vẫn **Proposed, chưa ký**. Thay bản 0.1 (đề xuất «phương án đủ»); chỗ nào 0.1 khác bản này thì bản này thắng.
+Version 0.2 · 12/11/2026 · Lập bởi agent `planner`. **Trạng thái: BẢN CHỐT, đã ký.** Hướng được Chairman duyệt ngày 12/11/2026; [ADR-002](ADR-002-project-document-ownership.md) bản 1.1 **Accepted** — Chairman ký ADR-002 1.1 ngày 12/11/2026 («Ký ADR-002 1.1»). Thay bản 0.1 (đề xuất «phương án đủ»); chỗ nào 0.1 khác bản này thì bản này thắng.
 
 ## 1. Quyết định của Chairman, 12/11/2026 (nguyên văn)
 
@@ -11,7 +11,7 @@ Câu về `libe-tech` (đã khôi phục đủ ngày 12/11 sau khi phiên điề
 
 **Cách áp:** mục Chairman nêu tên thắng mọi nguồn khác. Mục không nêu tên: hàng tương ứng trong bảng §4 của [phản biện Codex](reviews/CODEX-STEP0-P1-READINESS-20261112.md) (`:68-87`) thắng chữ cái của gói 0.1. Lời Chairman ngày 12/11 trước đó («Làm đủ luôn», «Không đợi Quân») không còn là căn cứ chọn phương án.
 
-**Chưa phải chữ ký.** «Duyệt hướng» cho phép sửa hồ sơ và lập kế hoạch; **không** thay chữ ký Adoption record của ADR-002 1.1. Migration 013+ chỉ được viết sau khi ADR-002 1.1 được ký.
+**Chữ ký.** «Duyệt hướng» không thay chữ ký; chữ ký là lời riêng ghi ở Adoption record của ADR-002: Chairman ký ADR-002 1.1 ngày 12/11/2026 («Ký ADR-002 1.1»). Từ đó migration 013+ được phép **viết**; áp lên dữ liệu thật vẫn là điểm dừng. Lời văn sửa `AGENTS.md` ở §5 **chưa** được duyệt bởi chữ ký này.
 
 **Điểm dừng giữ nguyên** (`HANDOFF-CLAUDE-CODE-20261111.md:76`, `SLICE-BRIEFS.md:12`): triển khai d1-ai1 · áp migration trên dữ liệu thật · khởi động lại gateway chung/cài lại bridge · gửi tin vào nhóm hoặc DM thật · sửa `AGENTS.md` · ký ADR. **Luôn cấm:** tự nghiệm thu, tự cấp quyền, điểm dùng cho KPI/lương, khoá bí mật trong repo, đọc DB nền khác.
 
@@ -23,10 +23,10 @@ Nguồn: **CH** = Chairman nêu tên · **CX** = hàng Codex §4 · **=** = trù
 
 | OQ | Chốt | Nguồn | Làm ở đâu | Còn dừng ở |
 |---|---|---|---|---|
-| 01 | (b) ký ADR-002 có sửa, bản 1.1 | CX `:70`, = | Hồ sơ đã sửa | **Chairman ký**; chốt khi ký |
-| 02 | (a) một ADR phủ sổ dự án, kênh, sự kiện nguồn, outbox | CX `:70`, = | Hồ sơ đã sửa | Chốt khi ký ADR-002 1.1 |
+| 01 | (b) ký ADR-002 có sửa, bản 1.1 | CX `:70`, = | Hồ sơ đã sửa | Đã chốt: ký 12/11/2026 |
+| 02 | (a) một ADR phủ sổ dự án, kênh, sự kiện nguồn, outbox | CX `:70`, = | Hồ sơ đã sửa | Đã chốt: ký 12/11/2026 |
 | 03 | **(b)** ba trạng thái + một nguồn số bản + sửa `bridge.ts:43`; không đụng `bot-plugin` | CH | Lát 1 | Không có (không cài lại bridge) |
-| 04 | (a) có sửa: nhãn miền báo cáo, **AI không ánh xạ dự án nào**; LibeTech nội bộ không được đề xuất | CH + CX `:72` | Lát 1 (schema), lát 4 (báo cáo) | Dòng ánh xạ do người có quyền tạo; chốt khi ký |
+| 04 | (a) có sửa: nhãn miền báo cáo, **AI không ánh xạ dự án nào**; LibeTech nội bộ không được đề xuất | CH + CX `:72` | Lát 1 (schema), lát 4 (báo cáo) | Dòng ánh xạ do người có quyền tạo; đã chốt khi ký 12/11/2026 |
 | 05 | **(a)** hai con trỏ độc lập, bản chuẩn được rỗng «Chưa có» | CH, CX `:73` | Lát 1 | P1.0 không tạo duyệt thật |
 | 06 | (a) giữ `source_ref` + «chưa đối soát»; không tạo việc Z1 | CX `:74` | Lát 1 | PM xác nhận khi tới bước cấp ID việc |
 | 07 | P1.0 chỉ metadata + mức xác minh hash; kho snapshot chỉ là thiết kế | CH + CX `:75` | Lát 1 | **Cổng trước pilot:** quyền nguồn, lưu giữ, thử khôi phục |

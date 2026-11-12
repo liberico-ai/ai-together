@@ -1,6 +1,6 @@
 # ADR 002 Chủ dữ liệu sổ dự án, tiếp nhận, tài liệu dự án và bản chuẩn đã duyệt
 
-Version: 1.1 · 12/11/2026. Status: **Proposed**. Authority: Chairman; chưa ký. Scope: LibeTech AI OS Phase 1 (lát 1–4), extends ADR-001, SPEC-008 §3/§6 và SPEC-009. Đây là hồ sơ quyết định chuẩn bị cho triển khai, không yêu cầu quyết lại công việc nghiên cứu đã duyệt.
+Version: 1.1 · 12/11/2026. Status: **Accepted** (Chairman ký 12/11/2026, xem Adoption record). Authority: Chairman. Scope: LibeTech AI OS Phase 1 (lát 1–4), extends ADR-001, SPEC-008 §3/§6 và SPEC-009. Đây là hồ sơ quyết định chuẩn bị cho triển khai, không yêu cầu quyết lại công việc nghiên cứu đã duyệt.
 
 Changelog:
 - 1.0 → 1.1 — thêm sổ dự án, ProjectChannel, SourceEvent/inbox, ứng viên intake, outbox/biên nhận giao, kho snapshot, principal máy và bảng một-chủ theo AR-09 (đóng khoảng trống OQ-02).
@@ -70,4 +70,9 @@ Cho phần 1.1: ADR-003 riêng cho sổ dự án/kênh/sự kiện — tách hai
 
 ## Adoption record
 
-Decision: chưa ghi. Người quyết: chưa ký. Ngày hiệu lực: chưa có. Migration/cutover receipt: chưa có. Quyết định chọn nghiên cứu của Chairman không được điền thay approval triển khai của ADR này; lời «Làm đủ luôn» và lời duyệt hướng gói OQ ngày 12/11/2026 cũng không được điền thay chữ ký cho bản 1.1.
+- **Decision:** Accepted — bản 1.1 nguyên văn như tại commit `779dcc9ac928a141f500427badff525eeefad9ef` (sha256 nội dung trước khi ghi mục này `4fc570220813475b634ddde0f9a1f19270b55c238b91afd3e49ad396b426967d`), PR liberico-ai/ai-together#3.
+- **Người quyết:** Chairman. **Lời ký nguyên văn:** «Ký ADR-002 1.1» — ngày 12/11/2026, trong phiên Claude Code, trả lời câu hỏi «Anh ký ADR-002 bản 1.1 không?».
+- **Ngày hiệu lực:** 12/11/2026.
+- **Phạm vi chữ ký:** nội dung ADR này. Chữ ký **không** bao gồm: merge PR vào `libetech-ai-os`, sửa `AGENTS.md` (đề xuất ở `DECISION-PACK-OQ-20261112.md` §5, cần duyệt riêng theo R10), áp migration lên dữ liệu thật, triển khai d1-ai1, khởi động lại gateway hay gửi tin thật. Phần SourceEvent/inbox, principal tiếp nhận và outbox vẫn chỉ có hiệu lực sau hai chứng minh OQ-09; kho snapshot vẫn sau cổng trước pilot OQ-07; principal pipeline AI vẫn chờ bảng phân loại OQ-14.
+- **Migration/cutover receipt:** chưa có. Migration 013+ được phép viết từ ngày hiệu lực; áp lên dữ liệu thật là lần duyệt riêng.
+- Lịch sử: quyết định chọn nghiên cứu, lời «Làm đủ luôn» và lời duyệt hướng gói OQ ngày 12/11/2026 không được dùng thay chữ ký; chữ ký là lời trên.

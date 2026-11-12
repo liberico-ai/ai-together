@@ -19,7 +19,7 @@ Version 0.2 · 12/11/2026 (0.1 lập 11/11) · Lập bởi agent `planner` theo 
 
 **Mục tiêu.** AI OS có sổ dự án mở rộng, ánh xạ nhóm/topic Telegram → dự án, và sổ tài liệu trong đó mỗi tài liệu có đúng một nguồn chính, chuỗi revision bất biến có hash, và hai con trỏ tách riêng «bản đang soạn» / «bản chuẩn đã duyệt». Bộ mẫu T0–T6 được đăng ký có version. Hai ca XECA006 và LBRC014 được lập chỉ mục mà không sửa Sheet, không đổi trạng thái nguồn.
 
-**Cổng của lát:** migration 013+ chỉ được viết sau khi ADR-002 1.1 được ký (`ADR-002…:73`; OQ-01, OQ-02, OQ-04 chốt khi ký). Làm được trước khi ký, vì không tạo entity mới: việc 7 (nhãn và số bản), việc 9 (sửa R-01), test quyền âm trên mã hiện có, tệp mẫu T0–T6, đặc tả giao diện.
+**Cổng của lát:** migration 013+ chỉ được viết sau khi ADR-002 1.1 được ký — **đã đạt**: Chairman ký ADR-002 1.1 ngày 12/11/2026 («Ký ADR-002 1.1»), Adoption record ở cuối `ADR-002-project-document-ownership.md`; OQ-01, OQ-02, OQ-04 đã chốt. Áp migration lên dữ liệu thật vẫn là điểm dừng. Làm được trước khi ký, vì không tạo entity mới: việc 7 (nhãn và số bản), việc 9 (sửa R-01), test quyền âm trên mã hiện có, tệp mẫu T0–T6, đặc tả giao diện.
 
 **Giới hạn lần đầu** (`ADR-002…:26`): chỉ con trỏ, version/hash kèm mức xác minh, bản nháp, chỉ mục tìm kiếm có quyền. Không snapshot, không duyệt thật, không cấp ID việc, không đổi quyền nhóm, không sửa Sheet.
 
