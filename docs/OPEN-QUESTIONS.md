@@ -259,3 +259,13 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Ai quyết:** BoM Tech (Quân).
 - **Quyết định 12/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối):** «(b) Từ chối, chỉ tài liệu (Recommended)». Thêm ràng buộc UNIQUE không chứa `project_id` cho lệnh tài liệu, đặt ở bảng riêng, không đụng `WorkService` hay bảng `commands` cũ. Theo cách sửa R-01: nếu RLS giấu dòng cũ thì xung đột phải trả mã 409, không phải lỗi chung. Viết test cho ca dùng lại khoá ở dự án khác. Trường «Ai quyết» ghi BoM Tech, lần này Chairman tự chốt.
 - **Trạng thái lúc lập kế hoạch (trước quyết định):** chưa quyết. Kế hoạch lát 1 dùng `deduplicate` nguyên trạng, kiểm đủ các ca cùng dự án, và **không** viết test khẳng định hành vi chéo dự án theo hướng nào.
+
+## OQ-25 — Danh sách host được phép cho liên kết nguồn tài liệu
+
+- **Lát:** 1 (chỉ phần chặn host; phần còn lại của biện pháp chống liên kết giả đã làm), 2–4 (mọi nơi mở nguồn).
+- **Phía A:** review bảo mật tầng 1 ngày 12/11/2026 (`liberico-security-reviewer`, mục M-1, mức Medium): liên kết nguồn chỉ cần `https:` và không chứa thông tin đăng nhập, nên một thành viên có quyền ghi có thể đăng ký liên kết «Drive» giả trỏ tới trang lừa đảo; đề nghị allowlist host theo `source_type`, kiểm lại khi mở.
+- **Phía B:** ADR-002 1.1 «Nội dung quyết định» chỉ nói nội dung nằm ở nguồn hiện có (Drive/Docs, Git, Vault), không liệt kê host; `docs/SLICE-BRIEFS.md:29-31` không nêu danh sách host; repo có Vault dạng đường dẫn, chưa có host https chuẩn.
+- **Đã làm ở lát 1 (không cần quyết):** giao diện hiện host trước khi mở và chỉ mở khi người dùng bấm liên kết; từ chối liên kết mang tham số dạng khoá/chữ ký (token, signature…); DB chỉ nhận `https://`; `openSource` kiểm lại mỗi lần.
+- **Phương án:** (a) allowlist cố định trong mã: `drive` → `docs.google.com`, `drive.google.com`; `git` → `github.com`; `vault` → chưa nhận https (giữ con trỏ đường dẫn ở hồ sơ dự án); (b) allowlist cấu hình theo môi trường do vận hành cấp, mặc định rỗng = chặn hết; (c) không chặn host, chỉ cảnh báo trên giao diện khi host lạ.
+- **Ai quyết:** Chairman (chính sách nguồn), BoM Tech (danh sách cụ thể).
+- **Trạng thái:** chưa quyết. Phải chốt trước khi đưa `/documents` và `/api/documents` ra proxy công khai (điểm dừng triển khai).
