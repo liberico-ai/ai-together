@@ -251,6 +251,16 @@ describe('round 2',()=>{
     for(const u of ['https://example.com/g#access_token=x','https://example.com/g#?token=x','https://example.com/g#a=1&session=2'])
       expect(await svc().register(pm,base({canonicalUri:u}),key()).catch(e=>e),u).toBeInstanceOf(ZodError);
   });
+  test('percent-encoded fragment parameters are decoded and checked; a malformed escape is a validation error',async()=>{
+    for(const f of ['access_token%3Dxyz','x%26token%3Dy','%E0%A4%A']){
+      const u='https://example.com/g#'+f;
+      const e=await svc().register(pm,base({canonicalUri:u}),key()).catch(x=>x);
+      expect(e,u).toBeInstanceOf(ZodError);
+      expect((e as ZodError).issues[0].message,u).toMatch(/tham số/);
+    }
+    for(const f of ['session-management','token-handling','authorization','tokens','heading=h.1'])
+      await expect(svc().register(pm,base({canonicalUri:'https://example.com/g#'+f,refCode:'DOC-B-'+f.length}),key()),f).resolves.toBeTruthy();
+  });
   test('template_version must be dotted digits',async()=>{
     const ins=(v:string)=>h.operator.query("INSERT INTO document_templates(tenant_id,code,template_version,doc_type,title,path,content_hash) VALUES($1,'T3',$2,'design','t','p',$3)",[ids.tenant,v,'a'.repeat(64)]);
     for(const v of ['v1','1.','1..2','1.0-rc','']) await expect(ins(v),v).rejects.toThrow(/check/i);
