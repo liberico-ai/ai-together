@@ -23,7 +23,8 @@ function checkPointer(v: string): { ok: true; href: string; host: string } | { o
   let u: URL;
   try { u = new URL(v.trim()); } catch { return { ok: false, message: BAD_CREDENTIALS }; }
   if (u.protocol !== 'https:' || u.username || u.password) return { ok: false, message: BAD_CREDENTIALS };
-  const groups = [u.search, u.hash.replace(/^#\??/, ''), ...u.pathname.split('/').flatMap(seg => seg.includes(';') ? [seg.slice(seg.indexOf(';') + 1).replaceAll(';', '&')] : [])];
+  const frag = u.hash.replace(/^#\??/, '');
+  const groups = [u.search, ...(frag.includes('=') ? [frag] : []), ...u.pathname.split('/').flatMap(seg => seg.includes(';') ? [seg.slice(seg.indexOf(';') + 1).replaceAll(';', '&')] : [])];
   for (const g of groups) for (const name of new URLSearchParams(g.replace(/^\?/, '')).keys()) if (secretName(name)) return { ok: false, message: BAD_PARAMS };
   return { ok: true, href: u.href, host: u.hostname };
 }

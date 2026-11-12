@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS document_templates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-  code text NOT NULL, template_version text NOT NULL, doc_type text NOT NULL, title text NOT NULL, path text NOT NULL,
+  code text NOT NULL, template_version text NOT NULL CHECK(template_version ~ '^[0-9]+(\.[0-9]+)*$'), doc_type text NOT NULL, title text NOT NULL, path text NOT NULL,
   content_hash text NOT NULL CHECK(content_hash ~ '^[a-f0-9]{64}$'),
   UNIQUE(tenant_id,code,template_version), UNIQUE(id,tenant_id)
 );

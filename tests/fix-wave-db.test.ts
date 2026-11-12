@@ -242,6 +242,23 @@ describe('round 1: fragment, path and normalised secret names',()=>{
   });
 });
 
+describe('round 2',()=>{
+  test('plain heading anchors are accepted; fragments with parameters are still checked',async()=>{
+    for(const f of ['session-management','token-handling','authorization','tokens']){
+      const u='https://example.com/guide#'+f;
+      expect((await svc().register(pm,base({canonicalUri:u,refCode:'DOC-A-'+f.length}),key())).record.canonical_uri,u).toBe(u);
+    }
+    for(const u of ['https://example.com/g#access_token=x','https://example.com/g#?token=x','https://example.com/g#a=1&session=2'])
+      expect(await svc().register(pm,base({canonicalUri:u}),key()).catch(e=>e),u).toBeInstanceOf(ZodError);
+  });
+  test('template_version must be dotted digits',async()=>{
+    const ins=(v:string)=>h.operator.query("INSERT INTO document_templates(tenant_id,code,template_version,doc_type,title,path,content_hash) VALUES($1,'T3',$2,'design','t','p',$3)",[ids.tenant,v,'a'.repeat(64)]);
+    for(const v of ['v1','1.','1..2','1.0-rc','']) await expect(ins(v),v).rejects.toThrow(/check/i);
+    await h.exec('TRUNCATE document_templates CASCADE');
+    await expect(ins('1.10.0')).resolves.toBeTruthy();
+  });
+});
+
 describe('item 8 toChannel',()=>{
   test('registry returns the stored state, approver and enabled_from',async()=>{
     await h.operator.query("INSERT INTO project_channels(tenant_id,project_id,chat_id,mode,state,approver_id,enabled_from,policy_version,proposed_by) VALUES($1,$2,'-100777','active','active',$3,'2026-01-02T03:04:05Z','p1',$3)",[ids.tenant,ids.sales,pm.id]);
