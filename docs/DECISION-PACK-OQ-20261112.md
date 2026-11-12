@@ -11,7 +11,7 @@ Câu về `libe-tech` (đã khôi phục đủ ngày 12/11 sau khi phiên điề
 
 **Cách áp:** mục Chairman nêu tên thắng mọi nguồn khác. Mục không nêu tên: hàng tương ứng trong bảng §4 của [phản biện Codex](reviews/CODEX-STEP0-P1-READINESS-20261112.md) (`:68-87`) thắng chữ cái của gói 0.1. Lời Chairman ngày 12/11 trước đó («Làm đủ luôn», «Không đợi Quân») không còn là căn cứ chọn phương án.
 
-**Chữ ký.** «Duyệt hướng» không thay chữ ký; chữ ký là lời riêng ghi ở Adoption record của ADR-002: Chairman ký ADR-002 1.1 ngày 12/11/2026 («Ký ADR-002 1.1»). Từ đó migration 013+ được phép **viết**; áp lên dữ liệu thật vẫn là điểm dừng. Lời văn sửa `AGENTS.md` ở §5 **chưa** được duyệt bởi chữ ký này.
+**Chữ ký.** «Duyệt hướng» không thay chữ ký; chữ ký là lời riêng ghi ở Adoption record của ADR-002: Chairman ký ADR-002 1.1 ngày 12/11/2026 («Ký ADR-002 1.1»). Từ đó migration 013+ được phép **viết**; áp lên dữ liệu thật vẫn là điểm dừng. Lời văn sửa `AGENTS.md` ở §5 **chưa** được duyệt bởi chữ ký này; lời văn đó được duyệt riêng sau đó, cùng ngày 12/11/2026 (xem §5).
 
 **Điểm dừng giữ nguyên** (`HANDOFF-CLAUDE-CODE-20261111.md:76`, `SLICE-BRIEFS.md:12`): triển khai d1-ai1 · áp migration trên dữ liệu thật · khởi động lại gateway chung/cài lại bridge · gửi tin vào nhóm hoặc DM thật · sửa `AGENTS.md` · ký ADR. **Luôn cấm:** tự nghiệm thu, tự cấp quyền, điểm dùng cho KPI/lương, khoá bí mật trong repo, đọc DB nền khác.
 
@@ -78,7 +78,7 @@ Lát 4 mở rộng chỉ mục này sang tìm nội dung; không dựng chỉ m�
 
 ## 5. Lời văn cho `AGENTS.md` — đã duyệt (R10)
 
-**Duyệt ngày 12/11/2026 (Chairman, nguyên văn):** «Duyệt lời văn AGENTS.md mục 5». Lời duyệt áp cho lời văn của cả chín dòng, nhưng không bỏ cột «Áp khi»: chỉ dòng có điều kiện đã đạt mới được ghi vào `AGENTS.md`. Ngày 12/11 đã áp năm dòng có điều kiện «Ký ADR-002 1.1» hoặc «Bất kỳ lúc nào». Bốn dòng còn lại giữ nguyên lời văn đã duyệt và chỉ áp khi điều kiện được ghi nhận là đạt. Dòng Z4 hiện tại («Z4: future AI suggestions; not enabled.») giữ nguyên cho tới khi xong lát 3. Số dòng ở cột «Dòng» là số dòng của `AGENTS.md` trước lần áp này.
+**Duyệt ngày 12/11/2026 (Chairman, nguyên văn):** «Duyệt lời văn AGENTS.md mục 5». Lời duyệt áp cho lời văn của cả chín dòng, nhưng không bỏ cột «Áp khi»: chỉ dòng có điều kiện đã đạt mới được ghi vào `AGENTS.md`. Ngày 12/11 đã áp năm dòng có điều kiện «Ký ADR-002 1.1» hoặc «Bất kỳ lúc nào». Lời duyệt này là lần dừng chờ Chairman mà điểm dừng «sửa `AGENTS.md`» (§1 ở trên, `SLICE-BRIEFS.md:13`) đòi cho năm dòng đã áp. Điểm dừng đó vẫn giữ cho mọi lần sửa khác. Bốn dòng còn lại giữ nguyên lời văn đã duyệt; khi điều kiện đạt, trình Chairman xác nhận điều kiện rồi mới áp. Dòng Z4 hiện tại («Z4: future AI suggestions; not enabled.») giữ nguyên cho tới khi xong lát 3. Số dòng ở cột «Dòng» là số dòng của `AGENTS.md` trước lần áp này.
 
 | Dòng | Lời văn đề xuất | Áp khi | OQ | Trạng thái |
 |---|---|---|---|---|
@@ -86,7 +86,7 @@ Lát 4 mở rộng chỉ mục này sang tìm nội dung; không dựng chỉ m�
 | `:11` Z1 | «Z1: owned work/service/acceptance records, project registry, proposed channel mappings and document governance metadata (ADR-002 v1.1).» | Ký ADR-002 1.1 | 02 | Đã áp 12/11/2026 |
 | `:11` Z2 | «Z2: derived summary tables and the document metadata index, each populated by a named projector.» | Ký ADR-002 1.1 | R-02 | Đã áp 12/11/2026 |
 | `:11` Z4 | «Z4: AI draft tables and contracts may exist but are not enabled: no model call and no AI-pipeline credential until Chairman approves a data-classification-to-model table.» | Xong lát 3 | 14 | Chưa áp — chờ xong lát 3 |
-| mới | «Reports never aggregate across reporting domains (Liberico BU · Xeca · IBS HI). A domain label is not tenant_id, organization_id or entity_code. Project-to-domain rows are created or confirmed by an authorized person with a source; unmapped projects show "Chưa xác nhận". IBS HI: pointers, hashes and Tech work metadata only.» | Ký ADR-002 1.1 | 04 | Đã áp 12/11/2026 |
+| mới | «Reports never aggregate across reporting domains (Liberico BU · Xeca · IBS HI). A domain label is not tenant_id, organization_id or entity_code. Project-to-domain rows are created or confirmed by an authorized person with a source; unmapped projects show "Chưa xác nhận". IBS HI: pointers, hashes and Tech work metadata only.» | Ký ADR-002 1.1 | 04 | Đã áp 12/11/2026. Mã cũ **chưa tuân thủ**: `overview()` (`src/server/service.ts:72-77`) cộng số liệu của mọi dự án được cấp quyền, không xét nhãn miền. Việc sửa đã xếp ở lát 4 mục 7 (`SLICE-BRIEFS.md:230`). Mã mới viết từ nay theo luật này (`SLICE-BRIEFS.md:11`). |
 | `:5` | Thêm: «Its ticket ledger stays the single owner of ticket state; AI OS stores ticket IDs as external references only.» | Hai chứng minh OQ-09 đạt | 09 | Chưa áp — chờ hai chứng minh OQ-09 |
 | `:11` Z1 | Thêm vào danh sách Z1: «source events, intake candidates, outbox and delivery receipts». | Hai chứng minh OQ-09 đạt | 02, 09 | Chưa áp — chờ hai chứng minh OQ-09 |
 | `:13` | «Bot principal is read-only (existing exception: account-approval ballots). A separate intake/delivery service principal may write only source events, intake candidates and delivery receipts. No machine principal may create, assign, close or accept work, approve a document, or grant access.» | Hai chứng minh OQ-09 đạt | 08, 11 | Chưa áp — chờ hai chứng minh OQ-09 |
