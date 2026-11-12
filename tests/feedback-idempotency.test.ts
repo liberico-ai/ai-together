@@ -40,6 +40,14 @@ test('resolve: same key and report with different status, reason or version is F
  await expect(service.resolve(p,cmd(a,k,{state:'reviewing',expectedVersion:2}))).rejects.toMatchObject({code:'FEEDBACK_KEY_CONFLICT'});
  expect(await state(a)).toMatchObject({state:'reviewing',version:2});expect(await actions()).toBe(1);
 });
+test('resolve: same key reused in another project is FEEDBACK_KEY_CONFLICT although RLS hides the prior action',async()=>{
+ const two={...p,grants:[{projectId:ids.sales,role:'manager' as const,reportPermissions:[]},
+  {projectId:ids.transport,role:'manager' as const,reportPermissions:[]}]};
+ const c=(await service.create(two,{...base,projectId:ids.transport,title:'Report Charlie',requestKey:randomUUID()})).id;
+ const k=randomUUID();await service.resolve(two,cmd(a,k));
+ await expect(service.resolve(two,cmd(c,k,{projectId:ids.transport}))).rejects.toMatchObject({code:'FEEDBACK_KEY_CONFLICT',status:409});
+ expect(await state(c)).toMatchObject({state:'new',version:1});expect(await actions()).toBe(1);
+});
 test('create: same key with a different payload is rejected (guard)',async()=>{
  const k=randomUUID(),first=await service.create(p,{...base,title:'Guard report',requestKey:k});
  expect(await service.create(p,{...base,title:'Guard report',requestKey:k})).toEqual({id:first.id,replayed:true});

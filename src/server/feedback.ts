@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { scoped,type Database } from './db';
-import { invariant } from './errors';
+import { AppError,invariant } from './errors';
 import { projectRole,type Principal } from './types';
 
 const input=z.object({projectId:z.uuid(),requestKey:z.uuid(),kind:z.enum(['bug','idea']),
@@ -65,7 +65,11 @@ export class FeedbackService {
    const action=(await tx.query<{id:string}>(`INSERT INTO feedback_actions
     (tenant_id,project_id,report_id,actor_id,request_key,prior_version,next_state,reason)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-    [p.tenantId,x.projectId,x.reportId,p.id,x.requestKey,x.expectedVersion,x.state,x.reason])).rows[0];
+    [p.tenantId,x.projectId,x.reportId,p.id,x.requestKey,x.expectedVersion,x.state,x.reason]).catch((error:unknown)=>{
+     // RLS hides this actor's earlier action in another project; UNIQUE(tenant_id,actor_id,request_key) still catches the reuse.
+     if((error as {code?:string})?.code==='23505') throw new AppError('FEEDBACK_KEY_CONFLICT','Yêu cầu đã dùng cho nội dung khác.',409);
+     throw error;
+    })).rows[0];
    return {id:action.id,replayed:false};
   });
  }
