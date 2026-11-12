@@ -1,0 +1,71 @@
+{
+  "recordedAt": "2026-11-09T02:28:23Z",
+  "scope": "User-sent live Telegram commands after private account pairing; read-only reconciliation and cross-BU denial.",
+  "evidenceType": "Native Telegram Lite UI observation, selected response fields transcribed; correlated with unchanged raw server receipt. Not a raw Telegram export.",
+  "serverReceipt": "TELEGRAM-IDENTITY-VERIFICATION-20261109T022314Z.json",
+  "serverReceiptSha256": "c508f90dbc7e206ee4e111a5eb947349ba3a610423e5e94d1c7806e7f410bffa",
+  "serverReceiptOriginal": "/home/iptech/libetech-ai-os-stage-20261108/portal-rollout-20261108/verification-20261109T022314Z.json",
+  "pairing": {
+    "username": "chairman",
+    "verifiedAt": "2026-11-09T02:21:56.897925+00:00",
+    "event": "telegram_verified",
+    "proof": "Raw server identity metadata plus user-provided successful bot response; pairing code excluded."
+  },
+  "command": "/libetech_check @LiBeAiTogetherBot LBRC014 8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+  "libeAI": {
+    "group": "LibeAI",
+    "chatId": "-5298399184",
+    "sender": "AiTogetherLibe",
+    "uiTimeVietnam": "2026-11-09 09:22",
+    "gatewaySentAtUTC": "2026-11-09 02:22:47,268",
+    "bridgeRequestAt": "2026-11-09T02:22:47.180546+00:00",
+    "observedSelectedResponseFields": {
+      "ok": true,
+      "operation": "reconciliation",
+      "code": "LBRC014",
+      "source_sha": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+      "source_id": "https://github.com/liberico-ai/btnet-saleman/commit/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+      "source_type": "github-rest+workbook-snapshot",
+      "ingested_at": "2026-11-08T09:38:53.222Z",
+      "checksCount": 0,
+      "checksMeaning": "No check runs is not a passing result",
+      "workbookFreshness": "historical-snapshot-not-refreshed",
+      "acceptedSha": null,
+      "runtimeDeployment": "not-observed-in-this-check",
+      "businessAcceptance": "reported-without-accepted-sha",
+      "technicalAcceptance": "not-established",
+      "readOnly": true,
+      "acceptance": "not-inferred",
+      "identityBinding": "verified-telegram",
+      "version": "0.2.0",
+      "bridgeVersion": "0.2.1"
+    },
+    "result": "PASS: recipient-visible successful response for the exact requested full SHA."
+  },
+  "libeXeca": {
+    "group": "Libe - Xeca",
+    "chatId": "-1002308580311",
+    "sender": "AiTogetherLibe",
+    "uiTimeVietnam": "2026-11-09 09:22",
+    "gatewaySentAtUTC": "2026-11-09 02:22:56,941",
+    "bridgeRequestAt": "2026-11-09T02:22:56.911159+00:00",
+    "observedFullResponse": "SCOPE_DENIED",
+    "recordContentReturned": false,
+    "result": "PASS: same user-sent command denied without record content in the observed response."
+  },
+  "preservation": {
+    "gatewayPid": 1108021,
+    "telegramConnected": 20,
+    "telegramTotal": 20,
+    "protectedFilesUnchanged": true,
+    "workItems": 0,
+    "snapshotHash": "4f8aaa43dce649ec6ea6224e91120939c0b4a20125688e4f61f26d536db34b48"
+  },
+  "limitations": [
+    "This verifies the AI OS reconciliation bridge, not a fresh GitHub checks fetch or business acceptance of LBRC014.",
+    "SCOPE_DENIED is the AI OS bridge result; it is distinct from GITHUB_SCOPE_DENIED in the independent priority1 GitHub tool.",
+    "Twenty connected Telegram adapters do not prove business behavior of all bots.",
+    "Shared Hermes attached-mention parsing defect remains; the verified command separates @mention from /libetech_check.",
+    "No pairing code, credential, unrelated chat content, direct identity grant or forged Telegram context is retained."
+  ]
+}

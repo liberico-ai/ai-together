@@ -1,0 +1,60 @@
+{
+  "evidenceType": "Selected server output transcribed from authenticated Hermes native shell UI; not a raw database export.",
+  "host": "d1-ai1",
+  "access": "https://hermes.btnet.vn/chat?profile=default",
+  "readOnly": true,
+  "databaseReadOnlySetting": "default_transaction_read_only=on",
+  "identityObservedAt": "2026-11-09T08:36:05.121977+00:00",
+  "users": [
+    {
+      "username": "chairman",
+      "name": "Chairman",
+      "role": "manager",
+      "active": true,
+      "activated": true,
+      "telegramLinked": true,
+      "projectCount": 1
+    }
+  ],
+  "inventoryObservedAt": "2026-11-09T08:36:40.575348+00:00",
+  "counts": {
+    "projects": 1,
+    "services": 0,
+    "workItems": 0,
+    "evidence": 0,
+    "workAudit": 0,
+    "openInvites": 0
+  },
+  "reconciliations": [
+    {
+      "code": "LBRC014",
+      "source_sha": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+      "ingested_at": "2026-11-08T09:38:53.222663+00:00",
+      "snapshot_hash": "4f8aaa43dce649ec6ea6224e91120939c0b4a20125688e4f61f26d536db34b48"
+    }
+  ],
+  "gateway": {
+    "pid": 1108021,
+    "updated_at": "2026-11-09T08:37:35.538142+00:00",
+    "telegramConnected": 20,
+    "telegramTotal": 20
+  },
+  "portalObservedThisSession": {
+    "healthText": "Server đã kết nối · PostgreSQL · 0.2.0",
+    "userCredentialEntry": false
+  },
+  "operations": {
+    "databaseWrites": false,
+    "accountOrRoleChanges": false,
+    "gatewayRestart": false,
+    "messagesSent": false,
+    "workbookChanges": false
+  },
+  "limitations": [
+    "No fresh password login by Team Tech was attempted; the complete user query returned only chairman.",
+    "Connection state does not establish every bot business behavior.",
+    "Telegram successful read and denial are from the dated 09:22 evidence, not replayed in this inspection.",
+    "LBRC014 reconciliation remains historical; newly received supplements have not been imported as work/evidence records."
+  ],
+  "methodNote": "Hermes rejected inline Python execution with dangerous_command. The inspection used narrower explicit read-only psql SELECTs and jq metadata read instead; no safeguard or approval setting was changed."
+}

@@ -1,0 +1,95 @@
+{
+  "observedAt": "2026-11-09T02:36:46.422627+00:00",
+  "endpoint": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+  "exitCode": 0,
+  "data": {
+    "sha": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+    "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+    "message": "feat(customer): nút Chỉ đường tới điểm bán (tuyến Hôm nay, danh sách KH, chi tiết KH)\n\n- DirectionsButton dùng chung: ưu tiên toạ độ trong DB local, không có thì\n  dùng địa chỉ chữ; thiếu cả hai → báo, không mở bản đồ\n- MapLauncher: chỉ đường theo địa chỉ (directionsUriForAddress), open() bắt lỗi\n- Thẻ điểm bán tab Hôm nay, thẻ danh sách KH, AppBar chi tiết KH",
+    "date": "2026-11-05T09:00:34Z",
+    "verified": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "parents": [
+      "e6bac3dc9688433447abac35f8322c9b7b57d47f"
+    ],
+    "files": [
+      {
+        "sha": "52c59833cf9a6609d721e99ed5138ed72debd43c",
+        "filename": "lib/screens/customer/customer_detail_screen.dart",
+        "status": "modified",
+        "additions": 5,
+        "deletions": 0,
+        "changes": 5,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fscreens%2Fcustomer%2Fcustomer_detail_screen.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fscreens%2Fcustomer%2Fcustomer_detail_screen.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fscreens%2Fcustomer%2Fcustomer_detail_screen.dart?ref=8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+        "patch": "@@ -9,6 +9,7 @@ import '../order/create_order_screen.dart';\n import 'customer_360_screen.dart';\n import 'customer_edit_screen.dart';\n import 'widgets/customer_visit_card.dart';\n+import '../../widgets/directions_button.dart';\n import 'package:intl/intl.dart';\n \n class CustomerDetailScreen extends StatefulWidget {\n@@ -108,6 +109,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {\n         elevation: 0.5,\n         foregroundColor: Colors.black87,\n         actions: [\n+          DirectionsButton(\n+            customerId: widget.customer.id,\n+            address: widget.customer.addressRaw,\n+          ),\n           IconButton(\n             icon: const Icon(Icons.edit_outlined),\n             tooltip: 'Sửa thông tin',"
+      },
+      {
+        "sha": "73a4a8625bf0de5fe9844e409809c86c8a112ec1",
+        "filename": "lib/screens/customer/customer_list_screen.dart",
+        "status": "modified",
+        "additions": 15,
+        "deletions": 6,
+        "changes": 21,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fscreens%2Fcustomer%2Fcustomer_list_screen.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fscreens%2Fcustomer%2Fcustomer_list_screen.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fscreens%2Fcustomer%2Fcustomer_list_screen.dart?ref=8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+        "patch": "@@ -5,6 +5,7 @@ import '../../models/customer_group.dart';\n import '../../services/customer_service.dart';\n import 'customer_detail_screen.dart';\n import 'customer_pilot_create_screen.dart';\n+import '../../widgets/directions_button.dart';\n import '../../widgets/pos_type_badge.dart';\n \n class CustomerListScreen extends StatefulWidget {\n@@ -378,10 +379,11 @@ class _CustomerListScreenState extends State<CustomerListScreen> {\n                     ],\n                   ),\n                 ),\n-              if (customer.addressRaw != null && customer.addressRaw!.isNotEmpty)\n-                Row(\n-                  crossAxisAlignment: CrossAxisAlignment.start,\n-                  children: [\n+              // Địa chỉ + nút Chỉ đường (luôn có nút: toạ độ có thể nằm ở DB\n+              // local dù địa chỉ chữ trống).\n+              Row(\n+                children: [\n+                  if (customer.addressRaw != null && customer.addressRaw!.isNotEmpty) ...[\n                     const Icon(Icons.location_on_outlined, size: 16, color: Colors.grey),\n                     const SizedBox(width: 8),\n                     Expanded(\n@@ -392,8 +394,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {\n                         overflow: TextOverflow.ellipsis,\n                       ),\n                     ),\n-                  ],\n-                ),\n+                  ] else\n+                    const Spacer(),\n+                  DirectionsButton(\n+                    key: ValueKey('directions-${customer.id}'),\n+                    customerId: customer.id,\n+                    address: customer.addressRaw,\n+                  ),\n+                ],\n+              ),\n             ],\n           ),\n         ),"
+      },
+      {
+        "sha": "11ecca0ec1befa6fe3724134a72b3b05948b5c82",
+        "filename": "lib/screens/route/route_screen.dart",
+        "status": "modified",
+        "additions": 7,
+        "deletions": 0,
+        "changes": 7,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fscreens%2Froute%2Froute_screen.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fscreens%2Froute%2Froute_screen.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fscreens%2Froute%2Froute_screen.dart?ref=8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+        "patch": "@@ -22,6 +22,7 @@ import '../order/create_order_screen.dart';\n import '../visit/visit_flow_screen.dart';\n import '../visit/widgets/open_visit_block_dialog.dart';\n import 'route_map_screen.dart';\n+import '../../widgets/directions_button.dart';\n import '../../widgets/pos_type_badge.dart';\n \n /// F2 · Tab \"Hôm nay\" — danh sách KH cần thăm hôm nay theo tuyến (R-APP-2.1).\n@@ -611,6 +612,12 @@ class _RouteScreenState extends State<RouteScreen> {\n               child: Text('${c.sequence}',\n                   style: const TextStyle(color: Colors.blue)),\n             ),\n+            // Chỉ đường tới điểm bán: toạ độ (DB local) → địa chỉ → báo thiếu.\n+            trailing: DirectionsButton(\n+              key: ValueKey('directions-${c.id}'),\n+              customerId: c.id,\n+              address: c.addressRaw,\n+            ),\n             // Tên 1 dòng riêng, badge xếp bên dưới trong Wrap: để chung 1 Row\n             // thì màn hẹp / cỡ chữ hệ thống lớn bóp tên còn ~1 ký tự mỗi dòng.\n             title: Column("
+      },
+      {
+        "sha": "7f61e7affe347b24389a256c13f7c43afd877381",
+        "filename": "lib/services/map_launcher.dart",
+        "status": "modified",
+        "additions": 21,
+        "deletions": 4,
+        "changes": 25,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fservices%2Fmap_launcher.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fservices%2Fmap_launcher.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fservices%2Fmap_launcher.dart?ref=8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+        "patch": "@@ -12,10 +12,27 @@ abstract final class MapLauncher {\n     );\n   }\n \n+  /// URL chỉ đường tới một ĐỊA CHỈ dạng chữ (điểm bán chưa có toạ độ) —\n+  /// Google Maps tự tìm địa chỉ. Public để test.\n+  static Uri directionsUriForAddress(String address) {\n+    return Uri.https('www.google.com', '/maps/dir/', {\n+      'api': '1',\n+      'destination': address.trim(),\n+      'travelmode': 'driving',\n+    });\n+  }\n+\n   /// Mở chỉ đường tới điểm. Trả `false` nếu không mở được.\n-  static Future<bool> directionsTo(double lat, double lng) async {\n-    final uri = directionsUri(lat, lng);\n-    if (!await canLaunchUrl(uri)) return false;\n-    return launchUrl(uri, mode: LaunchMode.externalApplication);\n+  static Future<bool> directionsTo(double lat, double lng) =>\n+      open(directionsUri(lat, lng));\n+\n+  /// Mở [uri] bằng app ngoài (Google Maps / trình duyệt). `false` nếu lỗi.\n+  static Future<bool> open(Uri uri) async {\n+    try {\n+      if (!await canLaunchUrl(uri)) return false;\n+      return await launchUrl(uri, mode: LaunchMode.externalApplication);\n+    } on Object {\n+      return false;\n+    }\n   }\n }"
+      },
+      {
+        "sha": "c39d70dd7416162a05f2d98a3b1757a31eff948d",
+        "filename": "lib/widgets/directions_button.dart",
+        "status": "added",
+        "additions": 102,
+        "deletions": 0,
+        "changes": 102,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fwidgets%2Fdirections_button.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/lib%2Fwidgets%2Fdirections_button.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fwidgets%2Fdirections_button.dart?ref=8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+        "patch": "@@ -0,0 +1,102 @@\n+import 'package:flutter/material.dart';\n+\n+import '../services/map_launcher.dart';\n+import '../sync/dms_services.dart';\n+\n+/// Toạ độ + địa chỉ của điểm bán trong DB local (drift `customers`, đã sync).\n+typedef CustomerPlaceLookup = Future<({double? lat, double? lng, String? address})?>\n+    Function(int customerId);\n+\n+/// Mở URL bản đồ (inject để test). `false` = không mở được.\n+typedef MapUriOpener = Future<bool> Function(Uri uri);\n+\n+/// Chọn đích chỉ đường: ưu tiên TOẠ ĐỘ (chính xác tới cửa hàng), không có thì\n+/// dùng ĐỊA CHỈ chữ. Không có gì → null (không mở bản đồ). Thuần để test.\n+Uri? directionsDestination({\n+  double? lat,\n+  double? lng,\n+  String? address,\n+}) {\n+  if (lat != null && lng != null && lat != 0 && lng != 0) {\n+    return MapLauncher.directionsUri(lat, lng);\n+  }\n+  final a = address?.trim() ?? '';\n+  if (a.isNotEmpty) return MapLauncher.directionsUriForAddress(a);\n+  return null;\n+}\n+\n+Future<({double? lat, double? lng, String? address})?> _localPlace(\n+    int customerId) async {\n+  final db = DmsServices.instance.db;\n+  final row = await (db.select(db.customers)\n+        ..where((t) => t.id.equals(customerId)))\n+      .getSingleOrNull();\n+  if (row == null) return null;\n+  return (lat: row.lat, lng: row.lng, address: row.addressText);\n+}\n+\n+/// Nút \"Chỉ đường\" tới một điểm bán — dùng chung ở thẻ tuyến Hôm nay, danh\n+/// sách KH, chi tiết KH. Toạ độ tra từ DB local (đã sync) khi bấm; truyền sẵn\n+/// [lat]/[lng] nếu màn đã có. Không có toạ độ lẫn địa chỉ → báo, không mở map.\n+class DirectionsButton extends StatelessWidget {\n+  const DirectionsButton({\n+    super.key,\n+    required this.customerId,\n+    this.address,\n+    this.lat,\n+    this.lng,\n+    this.color,\n+    this.lookup,\n+    this.opener,\n+  });\n+\n+  final int customerId;\n+  final String? address;\n+  final double? lat;\n+  final double? lng;\n+  final Color? color;\n+  final CustomerPlaceLookup? lookup;\n+  final MapUriOpener? opener;\n+\n+  Future<void> _open(BuildContext context) async {\n+    final messenger = ScaffoldMessenger.maybeOf(context);\n+    var la = lat, ln = lng;\n+    var addr = address;\n+    if (la == null || ln == null || (addr ?? '').trim().isEmpty) {\n+      try {\n+        final local = await (lookup ?? _localPlace)(customerId);\n+        if (local != null) {\n+          if (la == null || ln == null) {\n+            la = local.lat;\n+            ln = local.lng;\n+          }\n+          if ((addr ?? '').trim().isEmpty) addr = local.address;\n+        }\n+      } on Object {\n+        // DB local lỗi → vẫn thử bằng dữ liệu màn đã có.\n+      }\n+    }\n+    final uri = directionsDestination(lat: la, lng: ln, address: addr);\n+    if (uri == null) {\n+      messenger?.showSnackBar(const SnackBar(\n+        content: Text('Điểm bán chưa có toạ độ hoặc địa chỉ để chỉ đường'),\n+      ));\n+      return;\n+    }\n+    final ok = await (opener ?? MapLauncher.open)(uri);\n+    if (!ok) {\n+      messenger?.showSnackBar(\n+        const SnackBar(content: Text('Không mở được ứng dụng bản đồ')),\n+      );\n+    }\n+  }\n+\n+  @override\n+  Widget build(BuildContext context) {\n+    return IconButton(\n+      tooltip: 'Chỉ đường',\n+      icon: Icon(Icons.directions, color: color ?? Colors.blue),\n+      onPressed: () => _open(context),\n+    );\n+  }\n+}"
+      },
+      {
+        "sha": "963ea7cd51e3e897b27b7e8d1ce6b7eaa717d2c4",
+        "filename": "test/widget/directions_button_test.dart",
+        "status": "added",
+        "additions": 99,
+        "deletions": 0,
+        "changes": 99,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/test%2Fwidget%2Fdirections_button_test.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab/test%2Fwidget%2Fdirections_button_test.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/test%2Fwidget%2Fdirections_button_test.dart?ref=8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+        "patch": "@@ -0,0 +1,99 @@\n+import 'package:btnet_saleman/services/map_launcher.dart';\n+import 'package:btnet_saleman/widgets/directions_button.dart';\n+import 'package:flutter/material.dart';\n+import 'package:flutter_test/flutter_test.dart';\n+\n+void main() {\n+  group('MapLauncher.directionsUriForAddress', () {\n+    test('should encode address as destination', () {\n+      final uri = MapLauncher.directionsUriForAddress(\n+          ' Kiot 6, Chợ Tạm Trung Hoà, Phường Từ Liêm, Hà Nội ');\n+      expect(uri.host, 'www.google.com');\n+      expect(uri.path, '/maps/dir/');\n+      expect(uri.queryParameters['api'], '1');\n+      expect(uri.queryParameters['destination'],\n+          'Kiot 6, Chợ Tạm Trung Hoà, Phường Từ Liêm, Hà Nội');\n+      expect(uri.queryParameters['travelmode'], 'driving');\n+    });\n+  });\n+\n+  group('directionsDestination', () {\n+    test('should prefer coordinates over address', () {\n+      final uri = directionsDestination(lat: 21.03, lng: 105.78, address: 'X');\n+      expect(uri!.queryParameters['destination'], '21.03,105.78');\n+    });\n+    test('should fall back to address when coordinates missing or zero', () {\n+      expect(directionsDestination(address: 'Hà Nội')!.queryParameters['destination'],\n+          'Hà Nội');\n+      expect(\n+          directionsDestination(lat: 0, lng: 0, address: 'Hà Nội')!\n+              .queryParameters['destination'],\n+          'Hà Nội');\n+    });\n+    test('should return null when no coordinates and blank address', () {\n+      expect(directionsDestination(address: '   '), isNull);\n+      expect(directionsDestination(lat: 21.0), isNull);\n+    });\n+  });\n+\n+  group('DirectionsButton', () {\n+    Future<List<Uri>> pump(\n+      WidgetTester tester, {\n+      String? address,\n+      ({double? lat, double? lng, String? address})? local,\n+      bool openOk = true,\n+    }) async {\n+      final opened = <Uri>[];\n+      await tester.pumpWidget(MaterialApp(\n+        home: Scaffold(\n+          body: DirectionsButton(\n+            customerId: 7,\n+            address: address,\n+            lookup: (_) async => local,\n+            opener: (uri) async {\n+              opened.add(uri);\n+              return openOk;\n+            },\n+          ),\n+        ),\n+      ));\n+      await tester.tap(find.byTooltip('Chỉ đường'));\n+      await tester.pump();\n+      return opened;\n+    }\n+\n+    testWidgets('should open map with local coordinates when available',\n+        (tester) async {\n+      final opened = await pump(tester,\n+          address: 'Hà Nội', local: (lat: 21.03, lng: 105.78, address: null));\n+      expect(opened.single.queryParameters['destination'], '21.03,105.78');\n+    });\n+\n+    testWidgets('should open map with address when no coordinates',\n+        (tester) async {\n+      final opened = await pump(tester, address: 'Phường Từ Liêm, Hà Nội');\n+      expect(opened.single.queryParameters['destination'],\n+          'Phường Từ Liêm, Hà Nội');\n+    });\n+\n+    testWidgets('should use local address when screen has none',\n+        (tester) async {\n+      final opened = await pump(tester,\n+          local: (lat: null, lng: null, address: 'Kiot 6, Hà Nội'));\n+      expect(opened.single.queryParameters['destination'], 'Kiot 6, Hà Nội');\n+    });\n+\n+    testWidgets('should NOT open map and should explain when no info',\n+        (tester) async {\n+      final opened = await pump(tester);\n+      expect(opened, isEmpty);\n+      expect(find.text('Điểm bán chưa có toạ độ hoặc địa chỉ để chỉ đường'),\n+          findsOneWidget);\n+    });\n+\n+    testWidgets('should report when map app cannot be opened', (tester) async {\n+      await pump(tester, address: 'Hà Nội', openOk: false);\n+      expect(find.text('Không mở được ứng dụng bản đồ'), findsOneWidget);\n+    });\n+  });\n+}"
+      }
+    ]
+  }
+}

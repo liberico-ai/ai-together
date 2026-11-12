@@ -1,0 +1,45 @@
+{
+  "recordedAt": "2026-11-09T12:22:37.889036+00:00",
+  "evidenceType": "Direct DNS and HTTPS checks, selected authenticated Hermes shell output, and operator report relayed by the user.",
+  "interDc": {
+    "operator": "Quân",
+    "reported": "Nginx and d1-ai1 are in separate data centers and cannot connect over the intended route.",
+    "currentPlan": "INTER_DC_ROUTE_STOPPED"
+  },
+  "existingHermesEdge": {
+    "hostname": "hermes.btnet.vn",
+    "dnsA": [
+      "104.21.15.29",
+      "172.67.205.24"
+    ],
+    "httpsStatus": 302,
+    "server": "cloudflare",
+    "originPlacement": "UNVERIFIED"
+  },
+  "candidate": {
+    "hostname": "libetech.btnet.vn",
+    "dnsA": [
+      "172.67.205.24",
+      "104.21.15.29"
+    ],
+    "httpsLoginStatus": 404,
+    "server": "cloudflare",
+    "availability": "NEEDS_DNS_OWNER_CONFIRMATION"
+  },
+  "d1HostCheck": {
+    "services": [
+      "cloudflared.service",
+      "nginx.service"
+    ],
+    "systemUnits": "not-found",
+    "userUnits": "not-found",
+    "exactProcessNamesObserved": [],
+    "scope": "Unit names and exact process-name checks only. Does not identify the actual origin, edge, containers or network owner."
+  },
+  "alternative": {
+    "state": "PROPOSED",
+    "desiredHost": "libetech.btnet.vn",
+    "boundary": "Separate HTTPS ingress near d1-ai1, web routes only, membership from AI OS.",
+    "prerequisite": "Owner of DNS/Cloudflare zone and route to d1-ai1 must verify available hostname, ingress, access scope and rollback."
+  }
+}

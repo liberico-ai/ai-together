@@ -1,0 +1,51 @@
+{
+  "recordedAt": "2026-11-09T12:06:03.758224+00:00",
+  "evidenceType": "Direct HTTPS probes and selected authenticated Hermes shell output transcribed from UI, with operator-reported Nginx topology.",
+  "publicIngress": {
+    "host": "ai-together.lab.liberico.com.vn",
+    "observedAt": "2026-11-09T11:58:24Z",
+    "tlsVerifiedByCurl": true,
+    "httpsLoginStatus": 200,
+    "httpLoginStatus": 301,
+    "redirect": "https://ai-together.lab.liberico.com.vn/login",
+    "healthObserved": {
+      "status": "ok",
+      "db": "connected"
+    },
+    "upstreamReportedByQuan": "192.168.17.10:7060"
+  },
+  "network": {
+    "d1PrivateSource": "10.10.1.26",
+    "nginxReported": "192.168.17.10",
+    "d1ToNginxHttp": "curl exit 28, timed out after 4002 ms",
+    "d1SshPort22Listening": true,
+    "nginxToD1Ssh": "PENDING_QUAN_TEST"
+  },
+  "stagedBuild": {
+    "status": "staged",
+    "host": "d1-ai1",
+    "version": "0.3.0",
+    "release": "/home/iptech/.local/share/libetech-ai-os/releases/0.3.0-d9dbaaf3d4fa",
+    "sourceDigest": "d9dbaaf3d4fae8fdb34c6a258c93347109ce598f7e74894179724c1a1cfa4521",
+    "archiveSha256": "e9fae11c391a73b12e1a417148e214acbdd61c1dfb9b8adfd0bf4fedbb6cc53c",
+    "buildId": "Y2InRk4-ogLI6yxITa1Tf",
+    "method": "Hermes authenticated Files upload, SHA-256 readback, isolated build and subsequent staging-receipt.json readback after interactive command timeout"
+  },
+  "currentD1LoopbackAfterBuild": {
+    "port": 3148,
+    "version": "0.2.0",
+    "storage": "postgresql-server",
+    "schema": [
+      "001",
+      "002",
+      "003"
+    ]
+  },
+  "activation": {
+    "appCutover": false,
+    "nginxCutover": false,
+    "databaseMigration": false,
+    "gatewayRestart": false,
+    "workbookWrites": false
+  }
+}

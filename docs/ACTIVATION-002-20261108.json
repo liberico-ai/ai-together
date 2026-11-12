@@ -1,0 +1,13 @@
+{
+  "capturedAt": "20261108T102255Z",
+  "archive": "pilot-activated-20261108T102255Z.dump",
+  "sha256": "028dec69430c7c1e27951e832b325fd37cedde0814f540efbbbf9ef12baf1a11",
+  "bytes": 69129,
+  "permissions": "0o600",
+  "schemaMigrationsDataExcluded": true,
+  "serverInstalled": false,
+  "accounts": 1,
+  "activated": 1,
+  "ui": "Authenticated Chairman dashboard observed at http://127.0.0.1:3148/",
+  "checkedWithoutReadingPasswordOrHash": true
+}

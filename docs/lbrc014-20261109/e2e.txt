@@ -1,0 +1,40 @@
+# Pilot E2E — Checklist cutover (R-APP-5/6)
+
+> Happy path: **login → route → checkin → order**. Chạy trên iOS + Android, BE thật.
+
+## Chuẩn bị
+- [ ] BE pilot chạy; tài khoản CVKD test (vd `dmstest`) đã gán tuyến (`bt_saleman_route`) + dữ liệu migrate (F5).
+- [ ] App trỏ đúng base URL (dev: `--dart-define=DEV_BASE_URL=...`; pilot prod: AppConfig prod).
+- [ ] Goong Maptiles key đã cấu hình (nếu test bản đồ) — nếu chưa, bản đồ hiển thị fallback danh sách.
+
+## Happy path
+1. [ ] **Login** `dmstest` → vào app (không bị chặn bởi profile/bt.saleman).
+2. [ ] Tab **"Hôm nay"** mở mặc định → đúng KH theo thứ trong tuần, sắp theo `sequence`, header `[Thứ X — tuyến — N KH]`, progress 0/N.
+3. [ ] **Check-in** 1 KH (gần toạ độ) → toast thành công; thẻ chuyển xanh; progress tăng; lịch sử check-in trong CustomerDetail có dòng mới.
+4. [ ] Check-in **"GĐ bưu điện xã"** (vnpost_xa) → ghi đúng loại (nguồn K5).
+5. [ ] **Ngoài bán kính (>100m)** → dialog cảnh báo "vẫn check-in?".
+6. [ ] **Tạo đơn** từ thẻ KH (hoặc CustomerDetail) → đơn tạo, liên kết KH.
+7. [ ] **KH mới**: FAB → form → validate SĐT → lưu (online trả code) / "Lưu & Tạo đơn ngay".
+8. [ ] **KPI** (tab Báo cáo): 5 card K1–K5 + tổng điểm + verdict (khi BE `kpi_report` sẵn sàng).
+
+## Offline / đồng bộ
+- [ ] Bật Airplane mode → check-in / tạo KH → lưu local (toast "đang đồng bộ").
+- [ ] Tắt Airplane → outbox tự đẩy; check-in không trùng (idempotency client_uuid).
+- [ ] today_route/KPI offline → hiển thị cache / trạng thái "BE chưa sẵn sàng".
+
+## Rollback (F5)
+- [ ] DMS giữ read-only đến 01/08; nếu App lỗi → CVKD quay lại DMS ≤5 phút.
+- [ ] Đơn tạo qua App vẫn lưu `sale.order` (BE) → DMS đọc được.
+
+## Trạng thái BE (probe 02/06/2026)
+| Endpoint | BE |
+|---|---|
+| `bt.saleman/checkin` + `checkin_history` | ✅ có |
+| `today_route` / `routes` / `kpi_report` / `create_customer` | ❌ chưa (App graceful + tự chạy khi BE xong) |
+
+> GAP cần BE: `today_route` bổ sung `lat/lng` cho bản đồ; thống nhất nguồn Goong key (dart-define hay settings API).
+
+## Coverage (R-APP-6, đo 02/06/2026)
+- Service pilot (checkin/route/visit/survey/kpi/customer): **60–88%** ✅ đạt ngưỡng ≥60% cho business logic pilot.
+- Tổng `lib` thấp hơn do code legacy + wrapper platform (api_client, token_storage, location/tracking/biometric, device_info) chưa test (cần device/mocking) — ngoài scope realign. Khuyến nghị bổ sung hậu pilot.
+- Widget test: login, RouteScreen (empty), CustomerPilotCreate (validate).

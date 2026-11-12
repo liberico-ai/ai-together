@@ -1,0 +1,52 @@
+{
+  "code": "LBRC014",
+  "title": "Thêm tính năng chỉ đường cho App Saleman",
+  "sourceId": "https://github.com/liberico-ai/btnet-saleman/commit/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+  "sourceType": "github-rest+workbook-snapshot",
+  "sourceSha": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+  "ingestedAt": "2026-11-08T09:38:53.222663+00:00",
+  "qualityScore": 0.75,
+  "checksCount": 0,
+  "checksMeaning": "No check runs is not a passing result.",
+  "commitMessage": "feat(customer): nút Chỉ đường tới điểm bán (tuyến Hôm nay, danh sách KH, chi tiết KH)",
+  "changedFiles": [
+    {
+      "path": "lib/screens/customer/customer_detail_screen.dart",
+      "status": "modified"
+    },
+    {
+      "path": "lib/screens/customer/customer_list_screen.dart",
+      "status": "modified"
+    },
+    {
+      "path": "lib/screens/route/route_screen.dart",
+      "status": "modified"
+    },
+    {
+      "path": "lib/services/map_launcher.dart",
+      "status": "modified"
+    },
+    {
+      "path": "lib/widgets/directions_button.dart",
+      "status": "added"
+    },
+    {
+      "path": "test/widget/directions_button_test.dart",
+      "status": "added"
+    }
+  ],
+  "workbookClaim": {
+    "snapshotDate": "2026-11-07",
+    "snapshotSha256": "12243e18cfc7c51b62c10586c73dcf05dfb00c86b1b13d685f8909112e1337e5",
+    "stateReported": "Hoàn thành",
+    "assigneeReported": "QuânTV",
+    "acceptorReported": "PhươngHV",
+    "noteReported": "LBRC014. Spec SPEC-chi-duong-diem-ban.md. Quân 6/11: chờ nghiệm thu. PhươngHV 7/11: nghiệm thu đạt, đóng.",
+    "acceptedSha": null,
+    "freshness": "historical-snapshot-not-refreshed"
+  },
+  "technicalAcceptance": "not-established",
+  "businessAcceptance": "reported-without-accepted-sha",
+  "runtimeDeployment": "not-observed-in-this-check",
+  "summary": "GitHub có commit đúng chức năng; 0 check runs. Bảng ngày 07/11 báo đã đóng nhưng chưa gắn SHA được nghiệm thu. Chưa đủ bằng chứng để xác nhận hoàn tất tại nền mới."
+}

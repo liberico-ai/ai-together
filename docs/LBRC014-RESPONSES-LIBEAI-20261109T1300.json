@@ -1,0 +1,42 @@
+{
+  "scope": "Theo dõi phản hồi LBRC014 trong LibeAI sau hồ sơ gửi 12:12; đối chiếu bằng chứng và cập nhật biên bản tại máy; giữ nguyên trạng thái bảng việc.",
+  "startedAtVietnam": "2026-11-09 12:25",
+  "monitorUntilVietnam": "2026-11-09 13:00",
+  "cutoffBasis": "Assistant provisional boundary while awaiting user preference; not user approval.",
+  "status": "monitoring",
+  "sourceSurface": "Telegram Lite native UI",
+  "baselineDeliveryReceipt": "LBRC014-DELIVERY-LIBEAI-20261109T1212.json",
+  "baselineReportSha256": "924c4e8b1e7b0bd2088b7a378d0dc5cc86fbc6d16d2dedbda55ff70afa088743",
+  "events": [],
+  "checks": [
+    {
+      "observedAtVietnam": "2026-11-09 12:26",
+      "group": "LibeAI",
+      "latestGroupMessageAtVietnam": "2026-11-09 12:12",
+      "latestQuânPhươngReplyAtVietnam": "2026-11-09 11:31",
+      "result": "No supplementary reply after 12:12 observed in exact group. Outgoing 12:12 evidence bundle has Seen status. Seen does not establish who read it or acceptance."
+    }
+  ],
+  "workbookReads": [
+    {
+      "observedAtUTC": "2026-11-09T05:26:27Z",
+      "range": "'Đầu việc Tech'!A31:H31",
+      "values": [
+        [
+          "30",
+          "LBRC",
+          "Thêm tính năng chỉ đường cho App Saleman",
+          "QuânTV",
+          "PhươngHV",
+          "Hoàn thành",
+          "2026-11-06",
+          "LBRC014. Spec SPEC-chi-duong-diem-ban.md. Quân 6/11: chờ nghiệm thu. PhươngHV 7/11: nghiệm thu đạt, đóng."
+        ]
+      ],
+      "sourceWrites": false
+    }
+  ],
+  "changesToSourceWorkbook": false,
+  "messagesSentDuringThisFollowup": 0,
+  "acceptanceDecision": "Chưa đủ bằng chứng nghiệm thu người dùng; không thay quyết định người có trách nhiệm."
+}

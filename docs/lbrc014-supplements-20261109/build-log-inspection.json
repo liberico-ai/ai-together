@@ -1,0 +1,28 @@
+{
+  "source": "LibeAI / Quan LibeAi / build.log / received 2026-11-09 10:31 Asia/Ho_Chi_Minh",
+  "downloadedPath": "/Users/huyenleduy/Downloads/Telegram Lite/build.log",
+  "file": "quan-build-1031.log",
+  "bytes": 5885,
+  "sha256": "177bf6c33c403a7d6938c48bbdec23a0267d42cff39fb4f2ad68a62f6f33aa7a",
+  "observedContent": {
+    "shortCommit": "5b38598",
+    "version": "1.0.27+29",
+    "buildTask": "bundleRelease",
+    "buildResult": "Built build/app/outputs/bundle/release/app-release.aab (65.8MB)",
+    "testExecution": "Not present in the submitted log",
+    "buildDate": "Not printed",
+    "fullSha": "Not printed",
+    "artifactSha256": "Not printed"
+  },
+  "comparison": {
+    "matchesRecordedCommit": "5b38598de8bca1b258be7ee4b7086a993810478a",
+    "source": "../lbrc014-20261109/main.json",
+    "implementationAncestor": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+    "ancestrySource": "../lbrc014-20261109/compare.json"
+  },
+  "limits": [
+    "Submitted build output, not an independent rebuild.",
+    "Matching short commit/version supports provenance but does not prove the submitted AAB was built from a clean checkout.",
+    "Package hash and device/UAT/acceptance linkage still require evidence."
+  ]
+}

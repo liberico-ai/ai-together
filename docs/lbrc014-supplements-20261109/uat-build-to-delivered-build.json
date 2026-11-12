@@ -1,0 +1,872 @@
+{
+  "observedAt": "2026-11-09T03:47:11.327472+00:00",
+  "endpoint": "repos/liberico-ai/btnet-saleman/compare/751327b853b50ed7b06f87c747198a4a731b0ac6...5b38598de8bca1b258be7ee4b7086a993810478a",
+  "data": {
+    "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/compare/751327b853b50ed7b06f87c747198a4a731b0ac6...5b38598de8bca1b258be7ee4b7086a993810478a",
+    "html_url": "https://github.com/liberico-ai/btnet-saleman/compare/751327b853b50ed7b06f87c747198a4a731b0ac6...5b38598de8bca1b258be7ee4b7086a993810478a",
+    "permalink_url": "https://github.com/liberico-ai/btnet-saleman/compare/liberico-ai:751327b...liberico-ai:5b38598",
+    "diff_url": "https://github.com/liberico-ai/btnet-saleman/compare/751327b853b50ed7b06f87c747198a4a731b0ac6...5b38598de8bca1b258be7ee4b7086a993810478a.diff",
+    "patch_url": "https://github.com/liberico-ai/btnet-saleman/compare/751327b853b50ed7b06f87c747198a4a731b0ac6...5b38598de8bca1b258be7ee4b7086a993810478a.patch",
+    "base_commit": {
+      "sha": "751327b853b50ed7b06f87c747198a4a731b0ac6",
+      "node_id": "C_kwDOSeFZmNoAKDc1MTMyN2I4NTNiNTBlZDdiMDZmODdjNzQ3MTk4YTRhNzMxYjBhYzY",
+      "commit": {
+        "author": {
+          "name": "Quantv",
+          "email": "quantv@live.com",
+          "date": "2026-11-06T07:11:54Z"
+        },
+        "committer": {
+          "name": "Quantv",
+          "email": "quantv@live.com",
+          "date": "2026-11-06T07:11:54Z"
+        },
+        "message": "Merge branch 'feature/visit-history'",
+        "tree": {
+          "sha": "b30444eb1df16d02f45259e5486cbc66a454779e",
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/trees/b30444eb1df16d02f45259e5486cbc66a454779e"
+        },
+        "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/commits/751327b853b50ed7b06f87c747198a4a731b0ac6",
+        "comment_count": 0,
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      },
+      "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/751327b853b50ed7b06f87c747198a4a731b0ac6",
+      "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/751327b853b50ed7b06f87c747198a4a731b0ac6",
+      "comments_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/751327b853b50ed7b06f87c747198a4a731b0ac6/comments",
+      "author": {
+        "login": "quantv",
+        "id": 2097667,
+        "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/quantv",
+        "html_url": "https://github.com/quantv",
+        "followers_url": "https://api.github.com/users/quantv/followers",
+        "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+        "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+        "organizations_url": "https://api.github.com/users/quantv/orgs",
+        "repos_url": "https://api.github.com/users/quantv/repos",
+        "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/quantv/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "committer": {
+        "login": "quantv",
+        "id": 2097667,
+        "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/quantv",
+        "html_url": "https://github.com/quantv",
+        "followers_url": "https://api.github.com/users/quantv/followers",
+        "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+        "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+        "organizations_url": "https://api.github.com/users/quantv/orgs",
+        "repos_url": "https://api.github.com/users/quantv/repos",
+        "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/quantv/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "parents": [
+        {
+          "sha": "3c04d25ac6326f76674bc4d34127d34004c892d3",
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/3c04d25ac6326f76674bc4d34127d34004c892d3",
+          "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/3c04d25ac6326f76674bc4d34127d34004c892d3"
+        },
+        {
+          "sha": "e5efde0f07301856b004256e9ac9287d3298c8ad",
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/e5efde0f07301856b004256e9ac9287d3298c8ad",
+          "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/e5efde0f07301856b004256e9ac9287d3298c8ad"
+        }
+      ]
+    },
+    "merge_base_commit": {
+      "sha": "751327b853b50ed7b06f87c747198a4a731b0ac6",
+      "node_id": "C_kwDOSeFZmNoAKDc1MTMyN2I4NTNiNTBlZDdiMDZmODdjNzQ3MTk4YTRhNzMxYjBhYzY",
+      "commit": {
+        "author": {
+          "name": "Quantv",
+          "email": "quantv@live.com",
+          "date": "2026-11-06T07:11:54Z"
+        },
+        "committer": {
+          "name": "Quantv",
+          "email": "quantv@live.com",
+          "date": "2026-11-06T07:11:54Z"
+        },
+        "message": "Merge branch 'feature/visit-history'",
+        "tree": {
+          "sha": "b30444eb1df16d02f45259e5486cbc66a454779e",
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/trees/b30444eb1df16d02f45259e5486cbc66a454779e"
+        },
+        "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/commits/751327b853b50ed7b06f87c747198a4a731b0ac6",
+        "comment_count": 0,
+        "verification": {
+          "verified": false,
+          "reason": "unsigned",
+          "signature": null,
+          "payload": null,
+          "verified_at": null
+        }
+      },
+      "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/751327b853b50ed7b06f87c747198a4a731b0ac6",
+      "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/751327b853b50ed7b06f87c747198a4a731b0ac6",
+      "comments_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/751327b853b50ed7b06f87c747198a4a731b0ac6/comments",
+      "author": {
+        "login": "quantv",
+        "id": 2097667,
+        "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/quantv",
+        "html_url": "https://github.com/quantv",
+        "followers_url": "https://api.github.com/users/quantv/followers",
+        "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+        "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+        "organizations_url": "https://api.github.com/users/quantv/orgs",
+        "repos_url": "https://api.github.com/users/quantv/repos",
+        "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/quantv/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "committer": {
+        "login": "quantv",
+        "id": 2097667,
+        "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+        "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/quantv",
+        "html_url": "https://github.com/quantv",
+        "followers_url": "https://api.github.com/users/quantv/followers",
+        "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+        "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+        "organizations_url": "https://api.github.com/users/quantv/orgs",
+        "repos_url": "https://api.github.com/users/quantv/repos",
+        "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/quantv/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "parents": [
+        {
+          "sha": "3c04d25ac6326f76674bc4d34127d34004c892d3",
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/3c04d25ac6326f76674bc4d34127d34004c892d3",
+          "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/3c04d25ac6326f76674bc4d34127d34004c892d3"
+        },
+        {
+          "sha": "e5efde0f07301856b004256e9ac9287d3298c8ad",
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/e5efde0f07301856b004256e9ac9287d3298c8ad",
+          "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/e5efde0f07301856b004256e9ac9287d3298c8ad"
+        }
+      ]
+    },
+    "status": "ahead",
+    "ahead_by": 5,
+    "behind_by": 0,
+    "total_commits": 5,
+    "commits": [
+      {
+        "sha": "5ebbdb9b44976a73a4f28d08c394263594719e42",
+        "node_id": "C_kwDOSeFZmNoAKDVlYmJkYjliNDQ5NzZhNzNhNGYyOGQwOGMzOTQyNjM1OTQ3MTllNDI",
+        "commit": {
+          "author": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-06T09:36:14Z"
+          },
+          "committer": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-06T09:36:14Z"
+          },
+          "message": "feat(customer): tra cứu MST/CCCD ở màn Sửa KH + đề xuất cập nhật khi khác\n\n- Nút Tra cứu ở ô Mã số thuế và ô CCCD (bt.saleman/lookup_tax_code)\n- Hộp thoại liệt kê trường khác (Tên hoá đơn, Chủ cửa hàng nếu hộ KD, Địa chỉ\n  khi khớp được Xã, Tên cửa hàng mặc định không chọn) + cảnh báo NNT ngừng\n  hoạt động / mã thuộc KH khác; Cập nhật chỉ điền form, vẫn gửi duyệt như cũ\n- Ô Tên hoá đơn (billing_name) đổ sẵn từ customer_360\n- SPEC: docs/dms-plan/SPEC-tra-cuu-mst-sua-kh.md",
+          "tree": {
+            "sha": "49d49399205098dae7712c0df01df8ba7e1757a7",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/trees/49d49399205098dae7712c0df01df8ba7e1757a7"
+          },
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/commits/5ebbdb9b44976a73a4f28d08c394263594719e42",
+          "comment_count": 0,
+          "verification": {
+            "verified": false,
+            "reason": "unsigned",
+            "signature": null,
+            "payload": null,
+            "verified_at": null
+          }
+        },
+        "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/5ebbdb9b44976a73a4f28d08c394263594719e42",
+        "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/5ebbdb9b44976a73a4f28d08c394263594719e42",
+        "comments_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/5ebbdb9b44976a73a4f28d08c394263594719e42/comments",
+        "author": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "committer": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "parents": [
+          {
+            "sha": "751327b853b50ed7b06f87c747198a4a731b0ac6",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/751327b853b50ed7b06f87c747198a4a731b0ac6",
+            "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/751327b853b50ed7b06f87c747198a4a731b0ac6"
+          }
+        ]
+      },
+      {
+        "sha": "8d15ca33f7bea15d271efadb31e7df47efd2271b",
+        "node_id": "C_kwDOSeFZmNoAKDhkMTVjYTMzZjdiZWExNWQyNzFlZmFkYjMxZTdkZjQ3ZWZkMjI3MWI",
+        "commit": {
+          "author": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-06T09:36:14Z"
+          },
+          "committer": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-06T09:36:14Z"
+          },
+          "message": "feat(history): nhãn Trong tuyến / Ngoài tuyến / Chưa rõ tuyến theo lịch tuyến ngày check-in\n\n- Nhãn theo in_day_route của rt.visit/history (BE ghi lúc check-in);\n  source=offroute luôn Ngoài tuyến; lượt cũ (null) → Chưa rõ tuyến\n- Lượt chưa đồng bộ: tự tính từ tuyến trên máy cho ngày check-in\n  (selectLinesForDay, cùng luật tab Hôm nay)\n- SPEC §3.2b + API contract: thêm in_day_route",
+          "tree": {
+            "sha": "5cb8eaf84b745b668f0996805f198578c303f0da",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/trees/5cb8eaf84b745b668f0996805f198578c303f0da"
+          },
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/commits/8d15ca33f7bea15d271efadb31e7df47efd2271b",
+          "comment_count": 0,
+          "verification": {
+            "verified": false,
+            "reason": "unsigned",
+            "signature": null,
+            "payload": null,
+            "verified_at": null
+          }
+        },
+        "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/8d15ca33f7bea15d271efadb31e7df47efd2271b",
+        "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/8d15ca33f7bea15d271efadb31e7df47efd2271b",
+        "comments_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/8d15ca33f7bea15d271efadb31e7df47efd2271b/comments",
+        "author": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "committer": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "parents": [
+          {
+            "sha": "5ebbdb9b44976a73a4f28d08c394263594719e42",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/5ebbdb9b44976a73a4f28d08c394263594719e42",
+            "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/5ebbdb9b44976a73a4f28d08c394263594719e42"
+          }
+        ]
+      },
+      {
+        "sha": "83e595a84cb6aabb185a1d3eab33be5a568cb847",
+        "node_id": "C_kwDOSeFZmNoAKDgzZTU5NWE4NGNiNmFhYmIxODVhMWQzZWFiMzNiZTVhNTY4Y2I4NDc",
+        "commit": {
+          "author": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-06T09:36:14Z"
+          },
+          "committer": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-06T09:36:14Z"
+          },
+          "message": "feat(visit): check-in xem lại / chụp lại ảnh điểm bán + hiện ảnh ở Thông tin check-in\n\n- Bước 1: ảnh thu nhỏ + giờ chụp, Xem ảnh (toàn màn hình) và Chụp lại;\n  huỷ camera khi chụp lại thì giữ ảnh cũ; vẫn chỉ chụp bằng camera (QD-09)\n- Sheet Thông tin check-in: hiện ảnh đã chụp (file trên máy → URL server),\n  bấm xem toàn màn hình chỉ đọc; không có ảnh → \"Không có ảnh trên máy này\"\n- SPEC: docs/dms-plan/SPEC-checkin-xem-lai-chup-lai-anh.md",
+          "tree": {
+            "sha": "23710f63a78af8cd8f5b16c2d066f6e3e19b7d65",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/trees/23710f63a78af8cd8f5b16c2d066f6e3e19b7d65"
+          },
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/commits/83e595a84cb6aabb185a1d3eab33be5a568cb847",
+          "comment_count": 0,
+          "verification": {
+            "verified": false,
+            "reason": "unsigned",
+            "signature": null,
+            "payload": null,
+            "verified_at": null
+          }
+        },
+        "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/83e595a84cb6aabb185a1d3eab33be5a568cb847",
+        "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/83e595a84cb6aabb185a1d3eab33be5a568cb847",
+        "comments_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/83e595a84cb6aabb185a1d3eab33be5a568cb847/comments",
+        "author": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "committer": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "parents": [
+          {
+            "sha": "8d15ca33f7bea15d271efadb31e7df47efd2271b",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/8d15ca33f7bea15d271efadb31e7df47efd2271b",
+            "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/8d15ca33f7bea15d271efadb31e7df47efd2271b"
+          }
+        ]
+      },
+      {
+        "sha": "b955803183cf3fdc326b7a7a5033208896028d13",
+        "node_id": "C_kwDOSeFZmNoAKGI5NTU4MDMxODNjZjNmZGMzMjZiN2E3YTUwMzMyMDg4OTYwMjhkMTM",
+        "commit": {
+          "author": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-06T09:37:17Z"
+          },
+          "committer": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-06T09:37:17Z"
+          },
+          "message": "Merge branch 'feature/visit-followups'",
+          "tree": {
+            "sha": "23710f63a78af8cd8f5b16c2d066f6e3e19b7d65",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/trees/23710f63a78af8cd8f5b16c2d066f6e3e19b7d65"
+          },
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/commits/b955803183cf3fdc326b7a7a5033208896028d13",
+          "comment_count": 0,
+          "verification": {
+            "verified": false,
+            "reason": "unsigned",
+            "signature": null,
+            "payload": null,
+            "verified_at": null
+          }
+        },
+        "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/b955803183cf3fdc326b7a7a5033208896028d13",
+        "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/b955803183cf3fdc326b7a7a5033208896028d13",
+        "comments_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/b955803183cf3fdc326b7a7a5033208896028d13/comments",
+        "author": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "committer": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "parents": [
+          {
+            "sha": "751327b853b50ed7b06f87c747198a4a731b0ac6",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/751327b853b50ed7b06f87c747198a4a731b0ac6",
+            "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/751327b853b50ed7b06f87c747198a4a731b0ac6"
+          },
+          {
+            "sha": "83e595a84cb6aabb185a1d3eab33be5a568cb847",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/83e595a84cb6aabb185a1d3eab33be5a568cb847",
+            "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/83e595a84cb6aabb185a1d3eab33be5a568cb847"
+          }
+        ]
+      },
+      {
+        "sha": "5b38598de8bca1b258be7ee4b7086a993810478a",
+        "node_id": "C_kwDOSeFZmNoAKDViMzg1OThkZThiY2ExYjI1OGJlN2VlNGI3MDg2YTk5MzgxMDQ3OGE",
+        "commit": {
+          "author": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-07T01:23:32Z"
+          },
+          "committer": {
+            "name": "Quantv",
+            "email": "quantv@live.com",
+            "date": "2026-11-07T01:23:32Z"
+          },
+          "message": "bump version 1.0.27+29",
+          "tree": {
+            "sha": "921e642a76f0919b19738bc4b645d1a9e89fee52",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/trees/921e642a76f0919b19738bc4b645d1a9e89fee52"
+          },
+          "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/git/commits/5b38598de8bca1b258be7ee4b7086a993810478a",
+          "comment_count": 0,
+          "verification": {
+            "verified": false,
+            "reason": "unsigned",
+            "signature": null,
+            "payload": null,
+            "verified_at": null
+          }
+        },
+        "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/5b38598de8bca1b258be7ee4b7086a993810478a",
+        "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/5b38598de8bca1b258be7ee4b7086a993810478a",
+        "comments_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/5b38598de8bca1b258be7ee4b7086a993810478a/comments",
+        "author": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "committer": {
+          "login": "quantv",
+          "id": 2097667,
+          "node_id": "MDQ6VXNlcjIwOTc2Njc=",
+          "avatar_url": "https://avatars.githubusercontent.com/u/2097667?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/quantv",
+          "html_url": "https://github.com/quantv",
+          "followers_url": "https://api.github.com/users/quantv/followers",
+          "following_url": "https://api.github.com/users/quantv/following{/other_user}",
+          "gists_url": "https://api.github.com/users/quantv/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/quantv/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/quantv/subscriptions",
+          "organizations_url": "https://api.github.com/users/quantv/orgs",
+          "repos_url": "https://api.github.com/users/quantv/repos",
+          "events_url": "https://api.github.com/users/quantv/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/quantv/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "parents": [
+          {
+            "sha": "b955803183cf3fdc326b7a7a5033208896028d13",
+            "url": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/b955803183cf3fdc326b7a7a5033208896028d13",
+            "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/b955803183cf3fdc326b7a7a5033208896028d13"
+          }
+        ]
+      }
+    ],
+    "files": [
+      {
+        "sha": "c8c3a4f712ca922a1122027730e31513647a0720",
+        "filename": "docs/dms-plan/01_API_CONTRACT.md",
+        "status": "modified",
+        "additions": 3,
+        "deletions": 2,
+        "changes": 5,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/docs%2Fdms-plan%2F01_API_CONTRACT.md",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/docs%2Fdms-plan%2F01_API_CONTRACT.md",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/docs%2Fdms-plan%2F01_API_CONTRACT.md?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -148,8 +148,9 @@ Lưu dữ liệu một bước. Gọi nhiều lần.\n ### 4.5. `rt.visit/history` (màn Lịch sử App)\n - **Body:** `[{ \"from\": \"2026-06-01\", \"to\": \"2026-06-30\", \"customer\"?: 115, \"limit\"?: 50, \"offset\"?: 0 }]`. Tối đa 31 ngày, `limit` ≤ 200.\n - Luôn lọc theo sale đăng nhập (không nhận `saleman`), bỏ lượt huỷ, mới nhất trước.\n-- **Result:** `{ \"total\": 37, \"items\": [ { \"id\", \"client_uuid\", \"customer\": { \"id\", \"code\", \"name\", \"address\" }, \"source\": \"route|customer_list|offroute\", \"status\", \"outcome\", \"checkin_at\", \"checkout_at\", \"duration_minutes\", \"steps\": [\"checkin\", …], \"note\" } ] }`\n-- Chi tiết: [SPEC-lich-su-cham-cong-vieng-tham.md](SPEC-lich-su-cham-cong-vieng-tham.md) §3.1.\n+- **Result:** `{ \"total\": 37, \"items\": [ { \"id\", \"client_uuid\", \"customer\": { \"id\", \"code\", \"name\", \"address\" }, \"source\": \"route|customer_list|offroute\", \"in_day_route\": true|false|null, \"status\", \"outcome\", \"checkin_at\", \"checkout_at\", \"duration_minutes\", \"steps\": [\"checkin\", …], \"note\" } ] }`\n+- `source = route` nghĩa là KH có trong lịch tuyến **ngày check-in** (cờ `in_day_route` BE ghi lúc `open`; `null` = lượt cũ, theo `route_line`).\n+- Chi tiết: [SPEC-lich-su-cham-cong-vieng-tham.md](SPEC-lich-su-cham-cong-vieng-tham.md) §3.1, §3.2b.\n \n ---\n "
+      },
+      {
+        "sha": "6ccd04f0ba983372c8f1a547cd614cc1718b5036",
+        "filename": "docs/dms-plan/SPEC-checkin-xem-lai-chup-lai-anh.md",
+        "status": "added",
+        "additions": 46,
+        "deletions": 0,
+        "changes": 46,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/docs%2Fdms-plan%2FSPEC-checkin-xem-lai-chup-lai-anh.md",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/docs%2Fdms-plan%2FSPEC-checkin-xem-lai-chup-lai-anh.md",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/docs%2Fdms-plan%2FSPEC-checkin-xem-lai-chup-lai-anh.md?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -0,0 +1,46 @@\n+# SPEC — Bước 1 Check-in: xem lại và chụp lại ảnh điểm bán\n+\n+Trạng thái: Đã code. Chờ Arch Lead review trước khi merge.\n+\n+Nhánh: App `feature/visit-history`. Chỉ App, không đổi BE.\n+\n+## 1. Yêu cầu\n+Ở bước 1 Check-in của luồng viếng thăm, sale xem lại được ảnh vừa chụp và chụp lại nếu chưa ưng.\n+\n+## 2. Hiện trạng\n+- Chụp xong, nút chỉ đổi chữ thành `Đã chụp ảnh — chụp lại`.\n+- Không có ảnh thu nhỏ nên sale không xem được ảnh trước khi bấm Check-in.\n+\n+## 3. Thay đổi\n+Widget mới `lib/screens/visit/widgets/checkin_photo_field.dart` dùng trong `CheckinStep`:\n+\n+- **Chưa có ảnh:** nút `Chụp ảnh điểm bán (bắt buộc/tuỳ chọn)` như cũ.\n+- **Đã có ảnh:**\n+  - ảnh thu nhỏ và dòng `Đã chụp lúc HH:mm`;\n+  - **Xem ảnh** (bấm vào ảnh thu nhỏ cũng được): mở màn toàn màn hình, nền đen, phóng to được, trên AppBar có nút **Chụp lại**;\n+  - **Chụp lại**: mở camera.\n+- **Kết quả chụp lại:**\n+  - chụp xong thì thay ảnh và cập nhật giờ chụp;\n+  - **huỷ camera thì giữ ảnh cũ**.\n+\n+## 3b. Xem ảnh ở màn \"Thông tin check-in\" (sau khi check-in)\n+- Chạm bước 1 đã xong mở sheet **Thông tin check-in**. Mục **Ảnh điểm bán** hiện ảnh thu nhỏ đã chụp; chạm vào thì mở màn xem toàn màn hình **chỉ để xem**, không có nút Chụp lại.\n+- **Nguồn ảnh:** `VisitService.checkinPhotoOf(visitUuid)` lấy từ outbox `upload` (context `checkin`, ref = lượt). Ảnh hiện theo thứ tự:\n+  1. file đã nén trên máy;\n+  2. file mất (OS dọn bộ nhớ đệm): URL server lưu sau khi upload (`UploadRefs.url`);\n+  3. không có cả hai, ví dụ lượt khôi phục từ server sau khi cài lại máy hoặc check-in không bắt buộc ảnh: dòng `Không có ảnh trên máy này`.\n+- Không gọi thêm API, không đổi BE.\n+\n+## 4. Giữ nguyên\n+- **QD-09:** chỉ chụp bằng camera, không chọn từ thư viện.\n+- Giờ chụp lấy theo lần chụp cuối. Chụp lại còn giúp tránh lỗi BE `Ảnh quá cũ` nếu sale chờ lâu trước khi check-in.\n+- **Chụp lại chỉ có trước khi bấm Check-in.** Sau check-in chỉ **xem** được ảnh (§3b). Đổi ảnh sau check-in nằm ngoài phạm vi, vì cần thêm API.\n+\n+## 5. Test\n+`test/visit/checkin_photo_test.dart`:\n+- chưa có ảnh thì chỉ có nút chụp;\n+- có ảnh thì hiện giờ chụp; Chụp lại gọi camera;\n+- màn xem toàn màn hình: Chụp lại thì đóng màn và chụp; Back thì không chụp;\n+- `CheckinStep`: chụp lại thay ảnh, huỷ camera giữ ảnh cũ; chụp lại từ màn xem; luôn dùng nguồn camera.\n+- `checkinPhotoOf`: ảnh đúng lượt, có URL sau upload; không lấy ảnh của lượt khác hay ảnh trưng bày (`test/visit/checkin_photo_of_test.dart`).\n+- Sheet Thông tin check-in: có ảnh thì có ảnh thu nhỏ và màn xem chỉ đọc; không ảnh thì có dòng báo (`test/visit/visit_flow_screen_test.dart`)."
+      },
+      {
+        "sha": "19898a4dc7ca020d95d308bd94524e2219384c57",
+        "filename": "docs/dms-plan/SPEC-lich-su-cham-cong-vieng-tham.md",
+        "status": "modified",
+        "additions": 25,
+        "deletions": 2,
+        "changes": 27,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/docs%2Fdms-plan%2FSPEC-lich-su-cham-cong-vieng-tham.md",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/docs%2Fdms-plan%2FSPEC-lich-su-cham-cong-vieng-tham.md",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/docs%2Fdms-plan%2FSPEC-lich-su-cham-cong-vieng-tham.md?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -60,14 +60,33 @@ DB local (drift) có sẵn `visits`, `visit_steps`, `attendance_records`, nhưng\n   - Không trả lat/lng hay ảnh selfie, vì màn lịch sử không cần.\n   - `limit` 200.\n \n+### 3.2b Đánh dấu \"thuộc tuyến ngày hôm đó\" khi lưu lượt thăm\n+- **Lý do:** App không gửi `route_line` khi check-in, ở mọi lối vào: tab Hôm nay, danh sách KH, banner. Vì vậy `source = route` theo quy tắc cũ \"có `route_line`\" gần như không bao giờ đúng.\n+- **Khi `rt.visit.open` tạo lượt mới** (không áp cho nhánh idempotent), BE tính xem KH có nằm trong lịch tuyến **của chính sale vào ngày check-in** (`arg.at`, hoặc giờ hiện tại) hay không:\n+  - phân công hiệu lực tại ngày đó (`_routeIdsOfSaleman`);\n+  - dòng tuyến active;\n+  - chiếu ngày `selectLinesForDay(dowOf(ngày))`, cùng engine với `bt.saleman.today_route` (tab Hôm nay).\n+- **Ghi:**\n+  - `rt_visit.in_day_route` (BOOLEAN, null = lượt cũ / chưa xác định);\n+  - nếu App không gửi `route_line` thì gán id dòng tuyến khớp.\n+- **Lỗi khi tính:** ghi `null`, log warn, **không chặn check-in**.\n+- **Lượt offline sync muộn:** tính theo ngày check-in, không theo ngày sync.\n+- **Migration:** `1793700000002_rt-visit-in-day-route.js`, thêm cột `IF NOT EXISTS`.\n+- **`history` trả thêm `in_day_route`.** `source`:\n+  - `offroute` nếu `is_offroute`;\n+  - nếu không: `in_day_route = true` thì `route`, `false` thì `customer_list`;\n+  - `null` (lượt cũ): giữ quy tắc cũ theo `route_line`.\n+\n ### 3.3 Test BE\n - **Isolation:** sale A gọi `history`/`my_history` không thấy bản ghi của sale B, kể cả khi truyền `customer` của B.\n - Khoảng ngày vượt giới hạn hoặc `limit > 200` bị chặn hoặc kẹp.\n - `source` phân loại đúng 3 loại.\n - `note` lấy đúng `payload.text`.\n - Lượt huỷ không xuất hiện.\n \n-Không có migration, không đổi schema.\n+- `open` ghi `in_day_route` đúng (KH có lịch hôm đó / không có / tuyến khác của sale khác); lỗi khi tính thì ghi `null` và vẫn check-in được; `source` theo §3.2b.\n+\n+Schema: chỉ thêm cột `rt_visit.in_day_route` (§3.2b).\n \n ## 4. App\n \n@@ -81,7 +100,11 @@ Không có migration, không đổi schema.\n   - **Nhóm theo ngày.** Mỗi dòng có:\n     - tên điểm bán, địa chỉ;\n     - giờ vào–ra và số phút;\n-    - nhãn nguồn: `Trong tuyến` (xanh) · `Từ DS khách hàng` (tím) · `Ngoài tuyến` (cam);\n+    - nhãn tuyến:\n+      - `Trong tuyến` (xanh): KH có trong lịch tuyến của sale **ngày hôm đó** (`in_day_route = true`, §3.2b);\n+      - `Ngoài tuyến` (cam): `in_day_route = false`, gồm KH gán tay/tự tạo và KH tuyến nhưng khác ngày; hoặc `source = offroute` (xin ngoại tuyến, kể cả lượt cũ);\n+      - `Chưa rõ tuyến` (xám): lượt cũ trước khi có cờ (`in_day_route = null`). Không suy từ `route_line`, vì trường này chỉ cho biết KH thuộc một tuyến nào đó, không cho biết có lịch ngày hôm đó.\n+      App xác định nhãn từ `in_day_route` cộng `source = offroute`; không dùng `customer_list`/`route` của BE. Lượt chưa đồng bộ thì App tự tính từ tuyến trên máy cho ngày check-in, cùng luật `selectLinesForDay`;\n     - nhãn `Đóng cửa` nếu `outcome=store_closed`;\n     - nhãn `Chưa đồng bộ` nếu chỉ có ở local;\n     - 1 dòng ghi chú (cắt bớt, nếu có)."
+      },
+      {
+        "sha": "ade104d2e3bbd4172e8deffa78895ffffc5c7f6a",
+        "filename": "docs/dms-plan/SPEC-tra-cuu-mst-sua-kh.md",
+        "status": "added",
+        "additions": 77,
+        "deletions": 0,
+        "changes": 77,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/docs%2Fdms-plan%2FSPEC-tra-cuu-mst-sua-kh.md",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/docs%2Fdms-plan%2FSPEC-tra-cuu-mst-sua-kh.md",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/docs%2Fdms-plan%2FSPEC-tra-cuu-mst-sua-kh.md?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -0,0 +1,77 @@\n+# SPEC — Tra cứu MST/CCCD ở màn Sửa KH và đề xuất cập nhật\n+\n+Trạng thái: Đã code. Chờ Arch Lead review trước khi merge.\n+\n+Nhánh: App `feature/visit-history` (chưa tách nhánh riêng).\n+\n+Liên quan:\n+- [SPEC-tra-cuu-mst-cccd.md](../../../lilog1/modules/btnet/docs/SPEC-tra-cuu-mst-cccd.md) (lilog1, `modules/btnet/docs/`): API `bt.saleman/lookup_tax_code`, tra cứu ở màn Tạo KH.\n+- Màn Sửa KH: `lib/screens/customer/customer_edit_screen.dart` (yêu cầu sửa chờ duyệt, guide 21).\n+\n+## 1. Yêu cầu\n+Ở màn Sửa thông tin KH, sale tra cứu được thông tin người nộp thuế từ MST hoặc CCCD. Nếu thông tin tra cứu khác hồ sơ KH thì app đề xuất cập nhật.\n+\n+## 2. Phạm vi\n+- **Chỉ thay đổi ở app.** Tái dùng `bt.saleman/lookup_tax_code`, không đổi BE, không migration.\n+- **Cập nhật = điền vào form.** Không tự gửi. Sale vẫn bấm `Gửi yêu cầu sửa (chờ duyệt)`, và thay đổi vẫn qua duyệt như mọi lần sửa khác. AI hay nguồn ngoài chỉ đề xuất, người quyết định.\n+\n+## 3. App\n+\n+### 3.1 Nút Tra cứu\n+- Nút kính lúp ở cuối ô **Mã số thuế** và ô **CCCD**. Bấm thì tra đúng mã đang có trong ô đó.\n+- **Kiểm tra mã trước khi gọi** (`classifyTaxCode`):\n+  - Ô trống: báo `Nhập MST/CCCD để tra cứu`.\n+  - Sai định dạng: báo như màn Tạo KH.\n+  - Mã 12 số trong ô MST: báo `Mã 12 số là CCCD — nhập vào ô CCCD`. Ô CCCD chỉ nhận mã 12 số.\n+- Đang tra thì nút thành vòng xoay, không cho bấm lần nữa.\n+\n+### 3.2 Kết quả\n+| Kết quả | Hiển thị |\n+|---|---|\n+| Không tìm thấy, chưa cấu hình, mất mạng | Snackbar cam `missMessage`. Form giữ nguyên |\n+| BE báo sai định dạng | Snackbar đỏ, nội dung lỗi của BE |\n+| Tìm thấy, không có gì khác, không có cảnh báo | Snackbar xanh `Thông tin KH đã khớp dữ liệu tra cứu` |\n+| Tìm thấy, có trường khác hoặc có cảnh báo | Hộp thoại đề xuất (§3.3) |\n+\n+### 3.3 Hộp thoại đề xuất cập nhật\n+- **Đầu hộp thoại:** loại NNT và trạng thái thuế.\n+- **Cảnh báo (nền cam):**\n+  - `is_active = false`: `Trạng thái thuế: …`\n+  - Mã đang thuộc KH **khác** (`existing.code` khác mã KH đang sửa): `KH … - … đang dùng mã này`.\n+- **Mỗi trường khác** là một dòng có checkbox, hiện `Hiện tại: …` và `Tra cứu: …`:\n+\n+| Trường | Giá trị tra cứu | Đề xuất khi | Mặc định |\n+|---|---|---|---|\n+| Tên hoá đơn (`billing_name`) | `info.name` | khác | chọn |\n+| Chủ cửa hàng (`contact_name`) | `info.name` | hộ kinh doanh và khác | chọn |\n+| Địa chỉ (Tỉnh/Xã và số nhà/đường) | `address.province/ward/line1` | BE khớp được Tỉnh **và** Xã, và khác Xã hoặc khác số nhà/đường | chọn |\n+| Tên (tên cửa hàng) | `info.name` | khác | **không chọn**, vì tên biển hiệu thường khác tên đăng ký |\n+\n+- **So sánh:** bỏ khoảng trắng thừa, không phân biệt hoa thường. Địa chỉ so theo id Xã cộng số nhà/đường.\n+- **BE không khớp được Xã:** không đề xuất địa chỉ. Hiện địa chỉ đăng ký dạng chữ để tham khảo.\n+- **Nút:**\n+  - `Bỏ qua`: không đổi gì.\n+  - `Cập nhật (n)`: điền các trường đã chọn vào form, rồi hiện snackbar `Đã điền n mục — bấm Gửi yêu cầu sửa để gửi duyệt`.\n+  - Mã đã chuẩn hoá (13 số thành dạng `10-3`) được ghi lại vào ô vừa tra.\n+\n+### 3.4 Ô Tên hoá đơn\n+- Thêm ô **Tên hoá đơn** ngay trên ô Mã số thuế, không bắt buộc. Không đặt giữa Tên và Chủ cửa hàng, vì ô bắt buộc phải nằm ngay dưới Tên. Đổ sẵn từ `customer_360.customer.billing_name`.\n+- Diff gửi khoá `billing_name`. BE đã nhận khoá này (`points.GENERAL_FIELDS`, nhãn Web `Tên hóa đơn`).\n+\n+### 3.5 Không làm\n+- Không gửi khối truy vết `tax_lookup` khi sửa. Yêu cầu sửa không có khoá này, và sale có thể sửa giá trị sau khi điền.\n+- Không chặn gửi khi mã thuộc KH khác. BE vẫn là nơi kiểm tra trùng.\n+\n+## 4. Test\n+- **Hàm thuần `taxLookupSuggestions`:**\n+  - khác thì có dòng, giống thì không (kể cả khác hoa thường hoặc khoảng trắng);\n+  - Chủ cửa hàng chỉ đề xuất khi là hộ kinh doanh;\n+  - địa chỉ chỉ đề xuất khi khớp được Xã;\n+  - Tên mặc định không chọn.\n+- **Màn Sửa KH:**\n+  - tra cứu ra khác thì hiện hộp thoại; Cập nhật thì form có giá trị mới, gửi thì diff có `billing_name`/`contact_name`/địa chỉ;\n+  - Bỏ qua thì form không đổi;\n+  - khớp hết thì không có hộp thoại;\n+  - không tìm thấy thì có snackbar và form không đổi;\n+  - mã 12 số trong ô MST bị báo và không gọi API;\n+  - mã thuộc KH khác thì có cảnh báo."
+      },
+      {
+        "sha": "1d90f680c93bdd1cbdbaf8f2df44e6fa13e3c4b1",
+        "filename": "lib/models/customer_360.dart",
+        "status": "modified",
+        "additions": 5,
+        "deletions": 0,
+        "changes": 5,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fmodels%2Fcustomer_360.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fmodels%2Fcustomer_360.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fmodels%2Fcustomer_360.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -15,6 +15,7 @@ class Customer360 {\n     this.lastVisits = const [],\n     this.segment,\n     this.contactName,\n+    this.billingName,\n     this.taxCode,\n     this.cccd,\n     this.email,\n@@ -43,6 +44,9 @@ class Customer360 {\n \n   // Trường ext (34A) — đổ sẵn màn Sửa KH; BE chưa trả → null, để trống.\n   final String? contactName;\n+\n+  /// Tên hoá đơn (`wh_customer.billing_name`) — đổ sẵn màn Sửa KH.\n+  final String? billingName;\n   final String? taxCode;\n   final String? cccd; // CCCD riêng (SPEC-tra-cuu-mst-cccd §4)\n   final String? email;\n@@ -101,6 +105,7 @@ class Customer360 {\n       // segment có thể nằm top-level hoặc trong customer (chịu cả 2).\n       segment: str(json['segment'] ?? cust['segment']),\n       contactName: str(cust['contact_name']),\n+      billingName: str(cust['billing_name']),\n       taxCode: str(cust['tax_code']),\n       cccd: str(cust['cccd']),\n       email: str(cust['email']),"
+      },
+      {
+        "sha": "8c372571d860a6042701461b14e1c05079a399e0",
+        "filename": "lib/models/history_entry.dart",
+        "status": "modified",
+        "additions": 27,
+        "deletions": 15,
+        "changes": 42,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fmodels%2Fhistory_entry.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fmodels%2Fhistory_entry.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fmodels%2Fhistory_entry.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -2,25 +2,34 @@\n /// và một bản ghi chấm công, đã gộp server + dữ liệu trên máy.\n library;\n \n-/// Nguồn lượt thăm — khớp `source` của `rt.visit/history`.\n+/// Lượt thăm có thuộc lịch tuyến NGÀY HÔM ĐÓ không (SPEC §3.2b):\n+/// - `Trong tuyến` / `Ngoài tuyến` — theo cờ `in_day_route` BE ghi lúc check-in.\n+///   KH gán tay, tự tạo, KH tuyến nhưng khác ngày, lượt xin ngoại tuyến đều\n+///   KHÔNG thuộc tuyến ngày hôm đó.\n+/// - `Chưa rõ tuyến` — lượt cũ trước khi có cờ (`in_day_route = null`): không\n+///   suy đoán từ `route_line` (chỉ cho biết KH thuộc tuyến nào đó, không phải\n+///   có lịch ngày hôm đó).\n enum VisitSource {\n-  route('route', 'Trong tuyến'),\n-  customerList('customer_list', 'Từ DS khách hàng'),\n-  offroute('offroute', 'Ngoài tuyến');\n+  route('Trong tuyến'),\n+  offroute('Ngoài tuyến'),\n+  unknown('Chưa rõ tuyến');\n \n-  const VisitSource(this.wire, this.label);\n-  final String wire;\n+  const VisitSource(this.label);\n   final String label;\n \n-  static VisitSource fromWire(String? v) => VisitSource.values\n-      .firstWhere((s) => s.wire == v, orElse: () => VisitSource.customerList);\n-\n-  /// Lượt chỉ có ở máy: suy từ cờ ngoại tuyến + dòng tuyến (như BE).\n-  static VisitSource infer({required bool isOffroute, int? routeLine}) {\n-    if (isOffroute) return VisitSource.offroute;\n-    if (routeLine != null) return VisitSource.route;\n-    return VisitSource.customerList;\n+  /// Từ `rt.visit/history`: `source = offroute` (xin ngoại tuyến) luôn là\n+  /// Ngoài tuyến; còn lại theo `in_day_route` (true/false/null).\n+  static VisitSource fromServer({String? source, Object? inDayRoute}) {\n+    if (source == 'offroute') return VisitSource.offroute;\n+    if (inDayRoute == true) return VisitSource.route;\n+    if (inDayRoute == false) return VisitSource.offroute;\n+    return VisitSource.unknown;\n   }\n+\n+  /// Lượt chỉ có ở máy: có lịch tuyến NGÀY check-in và không xin ngoại tuyến\n+  /// → route; còn lại → offroute (như BE).\n+  static VisitSource infer({required bool isOffroute, required bool inDayRoute}) =>\n+      !isOffroute && inDayRoute ? VisitSource.route : VisitSource.offroute;\n }\n \n DateTime? _date(Object? v) =>\n@@ -105,7 +114,10 @@ class VisitHistoryItem {\n       customerId: customerId,\n       customerName: _text(cust['name']) ?? 'KH #$customerId',\n       customerAddress: _text(cust['address']),\n-      source: VisitSource.fromWire(j['source']?.toString()),\n+      source: VisitSource.fromServer(\n+        source: j['source']?.toString(),\n+        inDayRoute: j['in_day_route'],\n+      ),\n       status: _int(j['status']) ?? 0,\n       outcome: _text(j['outcome']),\n       checkinAt: at,"
+      },
+      {
+        "sha": "458430ed9e15e5632e7e4d44b9aa1ffbdcafe7fe",
+        "filename": "lib/screens/customer/customer_edit_screen.dart",
+        "status": "modified",
+        "additions": 174,
+        "deletions": 5,
+        "changes": 179,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fcustomer%2Fcustomer_edit_screen.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fcustomer%2Fcustomer_edit_screen.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fscreens%2Fcustomer%2Fcustomer_edit_screen.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -11,12 +11,15 @@ import '../../services/customer_draft_service.dart';\n import '../../services/customer_pilot_service.dart';\n import '../../services/customer_profile_service.dart';\n import '../../services/segment_service.dart';\n+import '../../services/tax_lookup_service.dart';\n+import '../../services/tax_lookup_suggestions.dart';\n import '../../services/ward_service.dart';\n import '../../sync/dms_services.dart';\n import '../../sync/remote.dart' show RemoteException;\n import '../../widgets/keyboard_aware_scaffold.dart';\n import '../../widgets/province_ward_fields.dart';\n import 'customer_address_book_screen.dart';\n+import 'widgets/tax_lookup_update_dialog.dart';\n \n /// Giá trị form sửa KH — bất biến, dùng để so cũ↔mới khi build `changes`.\n ///\n@@ -25,6 +28,7 @@ import 'customer_address_book_screen.dart';\n class CustomerEditValues {\n   const CustomerEditValues({\n     this.name = '',\n+    this.billingName = '',\n     this.contactNumber = '',\n     this.wardId,\n     this.addressLine1 = '',\n@@ -48,6 +52,9 @@ class CustomerEditValues {\n \n   // Trường chung (wh.customer).\n   final String name;\n+\n+  /// Tên hoá đơn (`billing_name`) — SPEC-tra-cuu-mst-sua-kh §3.4.\n+  final String billingName;\n   final String contactNumber;\n \n   /// Địa chỉ hành chính: id Phường/Xã (`res.address.entity`). null = màn chưa\n@@ -85,6 +92,7 @@ class CustomerEditValues {\n   /// vào) — dùng cập nhật snapshot ban đầu SAU khi prefill, để dữ liệu đổ\n   /// sẵn không bị diff coi là \"thay đổi\".\n   CustomerEditValues copyWith({\n+    String? billingName,\n     int? wardId,\n     String? addressLine1,\n     String? contactPerson,\n@@ -98,6 +106,7 @@ class CustomerEditValues {\n   }) {\n     return CustomerEditValues(\n       name: name,\n+      billingName: billingName ?? this.billingName,\n       contactNumber: contactNumber,\n       wardId: wardId ?? this.wardId,\n       addressLine1: addressLine1 ?? this.addressLine1,\n@@ -139,6 +148,7 @@ Map<String, dynamic> diffCustomerEdit(\n \n   // Trường chung.\n   putString('name', oldV.name, newV.name);\n+  putString('billing_name', oldV.billingName, newV.billingName);\n   putString('contact_number', oldV.contactNumber, newV.contactNumber);\n   putString('notes', oldV.notes, newV.notes);\n \n@@ -209,11 +219,13 @@ class CustomerEditScreen extends StatefulWidget {\n     SegmentLookup? segmentLookup,\n     CustomerAddressService? addressService,\n     AddressTreeLookup? addressTree,\n+    TaxLookup? taxLookup,\n   })  : _service = service,\n         _profileService = profileService,\n         _segmentLookup = segmentLookup,\n         _addressService = addressService,\n-        _addressTree = addressTree;\n+        _addressTree = addressTree,\n+        _taxLookup = taxLookup;\n \n   final Customer customer;\n   final CustomerDraftService? _service;\n@@ -229,6 +241,9 @@ class CustomerEditScreen extends StatefulWidget {\n   /// Danh mục hành chính Tỉnh → Xã.\n   final AddressTreeLookup? _addressTree;\n \n+  /// Tra cứu MST/CCCD (SPEC-tra-cuu-mst-sua-kh).\n+  final TaxLookup? _taxLookup;\n+\n   @override\n   State<CustomerEditScreen> createState() => _CustomerEditScreenState();\n }\n@@ -238,6 +253,7 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {\n \n   late final TextEditingController _nameCtrl =\n       TextEditingController(text: widget.customer.name);\n+  final _billingCtrl = TextEditingController();\n   late final TextEditingController _phoneCtrl =\n       TextEditingController(text: widget.customer.contactNumber ?? '');\n   // Địa chỉ: Tỉnh → Xã (danh mục hành chính) + số nhà/đường.\n@@ -275,6 +291,11 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {\n       widget._addressService ?? CustomerAddressService(DmsServices.instance.db);\n   late final AddressTreeLookup _addressTree =\n       widget._addressTree ?? const ApiWardLookup();\n+  late final TaxLookup _taxLookupApi =\n+      widget._taxLookup ?? const ApiTaxLookup();\n+\n+  /// Ô đang tra cứu (null = không tra) — khoá cả 2 nút trong lúc chờ.\n+  TaxCodeKind? _looking;\n \n   /// Snapshot giá trị ban đầu để build diff lúc gửi.\n   ///\n@@ -431,6 +452,7 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {\n \n     setState(() {\n       final contactName = fill(_contactPersonCtrl, profile.contactName);\n+      final billingName = fill(_billingCtrl, profile.billingName);\n       final taxCode = fill(_taxCtrl, profile.taxCode);\n       final cccd = fill(_cccdCtrl, profile.cccd);\n       final email = fill(_emailCtrl, profile.email);\n@@ -443,6 +465,7 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {\n       _segment ??= profile.segment;\n \n       _initial = _initial.copyWith(\n+        billingName: billingName,\n         contactPerson: contactName,\n         segment: profile.segment,\n         taxCode: taxCode,\n@@ -459,6 +482,7 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {\n   @override\n   void dispose() {\n     _nameCtrl.dispose();\n+    _billingCtrl.dispose();\n     _phoneCtrl.dispose();\n     _provinceCtrl.dispose();\n     _wardCtrl.dispose();\n@@ -481,6 +505,7 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {\n   CustomerEditValues _readValues({String? segment}) {\n     return CustomerEditValues(\n       name: _nameCtrl.text,\n+      billingName: _billingCtrl.text,\n       contactNumber: _phoneCtrl.text,\n       wardId: _ward?.id,\n       addressLine1: _line1Ctrl.text,\n@@ -556,6 +581,137 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {\n     }\n   }\n \n+  void _snack(String text, Color color) {\n+    ScaffoldMessenger.of(context).showSnackBar(\n+      SnackBar(content: Text(text), backgroundColor: color),\n+    );\n+  }\n+\n+  /// SPEC-tra-cuu-mst-sua-kh §3.1–3.3: tra mã trong ô [field] → so với form\n+  /// → hộp thoại đề xuất. Chỉ ĐIỀN form, không tự gửi.\n+  Future<void> _runLookup(TaxCodeKind field) async {\n+    final ctrl = field == TaxCodeKind.cccd ? _cccdCtrl : _taxCtrl;\n+    final raw = ctrl.text.trim();\n+    if (raw.isEmpty) {\n+      _snack('Nhập MST/CCCD để tra cứu', Colors.orange.shade800);\n+      return;\n+    }\n+    final parsed = classifyTaxCode(raw);\n+    final String? formatError;\n+    if (parsed == null) {\n+      formatError = field == TaxCodeKind.cccd\n+          ? CustomerPilotService.cccdError\n+          : 'MST 10 hoặc 13 số (chi nhánh dạng 0123456789-001)';\n+    } else if (parsed.kind != field) {\n+      formatError = field == TaxCodeKind.taxCode\n+          ? 'Mã 12 số là CCCD — nhập vào ô CCCD'\n+          : CustomerPilotService.cccdError;\n+    } else {\n+      formatError = null;\n+    }\n+    if (formatError != null || parsed == null) {\n+      _snack(formatError ?? 'Mã không hợp lệ', Colors.red.shade700);\n+      return;\n+    }\n+\n+    setState(() => _looking = field);\n+    TaxLookupResult r;\n+    try {\n+      r = await _taxLookupApi.lookup(parsed.code, parsed.kind);\n+    } on FormatException catch (e) {\n+      if (!mounted) return;\n+      setState(() => _looking = null);\n+      _snack(e.message, Colors.red.shade700);\n+      return;\n+    }\n+    if (!mounted) return;\n+    setState(() => _looking = null);\n+\n+    if (!r.found) {\n+      _snack(r.missMessage, Colors.orange.shade800);\n+      return;\n+    }\n+    final suggestions = taxLookupSuggestions(_identitySnapshot(), r);\n+    final warnings =\n+        taxLookupWarnings(r, customerCode: widget.customer.code);\n+    if (suggestions.isEmpty && warnings.isEmpty) {\n+      _snack('Thông tin KH đã khớp dữ liệu tra cứu', Colors.green);\n+      return;\n+    }\n+    final picked = await showTaxLookupUpdateDialog(\n+      context,\n+      result: r,\n+      suggestions: suggestions,\n+      warnings: warnings,\n+    );\n+    if (!mounted || picked.isEmpty) return;\n+    setState(() {\n+      // Mã chuẩn hoá (13 số → 10-3) ghi lại vào ô vừa tra.\n+      ctrl.text = r.code.isNotEmpty ? r.code : parsed.code;\n+      _applySuggestions(r, picked);\n+    });\n+    _formKey.currentState?.validate();\n+    _snack(\n+      'Đã điền ${picked.length} mục — bấm Gửi yêu cầu sửa để gửi duyệt',\n+      Colors.green,\n+    );\n+  }\n+\n+  CustomerIdentitySnapshot _identitySnapshot() => CustomerIdentitySnapshot(\n+        name: _nameCtrl.text,\n+        billingName: _billingCtrl.text,\n+        owner: _contactPersonCtrl.text,\n+        line1: _line1Ctrl.text,\n+        wardId: _ward?.id,\n+        provinceName: _province?.name ?? '',\n+        wardName: _ward?.name ?? '',\n+      );\n+\n+  void _applySuggestions(TaxLookupResult r, Set<TaxSuggestField> picked) {\n+    final name = r.name;\n+    if (name != null) {\n+      if (picked.contains(TaxSuggestField.billingName)) _billingCtrl.text = name;\n+      if (picked.contains(TaxSuggestField.owner)) {\n+        _contactPersonCtrl.text = name;\n+      }\n+      if (picked.contains(TaxSuggestField.name)) _nameCtrl.text = name;\n+    }\n+    final province = r.province;\n+    final ward = r.ward;\n+    final line1 = r.line1;\n+    if (picked.contains(TaxSuggestField.address) &&\n+        province != null &&\n+        ward != null &&\n+        line1 != null) {\n+      _province = AddressEntity(id: province.id, name: province.name);\n+      _ward = AddressEntity(id: ward.id, name: ward.name);\n+      _provinceCtrl.text = province.name;\n+      _wardCtrl.text = ward.name;\n+      _line1Ctrl.text = line1;\n+    }\n+  }\n+\n+  Widget _lookupButton(TaxCodeKind field) {\n+    if (_looking == field) {\n+      return const Padding(\n+        padding: EdgeInsets.all(12),\n+        child: SizedBox(\n+          width: 20,\n+          height: 20,\n+          child: CircularProgressIndicator(strokeWidth: 2),\n+        ),\n+      );\n+    }\n+    return IconButton(\n+      key: Key(field == TaxCodeKind.cccd\n+          ? 'tax-lookup-cccd'\n+          : 'tax-lookup-tax'),\n+      tooltip: 'Tra cứu',\n+      icon: const Icon(Icons.search),\n+      onPressed: _looking != null ? null : () => _runLookup(field),\n+    );\n+  }\n+\n   Future<void> _submit() async {\n     if (!_formKey.currentState!.validate()) {\n       _scrollToFirstError();\n@@ -731,14 +887,26 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {\n               ),\n             ),\n             const SizedBox(height: 12),\n+            // SPEC-tra-cuu-mst-sua-kh §3.4: cạnh MST/CCCD — cùng nhóm thông\n+            // tin xuất hoá đơn; không chen giữa Tên và Chủ cửa hàng (bắt buộc).\n+            TextFormField(\n+              key: const Key('edit-billing-name'),\n+              controller: _billingCtrl,\n+              decoration: const InputDecoration(\n+                labelText: 'Tên hoá đơn',\n+                border: OutlineInputBorder(),\n+              ),\n+            ),\n+            const SizedBox(height: 12),\n             TextFormField(\n               controller: _taxCtrl,\n               // A1: MST — số + dấu \"-\" (MST chi nhánh). CCCD có ô riêng bên dưới.\n               keyboardType: TextInputType.text,\n               inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[0-9-]'))],\n-              decoration: const InputDecoration(\n+              decoration: InputDecoration(\n                 labelText: 'Mã số thuế',\n-                border: OutlineInputBorder(),\n+                border: const OutlineInputBorder(),\n+                suffixIcon: _lookupButton(TaxCodeKind.taxCode),\n               ),\n               validator: (v) {\n                 if (v == null || v.trim().isEmpty) return null;\n@@ -756,9 +924,10 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {\n                 FilteringTextInputFormatter.digitsOnly,\n                 LengthLimitingTextInputFormatter(12),\n               ],\n-              decoration: const InputDecoration(\n+              decoration: InputDecoration(\n                 labelText: 'CCCD',\n-                border: OutlineInputBorder(),\n+                border: const OutlineInputBorder(),\n+                suffixIcon: _lookupButton(TaxCodeKind.cccd),\n               ),\n               validator: (v) => CustomerPilotService.isValidCccd(v ?? '')\n                   ? null"
+      },
+      {
+        "sha": "3c4c8dc6512c3b31c65035692d21baa0381652c7",
+        "filename": "lib/screens/customer/widgets/tax_lookup_update_dialog.dart",
+        "status": "added",
+        "additions": 138,
+        "deletions": 0,
+        "changes": 138,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fcustomer%2Fwidgets%2Ftax_lookup_update_dialog.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fcustomer%2Fwidgets%2Ftax_lookup_update_dialog.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fscreens%2Fcustomer%2Fwidgets%2Ftax_lookup_update_dialog.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -0,0 +1,138 @@\n+import 'package:flutter/material.dart';\n+\n+import '../../../services/tax_lookup_service.dart';\n+import '../../../services/tax_lookup_suggestions.dart';\n+\n+/// Hộp thoại đề xuất cập nhật từ tra cứu MST/CCCD (SPEC-tra-cuu-mst-sua-kh\n+/// §3.3). Trả về các trường sale chọn cập nhật; Bỏ qua/đóng → tập rỗng.\n+Future<Set<TaxSuggestField>> showTaxLookupUpdateDialog(\n+  BuildContext context, {\n+  required TaxLookupResult result,\n+  required List<TaxSuggestion> suggestions,\n+  required List<String> warnings,\n+}) async {\n+  final picked = await showDialog<Set<TaxSuggestField>>(\n+    context: context,\n+    builder: (_) => _TaxLookupUpdateDialog(\n+      result: result,\n+      suggestions: suggestions,\n+      warnings: warnings,\n+    ),\n+  );\n+  return picked ?? const {};\n+}\n+\n+class _TaxLookupUpdateDialog extends StatefulWidget {\n+  const _TaxLookupUpdateDialog({\n+    required this.result,\n+    required this.suggestions,\n+    required this.warnings,\n+  });\n+\n+  final TaxLookupResult result;\n+  final List<TaxSuggestion> suggestions;\n+  final List<String> warnings;\n+\n+  @override\n+  State<_TaxLookupUpdateDialog> createState() => _TaxLookupUpdateDialogState();\n+}\n+\n+class _TaxLookupUpdateDialogState extends State<_TaxLookupUpdateDialog> {\n+  late final Set<TaxSuggestField> _selected = {\n+    for (final s in widget.suggestions)\n+      if (s.selectedByDefault) s.field,\n+  };\n+\n+  @override\n+  Widget build(BuildContext context) {\n+    final r = widget.result;\n+    final hasSuggestions = widget.suggestions.isNotEmpty;\n+    final addressNote = unmatchedAddressNote(r);\n+    return AlertDialog(\n+      key: const Key('tax-lookup-update-dialog'),\n+      title: Text(hasSuggestions\n+          ? 'Thông tin tra cứu khác hồ sơ'\n+          : 'Thông tin KH đã khớp dữ liệu tra cứu'),\n+      contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),\n+      content: SizedBox(\n+        width: double.maxFinite,\n+        child: ListView(\n+          shrinkWrap: true,\n+          children: [\n+            Text(\n+              [r.orgType ?? 'Người nộp thuế', r.status]\n+                  .whereType<String>()\n+                  .join(' · '),\n+              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),\n+            ),\n+            for (final w in widget.warnings)\n+              Container(\n+                margin: const EdgeInsets.only(top: 8),\n+                padding: const EdgeInsets.all(8),\n+                decoration: BoxDecoration(\n+                  color: Colors.orange.shade50,\n+                  borderRadius: BorderRadius.circular(6),\n+                ),\n+                child: Row(\n+                  children: [\n+                    Icon(Icons.warning_amber_rounded,\n+                        size: 18, color: Colors.orange.shade800),\n+                    const SizedBox(width: 6),\n+                    Expanded(\n+                      child: Text(w,\n+                          style: TextStyle(color: Colors.orange.shade900)),\n+                    ),\n+                  ],\n+                ),\n+              ),\n+            if (hasSuggestions) ...[\n+              const SizedBox(height: 8),\n+              const Text('Chọn mục muốn cập nhật vào form:'),\n+            ],\n+            for (final s in widget.suggestions)\n+              CheckboxListTile(\n+                key: Key('tax-suggest-${s.field.name}'),\n+                contentPadding: EdgeInsets.zero,\n+                controlAffinity: ListTileControlAffinity.leading,\n+                value: _selected.contains(s.field),\n+                onChanged: (v) => setState(() =>\n+                    v == true ? _selected.add(s.field) : _selected.remove(s.field)),\n+                title: Text(s.label,\n+                    style: const TextStyle(fontWeight: FontWeight.w600)),\n+                subtitle: Text(\n+                  'Hiện tại: ${s.current.isEmpty ? '(trống)' : s.current}\\n'\n+                  'Tra cứu: ${s.suggested}',\n+                ),\n+              ),\n+            if (addressNote != null) ...[\n+              const SizedBox(height: 8),\n+              Text(\n+                'Địa chỉ đăng ký: $addressNote',\n+                style: TextStyle(color: Colors.grey.shade700, fontSize: 13),\n+              ),\n+            ],\n+          ],\n+        ),\n+      ),\n+      actions: hasSuggestions\n+          ? [\n+              TextButton(\n+                onPressed: () => Navigator.of(context).pop(<TaxSuggestField>{}),\n+                child: const Text('Bỏ qua'),\n+              ),\n+              FilledButton(\n+                onPressed: _selected.isEmpty\n+                    ? null\n+                    : () => Navigator.of(context).pop({..._selected}),\n+                child: Text('Cập nhật (${_selected.length})'),\n+              ),\n+            ]\n+          : [\n+              TextButton(\n+                onPressed: () => Navigator.of(context).pop(<TaxSuggestField>{}),\n+                child: const Text('Đóng'),\n+              ),\n+            ],\n+    );\n+  }\n+}"
+      },
+      {
+        "sha": "891c1d8cdb2e057dcba6457cf695f8738ad99aaf",
+        "filename": "lib/screens/history/history_screen.dart",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fhistory%2Fhistory_screen.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fhistory%2Fhistory_screen.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fscreens%2Fhistory%2Fhistory_screen.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -154,8 +154,8 @@ Widget _tag(String text, Color color) => Container(\n \n Color _sourceColor(VisitSource s) => switch (s) {\n       VisitSource.route => Colors.blue.shade700,\n-      VisitSource.customerList => Colors.purple.shade600,\n       VisitSource.offroute => Colors.orange.shade800,\n+      VisitSource.unknown => Colors.grey.shade600,\n     };\n \n /// Nhóm theo ngày (giờ máy) giữ thứ tự mới nhất trước."
+      },
+      {
+        "sha": "b4aab12b22b50b51bf20eb65849647de00f5795e",
+        "filename": "lib/screens/visit/steps/checkin_step.dart",
+        "status": "modified",
+        "additions": 9,
+        "deletions": 10,
+        "changes": 19,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fvisit%2Fsteps%2Fcheckin_step.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fvisit%2Fsteps%2Fcheckin_step.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fscreens%2Fvisit%2Fsteps%2Fcheckin_step.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -8,6 +8,7 @@ import '../../../services/visit_service.dart';\n import '../../../models/pos_profile.dart';\n import '../../../models/pos_type.dart';\n import '../../../widgets/pos_type_badge.dart';\n+import '../widgets/checkin_photo_field.dart';\n \n // Bán kính từ `kUnlimitedRadiusM` trở lên coi là \"không giới hạn\" (admin tắt\n // kiểm bán kính bằng cách đặt số cực lớn) — hiện chữ thay vì in số thô. Hằng\n@@ -136,6 +137,7 @@ class _CheckinStepState extends State<CheckinStep> {\n   }\n \n   /// QD-09: chỉ chụp bằng CAMERA (không cho chọn ảnh từ thư viện/máy).\n+  /// Chụp lại mà huỷ camera → GIỮ ảnh cũ (x == null không xoá gì).\n   Future<void> _takePhoto() async {\n     final x = await _picker.pickImage(\n       source: ImageSource.camera,\n@@ -360,17 +362,14 @@ class _CheckinStepState extends State<CheckinStep> {\n     );\n   }\n \n+  /// Xem lại / chụp lại ảnh trước khi bấm Check-in.\n   Widget _photoTile() {\n-    return OutlinedButton.icon(\n-      key: const Key('checkin_take_photo'),\n-      onPressed: _busy ? null : _takePhoto,\n-      icon: Icon(_photoPath == null ? Icons.camera_alt : Icons.check_circle,\n-          color: _photoPath != null ? Colors.green : null),\n-      label: Text(_photoPath == null\n-          ? (_photoRequired\n-              ? 'Chụp ảnh điểm bán (bắt buộc)'\n-              : 'Chụp ảnh điểm bán (tuỳ chọn)')\n-          : 'Đã chụp ảnh — chụp lại'),\n+    return CheckinPhotoField(\n+      photoPath: _photoPath,\n+      takenAt: _photoTakenAt,\n+      required: _photoRequired,\n+      enabled: !_busy,\n+      onCapture: _takePhoto,\n     );\n   }\n }"
+      },
+      {
+        "sha": "c77dd902b27711455e583b35a72766ab42fdd5d7",
+        "filename": "lib/screens/visit/visit_flow_screen.dart",
+        "status": "modified",
+        "additions": 55,
+        "deletions": 2,
+        "changes": 57,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fvisit%2Fvisit_flow_screen.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fvisit%2Fvisit_flow_screen.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fscreens%2Fvisit%2Fvisit_flow_screen.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -21,6 +21,7 @@ import 'steps/display_step.dart';\n import 'steps/note_step.dart';\n import 'steps/stock_step.dart';\n import 'steps/vnpost_stock_step.dart';\n+import 'widgets/checkin_photo_field.dart';\n import 'widgets/checkout_bar.dart';\n import 'widgets/min_visit_countdown.dart';\n import 'widgets/open_visit_block_dialog.dart';\n@@ -669,15 +670,67 @@ class _VisitFlowScreenState extends State<VisitFlowScreen> {\n                 v?.lat != null && v?.lng != null\n                     ? '${v!.lat!.toStringAsFixed(6)}, ${v.lng!.toStringAsFixed(6)}'\n                     : '—'),\n-            _infoRow(Icons.photo_camera, 'Ảnh điểm bán',\n-                'Đã chụp khi check-in (bắt buộc)'),\n+            _infoRow(Icons.photo_camera, 'Ảnh điểm bán', ''),\n+            _checkinPhotoBox(),\n             const SizedBox(height: 8),\n           ],\n         ),\n       ),\n     );\n   }\n \n+  /// Ảnh check-in đã chụp (file trên máy → URL server); bấm để xem to.\n+  Widget _checkinPhotoBox() {\n+    final uuid = _visitUuid;\n+    return FutureBuilder<CheckinPhoto?>(\n+      future: uuid == null ? Future.value(null) : _service.checkinPhotoOf(uuid),\n+      builder: (context, snap) {\n+        if (snap.connectionState != ConnectionState.done) {\n+          return const Padding(\n+            padding: EdgeInsets.symmetric(vertical: 8),\n+            child: SizedBox(\n+                width: 20,\n+                height: 20,\n+                child: CircularProgressIndicator(strokeWidth: 2)),\n+          );\n+        }\n+        final photo = snap.data;\n+        if (photo == null || (photo.localPath == null && photo.url == null)) {\n+          return Padding(\n+            key: const Key('checkin_info_no_photo'),\n+            padding: const EdgeInsets.only(left: 28, bottom: 4),\n+            child: Text('Không có ảnh trên máy này',\n+                style: TextStyle(color: Colors.grey.shade600)),\n+          );\n+        }\n+        return Padding(\n+          padding: const EdgeInsets.only(left: 28, top: 4),\n+          child: GestureDetector(\n+            key: const Key('checkin_info_photo'),\n+            onTap: () => Navigator.of(context).push<bool>(MaterialPageRoute(\n+              builder: (_) => CheckinPhotoViewer(\n+                path: photo.localPath,\n+                url: photo.url,\n+                canRetake: false,\n+              ),\n+            )),\n+            child: ClipRRect(\n+              borderRadius: BorderRadius.circular(8),\n+              child: checkinPhotoImage(\n+                path: photo.localPath,\n+                url: photo.url,\n+                width: 160,\n+                height: 120,\n+                fit: BoxFit.cover,\n+                cacheWidth: 480,\n+              ),\n+            ),\n+          ),\n+        );\n+      },\n+    );\n+  }\n+\n   Widget _infoRow(IconData icon, String label, String value) {\n     return Padding(\n       padding: const EdgeInsets.symmetric(vertical: 6),"
+      },
+      {
+        "sha": "e8b134667bbadc4fb58c357194e47d908186d856",
+        "filename": "lib/screens/visit/widgets/checkin_photo_field.dart",
+        "status": "added",
+        "additions": 210,
+        "deletions": 0,
+        "changes": 210,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fvisit%2Fwidgets%2Fcheckin_photo_field.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fscreens%2Fvisit%2Fwidgets%2Fcheckin_photo_field.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fscreens%2Fvisit%2Fwidgets%2Fcheckin_photo_field.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -0,0 +1,210 @@\n+import 'dart:io';\n+\n+import 'package:flutter/material.dart';\n+import 'package:intl/intl.dart';\n+\n+/// Ảnh điểm bán ở bước 1 Check-in (QD-09: chỉ chụp bằng camera).\n+///\n+/// - Chưa có ảnh: nút chụp.\n+/// - Đã có ảnh: ảnh thu nhỏ + giờ chụp, nút **Xem ảnh** (toàn màn hình, phóng\n+///   to được, có nút Chụp lại) và **Chụp lại**.\n+///\n+/// Widget chỉ hiển thị; chụp do [onCapture] của màn cha (giữ ảnh cũ nếu sale\n+/// huỷ camera khi chụp lại).\n+class CheckinPhotoField extends StatelessWidget {\n+  const CheckinPhotoField({\n+    super.key,\n+    required this.photoPath,\n+    required this.takenAt,\n+    required this.required,\n+    required this.enabled,\n+    required this.onCapture,\n+  });\n+\n+  final String? photoPath;\n+  final DateTime? takenAt;\n+  final bool required;\n+  final bool enabled;\n+  final Future<void> Function() onCapture;\n+\n+  static const double _thumb = 72;\n+\n+  Future<void> _view(BuildContext context, String path) async {\n+    final retake = await Navigator.of(context).push<bool>(\n+      MaterialPageRoute(\n+        builder: (_) => CheckinPhotoViewer(path: path, canRetake: enabled),\n+      ),\n+    );\n+    if (retake == true) await onCapture();\n+  }\n+\n+  @override\n+  Widget build(BuildContext context) {\n+    final path = photoPath;\n+    if (path == null) {\n+      return OutlinedButton.icon(\n+        key: const Key('checkin_take_photo'),\n+        onPressed: enabled ? onCapture : null,\n+        icon: const Icon(Icons.camera_alt),\n+        label: Text(required\n+            ? 'Chụp ảnh điểm bán (bắt buộc)'\n+            : 'Chụp ảnh điểm bán (tuỳ chọn)'),\n+      );\n+    }\n+    final at = takenAt;\n+    return Container(\n+      key: const Key('checkin_photo_card'),\n+      padding: const EdgeInsets.all(10),\n+      decoration: BoxDecoration(\n+        border: Border.all(color: Colors.green.shade300),\n+        borderRadius: BorderRadius.circular(12),\n+        color: Colors.green.withValues(alpha: 0.04),\n+      ),\n+      child: Row(\n+        children: [\n+          GestureDetector(\n+            key: const Key('checkin_photo_preview'),\n+            onTap: () => _view(context, path),\n+            child: ClipRRect(\n+              borderRadius: BorderRadius.circular(8),\n+              child: checkinPhotoImage(\n+                path: path,\n+                width: _thumb,\n+                height: _thumb,\n+                fit: BoxFit.cover,\n+                cacheWidth: 216,\n+              ),\n+            ),\n+          ),\n+          const SizedBox(width: 12),\n+          Expanded(\n+            child: Column(\n+              crossAxisAlignment: CrossAxisAlignment.start,\n+              children: [\n+                Row(\n+                  children: [\n+                    Icon(Icons.check_circle,\n+                        size: 16, color: Colors.green.shade700),\n+                    const SizedBox(width: 4),\n+                    Flexible(\n+                      child: Text(\n+                        at == null\n+                            ? 'Đã chụp ảnh điểm bán'\n+                            : 'Đã chụp lúc ${DateFormat('HH:mm').format(at)}',\n+                        style: TextStyle(\n+                          color: Colors.green.shade800,\n+                          fontWeight: FontWeight.w600,\n+                        ),\n+                      ),\n+                    ),\n+                  ],\n+                ),\n+                const SizedBox(height: 4),\n+                Wrap(\n+                  spacing: 4,\n+                  children: [\n+                    TextButton.icon(\n+                      key: const Key('checkin_view_photo'),\n+                      onPressed: () => _view(context, path),\n+                      icon: const Icon(Icons.zoom_in, size: 18),\n+                      label: const Text('Xem ảnh'),\n+                    ),\n+                    TextButton.icon(\n+                      key: const Key('checkin_retake_photo'),\n+                      onPressed: enabled ? onCapture : null,\n+                      icon: const Icon(Icons.camera_alt, size: 18),\n+                      label: const Text('Chụp lại'),\n+                    ),\n+                  ],\n+                ),\n+              ],\n+            ),\n+          ),\n+        ],\n+      ),\n+    );\n+  }\n+}\n+\n+/// Ảnh check-in: file trên máy, file mất (OS dọn) thì lấy [url] server,\n+/// không có cả hai thì hiện biểu tượng ảnh hỏng.\n+Widget checkinPhotoImage({\n+  String? path,\n+  String? url,\n+  double? width,\n+  double? height,\n+  BoxFit? fit,\n+  int? cacheWidth,\n+  Color brokenColor = Colors.black26,\n+}) {\n+  Widget broken(BuildContext _, Object __, StackTrace? ___) => Container(\n+        width: width,\n+        height: height,\n+        color: width == null ? null : Colors.black12,\n+        alignment: Alignment.center,\n+        child: Icon(Icons.broken_image,\n+            color: brokenColor, size: width == null ? 64 : null),\n+      );\n+  Widget network() => url == null\n+      ? Builder(builder: (c) => broken(c, 'no url', null))\n+      : Image.network(url,\n+          width: width,\n+          height: height,\n+          fit: fit,\n+          cacheWidth: cacheWidth,\n+          errorBuilder: broken);\n+  if (path == null) return network();\n+  return Image.file(\n+    File(path),\n+    width: width,\n+    height: height,\n+    fit: fit,\n+    cacheWidth: cacheWidth,\n+    errorBuilder: (_, __, ___) => network(),\n+  );\n+}\n+\n+/// Xem ảnh check-in toàn màn hình (phóng to được). Pop `true` = sale muốn\n+/// chụp lại ([canRetake] = false: chỉ xem, vd sau khi đã check-in).\n+class CheckinPhotoViewer extends StatelessWidget {\n+  const CheckinPhotoViewer({\n+    super.key,\n+    this.path,\n+    this.url,\n+    this.canRetake = true,\n+  });\n+\n+  final String? path;\n+  final String? url;\n+  final bool canRetake;\n+\n+  @override\n+  Widget build(BuildContext context) {\n+    return Scaffold(\n+      backgroundColor: Colors.black,\n+      appBar: AppBar(\n+        backgroundColor: Colors.black,\n+        foregroundColor: Colors.white,\n+        title: const Text('Ảnh điểm bán'),\n+        actions: [\n+          if (canRetake)\n+            TextButton.icon(\n+              key: const Key('checkin_viewer_retake'),\n+              style: TextButton.styleFrom(foregroundColor: Colors.white),\n+              onPressed: () => Navigator.of(context).pop(true),\n+              icon: const Icon(Icons.camera_alt),\n+              label: const Text('Chụp lại'),\n+            ),\n+        ],\n+      ),\n+      body: Center(\n+        child: InteractiveViewer(\n+          minScale: 0.5,\n+          maxScale: 4,\n+          child: checkinPhotoImage(\n+              path: path, url: url, brokenColor: Colors.white54),\n+        ),\n+      ),\n+    );\n+  }\n+}"
+      },
+      {
+        "sha": "5ea662c09e80ab3b14fd72f7c0545e1514e49cfc",
+        "filename": "lib/services/history_service.dart",
+        "status": "modified",
+        "additions": 42,
+        "deletions": 1,
+        "changes": 43,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fservices%2Fhistory_service.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fservices%2Fhistory_service.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fservices%2Fhistory_service.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -8,6 +8,7 @@ import '../db/app_db.dart';\n import '../models/history_entry.dart';\n import '../sync/outbox_dispatcher.dart';\n import '../sync/outbox_worker.dart';\n+import '../utils/route_days.dart';\n import 'api_client.dart';\n \n /// Cổng đọc lịch sử từ server (inject để test). Không bao giờ gửi `saleman`:\n@@ -227,14 +228,21 @@ class HistoryService {\n         if (t != null) noteBy[s.visitUuid] = t;\n       }\n     }\n+    final inDayRoute = await _localDayRouteChecker();\n     return rows.map((r) {\n       final c = custById[r.customer];\n       return VisitHistoryItem(\n         clientUuid: r.clientUuid,\n         customerId: r.customer,\n         customerName: (c?.name.isNotEmpty ?? false) ? c!.name : 'KH #${r.customer}',\n         customerAddress: c?.addressText,\n-        source: VisitSource.infer(isOffroute: r.isOffroute, routeLine: r.routeLine),\n+        // §3.2b: \"Trong tuyến\" = có lịch tuyến NGÀY check-in. App không gửi\n+        // route_line → tự tính từ tuyến trên máy (server có cờ thì bản server\n+        // thắng khi gộp).\n+        source: VisitSource.infer(\n+          isOffroute: r.isOffroute,\n+          inDayRoute: inDayRoute(r.customer, r.openedAt),\n+        ),\n         status: r.status,\n         outcome: r.outcome,\n         checkinAt: r.openedAt,\n@@ -249,6 +257,39 @@ class HistoryService {\n   }\n \n   /// Các lượt (client_uuid) có `visit.save_step` bước note còn chờ trong outbox.\n+  /// KH có trong lịch tuyến (trên máy) vào ngày [at] không — cùng luật\n+  /// `selectLinesForDay` của tab Hôm nay offline. Tuyến trên máy là bản HIỆN\n+  /// TẠI: đủ cho lượt chưa đồng bộ (thường cùng ngày).\n+  Future<bool Function(int customer, DateTime at)> _localDayRouteChecker() async {\n+    final routeById = {\n+      for (final r in await _db.select(_db.routes).get())\n+        r.id: RouteDays(\n+          id: r.id,\n+          active: r.active,\n+          unlimited: r.unlimited,\n+          visitWeekdays: r.visitWeekdays,\n+        ),\n+    };\n+    final lines = [\n+      for (final l in await _db.select(_db.routeLines).get())\n+        RouteLineDays(\n+          route: l.route,\n+          customer: l.customer,\n+          weekdays: l.weekdays,\n+          sequence: l.sequence,\n+          active: l.active,\n+        ),\n+    ];\n+    final byDow = <int, Set<int>>{};\n+    return (customer, at) {\n+      final dow = dowOf(at.toLocal());\n+      final set = byDow[dow] ??= {\n+        for (final d in selectLinesForDay(routeById, lines, dow)) d.customer,\n+      };\n+      return set.contains(customer);\n+    };\n+  }\n+\n   Future<Set<String>> _pendingNoteVisits() async {\n     final rows = await (_db.select(_db.outbox)\n           ..where((t) =>"
+      },
+      {
+        "sha": "c87545140dd34a363626d69e91b6bff6512270da",
+        "filename": "lib/services/tax_lookup_suggestions.dart",
+        "status": "added",
+        "additions": 134,
+        "deletions": 0,
+        "changes": 134,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fservices%2Ftax_lookup_suggestions.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fservices%2Ftax_lookup_suggestions.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fservices%2Ftax_lookup_suggestions.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -0,0 +1,134 @@\n+/// Đề xuất cập nhật hồ sơ KH từ kết quả tra cứu MST/CCCD\n+/// (SPEC-tra-cuu-mst-sua-kh §3.3). Hàm thuần: không đụng UI, không ghi gì.\n+library;\n+\n+import 'tax_lookup_service.dart';\n+\n+/// Trường có thể đề xuất.\n+enum TaxSuggestField { billingName, owner, address, name }\n+\n+/// Giá trị hồ sơ đang có trên form Sửa KH.\n+class CustomerIdentitySnapshot {\n+  const CustomerIdentitySnapshot({\n+    this.name = '',\n+    this.billingName = '',\n+    this.owner = '',\n+    this.line1 = '',\n+    this.wardId,\n+    this.provinceName = '',\n+    this.wardName = '',\n+  });\n+\n+  final String name;\n+  final String billingName;\n+  final String owner;\n+  final String line1;\n+  final int? wardId;\n+  final String provinceName;\n+  final String wardName;\n+\n+  String get addressText => joinAddress(line1, wardName, provinceName);\n+}\n+\n+class TaxSuggestion {\n+  const TaxSuggestion({\n+    required this.field,\n+    required this.label,\n+    required this.current,\n+    required this.suggested,\n+    required this.selectedByDefault,\n+  });\n+\n+  final TaxSuggestField field;\n+  final String label;\n+\n+  /// Giá trị hiển thị ('' = đang trống).\n+  final String current;\n+  final String suggested;\n+  final bool selectedByDefault;\n+}\n+\n+/// Bỏ khoảng trắng thừa + không phân biệt hoa thường.\n+String normalizeForCompare(String? v) =>\n+    (v ?? '').trim().replaceAll(RegExp(r'\\s+'), ' ').toLowerCase();\n+\n+String joinAddress(String line1, String ward, String province) => [line1, ward, province]\n+    .map((s) => s.trim())\n+    .where((s) => s.isNotEmpty)\n+    .join(', ');\n+\n+/// Các trường KHÁC giữa [current] và [r]. [r] không tìm thấy → rỗng.\n+List<TaxSuggestion> taxLookupSuggestions(\n+  CustomerIdentitySnapshot current,\n+  TaxLookupResult r,\n+) {\n+  if (!r.found) return const [];\n+  final out = <TaxSuggestion>[];\n+  final name = r.name;\n+\n+  bool differs(String a, String b) =>\n+      normalizeForCompare(a) != normalizeForCompare(b);\n+\n+  if (name != null && differs(current.billingName, name)) {\n+    out.add(TaxSuggestion(\n+      field: TaxSuggestField.billingName,\n+      label: 'Tên hoá đơn',\n+      current: current.billingName.trim(),\n+      suggested: name,\n+      selectedByDefault: true,\n+    ));\n+  }\n+  if (name != null && r.isHousehold && differs(current.owner, name)) {\n+    out.add(TaxSuggestion(\n+      field: TaxSuggestField.owner,\n+      label: 'Chủ cửa hàng',\n+      current: current.owner.trim(),\n+      suggested: name,\n+      selectedByDefault: true,\n+    ));\n+  }\n+  // Địa chỉ: chỉ đề xuất khi BE khớp được cả Tỉnh lẫn Xã (form địa chỉ bắt\n+  // buộc chọn từ danh mục hành chính).\n+  final province = r.province;\n+  final ward = r.ward;\n+  final line1 = r.line1;\n+  if (province != null && ward != null && line1 != null) {\n+    if (current.wardId != ward.id || differs(current.line1, line1)) {\n+      out.add(TaxSuggestion(\n+        field: TaxSuggestField.address,\n+        label: 'Địa chỉ',\n+        current: current.addressText,\n+        suggested: joinAddress(line1, ward.name, province.name),\n+        selectedByDefault: true,\n+      ));\n+    }\n+  }\n+  if (name != null && differs(current.name, name)) {\n+    out.add(TaxSuggestion(\n+      field: TaxSuggestField.name,\n+      label: 'Tên cửa hàng',\n+      current: current.name.trim(),\n+      suggested: name,\n+      // Tên biển hiệu thường khác tên đăng ký thuế → để sale tự chọn.\n+      selectedByDefault: false,\n+    ));\n+  }\n+  return out;\n+}\n+\n+/// Cảnh báo kèm hộp thoại: NNT ngừng hoạt động, mã thuộc KH khác.\n+List<String> taxLookupWarnings(TaxLookupResult r, {required String customerCode}) {\n+  if (!r.found) return const [];\n+  return [\n+    if (!r.isActive) 'Trạng thái thuế: ${r.status ?? 'không hoạt động'}',\n+    if (r.hasExisting && r.existingCode != customerCode)\n+      'KH ${r.existingCode} - ${r.existingName ?? ''} đang dùng mã này',\n+  ];\n+}\n+\n+/// Địa chỉ đăng ký dạng chữ khi BE không khớp được Xã (chỉ để tham khảo).\n+String? unmatchedAddressNote(TaxLookupResult r) {\n+  if (!r.found) return null;\n+  if (r.province != null && r.ward != null && r.line1 != null) return null;\n+  return r.address;\n+}"
+      },
+      {
+        "sha": "2e5b6454168ae9517df98ad00049df5156fb72f1",
+        "filename": "lib/services/visit_service.dart",
+        "status": "modified",
+        "additions": 40,
+        "deletions": 0,
+        "changes": 40,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fservices%2Fvisit_service.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/lib%2Fservices%2Fvisit_service.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib%2Fservices%2Fvisit_service.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -359,6 +359,38 @@ class VisitService {\n         .getSingleOrNull();\n   }\n \n+  /// Ảnh check-in của lượt [visitUuid] (màn \"Thông tin check-in\"): file ảnh đã\n+  /// nén trên máy (payload outbox `upload`, context `checkin`, ref = lượt) +\n+  /// URL server sau khi upload (UploadRefs). Không tìm thấy (lượt khôi phục\n+  /// từ server sau khi cài lại máy, hay check-in không chụp ảnh) → null.\n+  Future<CheckinPhoto?> checkinPhotoOf(String visitUuid) async {\n+    final rows = await (_db.select(_db.outbox)\n+          ..where((t) =>\n+              t.type.equals('upload') & t.payloadJson.like('%$visitUuid%'))\n+          ..orderBy([(t) => OrderingTerm.desc(t.id)]))\n+        .get();\n+    for (final r in rows) {\n+      final Object? p;\n+      try {\n+        p = jsonDecode(r.payloadJson);\n+      } on FormatException {\n+        continue;\n+      }\n+      if (p is! Map || p['ref'] != visitUuid || p['context'] != 'checkin') {\n+        continue;\n+      }\n+      final path = p['path'];\n+      final ref = await (_db.select(_db.uploadRefs)\n+            ..where((t) => t.clientUuid.equals(r.clientUuid)))\n+          .getSingleOrNull();\n+      return CheckinPhoto(\n+        localPath: path is String && path.isNotEmpty ? path : null,\n+        url: ref?.url,\n+      );\n+    }\n+    return null;\n+  }\n+\n   /// Theo dõi bản ghi visit local (màn viếng thăm tự đóng khi lượt bị huỷ\n   /// bởi 64B trong lúc sale còn đứng ở màn đó).\n   Stream<Visit?> watchVisit(String visitUuid) =>\n@@ -1022,3 +1054,11 @@ class VisitService {\n     );\n   }\n }\n+\n+/// Ảnh check-in để xem lại: file trên máy và/hoặc URL server.\n+class CheckinPhoto {\n+  const CheckinPhoto({this.localPath, this.url});\n+\n+  final String? localPath;\n+  final String? url;\n+}"
+      },
+      {
+        "sha": "3f82d614a6cf51fe65e427abd5b504869dea3e88",
+        "filename": "pubspec.yaml",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/pubspec.yaml",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/pubspec.yaml",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/pubspec.yaml?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev\n # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html\n # In Windows, build-name is used as the major, minor, and patch parts\n # of the product and file versions while build-number is used as the build suffix.\n-version: 1.0.26+28\n+version: 1.0.27+29\n \n environment:\n   sdk: ^3.9.2"
+      },
+      {
+        "sha": "58480baa061766a021ca76cc4e6a67709972964a",
+        "filename": "test/customer/customer_edit_tax_lookup_test.dart",
+        "status": "added",
+        "additions": 356,
+        "deletions": 0,
+        "changes": 356,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fcustomer%2Fcustomer_edit_tax_lookup_test.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fcustomer%2Fcustomer_edit_tax_lookup_test.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/test%2Fcustomer%2Fcustomer_edit_tax_lookup_test.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -0,0 +1,356 @@\n+import 'package:btnet_saleman/models/customer.dart';\n+import 'package:btnet_saleman/models/customer_address.dart';\n+import 'package:btnet_saleman/screens/customer/customer_edit_screen.dart';\n+import 'package:btnet_saleman/services/customer_address_service.dart';\n+import 'package:btnet_saleman/services/customer_draft_service.dart';\n+import 'package:btnet_saleman/services/customer_profile_service.dart';\n+import 'package:btnet_saleman/services/segment_service.dart';\n+import 'package:btnet_saleman/services/tax_lookup_service.dart';\n+import 'package:btnet_saleman/services/tax_lookup_suggestions.dart';\n+import 'package:btnet_saleman/services/ward_service.dart';\n+import 'package:btnet_saleman/sync/outbox_enqueuer.dart';\n+import 'package:flutter/material.dart';\n+import 'package:flutter_test/flutter_test.dart';\n+\n+import '../sync/test_helpers.dart';\n+import '../widget/tax_lookup_test_helpers.dart';\n+\n+/// SPEC-tra-cuu-mst-sua-kh — tra cứu MST/CCCD ở màn Sửa KH + đề xuất cập nhật.\n+\n+Map<String, dynamic> foundJson({\n+  String code = '0123456789',\n+  String name = 'Nguyễn Văn Ba',\n+  bool household = true,\n+  bool active = true,\n+  Map<String, dynamic>? address = const {\n+    'line1': '5 Láng Hạ',\n+    'province': {'id': 1, 'name': 'Hà Nội'},\n+    'ward': {'id': 4567, 'name': 'Phường Nhân Chính'},\n+  },\n+  Map<String, dynamic>? existing,\n+}) =>\n+    {\n+      'code': code,\n+      'kind': 'tax_code',\n+      'found': true,\n+      'info': {\n+        'name': name,\n+        'org_type': household ? 'Hộ kinh doanh' : 'Công ty TNHH',\n+        'is_household': household,\n+        'status': active ? 'Đang hoạt động' : 'Ngừng hoạt động',\n+        'is_active': active,\n+        'address': '5 Láng Hạ, Phường Nhân Chính, Hà Nội',\n+      },\n+      'address': address,\n+      'existing': existing,\n+    };\n+\n+class _FakeTree implements AddressTreeLookup {\n+  @override\n+  Future<List<AddressEntity>> provinces() async =>\n+      const [AddressEntity(id: 1, name: 'Hà Nội')];\n+\n+  @override\n+  Future<List<AddressEntity>> wardsOf(int provinceId) async => const [\n+        AddressEntity(id: 4567, name: 'Phường Nhân Chính'),\n+        AddressEntity(id: 4568, name: 'Phường Mai Dịch'),\n+      ];\n+}\n+\n+class _FakeAddressGateway implements CustomerAddressGateway {\n+  @override\n+  Future<List<CustomerAddress>> list(int customerId) async => const [\n+        CustomerAddress(\n+          id: 0,\n+          addressId: 84,\n+          isCustomerAddress: true,\n+          line1: '12 Cầu Giấy',\n+          ward: 'Phường Mai Dịch',\n+          wardId: 4568,\n+          province: 'Hà Nội',\n+          provinceId: 1,\n+        ),\n+      ];\n+\n+  @override\n+  Future<CustomerAddress> create(\n+    int customerId, {\n+    required int wardId,\n+    required String line1,\n+    String? label,\n+    String? contactName,\n+    String? contactNumber,\n+    bool isDefault = false,\n+  }) async =>\n+      CustomerAddress(id: 9, addressId: 900 + wardId, line1: line1);\n+}\n+\n+class _FakeSegmentLookup implements SegmentLookup {\n+  @override\n+  Future<List<String>> segmentsForCreate() async =>\n+      const ['N1', 'N2', 'N3', 'N4'];\n+}\n+\n+class _FakeProfileRemote implements Customer360Remote {\n+  _FakeProfileRemote(this.result);\n+  final Map<String, dynamic> result;\n+\n+  @override\n+  Future<Map<String, dynamic>> customer360(int customer) async => result;\n+}\n+\n+/// Ghi lại `changes` rồi ném để dừng trước nhánh syncNow (cần plugin nền).\n+class _RecordingDraftService extends CustomerDraftService {\n+  _RecordingDraftService(super.db, super.enqueuer);\n+\n+  Map<String, dynamic>? recordedChanges;\n+\n+  @override\n+  Future<String> requestEdit({\n+    required int customer,\n+    required Map<String, dynamic> changes,\n+  }) async {\n+    recordedChanges = changes;\n+    throw Exception('stop-before-syncNow');\n+  }\n+}\n+\n+void main() {\n+  group('taxLookupSuggestions', () {\n+    const current = CustomerIdentitySnapshot(\n+      name: 'Tạp hoá A',\n+      billingName: '',\n+      owner: 'Anh Ba',\n+      line1: '12 Cầu Giấy',\n+      wardId: 4568,\n+      provinceName: 'Hà Nội',\n+      wardName: 'Phường Mai Dịch',\n+    );\n+\n+    test('should list differing fields with Tên cửa hàng unchecked by default',\n+        () {\n+      final s = taxLookupSuggestions(\n+          current, TaxLookupResult.fromJson(foundJson()));\n+      expect(s.map((e) => e.field), [\n+        TaxSuggestField.billingName,\n+        TaxSuggestField.owner,\n+        TaxSuggestField.address,\n+        TaxSuggestField.name,\n+      ]);\n+      final byField = {for (final e in s) e.field: e};\n+      expect(byField[TaxSuggestField.name]!.selectedByDefault, isFalse);\n+      expect(byField[TaxSuggestField.billingName]!.selectedByDefault, isTrue);\n+      expect(byField[TaxSuggestField.address]!.current,\n+          '12 Cầu Giấy, Phường Mai Dịch, Hà Nội');\n+      expect(byField[TaxSuggestField.address]!.suggested,\n+          '5 Láng Hạ, Phường Nhân Chính, Hà Nội');\n+    });\n+\n+    test('should return nothing when values match ignoring case and spaces',\n+        () {\n+      const same = CustomerIdentitySnapshot(\n+        name: 'nguyễn  văn ba',\n+        billingName: ' NGUYỄN VĂN BA ',\n+        owner: 'Nguyễn Văn Ba',\n+        line1: '5  láng hạ',\n+        wardId: 4567,\n+      );\n+      expect(\n+          taxLookupSuggestions(same, TaxLookupResult.fromJson(foundJson())),\n+          isEmpty);\n+    });\n+\n+    test('should NOT suggest owner when taxpayer is not a household', () {\n+      final s = taxLookupSuggestions(\n+          current, TaxLookupResult.fromJson(foundJson(household: false)));\n+      expect(s.map((e) => e.field), isNot(contains(TaxSuggestField.owner)));\n+    });\n+\n+    test('should NOT suggest address when ward is unmatched; show raw text',\n+        () {\n+      final r = TaxLookupResult.fromJson(foundJson(address: {\n+        'line1': '5 Láng Hạ',\n+        'province': {'id': 1, 'name': 'Hà Nội'},\n+      }));\n+      expect(taxLookupSuggestions(current, r).map((e) => e.field),\n+          isNot(contains(TaxSuggestField.address)));\n+      expect(unmatchedAddressNote(r), '5 Láng Hạ, Phường Nhân Chính, Hà Nội');\n+    });\n+\n+    test('should return nothing when lookup not found', () {\n+      final r = TaxLookupResult.fromJson(\n+          {'code': '0123456789', 'found': false, 'reason': 'not_found'});\n+      expect(taxLookupSuggestions(current, r), isEmpty);\n+      expect(taxLookupWarnings(r, customerCode: 'KH115'), isEmpty);\n+    });\n+\n+    test('should warn inactive taxpayer and code owned by ANOTHER customer only',\n+        () {\n+      final other = TaxLookupResult.fromJson(foundJson(\n+          active: false, existing: {'code': 'KH200', 'name': 'Đại lý B'}));\n+      expect(taxLookupWarnings(other, customerCode: 'KH115'), [\n+        'Trạng thái thuế: Ngừng hoạt động',\n+        'KH KH200 - Đại lý B đang dùng mã này',\n+      ]);\n+      final self = TaxLookupResult.fromJson(\n+          foundJson(existing: {'code': 'KH115', 'name': 'Tạp hoá A'}));\n+      expect(taxLookupWarnings(self, customerCode: 'KH115'), isEmpty);\n+    });\n+  });\n+\n+  group('Màn Sửa KH — tra cứu MST/CCCD', () {\n+    final customer = Customer(\n+      id: 115,\n+      name: 'Tạp hoá A',\n+      code: 'KH115',\n+      displayLabel: 'Tạp hoá A',\n+    );\n+\n+    Future<_RecordingDraftService> pumpEdit(\n+      WidgetTester tester, {\n+      required FakeTaxLookup lookup,\n+      String taxCode = '0123456789',\n+    }) async {\n+      tester.view.physicalSize = const Size(1200, 4000);\n+      tester.view.devicePixelRatio = 1.0;\n+      addTearDown(tester.view.reset);\n+\n+      final db = newTestDb();\n+      addTearDown(db.close);\n+      final service = _RecordingDraftService(db, OutboxEnqueuer(db));\n+      await tester.pumpWidget(MaterialApp(\n+        home: CustomerEditScreen(\n+          customer: customer,\n+          service: service,\n+          profileService: CustomerProfileService(\n+            db,\n+            _FakeProfileRemote({\n+              'customer': {\n+                'name': 'Tạp hoá A',\n+                'contact_name': 'Anh Ba',\n+                'tax_code': taxCode,\n+                'segment': 'N1',\n+              },\n+            }),\n+          ),\n+          segmentLookup: _FakeSegmentLookup(),\n+          addressService: CustomerAddressService(db, _FakeAddressGateway()),\n+          addressTree: _FakeTree(),\n+          taxLookup: lookup,\n+        ),\n+      ));\n+      await tester.pumpAndSettle();\n+      return service;\n+    }\n+\n+    Future<void> submit(WidgetTester tester) async {\n+      await tester.tap(find.text('Gửi yêu cầu sửa (chờ duyệt)'));\n+      await tester.pumpAndSettle();\n+    }\n+\n+    testWidgets(\n+        'should fill chosen fields and send them in the edit diff when '\n+        'sale taps Cập nhật', (tester) async {\n+      final lookup = FakeTaxLookup(foundJson());\n+      final service = await pumpEdit(tester, lookup: lookup);\n+\n+      await tester.tap(find.byKey(const Key('tax-lookup-tax')));\n+      await tester.pumpAndSettle();\n+\n+      expect(lookup.calls, ['0123456789']);\n+      expect(find.byKey(const Key('tax-lookup-update-dialog')), findsOneWidget);\n+      expect(find.text('Cập nhật (3)'), findsOneWidget);\n+      await tester.tap(find.text('Cập nhật (3)'));\n+      await tester.pumpAndSettle();\n+\n+      expect(\n+          tester\n+              .widget<TextFormField>(find.byKey(const Key('edit-billing-name')))\n+              .controller!\n+              .text,\n+          'Nguyễn Văn Ba');\n+\n+      await submit(tester);\n+      final c = service.recordedChanges!;\n+      expect(c['billing_name'], 'Nguyễn Văn Ba');\n+      expect(c['contact_name'], 'Nguyễn Văn Ba');\n+      expect(c['ward_id'], 4567);\n+      expect(c['address_raw'], '5 Láng Hạ');\n+      // Tên cửa hàng mặc định KHÔNG chọn → không đổi.\n+      expect(c.containsKey('name'), isFalse);\n+    });\n+\n+    testWidgets('should leave the form unchanged when sale taps Bỏ qua',\n+        (tester) async {\n+      final service =\n+          await pumpEdit(tester, lookup: FakeTaxLookup(foundJson()));\n+      await tester.tap(find.byKey(const Key('tax-lookup-tax')));\n+      await tester.pumpAndSettle();\n+      await tester.tap(find.text('Bỏ qua'));\n+      await tester.pumpAndSettle();\n+\n+      await submit(tester);\n+      expect(service.recordedChanges, isNull);\n+      expect(find.text('Không có thay đổi nào để gửi'), findsOneWidget);\n+    });\n+\n+    testWidgets('should show a snackbar and no dialog when everything matches',\n+        (tester) async {\n+      await pumpEdit(\n+        tester,\n+        lookup: FakeTaxLookup(foundJson(\n+          name: 'Tạp hoá A',\n+          household: false,\n+          address: {\n+            'line1': '12 Cầu Giấy',\n+            'province': {'id': 1, 'name': 'Hà Nội'},\n+            'ward': {'id': 4568, 'name': 'Phường Mai Dịch'},\n+          },\n+        )),\n+      );\n+      // Tên hoá đơn đang trống → điền khớp trước để không còn khác biệt.\n+      await tester.enterText(\n+          find.byKey(const Key('edit-billing-name')), 'Tạp hoá A');\n+      await tester.tap(find.byKey(const Key('tax-lookup-tax')));\n+      await tester.pumpAndSettle();\n+\n+      expect(find.byKey(const Key('tax-lookup-update-dialog')), findsNothing);\n+      expect(find.text('Thông tin KH đã khớp dữ liệu tra cứu'), findsOneWidget);\n+    });\n+\n+    testWidgets('should show the miss message when the code is not found',\n+        (tester) async {\n+      await pumpEdit(tester, lookup: FakeTaxLookup());\n+      await tester.tap(find.byKey(const Key('tax-lookup-tax')));\n+      await tester.pumpAndSettle();\n+\n+      expect(find.byKey(const Key('tax-lookup-update-dialog')), findsNothing);\n+      expect(find.text('Không tìm thấy thông tin cho mã này — vui lòng nhập tay'),\n+          findsOneWidget);\n+    });\n+\n+    testWidgets('should reject a 12-digit code in the MST field without calling API',\n+        (tester) async {\n+      final lookup = FakeTaxLookup(foundJson());\n+      await pumpEdit(tester, lookup: lookup, taxCode: '012345678901');\n+      await tester.tap(find.byKey(const Key('tax-lookup-tax')));\n+      await tester.pumpAndSettle();\n+\n+      expect(lookup.calls, isEmpty);\n+      expect(find.text('Mã 12 số là CCCD — nhập vào ô CCCD'), findsOneWidget);\n+    });\n+\n+    testWidgets('should warn when the code belongs to another customer',\n+        (tester) async {\n+      await pumpEdit(\n+        tester,\n+        lookup: FakeTaxLookup(\n+            foundJson(existing: {'code': 'KH200', 'name': 'Đại lý B'})),\n+      );\n+      await tester.tap(find.byKey(const Key('tax-lookup-tax')));\n+      await tester.pumpAndSettle();\n+\n+      expect(find.text('KH KH200 - Đại lý B đang dùng mã này'), findsOneWidget);\n+    });\n+  });\n+}"
+      },
+      {
+        "sha": "2703ffc2c27ab952cc27b2144d6adf83755b0f4c",
+        "filename": "test/history/history_screen_test.dart",
+        "status": "modified",
+        "additions": 26,
+        "deletions": 3,
+        "changes": 29,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fhistory%2Fhistory_screen_test.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fhistory%2Fhistory_screen_test.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/test%2Fhistory%2Fhistory_screen_test.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -30,8 +30,9 @@ void main() {\n     return remote;\n   }\n \n-  testWidgets('should list route and customer-list visits grouped by day',\n-      (tester) async {\n+  testWidgets(\n+      'should list visits grouped by day and label a customer outside that '\n+      \"day's route (customer_list) as Ngoài tuyến\", (tester) async {\n     await pump(\n         tester,\n         FakeHistoryRemote(visits: [\n@@ -40,11 +41,33 @@ void main() {\n         ]));\n     expect(find.text('Thứ Tư, 10/06/2026'), findsOneWidget);\n     expect(find.text('Trong tuyến'), findsOneWidget);\n-    expect(find.text('Từ DS khách hàng'), findsOneWidget);\n+    // KH gán tay / không thuộc tuyến ngày hôm đó (vd \"Test 2\") → Ngoài tuyến.\n+    expect(find.text('Ngoài tuyến'), findsOneWidget);\n+    expect(find.text('Từ DS khách hàng'), findsNothing);\n     expect(find.text('Hẹn tuần sau'), findsOneWidget);\n     expect(find.text('2 lượt viếng thăm'), findsOneWidget);\n   });\n \n+  testWidgets(\n+      'should show Chưa rõ tuyến for legacy visits without in_day_route, '\n+      'but keep Ngoài tuyến for a legacy offroute visit', (tester) async {\n+    await pump(\n+        tester,\n+        FakeHistoryRemote(visits: [\n+          // Lượt cũ: BE trả source theo route_line nhưng in_day_route = null.\n+          serverVisit('old', at: '2026-06-10T04:00:00Z', legacy: true),\n+          serverVisit('off',\n+              customer: 101,\n+              at: '2026-06-10T02:00:00Z',\n+              source: 'offroute',\n+              legacy: true),\n+        ]));\n+    expect(find.text('Chưa rõ tuyến'), findsOneWidget);\n+    expect(find.text('Ngoài tuyến'), findsOneWidget);\n+    expect(find.text('Trong tuyến'), findsNothing);\n+    expect(find.text('2 lượt viếng thăm'), findsOneWidget);\n+  });\n+\n   testWidgets('should request whole month when choosing Tháng này',\n       (tester) async {\n     final remote = await pump(tester, FakeHistoryRemote());"
+      },
+      {
+        "sha": "190dbe1d0f19bface82e0df6902e90711126b638",
+        "filename": "test/history/history_service_test.dart",
+        "status": "modified",
+        "additions": 37,
+        "deletions": 5,
+        "changes": 42,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fhistory%2Fhistory_service_test.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fhistory%2Fhistory_service_test.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/test%2Fhistory%2Fhistory_service_test.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -45,12 +45,15 @@ Map<String, dynamic> serverVisit(String uuid,\n         {int customer = 100,\n         String at = '2026-06-10T02:00:00Z',\n         String source = 'route',\n-        String? note}) =>\n+        String? note,\n+        bool legacy = false}) =>\n     {\n       'id': 1,\n       'client_uuid': uuid,\n       'customer': {'id': customer, 'code': 'KH$customer', 'name': 'Tạp hoá $customer', 'address': 'Hà Nội'},\n       'source': source,\n+      // Lượt mới: BE ghi cờ lúc check-in. Lượt cũ (legacy): null.\n+      'in_day_route': legacy ? null : source == 'route',\n       'status': 2,\n       'checkin_at': at,\n       'checkout_at': '2026-06-10T02:20:00Z',\n@@ -156,14 +159,43 @@ void main() {\n       expect(page.items.single.note, 'bản server');\n     });\n \n-    test('should classify local source like BE (route vs customer list)', () async {\n-      await localVisit('r', routeLine: 5);\n-      await localVisit('c');\n+    test(\n+        'should label an unsynced visit \"route\" only when the customer is on '\n+        'the route schedule of the check-in day (§3.2b)', () async {\n+      // 10/06/2026 là Thứ Tư (dow 4). KH 100: tuyến 1 đi T4. KH 101: tuyến 2 đi T3.\n+      await db.into(db.routes).insert(RoutesCompanion.insert(\n+          id: const Value(1), visitWeekdays: const Value('[4]')));\n+      await db.into(db.routes).insert(RoutesCompanion.insert(\n+          id: const Value(2), visitWeekdays: const Value('[3]')));\n+      await db.into(db.routeLines).insert(\n+          RouteLinesCompanion.insert(id: const Value(11), route: 1, customer: 100));\n+      await db.into(db.routeLines).insert(\n+          RouteLinesCompanion.insert(id: const Value(12), route: 2, customer: 101));\n+      // routeLine không được App gửi khi check-in → để null như thực tế.\n+      await localVisit('r');\n+      await localVisit('c', customer: 101);\n       final page = await HistoryService(db, remote: FakeHistoryRemote(fail: true))\n           .visits(DayRange.day(june10));\n       final by = {for (final v in page.items) v.clientUuid: v.source};\n       expect(by['r'], VisitSource.route);\n-      expect(by['c'], VisitSource.customerList);\n+      expect(by['c'], VisitSource.offroute);\n+    });\n+\n+    test('should label offroute first even when the customer is scheduled',\n+        () async {\n+      await db.into(db.routes).insert(RoutesCompanion.insert(\n+          id: const Value(1), unlimited: const Value(true)));\n+      await db.into(db.routeLines).insert(\n+          RouteLinesCompanion.insert(id: const Value(11), route: 1, customer: 100));\n+      await db.into(db.visits).insert(VisitsCompanion.insert(\n+            clientUuid: 'o',\n+            customer: 100,\n+            openedAt: DateTime.utc(2026, 6, 10, 3),\n+            isOffroute: const Value(true),\n+          ));\n+      final page = await HistoryService(db, remote: FakeHistoryRemote(fail: true))\n+          .visits(DayRange.day(june10));\n+      expect(page.items.single.source, VisitSource.offroute);\n     });\n \n     test('should fall back to local data when server unreachable', () async {"
+      },
+      {
+        "sha": "75d28ddf654f8848a6bedddaebf751e63df82e66",
+        "filename": "test/visit/checkin_photo_of_test.dart",
+        "status": "added",
+        "additions": 46,
+        "deletions": 0,
+        "changes": 46,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fvisit%2Fcheckin_photo_of_test.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fvisit%2Fcheckin_photo_of_test.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/test%2Fvisit%2Fcheckin_photo_of_test.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -0,0 +1,46 @@\n+import 'package:btnet_saleman/services/visit_service.dart';\n+import 'package:btnet_saleman/sync/outbox_enqueuer.dart';\n+import 'package:flutter_test/flutter_test.dart';\n+\n+import '../sync/test_helpers.dart';\n+\n+/// Màn \"Thông tin check-in\": tìm lại ảnh check-in của đúng lượt.\n+void main() {\n+  test('should return the local photo of the visit, then the server URL after upload',\n+      () async {\n+    final db = newTestDb();\n+    addTearDown(db.close);\n+    final svc = VisitService(db, OutboxEnqueuer(db), compressor: (f) async => f.path);\n+    final uuid = await svc.openVisit(\n+        customer: 7, lat: 21, lng: 105, photoPath: '/tmp/a.jpg', photoTakenAt: DateTime.now());\n+\n+    final before = await svc.checkinPhotoOf(uuid);\n+    expect(before!.localPath, '/tmp/a.jpg');\n+    expect(before.url, isNull);\n+\n+    final upload = await (db.select(db.outbox)..where((t) => t.type.equals('upload'))).getSingle();\n+    await db.putUploadRef(clientUuid: upload.clientUuid, fileId: 'f1', url: 'https://cdn/x.jpg');\n+    final after = await svc.checkinPhotoOf(uuid);\n+    expect(after!.url, 'https://cdn/x.jpg');\n+    expect(after.localPath, '/tmp/a.jpg');\n+  });\n+\n+  test('should NOT return the photo of another visit', () async {\n+    final db = newTestDb();\n+    addTearDown(db.close);\n+    final svc = VisitService(db, OutboxEnqueuer(db), compressor: (f) async => f.path);\n+    await svc.openVisit(customer: 7, lat: 21, lng: 105, photoPath: '/tmp/other.jpg', photoTakenAt: DateTime.now());\n+    final mine = await svc.openVisit(customer: 8, lat: 21, lng: 105);\n+    expect(await svc.checkinPhotoOf(mine), isNull);\n+  });\n+\n+  test('should ignore non-checkin uploads that reference the visit', () async {\n+    final db = newTestDb();\n+    addTearDown(db.close);\n+    final enq = OutboxEnqueuer(db);\n+    final svc = VisitService(db, enq, compressor: (f) async => f.path);\n+    final uuid = await svc.openVisit(customer: 7, lat: 21, lng: 105);\n+    await enq.enqueueUpload(localPath: '/tmp/display.jpg', context: 'display', ref: uuid);\n+    expect(await svc.checkinPhotoOf(uuid), isNull);\n+  });\n+}"
+      },
+      {
+        "sha": "13fb59eb269cf23669fab389c6b1f1700111d00e",
+        "filename": "test/visit/checkin_photo_test.dart",
+        "status": "added",
+        "additions": 170,
+        "deletions": 0,
+        "changes": 170,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fvisit%2Fcheckin_photo_test.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fvisit%2Fcheckin_photo_test.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/test%2Fvisit%2Fcheckin_photo_test.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -0,0 +1,170 @@\n+import 'package:btnet_saleman/screens/visit/steps/checkin_step.dart';\n+import 'package:btnet_saleman/screens/visit/widgets/checkin_photo_field.dart';\n+import 'package:btnet_saleman/services/visit_service.dart';\n+import 'package:btnet_saleman/sync/outbox_enqueuer.dart';\n+import 'package:flutter/material.dart';\n+import 'package:flutter/services.dart';\n+import 'package:flutter_test/flutter_test.dart';\n+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';\n+import 'package:plugin_platform_interface/plugin_platform_interface.dart';\n+\n+import '../sync/test_helpers.dart';\n+\n+/// Camera giả: trả lần lượt các ảnh trong [queue]; null = sale huỷ camera.\n+class _FakePicker extends ImagePickerPlatform with MockPlatformInterfaceMixin {\n+  final List<XFile?> queue = [];\n+  final List<ImageSource> sources = [];\n+\n+  @override\n+  Future<XFile?> getImageFromSource({\n+    required ImageSource source,\n+    ImagePickerOptions options = const ImagePickerOptions(),\n+  }) async {\n+    sources.add(source);\n+    return queue.isEmpty ? null : queue.removeAt(0);\n+  }\n+}\n+\n+/// Đường dẫn ảnh đang hiển thị ở ảnh thu nhỏ.\n+String? shownPhotoPath(WidgetTester tester) {\n+  final finder = find.descendant(\n+    of: find.byKey(const Key('checkin_photo_preview')),\n+    matching: find.byType(Image),\n+  );\n+  if (finder.evaluate().isEmpty) return null;\n+  final provider = tester.widget<Image>(finder).image;\n+  final file = provider is ResizeImage ? provider.imageProvider : provider;\n+  return (file as FileImage).file.path;\n+}\n+\n+void main() {\n+  group('CheckinPhotoField', () {\n+    Future<List<String>> pump(WidgetTester tester,\n+        {String? path, DateTime? at}) async {\n+      final calls = <String>[];\n+      await tester.pumpWidget(MaterialApp(\n+        home: Scaffold(\n+          body: CheckinPhotoField(\n+            photoPath: path,\n+            takenAt: at,\n+            required: true,\n+            enabled: true,\n+            onCapture: () async => calls.add('capture'),\n+          ),\n+        ),\n+      ));\n+      return calls;\n+    }\n+\n+    testWidgets('should show only the capture button when no photo yet',\n+        (tester) async {\n+      final calls = await pump(tester);\n+      expect(find.text('Chụp ảnh điểm bán (bắt buộc)'), findsOneWidget);\n+      expect(find.byKey(const Key('checkin_view_photo')), findsNothing);\n+      await tester.tap(find.byKey(const Key('checkin_take_photo')));\n+      expect(calls, ['capture']);\n+    });\n+\n+    testWidgets(\n+        'should show preview with capture time, and retake from the card',\n+        (tester) async {\n+      final calls = await pump(tester,\n+          path: '/tmp/a.jpg', at: DateTime(2026, 11, 6, 9, 5));\n+      expect(find.text('Đã chụp lúc 09:05'), findsOneWidget);\n+      expect(find.byKey(const Key('checkin_photo_preview')), findsOneWidget);\n+      await tester.tap(find.byKey(const Key('checkin_retake_photo')));\n+      expect(calls, ['capture']);\n+    });\n+\n+    testWidgets(\n+        'should open the full-screen viewer and retake from there',\n+        (tester) async {\n+      final calls = await pump(tester, path: '/tmp/a.jpg', at: DateTime(2026));\n+      await tester.tap(find.byKey(const Key('checkin_view_photo')));\n+      await tester.pumpAndSettle();\n+      expect(find.byType(CheckinPhotoViewer), findsOneWidget);\n+      expect(find.byType(InteractiveViewer), findsOneWidget);\n+\n+      await tester.tap(find.byKey(const Key('checkin_viewer_retake')));\n+      await tester.pumpAndSettle();\n+      expect(find.byType(CheckinPhotoViewer), findsNothing);\n+      expect(calls, ['capture']);\n+    });\n+\n+    testWidgets('should close the viewer without retaking on back',\n+        (tester) async {\n+      final calls = await pump(tester, path: '/tmp/a.jpg', at: DateTime(2026));\n+      await tester.tap(find.byKey(const Key('checkin_photo_preview')));\n+      await tester.pumpAndSettle();\n+      await tester.pageBack();\n+      await tester.pumpAndSettle();\n+      expect(find.byType(CheckinPhotoViewer), findsNothing);\n+      expect(calls, isEmpty);\n+    });\n+  });\n+\n+  group('CheckinStep — xem lại / chụp lại ảnh trước khi check-in', () {\n+    late _FakePicker picker;\n+\n+    setUp(() {\n+      picker = _FakePicker();\n+      ImagePickerPlatform.instance = picker;\n+      // GPS tắt trong test → màn báo lỗi định vị, phần ảnh vẫn dùng được.\n+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger\n+          .setMockMethodCallHandler(\n+        const MethodChannel('flutter.baseflow.com/geolocator'),\n+        (call) async => false,\n+      );\n+    });\n+\n+    Future<void> pumpStep(WidgetTester tester) async {\n+      final db = newTestDb();\n+      addTearDown(db.close);\n+      await tester.pumpWidget(MaterialApp(\n+        home: CheckinStep(\n+          service: VisitService(db, OutboxEnqueuer(db)),\n+          customer: 1,\n+          customerName: 'KH Test',\n+        ),\n+      ));\n+      await tester.pumpAndSettle();\n+    }\n+\n+    testWidgets(\n+        'should replace the photo on retake and keep the old one when the '\n+        'camera is cancelled', (tester) async {\n+      await pumpStep(tester);\n+      picker.queue.add(XFile('/tmp/first.jpg'));\n+      await tester.tap(find.byKey(const Key('checkin_take_photo')));\n+      await tester.pumpAndSettle();\n+      expect(shownPhotoPath(tester), '/tmp/first.jpg');\n+\n+      // Chụp lại nhưng huỷ camera → giữ ảnh cũ.\n+      picker.queue.add(null);\n+      await tester.tap(find.byKey(const Key('checkin_retake_photo')));\n+      await tester.pumpAndSettle();\n+      expect(shownPhotoPath(tester), '/tmp/first.jpg');\n+\n+      // Chụp lại thật → ảnh mới, vẫn chỉ bằng camera.\n+      picker.queue.add(XFile('/tmp/second.jpg'));\n+      await tester.tap(find.byKey(const Key('checkin_retake_photo')));\n+      await tester.pumpAndSettle();\n+      expect(shownPhotoPath(tester), '/tmp/second.jpg');\n+      expect(picker.sources.toSet(), {ImageSource.camera});\n+    });\n+\n+    testWidgets('should retake from the full-screen viewer', (tester) async {\n+      await pumpStep(tester);\n+      picker.queue.add(XFile('/tmp/first.jpg'));\n+      await tester.tap(find.byKey(const Key('checkin_take_photo')));\n+      await tester.pumpAndSettle();\n+\n+      picker.queue.add(XFile('/tmp/again.jpg'));\n+      await tester.tap(find.byKey(const Key('checkin_view_photo')));\n+      await tester.pumpAndSettle();\n+      await tester.tap(find.byKey(const Key('checkin_viewer_retake')));\n+      await tester.pumpAndSettle();\n+      expect(shownPhotoPath(tester), '/tmp/again.jpg');\n+    });\n+  });\n+}"
+      },
+      {
+        "sha": "2cf00aa76dc33cdf674f824bda473f0e443f82ec",
+        "filename": "test/visit/visit_flow_screen_test.dart",
+        "status": "modified",
+        "additions": 40,
+        "deletions": 0,
+        "changes": 40,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fvisit%2Fvisit_flow_screen_test.dart",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/test%2Fvisit%2Fvisit_flow_screen_test.dart",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/test%2Fvisit%2Fvisit_flow_screen_test.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -71,6 +71,46 @@ void main() {\n     await tester.pumpAndSettle();\n     expect(find.text('Thông tin check-in'), findsOneWidget);\n     expect(find.textContaining('21.000000'), findsOneWidget);\n+    // Lượt không có ảnh trên máy (vd khôi phục từ server) → báo rõ.\n+    expect(find.byKey(const Key('checkin_info_no_photo')), findsOneWidget);\n+    await _cleanUp(tester);\n+  });\n+\n+  testWidgets(\n+      'Thông tin check-in: hiện ảnh đã chụp, bấm để xem toàn màn hình '\n+      '(chỉ xem, không có Chụp lại)', (tester) async {\n+    final db = newTestDb();\n+    addTearDown(db.close);\n+    await seedServerVisitSteps(db);\n+    final svc = VisitService(db, OutboxEnqueuer(db),\n+        compressor: (f) async => f.path);\n+    final uuid = await svc.openVisit(\n+        customer: 7,\n+        lat: 21.0,\n+        lng: 105.8,\n+        photoPath: '/tmp/checkin.jpg',\n+        photoTakenAt: DateTime.now());\n+\n+    await tester.pumpWidget(MaterialApp(\n+      home: VisitFlowScreen(\n+        customer: 7,\n+        customerName: 'Hiền Thời',\n+        resumeVisitUuid: uuid,\n+        service: svc,\n+        ordersService: OfflineOrderService(db, OutboxEnqueuer(db)),\n+      ),\n+    ));\n+    await tester.pumpAndSettle();\n+\n+    await tester.tap(find.textContaining('Bước 1 · hoàn thành'));\n+    await tester.pumpAndSettle();\n+    expect(find.byKey(const Key('checkin_info_photo')), findsOneWidget);\n+    expect(find.byKey(const Key('checkin_info_no_photo')), findsNothing);\n+\n+    await tester.tap(find.byKey(const Key('checkin_info_photo')));\n+    await tester.pumpAndSettle();\n+    expect(find.text('Ảnh điểm bán'), findsOneWidget); // tiêu đề màn xem ảnh\n+    expect(find.byKey(const Key('checkin_viewer_retake')), findsNothing);\n     await _cleanUp(tester);\n   });\n "
+      }
+    ]
+  }
+}

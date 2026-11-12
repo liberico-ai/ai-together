@@ -1,1 +1,0 @@
-ALTER TABLE "github_commits" ADD CONSTRAINT "github_commits_sha_project_unique" UNIQUE("sha","project_id");

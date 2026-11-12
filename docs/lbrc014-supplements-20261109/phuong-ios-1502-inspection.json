@@ -1,0 +1,156 @@
+{
+  "observedAtUTC": "2026-11-09T08:20:50.699312+00:00",
+  "source": {
+    "group": "LibeAI",
+    "sender": "Phương AiTec",
+    "messageTimeVietnam": "2026-11-09 15:02",
+    "caption": "Em gửi bổ sung kết quả đổi chiếu trên IOs kèm ảnh minh chứng các usecase ạ",
+    "uiFileName": "Bo sung doi chieu IOs.zip",
+    "uiDownloadStatus": "Downloaded",
+    "uiSize": "2.2 MB",
+    "sourceSurface": "Telegram Lite native UI",
+    "afterPrevious1500Cutoff": true
+  },
+  "archiveIntegrity": {
+    "crc": "pass",
+    "zipSha256": "0cb7ade1b20b2e1f8f91c324a7a76f2c9773a53e22f76a6a7a889e307ef75d41",
+    "bytes": 2363653,
+    "contentFiles": 9,
+    "pngCount": 8,
+    "macResourceForkFilesExcluded": true
+  },
+  "files": [
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/Bo sung doi chieu IOs.zip",
+      "bytes": 2363653,
+      "sha256": "0cb7ade1b20b2e1f8f91c324a7a76f2c9773a53e22f76a6a7a889e307ef75d41"
+    },
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/U1_hom_nay.png",
+      "bytes": 807315,
+      "sha256": "8e515c6203786e54d4223c13f641c5495c19433b0fa811e15df08d2d3ad30c7b"
+    },
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/U2_danh_sach_kh.png",
+      "bytes": 368932,
+      "sha256": "b6d7d69876b409f4aebedd9df1a26ef3c9181e8d88fb5a5f2ab75187d3761566"
+    },
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/U3_chi_tiet_kh.png",
+      "bytes": 280012,
+      "sha256": "030127fd53933c8fee32d11d579b35ade1314eca04fc7ae9393d09fe73ffc131"
+    },
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/U5_bam_chi_duong.png",
+      "bytes": 284052,
+      "sha256": "d4834b28c865f48fc5e8e15d2fd9cd39bbc3f9b97dc8b7eee2d5750ef49f4823"
+    },
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/U5_tim_KH012183.png",
+      "bytes": 379967,
+      "sha256": "a227b5f3dc82cf005d9af41aace722118456e5f38571b9f1a383a7844748a462"
+    },
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/U6_bam_khi_chua_dong_bo.png",
+      "bytes": 331260,
+      "sha256": "e8c67bb0500acf6dd661377b2fa12e005fb70fcbb0c5d64fae9034401de6dc99"
+    },
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/U6_tim_10166490KA.png",
+      "bytes": 366404,
+      "sha256": "7e6fe5a32fe6ea00c7b2aa4ce3b030e1aeb3d2a964f6b1d94973ca104f6129ee"
+    },
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/U7_loi_mo_ban_do.png",
+      "bytes": 432463,
+      "sha256": "3d0ff61d92cf20b92f0549b4c9368f1c4edbb555f6ad9c7352764a38cdde5dac"
+    },
+    {
+      "path": "lbrc014-supplements-20261109/phuong-ios-1502/bao-cao.md",
+      "bytes": 2473,
+      "sha256": "d30e1db5b50d98bfd244c4d97c9eca8aae9c0f09072dd6fcefc04339e2aec34e"
+    }
+  ],
+  "reported": {
+    "tester": "Phương U1-U6; Quân U7",
+    "device": "iPhone 16 Pro Max Pro, iOS26 (as written)",
+    "build": "main@751327b, App1.0.27",
+    "environment": "lab",
+    "account": "linhht",
+    "claimedResult": "7/7 đạt,0 lỗi,0 chưa kiểm",
+    "businessAcceptance": "Explicitly Tech testing; CVKD has not used; no actual user yet"
+  },
+  "visualInspection": [
+    {
+      "case": "U1",
+      "file": "U1_hom_nay.png",
+      "observed": "Today route17 label and three visible customer cards with direction icons",
+      "limit": "All17 icons and launching destinations are tester report, not proved by this single image"
+    },
+    {
+      "case": "U2",
+      "file": "U2_danh_sach_kh.png",
+      "observed": "Customer list with direction icons including cards without address",
+      "limit": "22-23 card count and successful map launch not independently shown"
+    },
+    {
+      "case": "U3",
+      "file": "U3_chi_tiet_kh.png",
+      "observed": "Detail screen with direction icon before edit and no address text",
+      "limit": "Successful coordinate destination not shown"
+    },
+    {
+      "case": "U4",
+      "observed": "No dedicated image or log in supplied archive",
+      "limit": "Priority of coordinates/address is reported by Phương; not independently verified here"
+    },
+    {
+      "case": "U5",
+      "file": "U5_bam_chi_duong.png",
+      "observed": "KH012183 card and snackbar Điểm bán chưa có tọa độ hoặc địa chỉ để chỉ đường",
+      "limit": "Supports expected visible warning; DB coordinate emptiness and preparation steps are reported. U5_tim_KH012183.png shows generic unfiltered list, not that ID"
+    },
+    {
+      "case": "U6",
+      "file": "U6_bam_khi_chua_dong_bo.png",
+      "observed": "10166490KA customer card has visible address and direction icon",
+      "limit": "No destination map, local deletion trace or DB exception shown; U6_tim_10166490KA.png is generic list. Missing local row fallback is reported; do not equate with database-error branch coverage"
+    },
+    {
+      "case": "U7",
+      "file": "U7_loi_mo_ban_do.png",
+      "observed": "Today screen and Không mở được ứng dụng bản đồ snackbar",
+      "limit": "Report attributes test to Quân; device/build and independent iOS execution not established by this image. Do not count as seven independently proven iOS cases"
+    }
+  ],
+  "buildReconciliation": {
+    "source": "lbrc014-supplements-20261109/uat-build-to-delivered-build.json",
+    "testFullSha": "751327b853b50ed7b06f87c747198a4a731b0ac6",
+    "releaseFullSha": "5b38598de8bca1b258be7ee4b7086a993810478a",
+    "sourceVersionAtTestSha": "1.0.26+28",
+    "sourceVersionAtReleaseSha": "1.0.27+29",
+    "evidence": "pubspec.yaml patch in previously authenticated GitHub exact-SHA comparison",
+    "assessment": "Report main751327b/App1.0.27 needs installed-build evidence or documented build-name override; mismatch alone does not prove test invalid"
+  },
+  "additionalTraceabilityNote": "Report says no data changes, but U5 describes clearing coordinates/address on web and U6 assigning customer/deleting local row. Clarify lab fixture setup/actor; do not infer production data change or misconduct.",
+  "workbookRead": {
+    "observedAtUTC": "2026-11-09T08:19:49Z",
+    "range": "'Đầu việc Tech'!A31:H31",
+    "values": [
+      [
+        "30",
+        "LBRC",
+        "Thêm tính năng chỉ đường cho App Saleman",
+        "QuânTV",
+        "PhươngHV",
+        "Hoàn thành",
+        "2026-11-06",
+        "LBRC014. Spec SPEC-chi-duong-diem-ban.md. Quân 6/11: chờ nghiệm thu. PhươngHV 7/11: nghiệm thu đạt, đóng."
+      ]
+    ],
+    "sourceWrites": false
+  },
+  "conclusion": "New useful case report and U5/U7 visible warning evidence received. Reported7/7 is not independently verified7/7 or business acceptance. Exact installed build, destination evidence U4/U6 and actual user acceptance remain open.",
+  "messagesSent": 0,
+  "sourceDataWrites": false
+}

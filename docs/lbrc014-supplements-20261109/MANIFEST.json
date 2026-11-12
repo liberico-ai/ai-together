@@ -1,0 +1,56 @@
+{
+  "createdAt": "2026-11-09T04:03:32.394484+00:00",
+  "purpose": "Supplemental LBRC014 evidence; original 10:15 sent package and baseline evidence remain unchanged.",
+  "files": [
+    {
+      "file": "LBRC014-UAT-20261109.zip",
+      "bytes": 2690013,
+      "sha256": "ce415588dcb5b9664d3efe25bfbaebaa1d59ac28823cc13ec2bceeb4188d98da"
+    },
+    {
+      "file": "android-bundle-inspection.json",
+      "bytes": 1300,
+      "sha256": "8e916b1ad800e435a593410439c06809b28625e6829af6f83cad9941dbf82cc8"
+    },
+    {
+      "file": "android-manifest-root-attributes.json",
+      "bytes": 224,
+      "sha256": "6e974a6265b7bfc0cabe21ece293c8dfdb8296cb432ff5448e3d073838e109ca"
+    },
+    {
+      "file": "build-log-inspection.json",
+      "bytes": 1218,
+      "sha256": "85f7bd505619178a85eef0c691b38d310fab965b7e65172ce19733b1998ae490"
+    },
+    {
+      "file": "original-confirmation-and-review-scope.json",
+      "bytes": 1986,
+      "sha256": "9617fb2e4c669449a5a1c810f8c312dc4d759bc8c1611650c6cf97efd04b5251"
+    },
+    {
+      "file": "phuong-p1-1033.txt",
+      "bytes": 537,
+      "sha256": "3be3c5be6f007b13f1b5f5707ee1c79e59cdb523384b8f8fca9e235290a35466"
+    },
+    {
+      "file": "quan-build-1031.log",
+      "bytes": 5885,
+      "sha256": "177bf6c33c403a7d6938c48bbdec23a0267d42cff39fb4f2ad68a62f6f33aa7a"
+    },
+    {
+      "file": "uat-build-to-delivered-build.json",
+      "bytes": 135794,
+      "sha256": "3cb160e43a6b539a3165a70f84416fc297a03939a1da09e181739544e13382bc"
+    },
+    {
+      "file": "uat-inspection.json",
+      "bytes": 5158,
+      "sha256": "94b71c00f305d1d6a0da1f105c829850c987a94bb63a504a3b463c50debbcd04"
+    },
+    {
+      "file": "workbook-close-read.json",
+      "bytes": 549,
+      "sha256": "3c9cb0cc7f4b0278a5bffc5fae247350a9cc9d43be74c96c6a1008def00166f3"
+    }
+  ]
+}

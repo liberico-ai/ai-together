@@ -1,0 +1,17 @@
+{
+  "tenantId": "b63f99bf-3a85-4a1f-b74a-66b5793871ef",
+  "projectId": "8f1b6aca-b20f-469a-a92b-cbde731581fc",
+  "internalChatId": "-5298399184",
+  "deniedChatIds": [
+    "-1002308580311"
+  ],
+  "source": {
+    "host": "d1-ai1",
+    "profile": "libetech",
+    "path": "config.yaml platforms.telegram.home_channel",
+    "name": "LibeAI",
+    "observedOn": "2026-11-08",
+    "method": "Authenticated Hermes direct shell; bounded home_channel read"
+  },
+  "excluded": "Dragon Forge -1004338813921 is not the approved LibeAI recipient"
+}

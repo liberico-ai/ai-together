@@ -1,124 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LibeTech AI OS — live 0.5.0; 0.6.0 candidate
 
-## Getting Started
+Private operational platform for LibeTech: scoped work, evidence and independent technical/business acceptance. The second slice adds username/password organization accounts, persistent PostgreSQL sessions, verified Telegram identity linking, and a read-only bot bridge. Implementation references: `src/server/service.ts:14`, `src/server/identity.ts:64`; live pilot receipt: `docs/TELEGRAM-GROUP-VERIFICATION-20261109T0922.json:1`.
 
-First, run the development server:
+Version 0.6.0 is an isolated candidate for first-account Telegram approval by Chairman and one of the three BoM Tech members before issuing an invitation; it is not deployed. See [SPEC-007](docs/SPEC-007-telegram-account-approval.md).
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Version 0.5.0 is live at https://libetech.btnet.vn. It adds member registration requests, administrator-reviewed project grants, and scoped bug/idea reports with manager triage. See [SPEC-006](docs/SPEC-006-team-registration-feedback.md) and [the dated deployment record](docs/DELIVERY-005-team-open-20261110.md).
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Current status
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The 0.2.0 backend and private PostgreSQL are deployed on d1-ai1 behind the Hermes portal. On 2026-11-09 at 09:22 Vietnam time, live user traffic verified chairman Telegram pairing, an exact-SHA LBRC014 read in LibeAI and scope denial in Libe–Xeca; see [dated evidence](docs/TELEGRAM-GROUP-VERIFICATION-20261109T0922.json). A read-only server inspection at 15:36 confirmed only the activated, Telegram-linked chairman account, one project, one historical reconciliation and zero work/evidence records or live invitations. The 2026-11-09 access gap is historical; the 2026-11-10 registration and feedback rollout is recorded [here](docs/DELIVERY-005-team-open-20261110.md). See [prior flows and data](docs/RESUME-TEAM-ACCESS-20261109.md) and [prior server observation](docs/RESUME-SERVER-OBSERVED-20261109.json). LBRC014 remains a source reconciliation, not a migrated canonical work item or accepted deliverable. The earlier [local verification](docs/VERIFICATION-002-20261108.md) is retained as historical evidence.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Identity flow
 
-## Learn More
+Operator invitation → user chooses password → organization session → five-minute pairing code → private `/libetech_link` command → verified Telegram ID. The bridge intersects the linked user's projects with the actual chat's grants. No actor or tenant comes from model arguments.
 
-To learn more about Next.js, take a look at the following resources:
+## Run
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `npm ci --ignore-scripts`
+- `npm run build`
+- `npm run start:demo`: existing loopback-only synthetic PGlite workspace, port 3147.
+- Server mode: protected `DATABASE_URL`, `IDENTITY_DATABASE_URL`, `LIBETECH_TENANT_ID`, `LIBETECH_ORIGIN`, optional `LIBETECH_BRIDGE_CONFIG`; `npm start`, loopback 3148. Never combine demo with a server database. Configuration references: `package.json:9`, `src/server/db.ts:44`, `src/server/identity.ts:142`.
+- `npm test -- --coverage`, `npm run typecheck`, `python3 -m unittest discover -s tests -p 'test_bot_bridge.py'`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Registration requests are public, but project access remains administrator approved. Runtime credentials are not migration credentials and never own tables. All migrations are versioned under `migrations/`. Keep `.runtime`, `.data`, `.env*`, keys and database archives out of source packages and git.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Telegram Daily Standup Bot
-
-Mỗi ngày 08:30 (Asia/Ho_Chi_Minh), hệ thống đăng bản tin liệt kê task `in_progress` vào 1 group Telegram chung.
-
-### Setup
-
-1. **Tạo bot Telegram**: nhắn [@BotFather](https://t.me/BotFather) → `/newbot` → nhận `TELEGRAM_BOT_TOKEN`.
-2. **Tạo group**: tạo group "Libe AIOS — Daily Standup", add bot vào, cấp quyền gửi message.
-3. **Lấy chat_id**: gửi 1 message bất kỳ trong group → truy cập `https://api.telegram.org/bot<TOKEN>/getUpdates` → copy `"chat":{"id":-100...}` (số âm).
-4. **Set ENV** trong `.env.local`:
-   ```
-   TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-   TELEGRAM_CHAT_ID=-1001234567890
-   ```
-5. **Restart app** để load ENV.
-
-### Cron
-
-Trên host Docker, thêm vào crontab (`crontab -e`):
-
-```cron
-# 08:30 Asia/Ho_Chi_Minh = 01:30 UTC
-30 1 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/telegram-daily-standup >> /var/log/libe-aios-cron.log 2>&1
-```
-
-- Đổi port `3000` theo `docker-compose.prod.yml` thực tế.
-- `CRON_SECRET` phải có trong env của user chạy crontab.
-- **Không** gọi qua public HTTP URL — Bearer token sẽ đi plaintext.
-
-### Manual smoke test
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/telegram-daily-standup
-```
-
-Kiểm tra group Telegram nhận được message. Response JSON:
-
-```json
-{ "success": true, "totalTasks": 7, "chunksTotal": 1, "chunksSent": 1, "chunksFailed": 0 }
-```
-
-## KPI Data Sync (Copilot + GitHub Quality)
-
-Pipeline cấp dữ liệu cho KPI Mục tiêu 2 (AI Adoption + Quality). Chạy 2 cron mỗi ngày (giờ UTC, không lệ thuộc timezone group):
-
-- **06:00 UTC** — `/api/cron/sync-copilot-metrics`: kéo Copilot Usage Metrics của org → upsert vào bảng `ai_usage_logs` (map `githubUsername` → `userId` qua `user_github_map`).
-- **06:15 UTC** — `/api/cron/sync-github-quality`: quét `github_commits` có `ciStatus='failure'` trong 30 ngày → ghi `quality_events` type `ci_fail` cho tác giả (chống trùng theo `userId + sha`).
-
-Cả hai dùng `GET` + auth `Authorization: Bearer $CRON_SECRET` (y hệt telegram-daily-standup).
-
-### Setup ENV
-
-Set trong `.env.local`:
-
-```
-GITHUB_ORG=liberico-ai
-GITHUB_TOKEN=ghp_...   # token có quyền đọc Copilot org metrics
-```
-
-- `GITHUB_ORG`: org GitHub để gọi Copilot metrics API.
-- `GITHUB_TOKEN`: PAT/token có scope đọc Copilot billing/metrics của org.
-- `CRON_SECRET`: dùng chung với các cron khác.
-
-### Cron
-
-Trong `docker-compose.prod.yml`, service `cron` đã đăng ký sẵn (gọi qua network nội bộ `http://app:3000`):
-
-```cron
-# 06:00 UTC — đồng bộ Copilot usage metrics
-0 6 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/sync-copilot-metrics
-# 06:15 UTC — đồng bộ tín hiệu chất lượng GitHub (CI fail)
-15 6 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/sync-github-quality
-```
-
-### Manual smoke test
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync-copilot-metrics
-curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync-github-quality
-```
-
-Response JSON mẫu:
-
-```json
-{ "success": true, "synced": 12, "skipped": 3 }
-{ "success": true, "created": 5, "skipped": 40 }
-```
+[Scope and acceptance](docs/SPEC-002-identity-postgres.md) · [Private server install and rollback](docs/DEPLOY-002.md) · [Foundation architecture](docs/ARCHITECTURE.md)

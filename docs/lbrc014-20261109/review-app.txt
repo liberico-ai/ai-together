@@ -1,0 +1,152 @@
+# RÀ SOÁT APP FLUTTER — Đi tuyến (DMS) đối chiếu Tài liệu hợp nhất v2.1
+
+> Nhánh: **DMS** · Ngày rà: 04/06/2026 · Người rà: agent APP (review/audit)
+> Nguồn chuẩn: `Tai_lieu_hop_nhat_Di_tuyen_DMS_v2.docx` (v2.1) + `06_REALIGN_PILOT.md` + `REVIEW_BE.md` (shape API thực tế BE)
+> Phương pháp: đọc code + `flutter analyze` + `flutter test` (không suy đoán). Lỗi nhỏ sửa ngay; lệch shape/nghiệp vụ ghi báo cáo chờ Tech Lead.
+
+> **🟢 CẬP NHẬT 04/06/2026 (đợt FIX theo `11_FIX_PLAN_GATE30.md`):** ĐÃ ĐÓNG **toàn bộ 6 Lệch** (#1–#6) theo **Quyết định Qa** (check-in tại điểm bán là LỐI VÀO DUY NHẤT qua visit_flow 7 bước; swipe không tự check-in; bỏ check-in nhanh không ảnh). API `rt.visit/open` chuyển **KHỚP**. Commit `633fb15` (FIX-APP-1), `f05dd83` (FIX-APP-2), `777a2d2` (FIX-APP-3), `54f1413` (FIX-APP-4). analyze 0 error/warning; test **86/86 pass**. Chi tiết §4 + §6.
+
+> **🟢 CẬP NHẬT 17/06/2026 (bước "Chụp trưng bày" phân loại ảnh — `13_DISPLAY_PHOTOS_GUIDE.md` PHẦN APP A1–A4):** bước trưng bày giờ **chia theo LOẠI ảnh lấy ĐỘNG từ BE** (`rules.rawJson['display_photo_types']`, fallback 4 loại mặc định — KHÔNG migration drift). Mỗi loại 1 thẻ: chụp **camera-only** (QD-09) → **thumbnail xem lại** + **Chụp lại** + chạm xem full (`InteractiveViewer`). Nút **Lưu** chỉ bật khi đủ loại bắt buộc, thiếu thì hiện "Còn thiếu: …". Lưu qua `payload.photos_by_type={key:@file}` + `photo_ids` (tái dùng outbox, resolver đệ quy). Hợp đồng dữ liệu mới: `save_step(display_photo).payload={note, photos_by_type}`. Files: `models/display_photo_type.dart` (mới), `services/visit_service.dart` (`displayPhotoTypes()` + `saveDisplayPhotos()`), `screens/visit/steps/display_step.dart` (viết lại). Test: `test/visit/display_step_test.dart` (3) + bổ sung `visit_service_test.dart` (đọc rules+fallback, photos_by_type). analyze 0 error/warning; `flutter test` pass. **⏳ chờ QA thiết bị thật** (camera, xem lại/chụp lại, ép đủ loại). Phụ thuộc BE B1 (`route.display_photo_types` vào rules) — App đã có fallback nên không chặn.
+
+---
+
+## 1. Bảng tổng hợp Đạt / Lệch / Thiếu
+
+| Mục (F/QD) | Trạng thái | Bằng chứng (file:dòng / test) | Hành động |
+|---|---|---|---|
+| **R-APP-0 · Repoint bt.saleman/*** | **Đạt** | `sync/outbox_dispatcher.dart:82-85` (checkin→`bt.saleman/checkin`, customer.create→`bt.saleman/create_customer`); `services/customer_service.dart:13`; `pilot_route_service.dart:20,28`; `pilot_kpi_service.dart:18`; `offline_order_service` → `bt.saleman/create_order` | Giữ nguyên |
+| **R-APP-0 · Ẩn màn GÁC (survey/offroute)** | **Đạt** | `survey_screen`/`offroute_screen` chỉ truy được từ `visit_flow_screen.dart:158` (mà visit_flow chưa nối nav) → không có lối vào pilot; BottomNav không có survey/offroute | Giữ nguyên |
+| **R-APP-0 · Hiện màn chấm công + Hôm nay** | **Đạt** | Chấm công: `home_screen.dart:178-194` (card "Chấm công"). Tab "Hôm nay" index 0: `bottom_nav_bar.dart:17-21`, `main_layout.dart:30,32` | Giữ nguyên |
+| **F1 · Check-in camera-only** | **Đạt** | `customer_checkin_card.dart:54-66` (`ImageSource.camera`, `CameraDevice.rear`); KHÔNG có `ImageSource.gallery` toàn repo | Giữ nguyên |
+| **F1 · Ảnh check-in BẮT BUỘC** | **Đạt** | `customer_checkin_card.dart:70-73` (chặn nếu `_photoPath==null`) + nút disabled `:199-211`; gửi `photo_id`+`photo_taken_at` `checkin_service.dart:88-112` | Giữ nguyên |
+| **F1 · Accuracy >100m → dialog** | **Đạt** | `customer_checkin_card.dart:87-108` | Giữ nguyên |
+| **F1 · checkin_type customer\|vnpost_xa (K5)** | **Đạt** | `checkin_service.dart:16-21`; 2 nút KH thường / GĐ bưu điện xã `customer_checkin_card.dart:196-217` | Giữ nguyên |
+| **F1 · Lịch sử 5 check-in gần nhất** | **Đạt** | `checkin_service.dart:144-166` (server→local fallback); UI `customer_checkin_card.dart:226-234` | Giữ nguyên |
+| **F2 · Tab Hôm nay + card KH** | **Đạt** ✅ | `route_screen.dart` (tier badge, đơn gần nhất, màu trạng thái, progress X/Y); nút card "Viếng thăm" mở visit_flow; **đã gỡ swipe tự check-in** (QD-16) | ✅ ĐÃ FIX `633fb15` (Lệch #2) |
+| **F2 · Bản đồ Goong (maplibre_gl) + deeplink** | **Đạt** | `route_map_screen.dart` (`MapLibreMap` + style Goong từ BE/sync_meta `:40-62`; deeplink Google Maps `:206-213`; fallback khi thiếu key `:153-204`) | Giữ nguyên (chờ Goong key BE) |
+| **F2 · RouteListScreen từ Settings** | **Đạt** | `settings_screen.dart:155-163` → `RouteListScreen`; gọi `bt.saleman/routes` | Giữ nguyên |
+| **F3 · KPI 5 card + total + verdict** | **Đạt** | `kpi_k1k5_section.dart` (5 card value/target/%/trọng số/score `:107-164`; total `:80`; verdict badge `:89-105`); shape k1..k5 OBJECT khớp BE | Giữ nguyên |
+| **F3 · Công thức/verdict** | **Đạt** | `models/kpi_report.dart` (`score=pct×weight` `:28`; verdict ≥100/85/70 `:106-111`) khớp §6 tài liệu + BE | Giữ nguyên |
+| **F4 · CustomerCreateScreen (dropdown N3/N4/Rượu)** | **Đạt** | `customer_pilot_create_screen.dart` (dropdown 5 nhóm `:176-186`; "Lưu & Tạo đơn ngay" `:208-215`); FAB "+" `customer_list_screen.dart:150-161` | Giữ nguyên |
+| **F4 · Model Customer nhomMember/memberSubType/tier** | **Đạt** | `models/customer.dart:11-14,40-42` | Giữ nguyên |
+| **F4 · Validate phone + cảnh báo trùng** | **Đạt** | `customer_pilot_service.dart:134-137` (`^0\d{9}$`); cảnh báo trùng `customer_pilot_create_screen.dart:42-68` | Giữ nguyên |
+| **F4 · Filter chip nhóm** | **Đạt** ✅ | `customer_list_screen.dart` filter **server-side** qua `domains` (`_filterDomains`) + load-more mọi filter; `customer_service.dart` nhận `domains` | ✅ ĐÃ FIX `54f1413` (Lệch #5) |
+| **F6 · Màn chấm công ca + selfie + nghỉ** | **Đạt** | `attendance_screen.dart` (selfie camera bắt buộc `:49-57`; check-in/out `:59-78`; báo nghỉ `:218-273`); offline outbox `attendance_service.dart` | Giữ nguyên |
+| **F8 · Tracking chỉ chạy khi ca mở** | **Đạt** | `attendance_screen.dart:67-77` (start khi check-in, stop khi check-out); batch `rt.track/push` `tracking_service.dart:153-171`; quyền vị trí nền `:68`; thông báo riêng tư `:103-133` | Giữ nguyên (chờ duyệt chính sách riêng tư) |
+| **Offline · client_uuid mọi thao tác ghi** | **Đạt** | `outbox_dispatcher.dart:98` (`putIfAbsent client_uuid`); checkin/customer/visit/attendance/order đều mang client_uuid | Giữ nguyên |
+| **Offline · thứ tự outbox (upload→...→close)** | **Đạt** | upload enqueue TRƯỚC payload (`checkin_service.dart:91-97`, `attendance_service.dart:106-116`, `visit_service.dart:102-110`); resolve `@ref`/`@file` `outbox_dispatcher.dart:147-189`; test `test/sync/outbox_test.dart` | Giữ nguyên |
+| **Chung · pubspec packages QD** | **Đạt** | `pubspec.yaml:44-68` (geolocator, maplibre_gl[QD-07], image_picker, local_auth, drift, connectivity_plus, permission_handler, uuid, url_launcher) | Giữ nguyên |
+| **Chung · quyền Android/iOS** | **Đạt** | `AndroidManifest.xml` (FINE/COARSE/BACKGROUND location, FOREGROUND_SERVICE_LOCATION, CAMERA, geo/https queries); `Info.plist` (Camera, Location Always/WhenInUse, UIBackgroundModes location) | Xem **Lệch #6** (cleartext dev) |
+| **F9 · Viếng thăm 7 bước là lối vào DUY NHẤT** | **Đạt** ✅ | `route_screen` nút "Viếng thăm" + `customer_visit_card` (`open_visit_flow`) đều mở `VisitFlowScreen`; bỏ check-in nhanh + Dismissible swipe (QD-16) | ✅ ĐÃ FIX `633fb15` (Lệch #1/#2) |
+| **F9 · required_steps từ rules** | **Đạt** | `visit_service.dart` đọc `ruleSet.requiredSteps` (fallback default); gating check-out; skip bước tuỳ chọn `visit_flow_screen.dart` | Giữ nguyên |
+| **F9 · Check-in trong luồng camera-only + ảnh BẮT BUỘC** | **Đạt** ✅ | `checkin_step.dart` ảnh **BẮT BUỘC** (chặn `_open` + `canOpen` yêu cầu `_photoPath`), camera-only, chọn `checkin_type`; `visit_service.openVisit` gửi `photo_taken_at`+`checkin_type`, context upload=`checkin`; test `visit_service_test.dart` | ✅ ĐÃ FIX `633fb15` (Lệch #3) |
+
+**Tổng:** Đạt **23** · Lệch **5** (1 nghiêm trọng cần chốt trước cutover: #2; 1 chặn khi nối F9: #3; 3 nhẹ) · Thiếu **0** · Đã sửa **3 warning** (commit `859ff91`).
+
+---
+
+## 2. Bảng API MISMATCH (App ↔ REVIEW_BE.md §2)
+
+> Envelope `{ok,message,result}`; mọi method gửi body `[payload]` (`sync/remote.dart:58-68`), thao tác ghi tự gắn `client_uuid` (`outbox_dispatcher.dart:98`).
+
+| Endpoint | App gửi/đọc | BE (REVIEW_BE §2) | Khác gì / Bên nào sửa |
+|---|---|---|---|
+| `bt.saleman/checkin` | `{customer_id,lat,lng,accuracy,checkin_type,note,photo_id(@file),photo_taken_at,timestamp,client_uuid}` | §2.1 yêu cầu `photo_id`+`photo_taken_at` (≤180s) | **KHỚP** ✓ |
+| `bt.saleman/checkin_history` | gửi `[{customer_id,limit}]`; đọc `checkin_at,checkin_type,note` (`checkin_service.dart:185-191`) | §2.2 trả full row | **KHỚP** ✓ (App chỉ đọc field cần) |
+| `bt.saleman/today_route` | gửi `[{date}]`; đọc `route_name,day_of_week,customers[](id,name,code,address_raw,contact_number,tier,last_order_*,checkin_today,order_today,sequence),total,visited` | §2.3 | **KHỚP** ✓ |
+| `bt.saleman/routes` | gửi `[{}]`; `id` đọc dạng **String** (`pilot_route.dart:92-97`) | §2.4 `id="<uid>-<dow>"`, có thêm `day_of_week` | **KHỚP** ✓ (App coi id là string, bỏ qua field thừa) |
+| `bt.saleman/kpi_report` | gửi `[{start_date,end_date}]`; đọc k1..k5 **OBJECT** (`pct/actual/target/actual_count/total_count/combo_orders/total_orders/visited_wards/total_wards`) | §2.5 k1..k5 object | **KHỚP** ✓ |
+| `bt.saleman/create_customer` | `{name,contact_number,address_raw,nhom_member,member_sub_type,notes,client_uuid}` → đọc `{id,code,name}` | §2.6 | **KHỚP** ✓ |
+| `bt.saleman/customers` | gửi `[domains, {q,limit,offset}]`; filter nhóm qua `domains` (vd `[['nhom_member','=','N4']]`); đọc `nhom_member,member_sub_type,tier,groups` | §2.7 `domains[]`+opts | **KHỚP** ✅ (FIX-APP-4 `54f1413` — filter server-side) |
+| `rt.attendance/check_in\|check_out\|leave` | `{lat,lng,at,photo_id(@file),device,client_uuid}` / leave `{type,from,to,reason,client_uuid}` | §2.8 (BE có thêm alias `bt.saleman/attendance_*`) | **KHỚP** ✓ (App gọi thẳng `rt.attendance/*`, BE hỗ trợ) |
+| `rt.mobile/upload` | multipart `<host>/admin/route/mobile/upload`, field `file`, `context=checkin/selfie`, `ref` | §2.9 | **KHỚP** ✓ |
+| `rt.track/push` | `[{points:[{lat,lng,at,acc,speed}]}]` | §2.10 trả `{accepted}` | **KHỚP** ✓ |
+| `rt.visit/open` (F9) | `{customer,route_line,lat,lng,at,is_offroute,checkin_type,photo_id(@file·context='checkin'),photo_taken_at,client_uuid}` (`visit_service.dart` openVisit) | §2.11 yêu cầu `photo_id`+`photo_taken_at`(≤180s)+`checkin_type`; ép ảnh QD-09 | **KHỚP** ✅ (FIX-APP-1 `633fb15` — gửi `photo_taken_at`+`checkin_type`, context=`checkin`, ảnh bắt buộc) |
+| `bt.saleman/create_order` | `[{id:0,customer,owner,sale_price,notes,address,lines}]` + header `Idempotency-Key` | §2.13: bắt buộc `customer,owner,sale_price,lines[{product,quantity,price,unit,issue_code?}]`; KM/vat ở line bị BE ghi đè; Idempotency-Key header `^[A-Za-z0-9_.:-]{8,128}$` | **KHỚP về cấu trúc** ✓ — App gửi `id:0,address:0` (BE bỏ qua/ghi đè); `client_uuid` dùng làm Idempotency-Key (`sync/remote.dart`). Lưu ý: BE trả `status=1` nhưng set CONFIRMED(20) ở DB (App coi đã xác nhận) |
+
+---
+
+## 3. Kết quả analyze & test
+
+| Lệnh | Kết quả |
+|---|---|
+| `flutter analyze` (baseline) | 25 issues (3 warning + 22 info) |
+| `flutter analyze` (sau fix) | **22 issues — 0 error, 0 warning, 22 info** ✅ |
+| `flutter test` | **83 / 83 pass** ✅ |
+
+**22 info còn lại (không chặn pilot):** `withOpacity` deprecated (×18, chủ yếu `home_screen.dart`, `report_screen.dart`, `order_*`), `use_build_context_synchronously` (×3), `Radio.groupValue/onChanged` deprecated (×2 `settings_screen.dart`). Đề nghị xử lý ở task dọn dẹp riêng (đổi `withOpacity`→`withValues`, bọc `context.mounted`).
+
+---
+
+## 4. Trạng thái deviations — ĐÃ ĐÓNG (đợt FIX 04/06/2026)
+
+> Theo **Quyết định Qa** + `11_FIX_PLAN_GATE30.md`. Cả 6 Lệch đã xử lý; không còn mục chờ Tech Lead phía App.
+
+**✅ Lệch #1 — F9 visit_flow là lối vào DUY NHẤT (đóng `633fb15`).**
+`VisitFlowScreen` được nối từ Route View (nút "Viếng thăm") và CustomerDetail (`CustomerVisitCard` → key `open_visit_flow`). Là lối vào check-in duy nhất tại điểm bán (QD-16).
+
+**✅ Lệch #2 — Bỏ check-in nhanh không ảnh ở Route View (đóng `633fb15`).**
+Gỡ `_quickCheckin` + Dismissible swipe-tự-check-in. Nút card đổi thành "Viếng thăm" mở visit_flow; "Đã thăm" khi `checkin_today`. Không còn check-in bỏ qua QD-09. Test `route_screen_test.dart` xác nhận không còn nút "Check-in" nhanh / `Dismissible`.
+
+**✅ Lệch #3 — Check-in trong visit_flow: ảnh BẮT BUỘC + payload đủ field (đóng `633fb15`).**
+`checkin_step.dart`: ảnh bắt buộc (chặn `_open` + `canOpen` yêu cầu `_photoPath`), camera-only, thêm chọn `checkin_type` (KH thường / GĐ bưu điện xã). `visit_service.openVisit` gửi `photo_taken_at` + `checkin_type`, context upload `note`→`checkin`. Test `visit_service_test.dart` (openVisit kèm ảnh).
+
+**✅ Lệch #4 — Home "Đi tuyến hôm nay" → tab Hôm nay (đóng `f05dd83`).**
+`home_screen.dart` card gọi `onNavigate(5)` (tab Hôm nay, pilot `bt.saleman/today_route`); gỡ push `TodayRouteScreen` legacy (`rt.mobile/today_route`). Giữ code `TodayRouteScreen`/`route_service` (không xoá).
+
+**✅ Lệch #5 — Filter nhóm KH server-side (đóng `54f1413`).**
+`customer_service.dart` nhận `domains`; `customer_list_screen` chip truyền `domains` (vd `[['nhom_member','=','N4']]`), refetch khi đổi filter, load-more bật cho mọi filter.
+
+**✅ Lệch #6 — Cleartext debug-only (đóng `777a2d2`).**
+Gỡ `usesCleartextTraffic` khỏi manifest main (release không cleartext); chuyển sang `android/app/src/debug/AndroidManifest.xml` qua `tools:replace`.
+
+**✅ API `create_order` — BE đã bổ sung shape (REVIEW_BE §2.12 preview + §2.13 create_order).** App khớp về cấu trúc (xem §2). `client_uuid` (UUID v4) hợp lệ làm Idempotency-Key (`^[A-Za-z0-9_.:-]{8,128}$`).
+
+**Còn phụ thuộc bên ngoài (không phải lỗi App):** Goong Maptiles key, target K1/K4/K5, chính sách quyền riêng tư tracking, nguồn `dms_visit_group` + mapping `employee_id↔user` — xem REVIEW_BE §4 Open items.
+
+---
+
+## 5. Checklist test thiết bị thật (QA)
+
+- [ ] **Visit_flow là lối vào duy nhất:** từ Route View (nút "Viếng thăm") VÀ CustomerDetail (nút "Check-in / Viếng thăm") đều mở luồng 7 bước; KHÔNG còn check-in nhanh / swipe.
+- [ ] **Bước check-in trong flow — ảnh BẮT BUỘC + camera-only:** nút "Mở viếng thăm" disabled tới khi chụp ảnh; KHÔNG có chọn ảnh từ thư viện; chọn được loại điểm (KH thường / GĐ bưu điện xã).
+- [ ] **required_steps:** ép check-in + check-out; bước tuỳ chọn (kiểm tồn/trưng bày/ghi chú/đơn) bỏ qua được; chặn check-out khi thiếu bước bắt buộc.
+- [ ] **Chống ảnh cũ (QD-09):** chụp ảnh trong flow, đợi >180s rồi check-in → BE từ chối (kiểm `photo_taken_at`).
+- [ ] **vnpost_xa qua flow:** chọn "GĐ bưu điện xã" → BE bridge ghi `bt_saleman_checkin` đúng loại (K5 đếm).
+- [ ] **GPS:** ngoài bán kính hiện ô nhập lý do; lấy vị trí; `LocationFailure` báo lỗi rõ.
+- [ ] **Offline:** airplane mode → mở visit/đơn vào outbox; bật mạng → đẩy đúng thứ tự (upload ảnh `context=checkin` TRƯỚC visit.open), KHÔNG trùng (idempotent `client_uuid`).
+- [ ] **Chấm công:** selfie camera bắt buộc; check-in mở ca → tracking nền bắt đầu (sau khi đồng ý); check-out → tracking dừng.
+- [ ] **Tracking nền:** chỉ gửi `rt.track/push` khi đang ca; quyền vị trí "Always" được xin.
+- [ ] **Bản đồ Goong:** khi BE trả key → render điểm theo sequence + màu đã/chưa thăm; tap → chỉ đường Google Maps; thiếu key → fallback danh sách.
+- [ ] **Filter KH server-side:** chọn chip N3 GT/N4/Rượu → danh sách lọc đúng + cuộn load-more vẫn chạy.
+- [ ] **Home "Đi tuyến hôm nay":** mở đúng tab Hôm nay (không mở màn legacy).
+- [ ] **Release build (Android):** xác nhận release KHÔNG cleartext (chỉ debug http BE local).
+- [ ] **KPI:** khi BE `kpi_report` sẵn sàng → 5 card đúng %, score, verdict badge.
+- [ ] **E2E happy path:** login → tab Hôm nay → Viếng thăm (ảnh) → tạo đơn → check-out → KPI (iOS + Android).
+
+---
+
+## 6. Commit đã tạo
+
+| Commit | Nội dung |
+|---|---|
+| `859ff91` | `fix(review)` — dọn 3 analyze warning + đưa REVIEW_BE.md vào docs/dms-plan (đợt rà soát). |
+| `633fb15` | `fix(app-visit)` — **FIX-APP-1**: F9/QD-16 check-in qua visit_flow là lối vào DUY NHẤT + ép ảnh QD-09 (checkin_step ảnh bắt buộc + checkin_type; openVisit gửi photo_taken_at+checkin_type, context=checkin; route_screen gỡ quick-checkin/swipe; customer_detail dùng CustomerVisitCard; +test). |
+| `f05dd83` | `fix(app-nav)` — **FIX-APP-2**: card Home "Đi tuyến hôm nay" → tab Hôm nay; gỡ lối legacy TodayRouteScreen (`rt.mobile/today_route`). |
+| `777a2d2` | `fix(app-android)` — **FIX-APP-3**: `usesCleartextTraffic` chỉ bật ở build debug (release không cleartext). |
+| `54f1413` | `fix(app-customer)` — **FIX-APP-4**: filter nhóm KH server-side qua `domains` + load-more mọi filter. |
+
+---
+
+## 7. Tóm tắt cho Tech Lead
+
+**Tình trạng App pilot (sau đợt FIX):** F1–F9 **đạt** so với v2.1 + Quyết định Qa. Check-in tại điểm bán là **lối vào DUY NHẤT qua visit_flow 7 bước** (QD-16); ảnh điểm bán **bắt buộc, camera-only** + `photo_taken_at` + `checkin_type` (QD-09); bỏ check-in nhanh/swipe. API tất cả endpoint pilot **KHỚP** REVIEW_BE §2 (gồm `rt.visit/open` và `create_order` §2.13). `flutter analyze` **0 error/0 warning**; `flutter test` **86/86 pass**.
+
+**Đã đóng toàn bộ 6 Lệch** (#1–#6) — xem §4. Không còn mục chờ quyết phía App.
+
+**Còn phụ thuộc bên ngoài (không chặn code App):**
+1. Goong Maptiles key (BE trả qua sync_bootstrap) — F2/bản đồ.
+2. Target K1/K4/K5 (settings BE) — F3 hiển thị % đúng.
+3. Chính sách quyền riêng tư tracking (HR/lãnh đạo duyệt) — F8.
+4. Nguồn `dms_visit_group` + mapping `employee_id↔user` — F5 migration.
+5. **QA thiết bị thật** theo checklist §5 trước Gate 30/06 (đặc biệt: ép ảnh trong flow, chống ảnh cũ >180s, vnpost_xa qua flow, release không cleartext).

@@ -1,0 +1,19 @@
+Warning: custom (unreviewed) source — not from the Hermes catalog.
+Warning: Using insecure/local URL scheme. Consider using https:// or git@ for 
+production installs.
+Cloning 
+file:///home/iptech/libetech-ai-os-stage-20261108/libetech-bridge-git-20261108..
+.
+
+╭──────────────────────────────── ✓ Installed ─────────────────────────────────╮
+│ Plugin installed:                                                            │
+│ file:///home/iptech/libetech-ai-os-stage-20261108/libetech-bridge-git-202611 │
+│ 08                                                                           │
+│ Location:                                                                    │
+│ /home/iptech/.hermes/profiles/libetech/plugins/libetech-ai-os-bridge         │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+✓ Plugin libetech-ai-os-bridge enabled.
+Gateway reloaded plugins — active in the running gateway now: gateway_commands; 
+deferred: tools (next session).
+

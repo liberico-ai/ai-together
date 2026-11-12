@@ -1,27 +1,2 @@
 import { defineConfig } from 'vitest/config';
-import path from 'path';
-
-export default defineConfig({
-  test: {
-    environment: 'node',
-    include: ['src/**/__tests__/**/*.test.ts'],
-    exclude: ['e2e/**', 'node_modules/**', '.next/**'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html'],
-      include: ['src/lib/telegram*.ts'],
-      thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80,
-      },
-    },
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@drizzle': path.resolve(__dirname, './drizzle'),
-    },
-  },
-});
+export default defineConfig({test:{testTimeout:30000,hookTimeout:30000,fileParallelism:false,coverage:{provider:'v8',include:['src/server/service.ts','src/server/auth.ts','src/server/http.ts','src/server/identity.ts','src/server/bridge.ts','src/server/auth-http.ts','src/server/accounts.ts','src/server/reports.ts','src/server/evidence-scores.ts','src/server/evidence-projector.ts','src/server/working-time.ts'],reporter:['text','json-summary'],thresholds:{lines:60,functions:60,statements:60,branches:60}}}});

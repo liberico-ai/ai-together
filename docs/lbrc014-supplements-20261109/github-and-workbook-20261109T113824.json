@@ -1,0 +1,49 @@
+{
+  "observedAtUTC": "2026-11-09T04:38:24Z",
+  "sha": "5b38598de8bca1b258be7ee4b7086a993810478a",
+  "commit": {
+    "date": "2026-11-07T01:23:32Z",
+    "files": [
+      {
+        "changes": 2,
+        "filename": "pubspec.yaml",
+        "status": "modified"
+      }
+    ],
+    "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/5b38598de8bca1b258be7ee4b7086a993810478a",
+    "message": "bump version 1.0.27+29",
+    "sha": "5b38598de8bca1b258be7ee4b7086a993810478a"
+  },
+  "checks": {
+    "check_runs": [],
+    "total_count": 0
+  },
+  "actions": {
+    "total_count": 0,
+    "workflow_runs": []
+  },
+  "statuses": {
+    "sha": "5b38598de8bca1b258be7ee4b7086a993810478a",
+    "state": "pending",
+    "statuses": [],
+    "total_count": 0
+  },
+  "workbook": {
+    "range": "'Đầu việc Tech'!A31:H31",
+    "majorDimension": "ROWS",
+    "values": [
+      [
+        "30",
+        "LBRC",
+        "Thêm tính năng chỉ đường cho App Saleman",
+        "QuânTV",
+        "PhươngHV",
+        "Hoàn thành",
+        "2026-11-06",
+        "LBRC014. Spec SPEC-chi-duong-diem-ban.md. Quân 6/11: chờ nghiệm thu. PhươngHV 7/11: nghiệm thu đạt, đóng."
+      ]
+    ]
+  },
+  "method": "Authenticated gh api GET and Google Drive read-only connector; no mutations",
+  "connectorNote": "GitHub connector returned 404 for this private repository; scoped authenticated gh read succeeded."
+}

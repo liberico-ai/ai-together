@@ -1,0 +1,85 @@
+# SPEC — Nút Chỉ đường tới điểm bán (App CVKD)
+
+Trạng thái: Draft, chờ Arch Lead review (viết bù sau khi code, xem §8) · Nhánh: `feature/customer-directions`
+Liên quan: *Quyết định 2* ([00_OVERVIEW.md](00_OVERVIEW.md)), T-APP-3.3 ([03_APP_TASKS.md](03_APP_TASKS.md))
+
+## 1. Bối cảnh & mục tiêu
+- T-APP-3.3 chỉ có nút chỉ đường ở **màn bản đồ tuyến**, và chỉ khi điểm có toạ độ. Màn danh sách cũ `TodayRouteScreen` cũng có nút này, nhưng đã bỏ khỏi điều hướng.
+- Màn CVKD dùng hằng ngày gồm tab **Hôm nay** (`RouteScreen`), tab **Khách hàng** (`CustomerListScreen`) và **Chi tiết KH** (`CustomerDetailScreen`). Các màn này **chưa có** nút chỉ đường, nên CVKD phải tự chép địa chỉ sang app bản đồ.
+- **Mục tiêu:** mỗi điểm bán có một nút **Chỉ đường**. Bấm vào thì mở ứng dụng bản đồ chỉ đường tới điểm bán, nếu điểm có đủ thông tin.
+
+## 2. Phạm vi
+| Màn | Vị trí nút |
+|---|---|
+| Tab Hôm nay: thẻ điểm bán trong tuyến | Bên phải thẻ (`ListTile.trailing`) |
+| Tab Khách hàng: thẻ KH | Cuối dòng địa chỉ. Nút vẫn hiện khi KH không có địa chỉ chữ, vì toạ độ có thể có trong DB local |
+| Chi tiết KH | AppBar, trước nút Sửa |
+
+**Ngoài phạm vi:**
+- Màn bản đồ tuyến (`RouteMapScreen`) giữ nguyên hành vi T-APP-3.3.
+- Không đổi BE và API.
+- Không thêm dependency.
+
+## 3. Quy tắc chọn đích
+Thứ tự ưu tiên:
+1. **Toạ độ** (`lat`, `lng`), cả hai khác null và khác 0. Màn đã có toạ độ thì dùng luôn. Nếu chưa, tra trong DB local, bảng drift `customers` (đã đồng bộ), theo `customer_id`.
+2. **Địa chỉ chữ** (trim, khác rỗng). Lấy địa chỉ của màn (`address_raw`). Nếu màn không có, dùng `customers.address_text` trong DB local.
+3. **Không có cả hai:** **không mở** bản đồ. Hiện snackbar `Điểm bán chưa có toạ độ hoặc địa chỉ để chỉ đường`.
+
+**Lý do:**
+- Toạ độ chính xác tới cửa hàng, còn địa chỉ chữ phụ thuộc vào việc Google tìm địa chỉ. Ví dụ "Kiot 6, Chợ Tạm…" có thể lệch.
+- Toạ độ 0,0 là dữ liệu rác (giữa biển), nên coi như không có.
+- DB local đọc được khi offline, không gọi mạng lúc bấm.
+
+## 4. Mở ứng dụng bản đồ
+- Theo *Quyết định 2*: chỉ đường qua **Google Maps Universal URL** bằng `url_launcher` (`LaunchMode.externalApplication`). Máy có app Google Maps thì mở app, không có thì mở trình duyệt.
+- **Theo toạ độ:**
+  `https://www.google.com/maps/dir/?api=1&destination={lat},{lng}&travelmode=driving`
+- **Theo địa chỉ:** cùng URL, `destination` là địa chỉ đã URL-encode.
+- **Mở không được** (không có app hoặc trình duyệt xử lý, hoặc lỗi): snackbar `Không mở được ứng dụng bản đồ`.
+- **Cấu hình nền tảng đã có sẵn, không đổi:**
+  - Android: `<queries>` cho `VIEW` + scheme `https`/`geo`.
+  - iOS: `LSApplicationQueriesSchemes` gồm `comgooglemaps`, `googlemaps`.
+
+## 5. Thiết kế
+- **`lib/services/map_launcher.dart`:**
+  - `directionsUri(lat, lng)` (có sẵn);
+  - `directionsUriForAddress(address)`;
+  - `open(uri)`: `canLaunchUrl` rồi `launchUrl`. Mọi lỗi trả `false`, không ném.
+- **`lib/widgets/directions_button.dart`:**
+  - `directionsDestination({lat, lng, address}) → Uri?`: hàm thuần, áp dụng quy tắc §3 (bước 1–2).
+  - `DirectionsButton(customerId, address?, lat?, lng?)`: `IconButton` (icon `directions`, tooltip "Chỉ đường"), dùng chung cho cả 3 màn.
+    - Khi bấm mới tra DB local, không tra lúc dựng danh sách nên không tốn truy vấn cho mỗi thẻ.
+    - Nguồn tra (`lookup`) và hàm mở (`opener`) inject được để test.
+- Không lưu, không ghi dữ liệu gì. Không ghi log toạ độ hay địa chỉ.
+
+## 6. Trường hợp biên
+| Tình huống | Kết quả |
+|---|---|
+| Có toạ độ local, màn có địa chỉ | Dùng toạ độ |
+| Toạ độ = 0,0 | Coi như không có, dùng địa chỉ |
+| Không toạ độ, màn không có địa chỉ, DB local có địa chỉ | Dùng địa chỉ local |
+| KH chưa đồng bộ về máy (không có dòng local) | Dùng địa chỉ của màn, nếu có |
+| Đọc DB local lỗi | Bỏ qua, dùng dữ liệu của màn |
+| Không toạ độ, không địa chỉ | Không mở, snackbar báo thiếu |
+| Không mở được app hoặc trình duyệt | Snackbar báo lỗi mở bản đồ |
+
+## 7. Test (`test/widget/directions_button_test.dart`)
+- URL theo địa chỉ: encode đúng, đúng `api=1` và `travelmode=driving`.
+- `directionsDestination`:
+  - toạ độ được ưu tiên;
+  - toạ độ 0,0 hoặc thiếu thì dùng địa chỉ;
+  - địa chỉ trống thì trả null.
+- `DirectionsButton`:
+  - mở bằng toạ độ local;
+  - mở bằng địa chỉ của màn;
+  - mở bằng địa chỉ local;
+  - không có thông tin thì không mở và báo;
+  - mở thất bại thì báo.
+
+## 8. Ghi chú quy trình
+- Spec này **viết bù sau khi code**, sai nguyên tắc "spec trước khi code". Cần Arch Lead review cả spec lẫn code trước khi merge.
+- UAT trên máy thật cần kiểm 3 trường hợp:
+  - Android có Google Maps;
+  - Android không có Google Maps (mở trình duyệt);
+  - iOS.

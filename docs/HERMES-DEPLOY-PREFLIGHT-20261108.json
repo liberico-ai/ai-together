@@ -1,0 +1,29 @@
+{
+  "observedAt": "2026-11-08T13:47:51.020145+00:00",
+  "route": "Authenticated Hermes Files and direct bang shell on d1-ai1",
+  "principal": "iptech uid 1000",
+  "operatingSystem": "Ubuntu 24.04.4 LTS x86_64",
+  "userServiceManager": "running",
+  "linger": true,
+  "postgresCandidate": "16.15-0ubuntu0.24.04.1",
+  "sudoRequired": false,
+  "sourceTree": "2a5bd497e07ca89dd12b5fe63e04d4974927ac43bacf5a39a93ff57ad94fac51",
+  "archiveSha256": "f3cc1592088314e40c1db89dc7aa9d62dc2817a3a697a3fe0cc4b181825834b6",
+  "pilotArchiveSha256": "028dec69430c7c1e27951e832b325fd37cedde0814f540efbbbf9ef12baf1a11",
+  "bothRemoteHashesMatch": true,
+  "remoteStaging": "/home/iptech/libetech-ai-os-stage-20261108",
+  "directoryMode": "0700",
+  "privateArchiveMode": "0600",
+  "installerInspectOnly": "pass",
+  "serverInstalled": false,
+  "telegramVerified": false,
+  "libeAiLiveHomeChannel": "-5298399184",
+  "scopeCorrection": "Dragon Forge -1004338813921 is not LibeAI; removed from pilot grants before deployment",
+  "checks": {
+    "identityAndGroupScopeTests": 10,
+    "passed": 10,
+    "productionBuild": "passed in clean temporary checkout",
+    "typecheck": "passed in clean temporary checkout",
+    "productionDependenciesAudit": "0 reported vulnerabilities"
+  }
+}

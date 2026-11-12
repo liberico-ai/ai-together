@@ -1,0 +1,27 @@
+{
+  "scope": "User explicitly requested sending LBRC014 minutes and evidence package to LibeAI, with Quan/Phuong follow-up requirements.",
+  "recipientGroup": "LibeAI",
+  "surface": "Telegram Lite native authenticated user UI",
+  "senderUiLabel": "Me",
+  "sentAtVietnam": "2026-11-09 10:15",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "deliveryObserved": "Sent; two exact filenames and caption visibly present together in LibeAI",
+  "files": [
+    {
+      "name": "LBRC014-BIEN-BAN-NGHIEM-THU-20261109.md",
+      "bytes": 14149,
+      "sha256": "f9c28c574332c4d0737e6970fcdff394b46cb35ab203f0e6da5a007427838d14"
+    },
+    {
+      "name": "LBRC014-HO-SO-NGHIEM-THU-20261109.zip",
+      "bytes": 167532,
+      "sha256": "0ff28399487390569db11891833a0852b0f705b2f8a0dc6c7436442c6b14f274"
+    }
+  ],
+  "caption": "LBRC014 — Bổ sung bằng chứng nghiệm thu (09/11/2026)\n\nGửi Quân, Phương biên bản và gói bằng chứng đã đối soát.\n\nQuân bổ sung:\n• Bản cài/version/build gắn full SHA, nơi/ngày phát hành và bằng chứng bản trên thiết bị nghiệm thu.\n• Log test/build đúng SHA; xác nhận review spec và code của người có vai trò Arch/Tech Lead.\n• Kết quả UAT kỹ thuật: ba màn Hôm nay, Khách hàng, Chi tiết KH; Android có Maps, Android dùng trình duyệt và iOS.\n\nPhương bổ sung:\n• Xác nhận bản đã nghiệm thu ngày 07/11, phạm vi/tiêu chí, kết quả sử dụng và người có trách nhiệm nghiệm thu.\n• Kết luận cùng ngoại lệ còn mở; đối chiếu với bản Quân bàn giao.\n\nNếu bằng chứng đã có, dẫn lại nguồn gốc vào các mục Q1–Q4, P1–P3 và phiếu UAT trong biên bản. Giữ nguyên trạng thái “Hoàn thành”, ghi chú, ticket và dữ liệu hiện có; đây là bổ sung hồ sơ, chưa phải xác nhận nghiệm thu mới.",
+  "evidenceMethod": "Native accessibility state changed from Sending to Sent at 10:15; screenshot displayed LibeAI header, both document cards, entire caption and sent check mark. UI observation transcribed, not Telegram API receipt.",
+  "recipientAcknowledgement": "Not established; accessibility state said Not seen at observation. No claim of recipient review or acceptance.",
+  "preservation": "No workbook, ticket, source code, bot snapshot, identity or runtime setting was changed. The transmitted files retain the bytes prepared before sending.",
+  "submissionAttempts": 1,
+  "note": "The initial file picker did not submit any message; Finder file-copy/paste produced one verified two-file send preview before submission."
+}

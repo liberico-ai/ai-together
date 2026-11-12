@@ -1,0 +1,89 @@
+{
+  "observedAt": "2026-11-09T02:23:14.169374+00:00",
+  "identityMetadata": {
+    "links": [
+      {
+        "username": "chairman",
+        "linkedAt": "2026-11-09T02:21:56.897925+00:00"
+      }
+    ],
+    "events": [
+      {
+        "kind": "telegram_verified",
+        "created_at": "2026-11-09T02:21:56.897925+00:00"
+      },
+      {
+        "kind": "session_started",
+        "created_at": "2026-11-09T02:20:54.542762+00:00"
+      },
+      {
+        "kind": "invitation_activated",
+        "created_at": "2026-11-08T10:19:43.229482+00:00"
+      },
+      {
+        "kind": "session_started",
+        "created_at": "2026-11-08T10:19:43.229482+00:00"
+      }
+    ],
+    "bridgeRequests": [
+      {
+        "created_at": "2026-11-09T02:22:56.911159+00:00"
+      },
+      {
+        "created_at": "2026-11-09T02:22:47.180546+00:00"
+      },
+      {
+        "created_at": "2026-11-09T02:21:56.853421+00:00"
+      },
+      {
+        "created_at": "2026-11-08T15:00:13.701144+00:00"
+      }
+    ],
+    "pairingCodesIssued": 1,
+    "latestPairingCodeCreatedAt": "2026-11-09T02:21:13.659326+00:00",
+    "workItems": 0,
+    "reconciliations": [
+      {
+        "code": "LBRC014",
+        "sourceSha": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+        "snapshotHash": "4f8aaa43dce649ec6ea6224e91120939c0b4a20125688e4f61f26d536db34b48"
+      }
+    ]
+  },
+  "gateway": {
+    "pid": 1108021,
+    "updatedAt": "2026-11-09T02:23:13.824361+00:00",
+    "telegram": {
+      "telegram": "connected",
+      "donhang:telegram": "connected",
+      "giaovan:telegram": "connected",
+      "hcns:telegram": "connected",
+      "ibshi:telegram": "connected",
+      "ibshi-hcns:telegram": "connected",
+      "ibshi-kt:telegram": "connected",
+      "ibshi-sales:telegram": "connected",
+      "ibshi-sx:telegram": "connected",
+      "ibshi-tb:telegram": "connected",
+      "ibshi-tckt:telegram": "connected",
+      "ibshi-tm:telegram": "connected",
+      "ibshiqaqc:telegram": "connected",
+      "kho:telegram": "connected",
+      "kinhdoanh:telegram": "connected",
+      "libetech:telegram": "connected",
+      "marketing:telegram": "connected",
+      "tckt:telegram": "connected",
+      "thuky:telegram": "connected",
+      "xeca:telegram": "connected"
+    }
+  },
+  "protectedFilesUnchanged": true,
+  "boundedProfileDeliveryLogs": [
+    "2026-11-08 05:00:52,044 INFO gateway.platforms.base: [Telegram] Sending response (21 chars) to -1002308580311",
+    "2026-11-08 14:54:56,135 INFO gateway.platforms.base: [Telegram] Sending response (147 chars) to -5298399184",
+    "2026-11-08 15:00:13,767 INFO gateway.platforms.base: [Telegram] Sending response (19 chars) to -5298399184",
+    "2026-11-08 15:00:21,706 INFO gateway.platforms.base: [Telegram] Sending response (147 chars) to -5298399184",
+    "2026-11-09 02:22:47,268 INFO gateway.platforms.base: [Telegram] Sending response (2262 chars) to -5298399184",
+    "2026-11-09 02:22:56,941 INFO gateway.platforms.base: [Telegram] Sending response (12 chars) to -1002308580311"
+  ],
+  "limitations": "Gateway log sizes and nonce timestamps require correlation with the user-visible command result. These alone do not prove response content or BU denial."
+}

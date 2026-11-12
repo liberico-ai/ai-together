@@ -1,0 +1,3 @@
+name: libetech-ai-os-web
+version: "0.1.0"
+description: Authenticated LibeTech AI OS login, private Telegram pairing and read-only pilot portal in Hermes. No bot or business writes.

@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-11-08T15:37:49.764095+00:00",
+  "evidenceType": "transcribed Hermes terminal and browser observations; raw after.json remains on server",
+  "portalVersion": "0.1.0",
+  "portalCommit": "57ca1e8ae40771df77316b3da60d27ce2212cad4",
+  "installation": "normal Hermes Git installer; enabled, no session or restart required",
+  "serverFinishStdout": {
+    "httpChecks": 5,
+    "counts": {
+      "users": 1,
+      "telegramLinks": 0,
+      "workItems": 0,
+      "reconciliations": 1
+    },
+    "protectedFilesUnchanged": true,
+    "gatewayPid": 1108021,
+    "telegramConnected": 20,
+    "telegramTotal": 20,
+    "webLoginVerified": false
+  },
+  "browser": {
+    "url": "https://hermes.btnet.vn/libetech-ai-os?profile=default",
+    "healthStatus": 200,
+    "anonymousMeStatus": 401,
+    "visibleServerVersion": "0.2.0",
+    "loginFormVisible": true,
+    "initialDiscoveryDelay": "Resolved after dashboard rescan and fresh navigation/reload; no code change or gateway restart"
+  },
+  "pending": [
+    "user login",
+    "private Telegram pairing",
+    "LibeAI exact SHA response",
+    "Libe-Xeca scope denial"
+  ],
+  "anonymousHermesApiHttp": 401,
+  "anonymousHermesProbe": "Unauthenticated HTTPS GET to exact portal health API; no cookie or token"
+}

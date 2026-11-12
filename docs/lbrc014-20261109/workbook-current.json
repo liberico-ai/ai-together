@@ -1,0 +1,188 @@
+{
+  "capturedAt": {
+    "current_time": "2026-11-09 02:39:26 UTC"
+  },
+  "method": "Authenticated Google Drive/Sheets connector, read only; native working sheet, not original XLSX",
+  "source": {
+    "id": "1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc",
+    "title": "Checklist dau viec cua Tech theo BU_Update 07.11.2026",
+    "mime_type": "application/vnd.google-apps.spreadsheet",
+    "size": null,
+    "url": "https://docs.google.com/spreadsheets/d/1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc/edit?usp=drivesdk",
+    "display_url": "https://docs.google.com/spreadsheets/d/1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc/edit?usp=drivesdk",
+    "file_or_folder": "file",
+    "created_time": null,
+    "modified_time": "2026-11-09T02:18:16.740Z",
+    "parent_ids": null,
+    "drive_id": null,
+    "current_user_can_share": null,
+    "has_augmented_permissions": null,
+    "shared": null,
+    "permissions": null,
+    "source_visibility_status": "access_not_verified"
+  },
+  "row": {
+    "range": "'Đầu việc Tech'!A31:H31",
+    "majorDimension": "ROWS",
+    "values": [
+      [
+        "30",
+        "LBRC",
+        "Thêm tính năng chỉ đường cho App Saleman",
+        "QuânTV",
+        "PhươngHV",
+        "Hoàn thành",
+        "2026-11-06",
+        "LBRC014. Spec SPEC-chi-duong-diem-ban.md. Quân 6/11: chờ nghiệm thu. PhươngHV 7/11: nghiệm thu đạt, đóng."
+      ]
+    ]
+  },
+  "cellMetadata": {
+    "spreadsheetId": "1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc",
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc/edit",
+    "properties": {
+      "title": "Checklist dau viec cua Tech theo BU_Update 07.11.2026",
+      "locale": "en_US",
+      "timeZone": "America/Los_Angeles"
+    },
+    "sheets": [
+      {
+        "properties": {
+          "sheetId": 1963754558,
+          "title": "Đầu việc Tech",
+          "index": 0,
+          "sheetType": "GRID",
+          "gridProperties": {
+            "rowCount": 1010,
+            "columnCount": 26,
+            "frozenRowCount": 1,
+            "hideGridlines": true,
+            "rowGroupControlAfter": true,
+            "columnGroupControlAfter": true
+          }
+        },
+        "data": [
+          {
+            "rowData": [
+              {
+                "values": [
+                  {
+                    "formattedValue": "STT",
+                    "userEnteredValue": {
+                      "stringValue": "STT"
+                    }
+                  },
+                  {
+                    "formattedValue": "BU",
+                    "userEnteredValue": {
+                      "stringValue": "BU"
+                    }
+                  },
+                  {
+                    "formattedValue": "Đầu việc",
+                    "userEnteredValue": {
+                      "stringValue": "Đầu việc"
+                    }
+                  },
+                  {
+                    "formattedValue": "Người phụ trách",
+                    "userEnteredValue": {
+                      "stringValue": "Người phụ trách"
+                    }
+                  },
+                  {
+                    "formattedValue": "Phối hợp",
+                    "userEnteredValue": {
+                      "stringValue": "Phối hợp"
+                    }
+                  },
+                  {
+                    "formattedValue": "Trạng thái",
+                    "userEnteredValue": {
+                      "stringValue": "Trạng thái"
+                    }
+                  },
+                  {
+                    "formattedValue": "Hạn",
+                    "userEnteredValue": {
+                      "stringValue": "Hạn"
+                    }
+                  },
+                  {
+                    "formattedValue": "Ghi chú",
+                    "userEnteredValue": {
+                      "stringValue": "Ghi chú"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "startRow": 30,
+            "rowData": [
+              {
+                "values": [
+                  {
+                    "formattedValue": "30",
+                    "userEnteredValue": {
+                      "numberValue": 30
+                    }
+                  },
+                  {
+                    "formattedValue": "LBRC",
+                    "userEnteredValue": {
+                      "stringValue": "LBRC"
+                    }
+                  },
+                  {
+                    "formattedValue": "Thêm tính năng chỉ đường cho App Saleman",
+                    "userEnteredValue": {
+                      "stringValue": "Thêm tính năng chỉ đường cho App Saleman"
+                    }
+                  },
+                  {
+                    "formattedValue": "QuânTV",
+                    "userEnteredValue": {
+                      "stringValue": "QuânTV"
+                    }
+                  },
+                  {
+                    "formattedValue": "PhươngHV",
+                    "userEnteredValue": {
+                      "stringValue": "PhươngHV"
+                    }
+                  },
+                  {
+                    "formattedValue": "Hoàn thành",
+                    "userEnteredValue": {
+                      "stringValue": "Hoàn thành"
+                    }
+                  },
+                  {
+                    "formattedValue": "2026-11-06",
+                    "userEnteredValue": {
+                      "numberValue": 46332
+                    }
+                  },
+                  {
+                    "formattedValue": "LBRC014. Spec SPEC-chi-duong-diem-ban.md. Quân 6/11: chờ nghiệm thu. PhươngHV 7/11: nghiệm thu đạt, đóng.",
+                    "userEnteredValue": {
+                      "stringValue": "LBRC014. Spec SPEC-chi-duong-diem-ban.md. Quân 6/11: chờ nghiệm thu. PhươngHV 7/11: nghiệm thu đạt, đóng."
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "comments": {
+    "spreadsheetId": "1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc",
+    "comments": [],
+    "nextPageToken": null,
+    "spreadsheet_url": "https://docs.google.com/spreadsheets/d/1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc"
+  }
+}

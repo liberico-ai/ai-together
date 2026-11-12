@@ -1,0 +1,46 @@
+{
+  "schema": "libetech.delivery-receipt.v1",
+  "work_item": "LBRC014",
+  "destination": {
+    "service": "Telegram",
+    "app": "Telegram Lite",
+    "group": "LibeAI"
+  },
+  "requested_action": "Gửi biên bản LBRC014 cập nhật đến 12:00 và gói bằng chứng mới; nêu rõ phần đã đủ và phần Quân, Phương còn cần bổ sung để nghiệm thu; giữ nguyên trạng thái bảng việc.",
+  "observed_at_utc": "2026-11-09T05:13:29.188716+00:00",
+  "displayed_sent_time": "2026-11-09T12:12:00+07:00",
+  "evidence_cutoff": "2026-11-09T12:00:00+07:00",
+  "delivery": {
+    "status": "sent_ui_verified",
+    "observations": [
+      "Native Telegram window and group header LibeAI, 10 members",
+      "Both exact attachment filenames and matching displayed sizes visible in one outgoing grouped message",
+      "Full caption visible, including verified evidence and separate Quân/Phương requests",
+      "AX changed from Sending to Sent at 12:12; outgoing grouped message displayed 12:12 and sent checkmark"
+    ],
+    "recipient_acknowledgement": "not_observed"
+  },
+  "caption": "LBRC014 — Hồ sơ cập nhật đến 12:00, 09/11/2026\n\nĐã đủ để ghi nhận: UAT Android 1.0.27+29 [5b38598], 10 ảnh và 11 mã băm khớp; có nút chỉ đường ở ba màn và mở Maps. Phương xác nhận bản thử iOS cùng phiên bản Store. Chi tiết, nguồn trong hai tệp đính kèm.\n\nQuân bổ sung:\n• Nối bản thử có cờ debug với gói phát hành.\n• Log test; ca Android dùng trình duyệt, lỗi/thiếu dữ liệu; đích mong đợi và thiết bị/OS.\n• Build/SHA iOS; làm rõ yêu cầu review spec/code. Đã ghi nhận giải thích không đổi kiến trúc.\n\nPhương bổ sung:\n• Đối chiếu bản cài iOS, kết quả từng ca.\n• Người đại diện, phạm vi và kết luận nghiệm thu người dùng; ngoại lệ và hạn xử lý nếu có.\n\nChưa đủ hồ sơ nghiệm thu người dùng. Giữ nguyên trạng thái “Hoàn thành” và ghi chú bảng việc. Không cần gửi lại phần đã đủ; nhờ bổ sung theo Q1–Q4, P1–P3.",
+  "attachments": [
+    {
+      "name": "LBRC014-BIEN-BAN-CAP-NHAT-1200-20261109.md",
+      "bytes": 39690,
+      "sha256": "924c4e8b1e7b0bd2088b7a378d0dc5cc86fbc6d16d2dedbda55ff70afa088743",
+      "canonical_path": "/Users/huyenleduy/Documents/GitHub/libetech-ai-os/docs/LBRC014-BIEN-BAN-NGHIEM-THU-20261109.md"
+    },
+    {
+      "name": "LBRC014-HO-SO-CAP-NHAT-1200-20261109.zip",
+      "bytes": 5575332,
+      "sha256": "e8ea44a6441e3a67ca08493d839c48d52957bed9e3f6c820623601aef23e2031",
+      "canonical_path": "/Users/huyenleduy/Documents/GitHub/libetech-ai-os/docs/LBRC014-HO-SO-CAP-NHAT-1200-20261109.zip"
+    }
+  ],
+  "source_data_writes": false,
+  "workbook_status_changed": false,
+  "preserved": [
+    "Workbook status Hoàn thành and original notes",
+    "Team source data",
+    "Prior evidence bundles and delivery receipts",
+    "12:00 report snapshot"
+  ]
+}

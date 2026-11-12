@@ -1,0 +1,99 @@
+import 'package:btnet_saleman/services/map_launcher.dart';
+import 'package:btnet_saleman/widgets/directions_button.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('MapLauncher.directionsUriForAddress', () {
+    test('should encode address as destination', () {
+      final uri = MapLauncher.directionsUriForAddress(
+          ' Kiot 6, Chợ Tạm Trung Hoà, Phường Từ Liêm, Hà Nội ');
+      expect(uri.host, 'www.google.com');
+      expect(uri.path, '/maps/dir/');
+      expect(uri.queryParameters['api'], '1');
+      expect(uri.queryParameters['destination'],
+          'Kiot 6, Chợ Tạm Trung Hoà, Phường Từ Liêm, Hà Nội');
+      expect(uri.queryParameters['travelmode'], 'driving');
+    });
+  });
+
+  group('directionsDestination', () {
+    test('should prefer coordinates over address', () {
+      final uri = directionsDestination(lat: 21.03, lng: 105.78, address: 'X');
+      expect(uri!.queryParameters['destination'], '21.03,105.78');
+    });
+    test('should fall back to address when coordinates missing or zero', () {
+      expect(directionsDestination(address: 'Hà Nội')!.queryParameters['destination'],
+          'Hà Nội');
+      expect(
+          directionsDestination(lat: 0, lng: 0, address: 'Hà Nội')!
+              .queryParameters['destination'],
+          'Hà Nội');
+    });
+    test('should return null when no coordinates and blank address', () {
+      expect(directionsDestination(address: '   '), isNull);
+      expect(directionsDestination(lat: 21.0), isNull);
+    });
+  });
+
+  group('DirectionsButton', () {
+    Future<List<Uri>> pump(
+      WidgetTester tester, {
+      String? address,
+      ({double? lat, double? lng, String? address})? local,
+      bool openOk = true,
+    }) async {
+      final opened = <Uri>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: DirectionsButton(
+            customerId: 7,
+            address: address,
+            lookup: (_) async => local,
+            opener: (uri) async {
+              opened.add(uri);
+              return openOk;
+            },
+          ),
+        ),
+      ));
+      await tester.tap(find.byTooltip('Chỉ đường'));
+      await tester.pump();
+      return opened;
+    }
+
+    testWidgets('should open map with local coordinates when available',
+        (tester) async {
+      final opened = await pump(tester,
+          address: 'Hà Nội', local: (lat: 21.03, lng: 105.78, address: null));
+      expect(opened.single.queryParameters['destination'], '21.03,105.78');
+    });
+
+    testWidgets('should open map with address when no coordinates',
+        (tester) async {
+      final opened = await pump(tester, address: 'Phường Từ Liêm, Hà Nội');
+      expect(opened.single.queryParameters['destination'],
+          'Phường Từ Liêm, Hà Nội');
+    });
+
+    testWidgets('should use local address when screen has none',
+        (tester) async {
+      final opened = await pump(tester,
+          local: (lat: null, lng: null, address: 'Kiot 6, Hà Nội'));
+      expect(opened.single.queryParameters['destination'], 'Kiot 6, Hà Nội');
+    });
+
+    testWidgets('should NOT open map and should explain when no info',
+        (tester) async {
+      final opened = await pump(tester);
+      expect(opened, isEmpty);
+      expect(find.text('Điểm bán chưa có toạ độ hoặc địa chỉ để chỉ đường'),
+          findsOneWidget);
+    });
+
+    testWidgets('should report when map app cannot be opened', (tester) async {
+      await pump(tester, address: 'Hà Nội', openOk: false);
+      expect(find.text('Không mở được ứng dụng bản đồ'), findsOneWidget);
+    });
+  });
+}

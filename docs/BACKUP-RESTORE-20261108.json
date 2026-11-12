@@ -1,0 +1,14 @@
+{
+  "observedAt": "2026-11-08T09:43:48.763069+00:00",
+  "sourceDatabase": "libetech_ai_os",
+  "restoredDatabase": "libetech_restore_20261108",
+  "host": "local Docker isolated verification",
+  "backupSha256": "c0f33d550086f8f68363abfadbadb35d8f768a3394efeb2ddb28b6519a92b5f3",
+  "reconciliations": 1,
+  "sourceSha": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+  "snapshotHash": "4f8aaa43dce649ec6ea6224e91120939c0b4a20125688e4f61f26d536db34b48",
+  "users": 1,
+  "workRecords": 0,
+  "acceptances": 0,
+  "result": "restored-and-content-verified"
+}

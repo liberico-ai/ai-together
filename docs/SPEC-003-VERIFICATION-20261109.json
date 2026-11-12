@@ -1,0 +1,55 @@
+{
+  "observedAt": "2026-11-09T09:25:48.616Z",
+  "storage": "isolated PostgreSQL 16",
+  "appVersion": "0.3.0",
+  "migrations": [
+    "001",
+    "002",
+    "003",
+    "004",
+    "005"
+  ],
+  "checks": [
+    "A01 isolated portal activation/login and A02 single-use/CSRF/admin isolation",
+    "A01 signed private Telegram pairing, replay and group denial; exact SHA read and Xeca denial",
+    "A03/E03 authorized LBRC014 drill-down and insufficient personnel evidence; cross-project/private person denied",
+    "E01/E02 deduplication, reproducible 54.17, shared evidence, audited review and immutable older calculation",
+    "A02 revocation denies web and previously paired bridge"
+  ],
+  "fixtureTotal": 54.17,
+  "lbrc014": {
+    "sourceStatus": "Hoàn thành",
+    "business": "pending",
+    "sourceSha": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+    "evidence": 6,
+    "officialPersonalScore": null
+  },
+  "testEnvironmentOnly": true,
+  "build": {
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "typescriptTests": 33,
+    "pythonTests": 14,
+    "lineCoverage": 91.18
+  },
+  "browser": {
+    "fixtureAccountLogin": "passed",
+    "projectView": "LBRC014 source status Hoàn thành and separate business pending",
+    "personnelView": "insufficient evidence shown",
+    "observedBeforeFinalPresentationRefinement": true
+  },
+  "ingressProbe": {
+    "hostname": "ai-together.lab.liberico.com.vn",
+    "observedAt": "2026-11-09T09:18:18Z",
+    "httpStatus": 200,
+    "httpsResult": "ERR_CERT_COMMON_NAME_INVALID",
+    "method": "HTTP HEAD, TLS verification, browser navigation without certificate bypass"
+  },
+  "bundle": {
+    "version": "0.3.0",
+    "fileCount": 57,
+    "archiveSha256": "e9fae11c391a73b12e1a417148e214acbdd61c1dfb9b8adfd0bf4fedbb6cc53c",
+    "treeSha256": "d9dbaaf3d4fae8fdb34c6a258c93347109ce598f7e74894179724c1a1cfa4521",
+    "archiveMatchesVerifiedSource": true
+  }
+}

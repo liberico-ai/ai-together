@@ -1,0 +1,9 @@
+{
+  "observedAt": "2026-11-08T10:04:26.877958+00:00",
+  "host": "d1-ai1",
+  "route": "authenticated Hermes Files download",
+  "file": "/home/iptech/.hermes/profiles/libetech/plugins/libetech-priority1/__init__.py",
+  "sha256": "a706a3a9bdd83270c9d0f89f28f521d24294306b72f35d892f3abc1243321756",
+  "matchesPriorRelease": "1.1.4",
+  "newBridgeInstalled": false
+}

@@ -1,0 +1,47 @@
+{
+  "observedVia": "Authenticated Hermes direct shell plus user-confirmed Telegram transcript",
+  "host": "d1-ai1",
+  "profile": "libetech",
+  "chatName": "LibeAI",
+  "chatId": "-5298399184",
+  "workingMessage": "/libetech_check @LiBeAiTogetherBot LBRC014 8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+  "userVisibleResult": "TELEGRAM_NOT_LINKED",
+  "gateway": {
+    "log": "/home/iptech/.hermes/profiles/libetech/logs/gateway.log",
+    "line": 6094,
+    "sendTimeUtc": "2026-11-08T15:00:13.767Z",
+    "sendTimeVietnam": "2026-11-08T22:00:13.767+07:00",
+    "responseCharacters": 19
+  },
+  "backendReadOnlySql": {
+    "signedBridgeCalls": 1,
+    "lastBridgeAt": "2026-11-08T15:00:13.701144+00:00",
+    "telegramLinks": 0,
+    "workItems": 0
+  },
+  "correlation": "Unique authenticated bridge request within the same second as the response in the intended chat, plus user-confirmed visible error. Native-command message ID is not in the inspected log.",
+  "verified": {
+    "telegramToGatewayToBackendToGroupNegativeCase": true,
+    "requiresLinkedIdentity": true,
+    "positiveReconciliationRead": false,
+    "crossBuTelegramDenial": false
+  },
+  "parserDefect": {
+    "correctSyntaxRejected": "/libetech_check@LiBeAiTogetherBot LBRC014 8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+    "parsedAs": "libetech_checklbrc014",
+    "rejectedAtUtc": "2026-11-08T15:00:21.700Z",
+    "serverSource": "/home/iptech/.hermes/hermes-agent/plugins/platforms/telegram/adapter.py",
+    "functionLine": 6144,
+    "regexLine": 6148,
+    "callerLine": 6831,
+    "cause": "Mention cleanup removes @bot plus trailing whitespace, concatenating the slash command and first argument. Reproduced against the observed regex.",
+    "scope": "Hermes Telegram adapter, not an invalid user command",
+    "serverCodeChanged": false
+  },
+  "supersedes": "The initial formatting suspicion in TELEGRAM-CHECK-20261108T215456.json; original evidence is preserved.",
+  "remaining": [
+    "Provide an authenticated browser route to the server instance",
+    "User logs into the server instance and pairs Telegram privately",
+    "Verify exact-SHA read in LibeAI and SCOPE_DENIED in Libe – Xeca"
+  ]
+}

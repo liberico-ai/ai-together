@@ -1,0 +1,13 @@
+{
+  "observedAt": "2026-11-09T02:37:27.223418+00:00",
+  "endpoint": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits?path=lib/widgets/directions_button.dart&per_page=100",
+  "exitCode": 0,
+  "data": [
+    {
+      "sha": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+      "date": "2026-11-05T09:00:34Z",
+      "message": "feat(customer): nút Chỉ đường tới điểm bán (tuyến Hôm nay, danh sách KH, chi tiết KH)\n\n- DirectionsButton dùng chung: ưu tiên toạ độ trong DB local, không có thì\n  dùng địa chỉ chữ; thiếu cả hai → báo, không mở bản đồ\n- MapLauncher: chỉ đường theo địa chỉ (directionsUriForAddress), open() bắt lỗi\n- Thẻ điểm bán tab Hôm nay, thẻ danh sách KH, AppBar chi tiết KH",
+      "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab"
+    }
+  ]
+}

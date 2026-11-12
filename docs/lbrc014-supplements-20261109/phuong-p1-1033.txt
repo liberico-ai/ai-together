@@ -1,0 +1,9 @@
+Em gửi ạ
+P1: Thiết bị nghiệm thu: Iphone 16 prm
+IOs: 26.5.2
+Bản cài 1.0.27 - Không qua Test Flight mà cài trực tiếp lên máy test
+Ngày thử: 06/11/2026
+Người kiểm thử: Phương
+Kết quả: Version đã có tính năng chỉ đường theo tọa độ điểm bán. Khi chọn link tọa độ với app bản đồ trên thiết bị.
+Phạm vi đã xem: Màn Hôm nay/Khách hàng/Chi tiết Khách hàng (ảnh đính kèm)
+Nguồn xác nhận gốc: tin nhắn comfim đạt tính năng 8:15 ngày 7/11

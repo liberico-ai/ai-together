@@ -1,0 +1,72 @@
+{
+  "observedAt": 1794147580.9096515,
+  "host": "d1-ai1",
+  "health": {
+    "status": "ready",
+    "version": "0.2.0",
+    "buildDigest": "dcc6d1247dfb0677a8271268340d2a9a0576afaec8e899ff1fd9a1bec70f8c68",
+    "sourceSha": null,
+    "schema": [
+      "001",
+      "002",
+      "003"
+    ],
+    "storage": "postgresql-server",
+    "synthetic": false,
+    "integrations": {
+      "bot": "configured-not-runtime-verified",
+      "github": "read-only-snapshot",
+      "factory": "not-connected"
+    }
+  },
+  "rowIsolation": {
+    "permitted": 1,
+    "emptyProject": 0,
+    "otherProject": 0,
+    "otherTenant": 0,
+    "webCannotReadIdentity": "permission-denied",
+    "identityCannotReadBusiness": "permission-denied"
+  },
+  "reconciliation": "LBRC014|8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab|4f8aaa43dce649ec6ea6224e91120939c0b4a20125688e4f61f26d536db34b48",
+  "runtimeRoles": [
+    "libetech_auth|false|false|false|false",
+    "libetech_web|false|false|false|false"
+  ],
+  "http": {
+    "/api/health": {
+      "status": 200,
+      "code": null
+    },
+    "/api/auth/me": {
+      "status": 401,
+      "code": "UNAUTHENTICATED"
+    },
+    "/api/v1/workspace": {
+      "status": 401,
+      "code": "UNAUTHENTICATED"
+    },
+    "/api/demo/session": {
+      "status": 403,
+      "code": "DEMO_DISABLED"
+    },
+    "/api/bridge": {
+      "status": 401,
+      "code": "BRIDGE_AUTH_DENIED"
+    }
+  },
+  "services": {
+    "libetech-os-postgres.service": {
+      "NRestarts": "0",
+      "ActiveState": "active",
+      "SubState": "running"
+    },
+    "libetech-ai-os.service": {
+      "NRestarts": "0",
+      "ActiveState": "active",
+      "SubState": "running"
+    }
+  },
+  "telegramDeliveryVerified": false,
+  "browserServerLoginVerified": false,
+  "gatewayRestarted": false
+}

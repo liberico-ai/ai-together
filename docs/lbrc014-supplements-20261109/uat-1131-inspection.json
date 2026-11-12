@@ -1,0 +1,147 @@
+{
+  "observedAtUTC": "2026-11-09T04:36:53.031342+00:00",
+  "source": {
+    "group": "LibeAI",
+    "senderDisplayName": "Quan LibeAi",
+    "messageTimeVietnam": "2026-11-09 11:31",
+    "caption": "Em gửi lại UAT đúng bản 0.27 ạ.",
+    "fileName": "LBRC014-UAT-1.0.27-20261109.zip"
+  },
+  "zipBytes": 2659987,
+  "zipSha256": "b4b95a2ddd100c7d9144439013bd270840b0a1ce9e8b8dd883afdf1134231614",
+  "crcPassed": true,
+  "fileCount": 12,
+  "imageCount": 10,
+  "verifiedHashes": 11,
+  "package": {
+    "name": "vn.btnet.saleman",
+    "versionName": "1.0.27",
+    "versionCode": 29,
+    "flagsContainsDebuggable": true,
+    "lastUpdateTime": "2026-11-09 11:26:01"
+  },
+  "displayedVersion": {
+    "file": "01-app-version-menu.png",
+    "value": "1.0.27 [5b38598]",
+    "method": "visual reading of original image"
+  },
+  "relatedFullSha": "5b38598de8bca1b258be7ee4b7086a993810478a",
+  "inspectionMethod": "Read-only ZIP, file hash verification, dumpsys text and visual inspection of all 10 PNGs; no software installed/executed.",
+  "imageAssessment": [
+    {
+      "files": [
+        "00-app-info.png",
+        "01-app-version-menu.png"
+      ],
+      "proves": "Version 1.0.27 and displayed short SHA 5b38598."
+    },
+    {
+      "files": [
+        "02-today.png",
+        "03-U1-today-maps.png"
+      ],
+      "case": "U1",
+      "proves": "Today view direction button and Maps destination displayed.",
+      "gap": "Expected coordinate/address fixture and explicit match not supplied."
+    },
+    {
+      "files": [
+        "04-U2-customer-list.png",
+        "05-U2-test2-maps.png"
+      ],
+      "case": "U2",
+      "proves": "Direction button present for customer Test 2 with blank address display, followed by Maps.",
+      "gap": "Underlying local coordinates and expected destination not supplied."
+    },
+    {
+      "files": [
+        "06-U3-detail.png",
+        "07-U3-detail-maps.png"
+      ],
+      "case": "U3",
+      "proves": "Direction button in customer detail and Maps destination displayed.",
+      "gap": "Expected coordinate/address fixture and explicit match not supplied."
+    },
+    {
+      "files": [
+        "08-U4-search.png",
+        "09-U4-address-maps.png"
+      ],
+      "case": "U4",
+      "proves": "Customer address in Cao Xa, Lam Thao, Phu Tho and Maps route to named area displayed.",
+      "gap": "Does not prove every fallback priority, zero coordinates and exact outlet match."
+    }
+  ],
+  "resolvedGap": "Supplementary Android UAT now identifies version 1.0.27 build29 and source prefix 5b38598; do not keep treating every submitted UAT image as build28.",
+  "remainingGaps": [
+    "Installed package carries DEBUGGABLE flag; no binary hash mapping to delivered release AAB.",
+    "No Android browser-without-Maps evidence.",
+    "No U5-U7 error/absence scenarios.",
+    "No automated test execution log.",
+    "No Android device model/OS identity.",
+    "No iOS build/full SHA/store build mapping.",
+    "No end-user acceptance decision."
+  ],
+  "files": [
+    {
+      "name": "00-app-info.png",
+      "bytes": 150391,
+      "sha256": "97c435d8fccc2fab03263878d013ac5b063f4352ce093acaf583c7fac58819b0"
+    },
+    {
+      "name": "01-app-version-menu.png",
+      "bytes": 131549,
+      "sha256": "8197b615242607ab570e41b0793123d55befa25f93d927ff43cfa78ed65ba381"
+    },
+    {
+      "name": "02-today.png",
+      "bytes": 198192,
+      "sha256": "cd1304a23e7be2b283bdfc1275da268cedaac583e80021c301df75205adccf83"
+    },
+    {
+      "name": "03-U1-today-maps.png",
+      "bytes": 367365,
+      "sha256": "91f4269781b1e85a3c4670d6578d9ea90a080dd7afb38ddf592124f9396f785d"
+    },
+    {
+      "name": "04-U2-customer-list.png",
+      "bytes": 144070,
+      "sha256": "e5bb58597ff3c3bab37149fced164b8141bb9d576df0c0b6994dc6d7174c0e67"
+    },
+    {
+      "name": "05-U2-test2-maps.png",
+      "bytes": 402144,
+      "sha256": "e49b75409ce14dd3d08de10b7e58e850ea1fe5609b78d54e0b1b097c7dd6351c"
+    },
+    {
+      "name": "06-U3-detail.png",
+      "bytes": 108241,
+      "sha256": "d0a7cfc1fe22421cdba5e279234508968402bf792ffc2fa0d3b3433b35547b2f"
+    },
+    {
+      "name": "07-U3-detail-maps.png",
+      "bytes": 398666,
+      "sha256": "6b60db9f8655e97528bc3aff7a6a1f1406a24e40e47ddb459926644ecc360e91"
+    },
+    {
+      "name": "08-U4-search.png",
+      "bytes": 157862,
+      "sha256": "6f9f3ea20bbd80de288b557c4e7aea2e043d89c459b21178d53c54f10c4e2620"
+    },
+    {
+      "name": "09-U4-address-maps.png",
+      "bytes": 694518,
+      "sha256": "9fab856920ee226c9b28f6591af9f34b931f32c76c401deb3d654376cec1015a"
+    },
+    {
+      "name": "dumpsys-package.txt",
+      "bytes": 12758,
+      "sha256": "1634f8080981dd18f8ff8fa5654ef2617af3bb4e10cab4ddfe94a6f37cf68f3a"
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 944,
+      "sha256": "d199f66de324278906280a09c7291dfc5e818fa555b0077609809fec4ce3d6ad"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "observedVia": "Authenticated Hermes dashboard direct shell plus user-pasted Telegram response",
+  "host": "d1-ai1",
+  "profile": "libetech",
+  "serverLog": "/home/iptech/.hermes/profiles/libetech/logs/gateway.log",
+  "logLine": 6092,
+  "eventTimeUtc": "2026-11-08T14:54:56.129Z",
+  "eventTimeVietnam": "2026-11-08T21:54:56.129+07:00",
+  "requestedCommand": "/libetech_check@LiBeAiTogetherBot LBRC014 8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+  "parsedCommand": "libetech_checklbrc014",
+  "gatewayResult": "unrecognized-command",
+  "responseSendAttempt": {
+    "timeUtc": "2026-11-08T14:54:56.135Z",
+    "chatId": "-5298399184",
+    "characters": 147
+  },
+  "userConfirmedResponse": "Unknown command `/libetech_checklbrc014`. Type /commands to see what’s available, or resend without the leading slash to send as a regular message.",
+  "bridgeInvokedByThisCommand": false,
+  "backendReadVerified": false,
+  "telegramLinkVerified": false,
+  "nextAction": "User resends a single message with slash command, code and SHA on separate lines."
+}

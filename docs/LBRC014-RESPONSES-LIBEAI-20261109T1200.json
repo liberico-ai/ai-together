@@ -1,0 +1,109 @@
+{
+  "scope": "Theo dõi phản hồi LBRC014 trong LibeAI sau hồ sơ 11:15; đối chiếu bằng chứng và cập nhật biên bản tại máy, giữ nguyên bảng việc.",
+  "monitorUntilVietnam": "2026-11-09 12:00",
+  "status": "completed-at-requested-cutoff",
+  "sourceSurface": "Telegram Lite native UI",
+  "startedAtVietnam": "2026-11-09 11:33",
+  "events": [
+    {
+      "eventId": "quan-1119-clarification",
+      "timeVietnam": "2026-11-09 11:19",
+      "edited": true,
+      "senderDisplayName": "Quan LibeAi",
+      "replyTo": "LBRC014-BIEN-BAN-CAP-NHAT-1100-20261109.md",
+      "body": "Em xin bổ sung ạ: \n- đã nối UAT 1.0.26+28 (751327b) với bản giao 1.0.27+29 (5b38598);\n- bản iOS đã cài\n- các chỉnh sửa này không thay đổi kiến trúc ạ. chỉ thêm 1 vài nút bấm nên không có thay đổi arch nào cần review ạ.",
+      "assessment": "Ghi nhận giải thích của người thực hiện về bản thử và phạm vi kiến trúc. Lời này chưa kèm build/SHA iOS; tách vấn đề review kiến trúc khỏi review spec/code."
+    },
+    {
+      "eventId": "phuong-1123-ios-release",
+      "timeVietnam": "2026-11-09 11:23",
+      "senderDisplayName": "Phương AiTec",
+      "replyTo": "LBRC014-HO-SO-CAP-NHAT-1100-20261109.zip",
+      "body": "Em bổ sung phần này chút ạ: bản test trên IOs là cùng phiên bản với bản release trên store cho người dùng nên không có thay đổi gì khác nữa ạ",
+      "transcriptionMethod": "Read the rendered native Telegram message; accessibility text was truncated by the quoted request.",
+      "assessment": "Phương xác nhận quan hệ phiên bản iOS thử/phát hành. Chưa kèm số build, full SHA, thông tin bản trên thiết bị hoặc mã build Store. Không phải lời xác nhận nghiệm thu người dùng."
+    },
+    {
+      "eventId": "quan-1131-uat-new",
+      "timeVietnam": "2026-11-09 11:31",
+      "senderDisplayName": "Quan LibeAi",
+      "body": "Em gửi lại UAT đúng bản 0.27 ạ.",
+      "fileName": "LBRC014-UAT-1.0.27-20261109.zip",
+      "sha256": "b4b95a2ddd100c7d9144439013bd270840b0a1ce9e8b8dd883afdf1134231614",
+      "bytes": 2659987,
+      "inspection": "lbrc014-supplements-20261109/uat-1131-inspection.json",
+      "assessment": "Ảnh 1.0.27 [5b38598], dumpsys build29. 10 ảnh và 11 hash khớp. Bổ sung trực tiếp UAT build29, không tiếp tục coi lệch build28 là khoảng thiếu duy nhất. Package thử có cờ DEBUGGABLE; cần nối với gói release nếu dùng để nghiệm thu bản phát hành."
+    }
+  ],
+  "checks": [
+    {
+      "observedAtVietnam": "2026-11-09 11:35",
+      "latestReplyAtVietnam": "2026-11-09 11:31",
+      "result": "Read all three supplementary replies after 11:15 in exact LibeAI group."
+    },
+    {
+      "observedAtVietnam": "2026-11-09 11:37",
+      "latestReplyAtVietnam": "2026-11-09 11:31",
+      "result": "No change in native LibeAI message tree."
+    },
+    {
+      "observedAtUTC": "2026-11-09 04:42:26 UTC",
+      "result": "LibeAI native message content unchanged; latest supplementary reply remains Quan 11:31."
+    },
+    {
+      "observedAtUTC": "2026-11-09 04:44:43 UTC",
+      "result": "LibeAI content unchanged; no supplementary reply after Quan 11:31."
+    },
+    {
+      "observedAtUTC": "2026-11-09 04:47:12 UTC",
+      "result": "No change in native LibeAI message tree; latest supplementary reply Quan 11:31."
+    },
+    {
+      "observedAtUTC": "2026-11-09 04:48:55 UTC",
+      "result": "LibeAI content unchanged; latest supplementary reply still Quan 11:31."
+    },
+    {
+      "observedAtUTC": "2026-11-09 04:51:12 UTC",
+      "result": "LibeAI content unchanged; latest supplementary reply Quan 11:31."
+    },
+    {
+      "observedAtUTC": "2026-11-09 04:53:37 UTC",
+      "result": "LibeAI message content unchanged; latest supplementary reply remains 11:31."
+    },
+    {
+      "observedAtUTC": "2026-11-09 04:56:00 UTC",
+      "result": "LibeAI message content unchanged; latest supplementary reply remains 11:31."
+    },
+    {
+      "observedAtUTC": "2026-11-09 04:58:16 UTC",
+      "result": "No later supplementary reply visible in LibeAI; last remains Quan 11:31."
+    },
+    {
+      "observedAtUTC": "2026-11-09 05:00:45 UTC",
+      "result": "Reopened exact LibeAI group after user changed visible chat; last message and latest group preview still Quan's UAT 11:31. No later supplementary response observed."
+    }
+  ],
+  "changesToSourceWorkbook": false,
+  "messagesSentDuringThisFollowup": 0,
+  "acceptanceDecision": "Chưa đủ bằng chứng nghiệm thu người dùng; không thay quyết định người có trách nhiệm.",
+  "lastObservedAtUTC": "2026-11-09 05:00:45 UTC",
+  "lastReplyVietnam": "2026-11-09 11:31",
+  "workbookCloseRead": {
+    "observedAtUTC": "2026-11-09T05:00:45Z",
+    "range": "'Đầu việc Tech'!A31:H31",
+    "majorDimension": "ROWS",
+    "values": [
+      [
+        "30",
+        "LBRC",
+        "Thêm tính năng chỉ đường cho App Saleman",
+        "QuânTV",
+        "PhươngHV",
+        "Hoàn thành",
+        "2026-11-06",
+        "LBRC014. Spec SPEC-chi-duong-diem-ban.md. Quân 6/11: chờ nghiệm thu. PhươngHV 7/11: nghiệm thu đạt, đóng."
+      ]
+    ],
+    "sourceWrites": false
+  }
+}

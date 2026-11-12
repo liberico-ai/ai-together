@@ -1,0 +1,45 @@
+{
+  "observedAt": "2026-11-08T10:09:05.156242+00:00",
+  "host": "Chairman Mac",
+  "applicationUrl": "http://127.0.0.1:3148",
+  "health": {
+    "status": "ready",
+    "version": "0.2.0",
+    "buildDigest": "751c24dde3f8c41dbaf74f4a777729470c0d502890387030c6cc723647417458",
+    "sourceSha": null,
+    "schema": [
+      "001",
+      "002",
+      "003"
+    ],
+    "storage": "postgresql-server",
+    "synthetic": false,
+    "integrations": {
+      "bot": "configured-not-runtime-verified",
+      "github": "read-only-snapshot",
+      "factory": "not-connected"
+    }
+  },
+  "sourceDirectory": "/Users/huyenleduy/Documents/GitHub/libetech-ai-os",
+  "tests": {
+    "typescript": 28,
+    "pythonAdapter": 7,
+    "failed": 0,
+    "coverageLines": 95.78,
+    "coverageBranches": 83.79
+  },
+  "api": {
+    "anonymousWorkspace": 401,
+    "demoSessionInServerMode": 403
+  },
+  "serverInstall": "not-done",
+  "realTelegramBridge": "not-tested",
+  "firstAccount": "awaiting-user-password-activation",
+  "serverAccess": {
+    "sudoNonInteractive": "password-required",
+    "sshJumpHost": "authentication-denied",
+    "browserControl": "unavailable-after-readback-download"
+  },
+  "existingPluginSha256": "a706a3a9bdd83270c9d0f89f28f521d24294306b72f35d892f3abc1243321756",
+  "existingPluginSourceChanged": false
+}

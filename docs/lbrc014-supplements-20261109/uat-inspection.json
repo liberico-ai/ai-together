@@ -1,0 +1,117 @@
+{
+  "source": "LibeAI / Quan LibeAi / received 2026-11-09 10:45",
+  "archive": "LBRC014-UAT-20261109.zip",
+  "archiveSha256": "ce415588dcb5b9664d3efe25bfbaebaa1d59ac28823cc13ec2bceeb4188d98da",
+  "archiveBytes": 2690013,
+  "verification": [
+    {
+      "file": "00-app-info.png",
+      "sha256": "495c2f520eb0d99b9e0c000594ac0e36b004d1b1dc471a71c46eefb4a8ea0948",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "00b-app-info-scrolled.png",
+      "sha256": "dcbd5e3f960e81dacdccb4a1535b1f85810ac8101f37cd24a9b1cd358c37e230",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "00c-app-version-sha.png",
+      "sha256": "d87d7a1aa023e1bedee2d989b74cf00e51e400abcc40e66fc7e8bb385419b4c1",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "01-launch.png",
+      "sha256": "04c9aa5beb8c8c04af15668aaabcc4db7ebb451119f30c27edb5c4c334359b08",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "02-today.png",
+      "sha256": "edac2dc500228073e01607d9a8f726dbc09759a54b3ebb7462ccf32c2e990d6d",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "03-U1-today-maps.png",
+      "sha256": "c7a918821bbcb1a897fcca99d51e52e8aaba110372f5dcfe02c245f179ad4483",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "04-U2-customer-list.png",
+      "sha256": "66bdb0aa2e1429e2f16b3875b38855733ba867fbcca3257cabdbeb26d8416aa6",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "05b-U2-test2-after.png",
+      "sha256": "95fbb0e0253ff6509add9f02312c0b67750e3f77573c408bc7f98b8c4ad00018",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "06-U3-detail.png",
+      "sha256": "93c1f59a5f30c25381474cf548cdc529172003d8202b6262f97ec174f9e75737",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "07-U3-detail-maps.png",
+      "sha256": "fb8b37d7a71225fe3abc1bcdf4af01984be0a9069f02cc508da649a4e705e2e7",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "08-U4-search.png",
+      "sha256": "4a5b4c4481a8f0ccb4243cd8dfe6e67afd61e1d6b659505a1e8b9b15558915cc",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "09-U4-address-maps.png",
+      "sha256": "9c1e7596bb2b1feaa3dd63cb67ac6a738a1a86270841aecba23a57ca750a44cc",
+      "matchesProvidedHash": true
+    },
+    {
+      "file": "dumpsys-package.txt",
+      "sha256": "afae8988091a1566f1b7239a382963807a6cbc73cc045db4674d43ae90a5d505",
+      "matchesProvidedHash": true
+    }
+  ],
+  "packageMetadataExtract": [
+    "versionCode=28 minSdk=24 targetSdk=36",
+    "versionName=1.0.26",
+    "timeStamp=2026-11-06 16:27:12",
+    "firstInstallTime=2026-09-09 15:40:16",
+    "lastUpdateTime=2026-11-06 16:27:15"
+  ],
+  "screenshotVersion": {
+    "source": "00c-app-version-sha.png",
+    "observed": "Phiên bản 1.0.26 [751327b]",
+    "resolvedCommitFromGitHub": "751327b853b50ed7b06f87c747198a4a731b0ac6"
+  },
+  "visualReview": {
+    "imagesRead": 12,
+    "U1": "02-today.png shows direction buttons; 03-U1-today-maps.png shows Google Maps directions. Expected target input/coordinates not independently recorded.",
+    "U2": "04-U2-customer-list.png shows Test 2 with empty displayed address and direction button; 05b-U2-test2-after.png shows Maps route. Underlying local coordinates/source not supplied.",
+    "U3": "06-U3-detail.png shows Test 2 detail/button; 07-U3-detail-maps.png shows Maps route.",
+    "U4": "08-U4-search.png shows a customer address; 09-U4-address-maps.png shows a route toward the same named locality. Full fallback precedence and exact expected pin not demonstrated.",
+    "U5_U6_U7": "No supplied image or log demonstrating missing-data/local-read-failure/map-open-failure cases.",
+    "androidBrowser": "Not demonstrated by supplied package.",
+    "iOS": "Not covered by this Android package; Phuong supplied separate screenshots/report.",
+    "deviceAndRunMetadata": "Device model, actual OS, physical/emulated status and dated run/tester record not established by this package alone."
+  },
+  "githubComparison": {
+    "source": "uat-build-to-delivered-build.json",
+    "from": "751327b853b50ed7b06f87c747198a4a731b0ac6",
+    "to": "5b38598de8bca1b258be7ee4b7086a993810478a",
+    "commitsAhead": 5,
+    "changedFilesCount": 22,
+    "directLBRC014PathsUnchanged": {
+      "lib/widgets/directions_button.dart": true,
+      "lib/services/map_launcher.dart": true,
+      "lib/screens/route/route_screen.dart": true,
+      "lib/screens/customer/customer_list_screen.dart": true,
+      "lib/screens/customer/customer_detail_screen.dart": true,
+      "test/widget/directions_button_test.dart": true
+    },
+    "assessment": "The whole comparison is not version-only: customer/history/check-in changes exist. Listed direct LBRC014 code/test files are unchanged. This supports scoped reuse, subject to technical impact review; not automatic release acceptance."
+  },
+  "limits": [
+    "Hashes verify receipt integrity against the supplied list, not an independent attestation of test execution.",
+    "Screenshots are provider evidence. No app was installed or executed by the assistant.",
+    "Archive is a supplementary submission on 09/11, not proof of the original 07/11 acceptance."
+  ]
+}

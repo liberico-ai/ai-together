@@ -1,0 +1,117 @@
+{
+  "scope": "Read only LibeAI replies after the authorized 10:15 delivery; compare submitted evidence and update the local minutes.",
+  "monitorUntilVietnam": "2026-11-09 11:00",
+  "status": "completed-at-requested-cutoff",
+  "lastObservedAtVietnam": "2026-11-09 11:00:57",
+  "surface": "Telegram Lite native UI",
+  "events": [
+    {
+      "timeVietnam": "2026-11-09 10:24",
+      "senderDisplayName": "Quan LibeAi",
+      "body": "Em đang lấy thông tin ạ",
+      "classification": "acknowledgement-and-evidence-gathering",
+      "attachmentsOrEvidenceLinksInThisReply": [],
+      "assessment": "No Q1-Q4 evidence accepted from this acknowledgement alone."
+    },
+    {
+      "eventId": "quan-1029-sha",
+      "timeVietnam": "2026-11-09 10:29",
+      "senderDisplayName": "Quan LibeAi",
+      "body": "Version: 1.0.27\nBuild: 29\nHash: 5b38598de8bca1b258be7ee4b7086a993810478a",
+      "classification": "provider-build-identification",
+      "verifiedVia": "Native Telegram search result and rendered message",
+      "assessment": "Full source commit matches recorded GitHub main; version/build match the downloaded Android archive. This is provider provenance, not proof of the iOS build Phuong tested."
+    },
+    {
+      "eventId": "quan-1030-aab",
+      "timeVietnam": "2026-11-09 10:30",
+      "senderDisplayName": "Quan LibeAi",
+      "body": "Bản cài",
+      "classification": "artifact-submitted",
+      "fileName": "saleman-29.aab",
+      "displayedSize": "62.7 MB",
+      "inspection": "lbrc014-supplements-20261109/android-bundle-inspection.json",
+      "sha256": "85de5da99e82c4b7e5f2f45c692b5023dcb741cc47bca1837d5d87ae6d9d019a",
+      "assessment": "Downloaded and inspected read-only. Package vn.btnet.saleman, versionName 1.0.27, versionCode 29; archive CRC check passed."
+    },
+    {
+      "eventId": "quan-1031-buildlog",
+      "timeVietnam": "2026-11-09 10:31",
+      "senderDisplayName": "Quan LibeAi",
+      "classification": "build-log-submitted-and-read",
+      "fileName": "build.log",
+      "inspection": "lbrc014-supplements-20261109/build-log-inspection.json",
+      "assessment": "Partial evidence for Q1/Q2; short SHA/version match recorded GitHub commit; build success output present, no test result or actual-device acceptance."
+    },
+    {
+      "eventId": "quan-1032-uat",
+      "timeVietnam": "2026-11-09 10:32",
+      "senderDisplayName": "Quan LibeAi",
+      "body": "Em gửi ạ. UAT kỹ thuật em đang lấy nốt ạ.",
+      "classification": "technical-uat-pending"
+    },
+    {
+      "eventId": "phuong-1033-p1",
+      "timeVietnam": "2026-11-09 10:33",
+      "senderDisplayName": "Phương AiTec",
+      "body": "Em gửi ạ\nP1: Thiết bị nghiệm thu: Iphone 16 prm\nIOs: 26.5.2\nBản cài 1.0.27 - Không qua Test Flight mà cài trực tiếp lên máy test\nNgày thử: 06/11/2026\nNgười kiểm thử: Phương\nKết quả: Version đã có tính năng chỉ đường theo tọa độ điểm bán. Khi chọn link tọa độ với app bản đồ trên thiết bị.\nPhạm vi đã xem: Màn Hôm nay/Khách hàng/Chi tiết Khách hàng (ảnh đính kèm)\nNguồn xác nhận gốc: tin nhắn comfim đạt tính năng 8:15 ngày 7/11",
+      "transcriptionMethod": "Read from rendered Telegram message screenshot; accessibility text was truncated by quoted request. Original wording preserved.",
+      "attachments": "Photo album showing Hôm nay, Danh sách khách hàng, Chi tiết khách hàng; direction icons visible. Viewed in Telegram; original images not separately downloaded.",
+      "assessment": "Partial P1/P2 and iOS technical test evidence. Device/OS/version/date/tester are reported by Phuong; no build number/full source SHA or installed-version screenshot supplied. Images support UI presence, not all routing/error cases."
+    },
+    {
+      "eventId": "phuong-1042-p2",
+      "timeVietnam": "2026-11-09 10:42",
+      "senderDisplayName": "Phương AiTec",
+      "body": "Với P2, hiện tại em là người test sau khi Quân hoàn thiện kỹ thuật. Em thực hiện trên thiết bị của em qua các màn hình em có gửi ở P1. Đây là test tính năng trc khi release chưa phải kết quả nghiệm thu của người dùng - phần này hiện đang chờ ạ.",
+      "classification": "clarification-technical-test-not-business-acceptance",
+      "assessment": "Phuong explicitly states end-user acceptance is pending. Preserve spreadsheet Hoàn thành and original note; record this unresolved scope difference without changing business state."
+    },
+    {
+      "eventId": "quan-1045-uat-zip",
+      "timeVietnam": "2026-11-09 10:45",
+      "senderDisplayName": "Quan LibeAi",
+      "body": "Em gửi uat kỹ thuật ạ. đây là bản build ngay trước khi bump version nên vẫn ghi build 28. commit phía sau chỉ tăng build và version chứ không sửa gì khác.",
+      "fileName": "LBRC014-UAT-20261109.zip",
+      "classification": "technical-uat-submitted",
+      "inspection": "lbrc014-supplements-20261109/uat-inspection.json",
+      "assessment": "Images/metadata identify 1.0.26+28 with displayed short SHA 751327b. Android Maps paths U1-U4 partially supported. GitHub comparison to delivered SHA has 5 commits/22 files; direct LBRC014 code/test paths unchanged, but whole diff is not version-only."
+    }
+  ],
+  "phuongReply": "Received at 10:33 (device/screens/version) and 10:42 (pre-release technical testing; end-user acceptance pending).",
+  "sourceStatus": "Hoàn thành; row and note re-read after cutoff and unchanged from the initial snapshot. No source writes performed.",
+  "limitations": [
+    "Sender display name records the observed account; this does not grant review or acceptance authority.",
+    "Seen status does not establish that a named recipient accepted the work."
+  ],
+  "preservedSentPackage": "LBRC014-HO-SO-NGHIEM-THU-20261109.zip",
+  "checks": [
+    {
+      "observedAtUTC": "2026-11-09T04:00:57.331Z",
+      "scope": "LibeAI group history and latest preview",
+      "latestMessageVietnam": "2026-11-09 10:45",
+      "result": "No later supplementary reply observed; requested monitoring window ended."
+    }
+  ],
+  "comparisonIssues": [
+    {
+      "id": "IOS-BUILD-LINK",
+      "issue": "Phuong reported iOS testing on 06/11, version 1.0.27; Quan supplied Android bundle build 29 and SHA 5b38598..., whose recorded GitHub commit timestamp is 07/11 08:23:32 Vietnam. Phuong references confirmation at 07/11 08:15.",
+      "interpretation": "Need actual tested iOS build/source mapping and original confirmation source. Do not infer Phuong tested the later identified Android build, or infer a false report from the timestamp discrepancy."
+    },
+    {
+      "id": "ACCEPTANCE-SCOPE",
+      "issue": "Spreadsheet says PhuongHV 7/11: nghiệm thu đạt, đóng; Phuong now states her work was pre-release technical testing and end-user acceptance is still pending.",
+      "interpretation": "Separate technical test result from business acceptance. No worksheet status or data changes."
+    },
+    {
+      "id": "UAT28-TO-DELIVERY29",
+      "issue": "UAT screenshot displays SHA 751327b; delivered SHA is 5b38598. Full GitHub comparison is not only a version bump.",
+      "interpretation": "Direct LBRC014 implementation/test files unchanged. Require scoped impact review or retest on the delivered build; keep Android and iOS mappings distinct."
+    }
+  ],
+  "lastRelevantReplyAtVietnam": "2026-11-09 10:45",
+  "finalObservation": "Opened exact LibeAI group at 11:00:57; latest group preview and history still end with Quan UAT ZIP at 10:45. No later Quan/Phuong reply observed by the requested cutoff.",
+  "followupSourceLookup": "lbrc014-supplements-20261109/original-confirmation-and-review-scope.json",
+  "workbookCloseRead": "lbrc014-supplements-20261109/workbook-close-read.json"
+}

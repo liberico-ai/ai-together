@@ -1,0 +1,23 @@
+{
+  "createdAt": "2026-11-08T15:29:33.824648+00:00",
+  "portalVersion": "0.1.0",
+  "packageCommit": "57ca1e8ae40771df77316b3da60d27ce2212cad4",
+  "archiveSha256": "d7ac605aabd86f28a504ba7c5bc9b2e4234fd4063a5c9508bb821a7f32beed46",
+  "files": {
+    "README.md": "1f6d4d5231f014750f6dab73d657bbe272c1a988f140ffdd7d5f732d8076184d",
+    "__init__.py": "ef8f18b1415c0c1648436b001a24f6581e37977edd7ad081a796815ec3b7e617",
+    "dashboard/dist/index.js": "6ee2d3202fac9c89538d936a9723e621af07d2e3021f7af84c602dcd8f029549",
+    "dashboard/dist/style.css": "929dc9c341a11cede77fbffd0007842722bbddb334f82f96495aa2a6a9b07aec",
+    "dashboard/manifest.json": "98c376ce813f3b08d3d243466dc80e8b6f04855f3056dbae0be0484d88f6c2d3",
+    "dashboard/plugin_api.py": "fbb5baccc74ad2ec8f5e192d6a2c7fa66235ea3f74858167ec33252a8088fbde",
+    "plugin.yaml": "b8cb27dc1cc14553a24a277f1841c6b0b8cc503ac93464843d9ae699e27955f8",
+    "tests/test_portal.py": "184a11ae2e164af86bfcc75eb4b82f8cd4ddf85fe6017793bf0c16cc71f9e3cc"
+  },
+  "validation": {
+    "proxyTestsPassed": 14,
+    "javascriptSyntax": "PASS",
+    "liveLogin": "NOT_RUN",
+    "telegramPairing": "NOT_RUN",
+    "liveGroupAcceptance": "NOT_RUN"
+  }
+}

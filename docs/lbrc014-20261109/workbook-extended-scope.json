@@ -1,0 +1,93 @@
+{
+  "capturedAt": {
+    "current_time": "2026-11-09 02:43:08 UTC"
+  },
+  "metadata": {
+    "spreadsheetId": "1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc",
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc/edit",
+    "properties": {
+      "title": "Checklist dau viec cua Tech theo BU_Update 07.11.2026",
+      "locale": "en_US",
+      "timeZone": "America/Los_Angeles"
+    },
+    "sheets": [
+      {
+        "properties": {
+          "sheetId": 1963754558,
+          "title": "Đầu việc Tech",
+          "index": 0,
+          "sheetType": "GRID",
+          "gridProperties": {
+            "rowCount": 1011,
+            "columnCount": 26,
+            "frozenRowCount": 1,
+            "hideGridlines": true,
+            "rowGroupControlAfter": true,
+            "columnGroupControlAfter": true
+          }
+        }
+      },
+      {
+        "properties": {
+          "sheetId": 1409009849,
+          "title": "Sheet1",
+          "index": 1,
+          "sheetType": "GRID",
+          "gridProperties": {
+            "rowCount": 1000,
+            "columnCount": 26
+          }
+        }
+      }
+    ]
+  },
+  "extraColumns": {
+    "spreadsheetId": "1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc",
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc/edit",
+    "properties": {
+      "title": "Checklist dau viec cua Tech theo BU_Update 07.11.2026",
+      "locale": "en_US",
+      "timeZone": "America/Los_Angeles"
+    },
+    "sheets": [
+      {
+        "properties": {
+          "sheetId": 1963754558,
+          "title": "Đầu việc Tech",
+          "index": 0,
+          "sheetType": "GRID",
+          "gridProperties": {
+            "rowCount": 1011,
+            "columnCount": 26,
+            "frozenRowCount": 1,
+            "hideGridlines": true,
+            "rowGroupControlAfter": true,
+            "columnGroupControlAfter": true
+          }
+        },
+        "data": [
+          {
+            "startColumn": 8
+          },
+          {
+            "startRow": 30,
+            "startColumn": 8
+          }
+        ]
+      }
+    ]
+  },
+  "otherSheetSearch": {
+    "markdown": "| No data |\n| --- |",
+    "scanned_range": "A1:Z1000",
+    "scanned_row_count": 1000,
+    "scanned_column_count": 26,
+    "matched_row_count": 0,
+    "returned_matching_row_count": 0,
+    "truncated": false,
+    "truncated_rows": false,
+    "truncated_columns": false,
+    "truncated_row_count": 0,
+    "truncated_column_count": 0
+  }
+}

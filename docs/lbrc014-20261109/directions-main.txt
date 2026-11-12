@@ -1,0 +1,102 @@
+import 'package:flutter/material.dart';
+
+import '../services/map_launcher.dart';
+import '../sync/dms_services.dart';
+
+/// Toạ độ + địa chỉ của điểm bán trong DB local (drift `customers`, đã sync).
+typedef CustomerPlaceLookup = Future<({double? lat, double? lng, String? address})?>
+    Function(int customerId);
+
+/// Mở URL bản đồ (inject để test). `false` = không mở được.
+typedef MapUriOpener = Future<bool> Function(Uri uri);
+
+/// Chọn đích chỉ đường: ưu tiên TOẠ ĐỘ (chính xác tới cửa hàng), không có thì
+/// dùng ĐỊA CHỈ chữ. Không có gì → null (không mở bản đồ). Thuần để test.
+Uri? directionsDestination({
+  double? lat,
+  double? lng,
+  String? address,
+}) {
+  if (lat != null && lng != null && lat != 0 && lng != 0) {
+    return MapLauncher.directionsUri(lat, lng);
+  }
+  final a = address?.trim() ?? '';
+  if (a.isNotEmpty) return MapLauncher.directionsUriForAddress(a);
+  return null;
+}
+
+Future<({double? lat, double? lng, String? address})?> _localPlace(
+    int customerId) async {
+  final db = DmsServices.instance.db;
+  final row = await (db.select(db.customers)
+        ..where((t) => t.id.equals(customerId)))
+      .getSingleOrNull();
+  if (row == null) return null;
+  return (lat: row.lat, lng: row.lng, address: row.addressText);
+}
+
+/// Nút "Chỉ đường" tới một điểm bán — dùng chung ở thẻ tuyến Hôm nay, danh
+/// sách KH, chi tiết KH. Toạ độ tra từ DB local (đã sync) khi bấm; truyền sẵn
+/// [lat]/[lng] nếu màn đã có. Không có toạ độ lẫn địa chỉ → báo, không mở map.
+class DirectionsButton extends StatelessWidget {
+  const DirectionsButton({
+    super.key,
+    required this.customerId,
+    this.address,
+    this.lat,
+    this.lng,
+    this.color,
+    this.lookup,
+    this.opener,
+  });
+
+  final int customerId;
+  final String? address;
+  final double? lat;
+  final double? lng;
+  final Color? color;
+  final CustomerPlaceLookup? lookup;
+  final MapUriOpener? opener;
+
+  Future<void> _open(BuildContext context) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    var la = lat, ln = lng;
+    var addr = address;
+    if (la == null || ln == null || (addr ?? '').trim().isEmpty) {
+      try {
+        final local = await (lookup ?? _localPlace)(customerId);
+        if (local != null) {
+          if (la == null || ln == null) {
+            la = local.lat;
+            ln = local.lng;
+          }
+          if ((addr ?? '').trim().isEmpty) addr = local.address;
+        }
+      } on Object {
+        // DB local lỗi → vẫn thử bằng dữ liệu màn đã có.
+      }
+    }
+    final uri = directionsDestination(lat: la, lng: ln, address: addr);
+    if (uri == null) {
+      messenger?.showSnackBar(const SnackBar(
+        content: Text('Điểm bán chưa có toạ độ hoặc địa chỉ để chỉ đường'),
+      ));
+      return;
+    }
+    final ok = await (opener ?? MapLauncher.open)(uri);
+    if (!ok) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Không mở được ứng dụng bản đồ')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Chỉ đường',
+      icon: Icon(Icons.directions, color: color ?? Colors.blue),
+      onPressed: () => _open(context),
+    );
+  }
+}

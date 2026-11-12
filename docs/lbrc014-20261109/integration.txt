@@ -1,0 +1,105 @@
+# DMS – Ghi chú tích hợp App ⇄ BE local (02/06/2026)
+
+Môi trường test: BE local `http://localhost:3403` (health `{status:ok, db:ok, redis:ok}`),
+tài khoản `dmstest`, dữ liệu seed (tuyến DMS-TEST-01, điểm bán DMS-TEST-KH @ 21.0376,105.7825).
+Công cụ: `tool/dms_api_smoke.dart` (login + gọi thật từng endpoint).
+
+## Kết quả nghiệm thu
+
+| Endpoint | Kết quả |
+|---|---|
+| `login` | ✅ token + exp + **refreshToken có giá trị** (hướng dẫn ghi `null`, không ảnh hưởng) |
+| `rt.mobile/sync_bootstrap` | ✅ đủ key (server_time, sync_token, rules, customers, ...) |
+| `rt.mobile/sync_delta` | ✅ |
+| `rt.mobile/today_route` | ✅ (points) |
+| `rt.mobile/day_briefing` | ✅ |
+| `rt.mobile/customer_360` | ✅ (customer) |
+| `rt.mobile/daily_kpi` | ✅ |
+| `rt.survey/forms` | ✅ |
+| `rt.attendance/check_in` | ✅ + **idempotency OK** (gửi lại cùng client_uuid → cùng id, không trùng) |
+| `rt.visit/open` | ✅ (in_radius=true khi gần KH; distance_m=0) |
+| `rt.visit/save_step` | ✅ (checkin/stock_check/display_photo/checkout) |
+| `rt.visit/close` | ⚠️ **xem LỆCH #2** |
+| `rt.offroute/request` | ✅ |
+| `rt.track/push` | ✅ (accepted) |
+| **Upload** `<host>/admin/route/mobile/upload` | ✅ ảnh thật → file_id/url/width/height/bytes |
+
+> Tổng: tất cả endpoint **thông**, shape khớp contract; còn 1 điểm lệch flow ở `visit/close` cần Tech Lead/BE quyết.
+
+## App đã chỉnh để gọi BE local
+- `AppConfig` env dev → `http://localhost:3403/api/v1` (override qua `--dart-define=DEV_BASE_URL=...`: Android emu `http://10.0.2.2:3403/api/v1`, máy thật `http://172.16.9.29:3403/api/v1`).
+- Bật cleartext HTTP cho dev: Android `usesCleartextTraffic="true"`, iOS `NSAllowsArbitraryLoads=true`.
+- Upload trỏ `AppConfig.hostUrl + /admin/route/mobile/upload` (xử lý LỆCH #1).
+
+---
+
+## LỆCH #1 — Upload ảnh (ĐÃ XỬ LÝ ở App)
+- Hợp đồng cũ §7: `POST /api/v1/rt.mobile/upload`.
+- **Thực tế BE:** `POST <host>/admin/route/mobile/upload` (ngoài `/api/v1`).
+- Xử lý: App đã trỏ đúng; contract §7 đã ghi chú. ✅ Đóng.
+
+## LỆCH #2 — `rt.visit/close` đòi save_step cho checkin & checkout (ĐÃ XỬ LÝ — hướng 2)
+> **Quyết định Tech Lead (02/06/2026): hướng 2 (App đổi).** App nay gửi
+> `save_step(checkin)` ngay sau `open` và `save_step(checkout)` ngay trước
+> `close`. Contract §4.2 đã cập nhật. Smoke `--full` xác nhận `rt.visit/close`
+> trả `{ok:true, status:2}` end-to-end (FAIL: 0). ✅ Đóng.
+
+Chi tiết gốc:
+- **Endpoint:** `rt.visit/close`
+- **Bối cảnh:** `rules.required_steps = ["checkin","stock_check","display_photo","checkout"]`.
+- **Body gửi (sau khi đã save_step stock_check + display_photo, mở bằng `rt.visit/open`):**
+  `[{"visit":<id>,"lat":21.0376,"lng":105.7825,"at":"..."}]`
+- **Response thực tế:** `{"ok":false,"message":"Thiếu bước bắt buộc: checkin, checkout"}`
+- Chỉ khi gọi thêm `rt.visit/save_step` cho **`checkin`** và **`checkout`** thì close mới `{ok:true, status:2, duration_minutes:..}`.
+- **Kỳ vọng (contract §4.1/§4.2):** `checkin` là bản thân `rt.visit/open`, `checkout` là bản thân `rt.visit/close`; §4.2 chỉ định nghĩa payload save_step cho `stock_check/display_photo/note/order`. Nghĩa là App KHÔNG gọi save_step cho checkin/checkout.
+- **Hệ quả:** với hành vi BE hiện tại, viếng thăm của App **không bao giờ close được** (App không gửi save_step checkin/checkout).
+- **Đề xuất giải quyết (chờ Tech Lead chọn):**
+  1. **BE**: `open` tự ghi step `checkin`, `close` tự ghi/không yêu cầu `checkout` → close chỉ kiểm các bước giữa. (Khớp contract, App không đổi.)
+  2. **App**: sau `open` gọi `save_step(checkin)`, trước `close` gọi `save_step(checkout)` + cập nhật contract §4.2 liệt kê checkin/checkout. (App đổi nhẹ ở VisitService/state machine.)
+- **Trạng thái:** GIỮ NGUYÊN App, chờ quyết định (không tự đoán).
+
+## LỆCH #3 — BE local thiếu module `bt.saleman` (CẦN BE/Tech Lead xác nhận)
+- **Hiện tượng:** mọi gọi `bt.saleman/*` trên BE local trả `{"ok":false,"message":"Model bt.saleman not exists"}`.
+- **Ảnh hưởng:**
+  1. `bt.saleman/profile` — luồng login cũ gọi sau khi `/login`. → **Đã xử lý phía App:** profile thành **không bắt buộc** (login DMS theo contract chỉ cần `/login`); lỗi profile không chặn đăng nhập / không đăng xuất.
+  2. **`bt.saleman/preview` + `bt.saleman/create_order`** — Contract §6 nói E-APP-6 *tái dùng* 2 API này để tạo đơn. Trên BE local route-module thì KHÔNG có → **tạo đơn sẽ lỗi**. Cần BE xác nhận: BE DMS có nạp kèm module `bt.saleman` không, hay đơn hàng trong DMS đi đường khác (vd `rt.*`)? → **CHỜ QUYẾT, GIỮ NGUYÊN App.**
+  3. Các màn legacy khác cũng dùng bt.saleman (customer list/search, report, inventory) sẽ lỗi trên BE chỉ-DMS — không thuộc luồng "Đi tuyến" lõi.
+- **Phân loại:** môi trường/scope module, không phải lệch field.
+
+## LỆCH #4 — Pilot bt.saleman/* (probe BE local 02/06/2026)
+- **Đã có trên BE:** `bt.saleman/checkin` + `bt.saleman/checkin_history` (R-BE-1 xong; shape khớp F1, App R-APP-1 chạy đúng).
+- **CHƯA có trên BE:** `bt.saleman/today_route`, `bt.saleman/routes` (R-BE-2), `bt.saleman/kpi_report` (R-BE-3), `bt.saleman/create_customer`/`customers` (R-BE-4) → trả "Phương thức không tồn tại". App đã build theo contract addendum §6 + **graceful** (RouteScreen/RouteList hiện trạng thái "BE chưa sẵn sàng" + cache), tự chạy khi BE xong.
+- **GAP cần BE bổ sung:** `bt.saleman/today_route` (contract F2) **thiếu `lat`/`lng`** mỗi customer → bản đồ tuyến (R-APP-2.3) không đủ toạ độ. App tạm tra `lat/lng` từ bảng `customers` đã sync; **đề nghị BE thêm lat/lng vào today_route** cho bản đồ. (Đã đánh dấu TODO trong code.)
+- **Goong Maptiles key:** lãnh đạo sẽ cấu hình sau ở BE setting → bản đồ hiện fallback danh sách; khi có key (qua AppConfig `--dart-define` hoặc BE settings) sẽ render. *Cần thống nhất key đến từ đâu (dart-define hay settings API).*
+
+## LỆCH #5 — Nghiệm thu pilot bt.saleman/* (02/06/2026, `tool/pilot_api_smoke.dart`)
+BE pilot đã verify 10/10. App integration smoke: **18 PASS / 0 FAIL / 1 WARN**.
+- ✅ today_route (shape đủ field + **đã có `lat`/`lng`** → GAP bản đồ ở LỆCH #4 ĐÃ ĐÓNG), routes (7), checkin (+idempotency body-sensitive: cùng key+body→cùng id; key+body khác→409 `IDEMPOTENCY_KEY_MISMATCH`, App an toàn vì outbox resend payload y hệt), checkin vnpost_xa (K5), checkin_history, create_customer (+**chặn trùng SĐT** đúng), customers (nhom_member/tier), kpi_report, rt.attendance/check_in|check_out, timesheet, upload `/admin/route/mobile/upload`.
+- ℹ️ Dev thiếu `sale_order` → K1/K2/K3=0, last_order rỗng, order_today=false (đúng kỳ vọng §6, không phải lỗi).
+
+### ⚠️ LỆCH cần BE/Tech Lead xác nhận (GHI CHÚ, không tự đoán)
+- **Endpoint:** `bt.saleman/checkin`
+- **Body gửi:** `[{customer_id:2, lat:21.10, lng:105.90, checkin_type:"customer", client_uuid:...}]` (cách KH ~14km)
+- **Response thực tế:** `{ok:true, result:{id:8, customer_id:2, distance_m:14028, checkin_at:...}}` — **ghi nhận check-in, KHÔNG chặn, KHÔNG có field `in_radius`**.
+- **Kỳ vọng (hướng dẫn §2 "ra xa >100m → BE chặn"):** từ chối hoặc trả cờ ngoài bán kính.
+- **Nhận xét:** response KHỚP shape contract addendum (addendum chỉ định `{id,customer_id,distance_m,checkin_at}`, không có in_radius). Tức BE đang ghi mọi check-in + trả `distance_m` (audit), không chặn bán kính.
+- **Cần quyết:** (1) BE chặn server-side khi distance>ngưỡng (+trả in_radius), hoặc (2) App cảnh báo/chặn client-side dựa `distance_m` + ngưỡng cấu hình. **GIỮ NGUYÊN App, chờ quyết.** (App hiện chỉ cảnh báo GPS accuracy>100m, KHÁC với bán kính.)
+
+## YÊU CẦU BE #6 — Phơi Goong Maptiles key cho App (Cách B, chốt 02/06/2026)
+App lấy Goong key **từ BE** (không nhúng lúc build). App đã wire đọc + lưu sync_meta;
+**chỉ cần BE thêm field vào response `rt.mobile/sync_bootstrap`** (và nên thêm cả
+`rt.mobile/sync_delta` để đổi key không cần re-login):
+```
+result: {
+  ...,
+  "goong_maptiles_key": "<KEY MAPTILES>"      // App tự dựng style URL
+  // (tuỳ chọn) "goong_style_url": "<full style json url>" nếu muốn chủ động style
+}
+```
+- Chấp nhận đặt ở **top-level** hoặc trong **`rules`** (App đọc cả hai).
+- App dựng style: `https://tiles.goong.io/assets/goong_map_web.json?api_key=<key>`.
+- Sau khi BE thêm: App **đồng bộ (login hoặc delta)** → bản đồ Goong hiện, **không cần build lại app**.
+- Hiện probe BE: `sync_bootstrap.result` keys = `[server_time, sync_token, rules, routes, route_lines, customers, products, surveys]` — **chưa có** field key.
+
+## Ghi chú nhỏ (không chặn)
+- `login` trả `refreshToken` có giá trị (hướng dẫn nói `null`) — App vẫn lưu & dùng refresh bình thường, không vấn đề.

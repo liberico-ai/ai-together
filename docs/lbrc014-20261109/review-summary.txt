@@ -1,0 +1,84 @@
+# KẾT LUẬN NGHIỆM THU RÀ SOÁT — Đi tuyến (DMS) · trước Evaluation Gate 30/06
+
+> Tổng hợp từ `REVIEW_BE.md` + `REVIEW_APP.md` (04/06/2026), đối chiếu Tài liệu hợp nhất v2.1.
+> Người tổng hợp: Claude (Cowork) · Dành cho: Tech Lead + PM.
+
+## 🟢 CẬP NHẬT CUỐI 04/06 — ĐỢT FIX HOÀN TẤT
+
+**Toàn bộ việc CODE scope DMS đã đóng.** Trạng thái các mục C (mục 2 bên dưới):
+
+| Mục | Kết quả |
+|---|---|
+| C1+C2 (F9 + QD-09 + Qa) | ✅ App commit `633fb15` — visit_flow lối vào duy nhất, ảnh bắt buộc + photo_taken_at + checkin_type, gỡ quick-checkin/swipe. API `rt.visit/open` → KHỚP |
+| C3 (Home → tab Hôm nay) | ✅ App `f05dd83` |
+| C4 (addendum preview/create_order) | ✅ BE — REVIEW_BE §2.12–2.13 |
+| C5 (20 test ngoài scope) | ➡ Đã giao chủ module `modules/api`/`system` (ngoài nhánh DMS) |
+| C6 (cleartext debug-only) | ✅ App `777a2d2` |
+| C7 (filter domains) | ✅ App `54f1413` |
+| C8 (tài liệu v2.2) | ✅ `Tai_lieu_hop_nhat_Di_tuyen_DMS_v2.docx` v2.2 (thêm QD-17 Qa, QD-18 chuẩn shape; F9 = Đã build) |
+| FIX-BE-2 (verify bridge) | ✅ BE `994811d0` — bridge truyền `checkin_type` đúng, +2 test, không có bug |
+
+**Số liệu sau fix:** BE DMS **167/167** test + lint sạch · App **86/86** test + analyze 0 error/warning · API chéo **KHỚP 12/12**.
+
+**Còn lại trước Gate 30/06 (KHÔNG phải việc code):** D1–D6 (mục 3) + QA thiết bị thật theo checklist mới `REVIEW_APP.md` §5 + UAT tuần 3. Đường găng: **D1 (mapping employee_id↔user) + D2 (nguồn dms_visit_group)** — chặn F5 migration/cutover.
+
+---
+
+## 1. Kết luận tổng thể
+
+**ĐẠT điều kiện tiếp tục pilot.** Hai phía khớp nhau và khớp tài liệu ở mức cao:
+
+| | Backend | App |
+|---|---|---|
+| Đạt / Lệch / Thiếu | 20 / 3 / **0** | 23 / 5 / **0** |
+| Test | DMS **166/166 pass**, lint sạch (toàn repo 465/485 — 20 fail NGOÀI scope, có sẵn từ trước) | **83/83 pass**, analyze 0 error/warning (22 info) |
+| Đối chiếu API chéo | — | **10/11 endpoint KHỚP**; 1 lệch (`rt.visit/open` — phía App, thuộc F9 chưa nối); 1 chưa đối chiếu (`create_order` — BE chưa ghi shape) |
+
+Hai lệch shape (routes `id` string + `day_of_week`; `kpi_report` k1..k5 là object) đã được chốt xử lý theo hướng **code = chuẩn, đồng bộ tài liệu** — App đã đọc đúng theo shape thực tế, không có việc code phát sinh.
+
+**Cụm việc còn lại hội tụ về MỘT chỗ: hoàn tất F9 (visit_flow) + giải quyết xung đột QD-09 với UX Route View.** Phần còn lại là phụ thuộc bên ngoài (mapping, key, policy, target).
+
+## 2. Việc CODE phải xong trước gate (đề xuất hạn 25–27/06)
+
+| # | Việc | Bên | Nguồn | Mức |
+|---|---|---|---|---|
+| C1 | **Nối F9**: visit_flow là lối vào duy nhất khi thăm điểm; sửa `checkin_step` ép ảnh BẮT BUỘC; `openVisit` gửi `photo_taken_at` + `checkin_type`; context upload = `checkin` | App | Lệch #1+#3, MISMATCH `rt.visit/open` | **Chặn F9** |
+| C2 | **Giải xung đột QD-09 ↔ Route View** *(cần Tech Lead chốt — xem mục 4-Qa)*: nút "Check-in" + swipe hiện gửi thiếu ảnh → BE từ chối. Đề xuất: nút/swipe đều MỞ visit_flow (C1 giải quyết luôn); bỏ "check-in nhanh không ảnh"; swipe chỉ còn là shortcut mở flow | App | Lệch #2 | **Chặn nghiệp vụ** |
+| C3 | Trỏ card Home "Đi tuyến hôm nay" về tab Hôm nay pilot; ẩn `TodayRouteScreen` legacy (đang gọi `rt.mobile/today_route` ngoài pilot) | App | Lệch #4 | Nhẹ |
+| C4 | Bổ sung shape `bt.saleman/create_order` + `preview` vào addendum API (REVIEW_BE §2) để App đối chiếu nốt | BE (docs) | App mục 4 | Nhẹ |
+| C5 | Fix 20 test fail `modules/api`/`modules/system` (pre-existing, ngoài nhánh DMS) để `npm test` toàn repo xanh trước cutover | BE (chủ module) | BE §3 | Trung bình |
+| C6 | Tắt `usesCleartextTraffic` ở build production (release config) | App | Lệch #6 | Bắt buộc trước prod |
+| C7 | (Tuỳ chọn) Filter nhóm KH truyền `domains` thay vì lọc client-side | App | Lệch #5 | Nhẹ |
+| C8 | Đồng bộ Tài liệu hợp nhất → v2.2: cập nhật shape routes/kpi theo code; ghi nhận F9 bridge PA-A đã implement | Docs | BE §2 | Nhẹ |
+
+## 3. Phụ thuộc BÊN NGOÀI cần cung cấp trước gate
+
+| # | Hạng mục | Chặn gì | Ai cung cấp |
+|---|---|---|---|
+| D1 | Mapping `employee_id` (DMS) ↔ `user` (Lilog) | F5 migration; F7 timesheet/dashboard nhóm theo Kênh (đang rơi về "Mặc định") | Tech Lead / quản trị DMS |
+| D2 | Nguồn `dms_visit_group` (bảng/export) | F5 import 1.743 tuyến | Quản trị DMS |
+| D3 | Goong Maptiles key | F2 bản đồ App + F7 bản đồ dashboard (đã có fallback) | PM/Tech Lead |
+| D4 | Chính sách quyền riêng tư tracking (NV đồng ý) | F8 bật tracking nền chính thức | Lãnh đạo/HR |
+| D5 | Định nghĩa "Doanh số" vs "Doanh thu" | F7 dashboard (tạm: total_cost / total_receivable / received) | Nghiệp vụ |
+| D6 | Target K1/K4/K5 theo CVKD/kỳ | F3 hiển thị % đúng (settings đang = 0) | Lãnh đạo kinh doanh |
+
+## 4. Quyết định nghiệp vụ cần chốt
+
+- **Qa (gắn C2):** hành vi check-in tại Route View khi QD-09 bắt buộc ảnh — *khuyến nghị:* mọi lối check-in đều mở visit_flow (đáp ứng cả F9 lẫn QD-09); swipe không tự check-in.
+- **Qb:** nghiệm thu F9 theo lịch nào (tài liệu ghi 25/06) — xác nhận để kịp QA trước gate 30/06.
+
+## 5. QA thiết bị thật (chạy sau C1–C2, trước gate)
+
+Dùng checklist trong `REVIEW_APP.md` §5 (camera-only, ảnh bắt buộc, chống ảnh cũ >180s, offline + idempotency, chấm công→tracking start/stop, bản đồ Goong, KPI, E2E login→Hôm nay→check-in→đơn→KPI trên iOS + Android). Kèm smoke API theo `HUONG_DAN_TEST_DMS.md`.
+
+## 6. Lịch đề xuất tới gate
+
+```
+24–25/06  C1+C2 (F9 + Route View) · C3, C4, C8       ← việc code chính
+26/06     C5 (test ngoài scope) · nhận D1–D6
+27–28/06  QA thiết bị thật (mục 5) + sửa lỗi QA
+29/06     UAT nội bộ với 2 CVKD pilot tuần 3
+30/06     EVALUATION GATE → quyết định cutover 01/07
+```
+
+**Rủi ro chính nếu trễ:** D1/D2 (mapping + nguồn DMS) là đường găng của F5 — không có thì không cutover được dù code xong.

@@ -1,0 +1,29 @@
+{
+  "source": "LibeAI / Quan LibeAi / received 2026-11-09 10:30",
+  "path": "/Users/huyenleduy/Downloads/Telegram Lite/saleman-29.aab",
+  "bytes": 65836880,
+  "sha256": "85de5da99e82c4b7e5f2f45c692b5023dcb741cc47bca1837d5d87ae6d9d019a",
+  "zipCrcCheck": "pass",
+  "manifestAttributes": {
+    "package": "vn.btnet.saleman",
+    "versionCode": "29",
+    "versionName": "1.0.27",
+    "compileSdkVersion": "36",
+    "platformBuildVersionCode": "36",
+    "compileSdkVersionCodename": "16",
+    "platformBuildVersionName": "16"
+  },
+  "versionControlMetadata": "generate_error_reason: NO_SUPPORTED_VCS_FOUND\n",
+  "gradleMetadata": "appMetadataVersion=1.1\nandroidGradlePluginVersion=8.9.1\n",
+  "declaredByQuanAt1029": {
+    "version": "1.0.27",
+    "build": "29",
+    "sourceCommit": "5b38598de8bca1b258be7ee4b7086a993810478a"
+  },
+  "assessment": {
+    "versionAndBuildMatch": "Manifest attributes match Quan message and build.log.",
+    "sourceCommitLink": "Provider declaration + matching build.log short SHA and GitHub source; no VCS revision embedded in the observed metadata.",
+    "acceptanceDeviceLink": "Not established. Phuong described an iOS device; submitted archive is Android bundle."
+  },
+  "method": "Read ZIP entries, protobuf root attributes and hash only; no install or execution."
+}

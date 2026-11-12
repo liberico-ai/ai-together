@@ -1,0 +1,18 @@
+{
+  "observedAt": "2026-11-09T04:03:32.391959+00:00",
+  "source": "Google Drive get_spreadsheet_range; read only",
+  "spreadsheetId": "1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc",
+  "range": "'Đầu việc Tech'!A31:H31",
+  "values": [
+    [
+      "30",
+      "LBRC",
+      "Thêm tính năng chỉ đường cho App Saleman",
+      "QuânTV",
+      "PhươngHV",
+      "Hoàn thành",
+      "2026-11-06",
+      "LBRC014. Spec SPEC-chi-duong-diem-ban.md. Quân 6/11: chờ nghiệm thu. PhươngHV 7/11: nghiệm thu đạt, đóng."
+    ]
+  ]
+}

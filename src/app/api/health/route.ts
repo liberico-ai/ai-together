@@ -1,25 +1,12 @@
-import { NextResponse } from "next/server";
-import { db } from "@/server/db";
-import { sql } from "drizzle-orm";
-
-export async function GET() {
+import { database } from '@/server/db';
+import { requireDemoHost } from '@/server/auth';
+import { failure,success } from '@/server/http';
+export const dynamic='force-dynamic';
+export async function GET(request:Request) {
   try {
-    // Check database connectivity
-    await db.execute(sql`SELECT 1`);
-
-    return NextResponse.json({
-      status: "ok",
-      db: "connected",
-      timestamp: new Date().toISOString(),
-    });
-  } catch {
-    return NextResponse.json(
-      {
-        status: "error",
-        db: "disconnected",
-        timestamp: new Date().toISOString(),
-      },
-      { status: 503 }
-    );
-  }
+    if(process.env.LIBETECH_DEMO==='1') requireDemoHost(request.headers.get('host')??new URL(request.url).host);
+    const db=await database();
+    const rows=(await db.query<{version:string}>('SELECT version FROM schema_migrations ORDER BY version')).rows;
+    return success({status:'ready',version:'0.7.1',buildDigest:process.env.LIBETECH_BUILD_DIGEST??null,sourceSha:/^[a-f0-9]{40}$/.test(process.env.SOURCE_SHA??'')?process.env.SOURCE_SHA:null,schema:rows.map(r=>r.version),storage:process.env.DATABASE_URL?'postgresql-server':'local-persistent-pglite',synthetic:process.env.LIBETECH_DEMO==='1',integrations:{bot:process.env.LIBETECH_BRIDGE_CONFIG?'configured-not-runtime-verified':'not-configured',github:'read-only-snapshot',factory:'not-connected'}});
+  } catch(error) { return failure(error); }
 }

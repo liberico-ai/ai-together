@@ -1,0 +1,23 @@
+[Unit]
+Description=LibeTech AI OS private pilot
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=libetech-os
+Group=libetech-os
+WorkingDirectory=/opt/libetech-ai-os/app
+EnvironmentFile=/etc/libetech-ai-os/web.env
+ExecStart=/opt/libetech-ai-os/node/bin/node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3148
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/libetech-ai-os
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

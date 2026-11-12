@@ -1,0 +1,18 @@
+{
+  "observedAt": "2026-11-08T10:02:49.323Z",
+  "postgres": "PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "database": "libetech_acceptance_1794132169094",
+  "synthetic": true,
+  "passed": [
+    "both runtime logins have no superuser, bypass, create-db or create-role",
+    "all 8 business/analytics tables enforce tenant and project scope",
+    "30 concurrent pool transactions and subsequent unscoped transaction do not leak scope",
+    "business and identity roles cannot read each other schemas",
+    "native password login, single-use invitation and persistent session",
+    "private Telegram proof consumes the code once",
+    "all 9 identity tables enforce tenant RLS",
+    "signed bridge reads its scoped SHA and rejects cross-project chat",
+    "logout revokes native session"
+  ],
+  "failed": 0
+}

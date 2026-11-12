@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-11-09T02:37:26.684167+00:00",
+  "endpoint": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/07348b551ca5101815c0d05bd9bff302832dad71",
+  "exitCode": 0,
+  "data": {
+    "sha": "07348b551ca5101815c0d05bd9bff302832dad71",
+    "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/07348b551ca5101815c0d05bd9bff302832dad71",
+    "message": "docs(customer): spec nút Chỉ đường tới điểm bán",
+    "date": "2026-11-06T07:11:12Z",
+    "parents": [
+      "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab"
+    ],
+    "files": [
+      {
+        "sha": "10b10adc3cd9b24c9618a80024f07f1e2fa4e2dd",
+        "filename": "docs/dms-plan/03_APP_TASKS.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 0,
+        "changes": 1,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/07348b551ca5101815c0d05bd9bff302832dad71/docs%2Fdms-plan%2F03_APP_TASKS.md",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/07348b551ca5101815c0d05bd9bff302832dad71/docs%2Fdms-plan%2F03_APP_TASKS.md",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/docs%2Fdms-plan%2F03_APP_TASKS.md?ref=07348b551ca5101815c0d05bd9bff302832dad71",
+        "patch": "@@ -65,6 +65,7 @@ git branch --show-current   # phải in: DMS\n - **File:** `lib/screens/route/route_map_screen.dart`\n - **Việc:** vẽ điểm bán trên **bản đồ Goong** (*Quyết định 2*); nút chỉ đường mở **Google Maps** qua `url_launcher` deeplink; hiển thị thứ tự tối ưu (sequence từ `today_route`).\n - **DoD:** thấy điểm trên tile Goong + mở chỉ đường Google Maps được.\n+- **Mở rộng:** nút Chỉ đường ở từng điểm bán (tab Hôm nay, danh sách KH, chi tiết KH), fallback địa chỉ chữ → [SPEC-chi-duong-diem-ban.md](SPEC-chi-duong-diem-ban.md).\n \n ---\n "
+      },
+      {
+        "sha": "6d5ea40892a70191daa2d937a7eac9007e7cc908",
+        "filename": "docs/dms-plan/SPEC-chi-duong-diem-ban.md",
+        "status": "added",
+        "additions": 85,
+        "deletions": 0,
+        "changes": 85,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/07348b551ca5101815c0d05bd9bff302832dad71/docs%2Fdms-plan%2FSPEC-chi-duong-diem-ban.md",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/07348b551ca5101815c0d05bd9bff302832dad71/docs%2Fdms-plan%2FSPEC-chi-duong-diem-ban.md",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/docs%2Fdms-plan%2FSPEC-chi-duong-diem-ban.md?ref=07348b551ca5101815c0d05bd9bff302832dad71",
+        "patch": "@@ -0,0 +1,85 @@\n+# SPEC — Nút Chỉ đường tới điểm bán (App CVKD)\n+\n+Trạng thái: Draft, chờ Arch Lead review (viết bù sau khi code, xem §8) · Nhánh: `feature/customer-directions`\n+Liên quan: *Quyết định 2* ([00_OVERVIEW.md](00_OVERVIEW.md)), T-APP-3.3 ([03_APP_TASKS.md](03_APP_TASKS.md))\n+\n+## 1. Bối cảnh & mục tiêu\n+- T-APP-3.3 chỉ có nút chỉ đường ở **màn bản đồ tuyến**, và chỉ khi điểm có toạ độ. Màn danh sách cũ `TodayRouteScreen` cũng có nút này, nhưng đã bỏ khỏi điều hướng.\n+- Màn CVKD dùng hằng ngày gồm tab **Hôm nay** (`RouteScreen`), tab **Khách hàng** (`CustomerListScreen`) và **Chi tiết KH** (`CustomerDetailScreen`). Các màn này **chưa có** nút chỉ đường, nên CVKD phải tự chép địa chỉ sang app bản đồ.\n+- **Mục tiêu:** mỗi điểm bán có một nút **Chỉ đường**. Bấm vào thì mở ứng dụng bản đồ chỉ đường tới điểm bán, nếu điểm có đủ thông tin.\n+\n+## 2. Phạm vi\n+| Màn | Vị trí nút |\n+|---|---|\n+| Tab Hôm nay: thẻ điểm bán trong tuyến | Bên phải thẻ (`ListTile.trailing`) |\n+| Tab Khách hàng: thẻ KH | Cuối dòng địa chỉ. Nút vẫn hiện khi KH không có địa chỉ chữ, vì toạ độ có thể có trong DB local |\n+| Chi tiết KH | AppBar, trước nút Sửa |\n+\n+**Ngoài phạm vi:**\n+- Màn bản đồ tuyến (`RouteMapScreen`) giữ nguyên hành vi T-APP-3.3.\n+- Không đổi BE và API.\n+- Không thêm dependency.\n+\n+## 3. Quy tắc chọn đích\n+Thứ tự ưu tiên:\n+1. **Toạ độ** (`lat`, `lng`), cả hai khác null và khác 0. Màn đã có toạ độ thì dùng luôn. Nếu chưa, tra trong DB local, bảng drift `customers` (đã đồng bộ), theo `customer_id`.\n+2. **Địa chỉ chữ** (trim, khác rỗng). Lấy địa chỉ của màn (`address_raw`). Nếu màn không có, dùng `customers.address_text` trong DB local.\n+3. **Không có cả hai:** **không mở** bản đồ. Hiện snackbar `Điểm bán chưa có toạ độ hoặc địa chỉ để chỉ đường`.\n+\n+**Lý do:**\n+- Toạ độ chính xác tới cửa hàng, còn địa chỉ chữ phụ thuộc vào việc Google tìm địa chỉ. Ví dụ \"Kiot 6, Chợ Tạm…\" có thể lệch.\n+- Toạ độ 0,0 là dữ liệu rác (giữa biển), nên coi như không có.\n+- DB local đọc được khi offline, không gọi mạng lúc bấm.\n+\n+## 4. Mở ứng dụng bản đồ\n+- Theo *Quyết định 2*: chỉ đường qua **Google Maps Universal URL** bằng `url_launcher` (`LaunchMode.externalApplication`). Máy có app Google Maps thì mở app, không có thì mở trình duyệt.\n+- **Theo toạ độ:**\n+  `https://www.google.com/maps/dir/?api=1&destination={lat},{lng}&travelmode=driving`\n+- **Theo địa chỉ:** cùng URL, `destination` là địa chỉ đã URL-encode.\n+- **Mở không được** (không có app hoặc trình duyệt xử lý, hoặc lỗi): snackbar `Không mở được ứng dụng bản đồ`.\n+- **Cấu hình nền tảng đã có sẵn, không đổi:**\n+  - Android: `<queries>` cho `VIEW` + scheme `https`/`geo`.\n+  - iOS: `LSApplicationQueriesSchemes` gồm `comgooglemaps`, `googlemaps`.\n+\n+## 5. Thiết kế\n+- **`lib/services/map_launcher.dart`:**\n+  - `directionsUri(lat, lng)` (có sẵn);\n+  - `directionsUriForAddress(address)`;\n+  - `open(uri)`: `canLaunchUrl` rồi `launchUrl`. Mọi lỗi trả `false`, không ném.\n+- **`lib/widgets/directions_button.dart`:**\n+  - `directionsDestination({lat, lng, address}) → Uri?`: hàm thuần, áp dụng quy tắc §3 (bước 1–2).\n+  - `DirectionsButton(customerId, address?, lat?, lng?)`: `IconButton` (icon `directions`, tooltip \"Chỉ đường\"), dùng chung cho cả 3 màn.\n+    - Khi bấm mới tra DB local, không tra lúc dựng danh sách nên không tốn truy vấn cho mỗi thẻ.\n+    - Nguồn tra (`lookup`) và hàm mở (`opener`) inject được để test.\n+- Không lưu, không ghi dữ liệu gì. Không ghi log toạ độ hay địa chỉ.\n+\n+## 6. Trường hợp biên\n+| Tình huống | Kết quả |\n+|---|---|\n+| Có toạ độ local, màn có địa chỉ | Dùng toạ độ |\n+| Toạ độ = 0,0 | Coi như không có, dùng địa chỉ |\n+| Không toạ độ, màn không có địa chỉ, DB local có địa chỉ | Dùng địa chỉ local |\n+| KH chưa đồng bộ về máy (không có dòng local) | Dùng địa chỉ của màn, nếu có |\n+| Đọc DB local lỗi | Bỏ qua, dùng dữ liệu của màn |\n+| Không toạ độ, không địa chỉ | Không mở, snackbar báo thiếu |\n+| Không mở được app hoặc trình duyệt | Snackbar báo lỗi mở bản đồ |\n+\n+## 7. Test (`test/widget/directions_button_test.dart`)\n+- URL theo địa chỉ: encode đúng, đúng `api=1` và `travelmode=driving`.\n+- `directionsDestination`:\n+  - toạ độ được ưu tiên;\n+  - toạ độ 0,0 hoặc thiếu thì dùng địa chỉ;\n+  - địa chỉ trống thì trả null.\n+- `DirectionsButton`:\n+  - mở bằng toạ độ local;\n+  - mở bằng địa chỉ của màn;\n+  - mở bằng địa chỉ local;\n+  - không có thông tin thì không mở và báo;\n+  - mở thất bại thì báo.\n+\n+## 8. Ghi chú quy trình\n+- Spec này **viết bù sau khi code**, sai nguyên tắc \"spec trước khi code\". Cần Arch Lead review cả spec lẫn code trước khi merge.\n+- UAT trên máy thật cần kiểm 3 trường hợp:\n+  - Android có Google Maps;\n+  - Android không có Google Maps (mở trình duyệt);\n+  - iOS."
+      }
+    ]
+  }
+}

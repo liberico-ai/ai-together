@@ -1,0 +1,20 @@
+{
+  "observedAt": "20261108T135324Z",
+  "archive": "pilot-data-only-20261108T135324Z.dump",
+  "sha256": "d77de34837d23fac8bdec5241001a45ab21c42b42aad023e36d74caae723ceba",
+  "dataOnlyAtDumpTime": true,
+  "restoreIntoExistingSchema": "pass",
+  "regressionOldFullArchive": [
+    "pg_restore: error: COPY failed for table \"reconciliations\": ERROR:  insert or update on table \"reconciliations\" violates foreign key constraint \"reconciliations_project_id_tenant_id_fkey\""
+  ],
+  "restored": {
+    "migrations": 3,
+    "users": 1,
+    "activated": 1,
+    "projects": 1,
+    "reconciliations": 1,
+    "sourceSha": "8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab",
+    "workItems": 0
+  },
+  "database": "libetech_data_restore_verify_20261108"
+}

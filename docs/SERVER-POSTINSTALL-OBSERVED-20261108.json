@@ -1,0 +1,19 @@
+{
+  "source": "Authenticated Hermes direct-shell UI stdout, observed 2026-11-08 21:26 Asia/Ho_Chi_Minh",
+  "rawServerReceipt": "/home/iptech/libetech-ai-os-stage-20261108/postinstall-readback.json",
+  "downloadedRawReceipt": false,
+  "bridgeVersion": "0.2.1",
+  "bridgeInstalledCommit": "73687919346aad9f6064094455047462513aceec",
+  "bridgeSourceHashesMatch": true,
+  "priority1Unchanged": true,
+  "configPreservedExceptNewEnabledPlugin": true,
+  "telegramConnected": 20,
+  "telegramTotal": 20,
+  "snapshotAgeSeconds": 42.3,
+  "gatewayPid": 1108021,
+  "gatewayRestarted": false,
+  "gatewayNativeCommands": "active-now per standard installer reply",
+  "modelTool": "deferred-to-next-session per standard installer reply",
+  "telegramMessageVerified": false,
+  "serverBrowserLoginVerified": false
+}

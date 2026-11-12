@@ -1,0 +1,11 @@
+{
+  "name": "libetech-ai-os-web",
+  "label": "LibeTech AI OS",
+  "description": "Đăng nhập, ghép Telegram và xem đối soát chỉ đọc trên server.",
+  "icon": "LayoutDashboard",
+  "version": "0.1.0",
+  "tab": {"path": "/libetech-ai-os", "position": "after:skills"},
+  "entry": "dist/index.js",
+  "css": "dist/style.css",
+  "api": "plugin_api.py"
+}

@@ -1,0 +1,13 @@
+{
+  "observedAt": "2026-11-09T02:37:27.254453+00:00",
+  "endpoint": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits?path=docs/dms-plan/SPEC-chi-duong-diem-ban.md&per_page=100",
+  "exitCode": 0,
+  "data": [
+    {
+      "sha": "07348b551ca5101815c0d05bd9bff302832dad71",
+      "date": "2026-11-06T07:11:12Z",
+      "message": "docs(customer): spec nút Chỉ đường tới điểm bán",
+      "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/07348b551ca5101815c0d05bd9bff302832dad71"
+    }
+  ]
+}

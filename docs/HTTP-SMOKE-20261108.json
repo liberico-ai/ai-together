@@ -1,0 +1,28 @@
+{
+  "at": "2026-11-08T08:57:08.458Z",
+  "application": {
+    "status": "ready",
+    "version": "0.1.0",
+    "sourceSha": null,
+    "schema": [
+      "001"
+    ],
+    "storage": "local-persistent-pglite",
+    "synthetic": true,
+    "integrations": {
+      "bot": "not-connected",
+      "github": "not-connected",
+      "factory": "not-connected"
+    }
+  },
+  "managerWorkCount": 6,
+  "botWorkCount": 1,
+  "checks": {
+    "unauthenticated": 401,
+    "crossProject": 404,
+    "crossProjectCode": "SCOPE_DENIED",
+    "botWrite": 403,
+    "botWriteCode": "READ_ONLY"
+  },
+  "result": "PASS"
+}

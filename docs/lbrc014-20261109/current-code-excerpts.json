@@ -1,0 +1,108 @@
+[
+  {
+    "observedAt": "2026-11-09T02:40:03.857088+00:00",
+    "endpoint": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib/screens/customer/customer_detail_screen.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+    "ref": "5b38598de8bca1b258be7ee4b7086a993810478a",
+    "path": "lib/screens/customer/customer_detail_screen.dart",
+    "blobSha": "52c59833cf9a6609d721e99ed5138ed72debd43c",
+    "excerpts": [
+      {
+        "startLine": 110,
+        "lines": [
+          "        foregroundColor: Colors.black87,",
+          "        actions: [",
+          "          DirectionsButton(",
+          "            customerId: widget.customer.id,",
+          "            address: widget.customer.addressRaw,",
+          "          ),",
+          "          IconButton(",
+          "            icon: const Icon(Icons.edit_outlined),",
+          "            tooltip: 'Sửa thông tin',",
+          "            onPressed: () => Navigator.of(context).push(",
+          "              MaterialPageRoute(",
+          "                builder: (_) => CustomerEditScreen(customer: widget.customer),",
+          "              ),"
+        ]
+      }
+    ]
+  },
+  {
+    "observedAt": "2026-11-09T02:40:03.362201+00:00",
+    "endpoint": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib/screens/customer/customer_list_screen.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+    "ref": "5b38598de8bca1b258be7ee4b7086a993810478a",
+    "path": "lib/screens/customer/customer_list_screen.dart",
+    "blobSha": "73a4a8625bf0de5fe9844e409809c86c8a112ec1",
+    "excerpts": [
+      {
+        "startLine": 397,
+        "lines": [
+          "                  ] else",
+          "                    const Spacer(),",
+          "                  DirectionsButton(",
+          "                    key: ValueKey('directions-${customer.id}'),",
+          "                    customerId: customer.id,",
+          "                    address: customer.addressRaw,",
+          "                  ),",
+          "                ],",
+          "              ),",
+          "            ],",
+          "          ),",
+          "        ),",
+          "      ),"
+        ]
+      }
+    ]
+  },
+  {
+    "observedAt": "2026-11-09T02:40:03.370100+00:00",
+    "endpoint": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib/screens/route/route_screen.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+    "ref": "5b38598de8bca1b258be7ee4b7086a993810478a",
+    "path": "lib/screens/route/route_screen.dart",
+    "blobSha": "e80d2646763308038a032424e23eb537104a4460",
+    "excerpts": [
+      {
+        "startLine": 622,
+        "lines": [
+          "            ),",
+          "            // Chỉ đường tới điểm bán: toạ độ (DB local) → địa chỉ → báo thiếu.",
+          "            trailing: DirectionsButton(",
+          "              key: ValueKey('directions-${c.id}'),",
+          "              customerId: c.id,",
+          "              address: c.addressRaw,",
+          "            ),",
+          "            // Tên 1 dòng riêng, badge xếp bên dưới trong Wrap: để chung 1 Row",
+          "            // thì màn hẹp / cỡ chữ hệ thống lớn bóp tên còn ~1 ký tự mỗi dòng.",
+          "            title: Column(",
+          "              crossAxisAlignment: CrossAxisAlignment.start,",
+          "              children: [",
+          "                Text(c.name,"
+        ]
+      }
+    ]
+  },
+  {
+    "observedAt": "2026-11-09T02:40:03.243959+00:00",
+    "endpoint": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/lib/services/map_launcher.dart?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+    "ref": "5b38598de8bca1b258be7ee4b7086a993810478a",
+    "path": "lib/services/map_launcher.dart",
+    "blobSha": "7f61e7affe347b24389a256c13f7c43afd877381",
+    "excerpts": [
+      {
+        "startLine": 28,
+        "lines": [
+          "",
+          "  /// Mở [uri] bằng app ngoài (Google Maps / trình duyệt). `false` nếu lỗi.",
+          "  static Future<bool> open(Uri uri) async {",
+          "    try {",
+          "      if (!await canLaunchUrl(uri)) return false;",
+          "      return await launchUrl(uri, mode: LaunchMode.externalApplication);",
+          "    } on Object {",
+          "      return false;",
+          "    }",
+          "  }",
+          "}"
+        ]
+      }
+    ]
+  }
+]

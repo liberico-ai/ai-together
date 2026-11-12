@@ -1,0 +1,35 @@
+{
+  "observedAt": "2026-11-09T02:36:47.015360+00:00",
+  "endpoint": "https://api.github.com/repos/liberico-ai/btnet-saleman/commits/main",
+  "exitCode": 0,
+  "data": {
+    "sha": "5b38598de8bca1b258be7ee4b7086a993810478a",
+    "html_url": "https://github.com/liberico-ai/btnet-saleman/commit/5b38598de8bca1b258be7ee4b7086a993810478a",
+    "message": "bump version 1.0.27+29",
+    "date": "2026-11-07T01:23:32Z",
+    "verified": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "parents": [
+      "b955803183cf3fdc326b7a7a5033208896028d13"
+    ],
+    "files": [
+      {
+        "sha": "3f82d614a6cf51fe65e427abd5b504869dea3e88",
+        "filename": "pubspec.yaml",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/liberico-ai/btnet-saleman/blob/5b38598de8bca1b258be7ee4b7086a993810478a/pubspec.yaml",
+        "raw_url": "https://github.com/liberico-ai/btnet-saleman/raw/5b38598de8bca1b258be7ee4b7086a993810478a/pubspec.yaml",
+        "contents_url": "https://api.github.com/repos/liberico-ai/btnet-saleman/contents/pubspec.yaml?ref=5b38598de8bca1b258be7ee4b7086a993810478a",
+        "patch": "@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev\n # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html\n # In Windows, build-name is used as the major, minor, and patch parts\n # of the product and file versions while build-number is used as the build suffix.\n-version: 1.0.26+28\n+version: 1.0.27+29\n \n environment:\n   sdk: ^3.9.2"
+      }
+    ]
+  }
+}
