@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { scoped,type Database } from './db';
-import { AppError,invariant } from './errors';
+import { invariant } from './errors';
 import { projectRole,type Principal } from './types';
 
 const input=z.object({projectId:z.uuid(),requestKey:z.uuid(),kind:z.enum(['bug','idea']),
@@ -48,30 +48,29 @@ export class FeedbackService {
     SELECT state,version FROM feedback_reports WHERE id=$1 AND project_id=$2 FOR UPDATE`,
     [x.reportId,x.projectId])).rows[0];
    invariant(report,'SCOPE_DENIED','Không tìm thấy phản hồi trong dự án.',404);
-   const prior=(await tx.query<{id:string;project_id:string;report_id:string;prior_version:number;next_state:string;reason:string}>(`
-    SELECT id,project_id,report_id,prior_version,next_state,reason FROM feedback_actions
-    WHERE tenant_id=$1 AND actor_id=$2 AND request_key=$3`,[p.tenantId,p.id,x.requestKey])).rows[0];
-   if(prior) {
-    invariant(prior.project_id===x.projectId&&prior.report_id===x.reportId&&
+   // Atomic claim (E-BE-08): UNIQUE(tenant_id,actor_id,request_key) + ON CONFLICT DO NOTHING, no SELECT-then-INSERT.
+   const claim=(await tx.query<{id:string}>(`INSERT INTO feedback_actions
+    (tenant_id,project_id,report_id,actor_id,request_key,prior_version,next_state,reason)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (tenant_id,actor_id,request_key) DO NOTHING RETURNING id`,
+    [p.tenantId,x.projectId,x.reportId,p.id,x.requestKey,x.expectedVersion,x.state,x.reason])).rows[0];
+   if(!claim) {
+    const prior=(await tx.query<{id:string;project_id:string;report_id:string;prior_version:number;next_state:string;reason:string}>(`
+     SELECT id,project_id,report_id,prior_version,next_state,reason FROM feedback_actions
+     WHERE tenant_id=$1 AND actor_id=$2 AND request_key=$3`,[p.tenantId,p.id,x.requestKey])).rows[0];
+    // No visible row means the earlier action sits in a project RLS hides: still a key reuse.
+    invariant(prior&&prior.project_id===x.projectId&&prior.report_id===x.reportId&&
      prior.prior_version===x.expectedVersion&&prior.next_state===x.state&&prior.reason===x.reason,
       'FEEDBACK_KEY_CONFLICT','Yêu cầu đã dùng cho nội dung khác.',409);
     return {id:prior.id,replayed:true};
    }
+   // Throwing below rolls the whole transaction back, so the claimed action row does not survive.
    invariant(report.version===x.expectedVersion,'VERSION_CONFLICT','Phản hồi đã đổi. Tải lại trước khi xử lý.',409);
    invariant((report.state==='new'&&['reviewing','closed'].includes(x.state))||
     (report.state==='reviewing'&&x.state==='closed'),
     'FEEDBACK_STATE_CONFLICT','Trạng thái chuyển không hợp lệ.',409);
    await tx.query(`UPDATE feedback_reports SET state=$3,version=version+1,updated_at=now()
     WHERE id=$1 AND project_id=$2`,[x.reportId,x.projectId,x.state]);
-   const action=(await tx.query<{id:string}>(`INSERT INTO feedback_actions
-    (tenant_id,project_id,report_id,actor_id,request_key,prior_version,next_state,reason)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-    [p.tenantId,x.projectId,x.reportId,p.id,x.requestKey,x.expectedVersion,x.state,x.reason]).catch((error:unknown)=>{
-     // RLS hides this actor's earlier action in another project; UNIQUE(tenant_id,actor_id,request_key) still catches the reuse.
-     if((error as {code?:string})?.code==='23505') throw new AppError('FEEDBACK_KEY_CONFLICT','Yêu cầu đã dùng cho nội dung khác.',409);
-     throw error;
-    })).rows[0];
-   return {id:action.id,replayed:false};
+   return {id:claim.id,replayed:false};
   });
  }
 }
