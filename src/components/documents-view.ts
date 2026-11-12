@@ -1,12 +1,13 @@
 import type { SourceState } from '@/server/types';
 
-export type PageState = 'loading' | 'error' | 'denied' | 'empty' | 'ready';
+export type PageState = 'loading' | 'error' | 'denied' | 'no-results' | 'empty' | 'ready';
 
-export function pageState(i: { loading: boolean; error: string | null; denied: boolean; rows: number }): PageState {
+export function pageState(i: { loading: boolean; error: string | null; denied: boolean; rows: number; term?: string }): PageState {
   if (i.loading) return 'loading';
   if (i.denied) return 'denied';
   if (i.error) return 'error';
-  return i.rows === 0 ? 'empty' : 'ready';
+  if (i.rows === 0) return (i.term ?? '').trim() ? 'no-results' : 'empty';
+  return 'ready';
 }
 
 export const SOURCE_STATE_VIEW: Record<SourceState, { label: string; nextStep: string; tone: 'neutral' | 'warn' | 'error' }> = {
@@ -32,4 +33,15 @@ export function freshnessLabel(projectedAt: string | null, recordUpdatedAt: stri
   if (!projectedAt) return 'Chưa chiếu';
   const at = formatTime(projectedAt);
   return new Date(projectedAt).getTime() < new Date(recordUpdatedAt).getTime() ? 'Chưa kiểm mới · chiếu lúc ' + at : 'Chiếu lúc ' + at;
+}
+
+export const noResultsCopy = (term: string): string => 'Không tìm thấy tài liệu khớp "' + term + '"';
+export const emptyProjectionCopy = (projectedAt: string | null): string => projectedAt
+  ? 'Tài liệu vừa đăng ký sẽ hiện sau lần chiếu chỉ mục kế tiếp (lần chiếu gần nhất: ' + formatTime(projectedAt) + ').'
+  : 'Chỉ mục chưa được chiếu lần nào; tài liệu đã đăng ký sẽ hiện sau lần chiếu đầu tiên.';
+export const registerNotice = (title: string, projectedAt: string | null): string =>
+  'Đã đăng ký "' + title + '". Tài liệu sẽ hiện trong danh sách sau lần chiếu chỉ mục kế tiếp (lần chiếu gần nhất: ' + (projectedAt ? formatTime(projectedAt) : 'chưa chiếu lần nào') + ').';
+/** Chỉ https mới được hiện thành liên kết; trả host hoặc null. */
+export function safeHttpsHost(uri: string): string | null {
+  try { const u = new URL(uri); return u.protocol === 'https:' ? u.hostname : null; } catch { return null; }
 }

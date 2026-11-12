@@ -84,6 +84,9 @@ html,body{max-width:100%;overflow-x:clip}
 .doc-skel-row{height:96px;border-radius:var(--radius);background:linear-gradient(90deg,#eceee9,#f6f8f5,#eceee9);background-size:200% 100%;animation:doc-pulse 1.4s linear infinite}
 @keyframes doc-pulse{to{background-position:-200% 0}}
 .doc-projected{margin:0}
+.doc-back{align-self:flex-start;margin-bottom:12px;background:transparent;color:var(--navy);border:1px solid var(--line)}
+.doc-link{display:flex;flex-direction:column;gap:8px;align-items:flex-start;min-width:0}
+.doc-notice{margin:0 0 16px;padding:12px 16px;border:1px solid var(--line);border-radius:var(--radius);background:#eef6f2;overflow-wrap:anywhere}
 @media(max-width:700px){.doc-filters{flex-direction:column;align-items:stretch}.doc-card{padding:12px}.doc-action{width:100%}.doc-actions{align-items:stretch}}
 @media(min-width:950px){.doc-card{flex-direction:row;flex-wrap:wrap;align-items:flex-start}.doc-main{flex:2 1 280px;min-width:0}.doc-revs{flex:1 1 200px}.doc-source{flex:1 1 200px}.doc-actions{flex:0 0 auto}}
 @media(min-width:1200px){.doc-card{flex-wrap:nowrap;gap:24px}.doc-main{flex:0 0 32%}.doc-revs{flex:0 0 24%}.doc-source{flex:1 1 auto}.doc-actions{flex:0 0 auto}}

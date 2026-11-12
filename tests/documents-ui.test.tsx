@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
-import { pageState, approvedLabel, draftLabel, hashLabel, freshnessLabel, SOURCE_STATE_VIEW } from '../src/components/documents-view';
-import { DocumentCard, SourceAvailability, DocumentsBody } from '../src/components/documents';
+import { pageState, approvedLabel, draftLabel, hashLabel, freshnessLabel, SOURCE_STATE_VIEW, registerNotice } from '../src/components/documents-view';
+import { DocumentCard, SourceAvailability, DocumentsBody, SourceLink } from '../src/components/documents';
 import type { DocumentIndexRow, SourceState } from '../src/server/types';
 
 const row: DocumentIndexRow = { document_id: '11111111-1111-4111-8111-111111111111', project_id: '22222222-2222-4222-8222-222222222222', ref_code: 'XECA006', doc_type: 'plan',
@@ -77,5 +77,55 @@ describe('documents UI', () => {
       const px = /^(\d+(?:\.\d+)?)px$/.exec(v);
       expect(px ? Number(px[1]) <= 328 : /^(0|\d+%|auto)$/.test(v)).toBe(true);
     }
+  });
+  it('pageState: no-results only when a term is applied and rows=0', () => {
+    const b = { loading: false, error: null, denied: false, rows: 0 };
+    expect(pageState({ ...b, term: 'abc' })).toBe('no-results');
+    expect(pageState({ ...b, term: '  ' })).toBe('empty');
+    expect(pageState({ ...b })).toBe('empty');
+    expect(pageState({ ...b, error: 'x', term: 'abc' })).toBe('error');
+    expect(pageState({ ...b, denied: true, term: 'abc' })).toBe('denied');
+    expect(pageState({ ...b, loading: true, term: 'abc' })).toBe('loading');
+    expect(pageState({ ...b, rows: 1, term: 'abc' })).toBe('ready');
+  });
+  it('no-results shows the term and a clear button, not the empty-project copy', () => {
+    const m = renderToStaticMarkup(<DocumentsBody state="no-results" term={'<b>kế hoạch</b>'} rows={[]} projectedAt={null} canRegister error={null} projectLabel="X" />);
+    expect(m).toContain('Không tìm thấy tài liệu khớp &quot;&lt;b&gt;kế hoạch&lt;/b&gt;&quot;');
+    expect(m).not.toContain('<b>kế');
+    expect(m).toContain('Xoá tìm kiếm');
+    expect(m).not.toContain('Chưa có tài liệu đã đăng ký');
+    expect(m).not.toContain('Đăng ký tài liệu');
+  });
+  it('empty state mentions that the index has not been projected yet', () => {
+    const m = renderToStaticMarkup(<DocumentsBody state="empty" rows={[]} projectedAt={null} canRegister error={null} projectLabel="X" />);
+    expect(m).toContain('chưa được chiếu lần nào');
+    expect(m).toContain('Đăng ký tài liệu');
+    const m2 = renderToStaticMarkup(<DocumentsBody state="empty" rows={[]} projectedAt="2026-11-12T02:00:00Z" canRegister={false} error={null} projectLabel="X" />);
+    expect(m2).toContain('lần chiếu gần nhất');
+  });
+  it('register notice is a status with the title escaped', () => {
+    const text = registerNotice('<img src=x>', null);
+    expect(text).toContain('chưa chiếu lần nào');
+    const m = renderToStaticMarkup(<p role="status">{text}</p>);
+    expect(m).toContain('role="status"');
+    expect(m).toContain('&lt;img src=x&gt;');
+    expect(m).not.toContain('<img');
+    expect(registerNotice('T', '2026-11-12T02:00:00Z')).toContain('lần chiếu gần nhất: ');
+  });
+  it('source link: https renders a safe anchor with host, other schemes render none', () => {
+    const ok = renderToStaticMarkup(<SourceLink uri="https://drive.example.org/f/1" />);
+    expect(ok).toContain('<a ');
+    expect(ok).toContain('rel="noreferrer noopener"');
+    expect(ok).toContain('target="_blank"');
+    expect(ok).toContain('drive.example.org');
+    for (const bad of ['http://x.example/a', 'javascript:alert(1)', 'not a url']) {
+      const m = renderToStaticMarkup(<SourceLink uri={bad} />);
+      expect(m).not.toContain('<a ');
+      expect(m).toContain('role="alert"');
+    }
+  });
+  it('no component or view copy says đã duyệt, and window.open is gone', () => {
+    for (const f of ['src/components/documents.tsx', 'src/components/documents-view.ts']) expect(readFileSync(f, 'utf8')).not.toContain('đã duyệt');
+    expect(readFileSync('src/components/documents.tsx', 'utf8')).not.toContain('window.open');
   });
 });

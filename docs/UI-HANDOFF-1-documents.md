@@ -4,7 +4,7 @@ Nguồn: `docs/DESIGN-SYSTEM-PM-DOCUMENTS.md`. Mã: `src/components/documents.ts
 Lát này chỉ có danh sách, tìm, mở nguồn và đăng ký. Chưa có chi tiết, diff, quyết định (đặc tả chỉ ghi biến thể).
 
 ## 1. Bố cục
-Đọc từ trên xuống: tiêu đề «<Dự án> / Tài liệu» + nút «Đăng ký tài liệu» (chỉ khi có quyền) → ô «Tìm trong dự án» → (form đăng ký, mở khi bấm) → vùng dữ liệu (skeleton / lỗi / từ chối / rỗng / danh sách) → dòng «n / tổng tài liệu».
+Đọc từ trên xuống: liên kết «← Về không gian làm việc» (về `/`, cao ≥44px) → tiêu đề «<Dự án> / Tài liệu» + nút «Đăng ký tài liệu» (chỉ khi có quyền) → ô «Tìm trong dự án» → (form đăng ký, mở khi bấm) → vùng dữ liệu (skeleton / lỗi / từ chối / rỗng / danh sách) → thông báo sau đăng ký (nếu có) → dòng «n / tổng tài liệu». Mỗi trang 50 tài liệu (mặc định của API, trần 200); chưa có nút phân trang.
 Không có `?projectId=` và nhiều dự án: chỉ hiện danh sách liên kết chọn dự án, không có danh sách chéo dự án. Một dự án: chuyển thẳng.
 Biến thể:
 - **card** (<950px): một cột; khối tiêu đề → bản chuẩn/đang soạn/hash → nguồn → hành động.
@@ -30,18 +30,23 @@ Ngoài lớp `.doc-*`, một luật `.bridge-labels` (12px, #c9d8d2) vá nhãn t
 ```ts
 DocumentCard({row:DocumentIndexRow; projectLabel:string; canOpen:boolean})
 SourceAvailability({state:SourceState; lastSuccessAt:string|null})
-DocumentsBody({state:PageState; rows:DocumentIndexRow[]; projectedAt:string|null; canRegister:boolean; error:string|null; projectLabel:string; onRetry?:()=>void; onRegister?:()=>void})
+SourceLink({uri:string})
+DocumentsBody({state:PageState; term?:string; onClearSearch?:()=>void; rows:DocumentIndexRow[]; projectedAt:string|null; canRegister:boolean; error:string|null; projectLabel:string; onRetry?:()=>void; onRegister?:()=>void})
 Documents({projects:{id;name}[]; projectId:string|null; initial:DocumentIndexPage|null; denied:boolean; canRegister:boolean; templates:{code;title}[]})  // 'use client'
 ```
 `onRetry`, `onRegister` là hai prop tuỳ chọn thêm so với chữ ký gốc (cần để nút hoạt động). Hàm thuần: `pageState`, `approvedLabel`, `draftLabel`, `hashLabel`, `freshnessLabel`, `SOURCE_STATE_VIEW`.
-Gọi API ở client chỉ qua `src/components/api.ts`. «Mở nguồn» gọi `GET /api/documents/:id/source` rồi mở `uri` ở tab mới (`noreferrer`), server kiểm quyền lại mỗi lần.
+Gọi API ở client chỉ qua `src/components/api.ts`. «Mở nguồn» gọi `GET /api/documents/:id/source` (`{uri, host, sourceType, sourceState, title}`) rồi hiện host + liên kết https; server kiểm quyền lại mỗi lần. `Documents` được gắn `key={projectId ?? 'picker'}` để đổi dự án không giữ dòng cũ.
 
 ## 4. Trạng thái
-Màn (ưu tiên loading > denied > error > empty > ready):
+Màn (ưu tiên loading > denied > error > no-results > empty > ready):
 - loading: skeleton, `aria-busy="true"`, giữ tiêu đề, không có số 0.
 - denied: «Tài khoản chưa được cấp dự án này»; không tên dự án, không số đếm, không ô tìm.
 - error: `role="alert"`, câu lỗi + «Thử lại», giữ chữ đang tìm.
-- empty: «Chưa có tài liệu đã đăng ký» + «Đăng ký tài liệu» nếu có quyền, nếu không «Cần quyền thành viên dự án để đăng ký».
+- no-results: chỉ khi đã áp dụng từ khoá và 0 dòng: «Không tìm thấy tài liệu khớp "<từ khoá>"» (từ khoá là văn bản) + nút «Xoá tìm kiếm» khôi phục danh sách. KHÔNG hiện «Chưa có tài liệu đã đăng ký» hay nút đăng ký.
+- empty: dự án chưa có tài liệu: «Chưa có tài liệu đã đăng ký» + câu theo lần chiếu (chưa chiếu: «Chỉ mục chưa được chiếu lần nào; tài liệu đã đăng ký sẽ hiện sau lần chiếu đầu tiên.») + «Đăng ký tài liệu» nếu có quyền, nếu không «Cần quyền thành viên dự án để đăng ký».
+- Sau đăng ký thành công: `role="status"` «Đã đăng ký "<tiêu đề>". Tài liệu sẽ hiện trong danh sách sau lần chiếu chỉ mục kế tiếp (lần chiếu gần nhất: <thời điểm> | chưa chiếu lần nào).»
+- Mở nguồn hai bước: bấm «Mở nguồn» → gọi API → hiện «Máy chủ: <host>» và liên kết «Mở liên kết tại <host>» (`target="_blank" rel="noreferrer noopener"`), chỉ khi URI là https; khác https hoặc lỗi → hiện câu báo lỗi, không mở gì. Không dùng `window.open`. Bấm lại hoặc mở thẻ khác thì liên kết cũ bị xoá.
+- Quyền đăng ký: theo vai trò trong dự án (`projectRole`), viewer/bot không thấy nút; không có projectId thì không có nút.
 Nguồn: `fresh` Nguồn vừa kiểm · `stale` Nguồn chưa kiểm mới · `unavailable` Nguồn không mở được · `denied` Không đủ quyền xem nguồn · `not-configured` Chưa cấu hình kiểm nguồn · `partially-received` Mới nhận một phần. `denied` không hiện thời điểm kiểm; `denied`/`unavailable` không có nút «Mở nguồn».
 Nhãn:
 - «Bản chuẩn: Chưa có» — nhãn trung tính xám, không xanh; lát này luôn rỗng. Không có chữ «đã duyệt».
