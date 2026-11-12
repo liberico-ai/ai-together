@@ -228,7 +228,7 @@ Lời Chairman 12/11/2026 (nguyên văn):
 
 ---
 
-**Bổ sung 12/11/2026 khi lập kế hoạch lát 1** (`docs/plans/slice-1-doc-ownership.md`, base `208d37b`). Ba mục dưới đây **chưa có quyết định**; câu «cả 21 mục đã có quyết định» ở đầu tệp chỉ nói về OQ-01…OQ-21. Mỗi mục chỉ dừng đúng phần nêu ở dòng «Lát»; phần còn lại của lát 1 vẫn làm.
+**Bổ sung 12/11/2026 khi lập kế hoạch lát 1** (`docs/plans/slice-1-doc-ownership.md`, base `208d37b`). Ba mục dưới đây ghi lúc lập kế hoạch khi **chưa có quyết định**; câu «cả 21 mục đã có quyết định» ở đầu tệp chỉ nói về OQ-01…OQ-21. **Cả ba đã được Chairman chốt ngày 12/11/2026** (dòng «Quyết định» dưới từng mục).
 
 ## OQ-22 — Ai chạy projector chỉ mục tài liệu Z2 lúc vận hành, bằng role nào
 
@@ -237,7 +237,8 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phía B:** `docs/SLICE-BRIEFS.md:34` lấy mẫu `src/server/projector.ts:3` — projector chạy **trong** transaction của yêu cầu web bằng role `libetech_runtime` (`migrations/001_foundation.sql:89` cấp INSERT/UPDATE cho runtime). Login web `libetech_web` chỉ là thành viên của `libetech_runtime` (`migrations/003_runtime_roles.sql:11`), không nhận được `libetech_projector`. `docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:193` đề xuất «bản chiếu cập nhật trong 5 phút» nhưng chưa ai chốt. Hệ quả: theo phía A, người dùng đăng ký tài liệu qua web xong thì chỉ mục tìm kiếm chưa có dòng mới cho tới khi có ai đó chạy projector.
 - **Phương án:** (a) tiến trình web gọi projector ngay sau khi commit, bằng một role projector cấp cho `libetech_web` — phải thêm quyền cho login runtime; kèm câu hỏi dùng lại `libetech_projector` (đang có quyền ghi `analytics.evidence_runs`) hay tạo role hẹp riêng cho chỉ mục tài liệu; (b) chỉ login vận hành chạy projector theo lịch hoặc bằng tay (`scripts/`), giao diện hiện thời điểm chiếu — cần thêm job trên máy chủ, là điểm dừng triển khai; (c) cho `libetech_runtime` ghi chỉ mục trong cùng transaction như `projectWorkSummary` — trái câu «policy ghi riêng cho projector».
 - **Ai quyết:** BoM Tech (Quân) cho cơ chế; Chairman nếu phương án đổi quyền của login runtime hoặc thêm job trên d1-ai1.
-- **Trạng thái:** chưa quyết. Kế hoạch lát 1 viết bảng và policy theo con trỏ phía A (role `libetech_projector`), hàm projector gọi được bằng login vận hành, test gọi projector tường minh; **không** nối vào đường chạy web, **không** cấp role nào cho `libetech_web`.
+- **Quyết định 12/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối):** «(b) Login vận hành (Recommended)». Projector chỉ mục tài liệu Z2 chỉ chạy bằng login vận hành, theo lịch hoặc bằng tay qua `scripts/`; giao diện hiện thời điểm chiếu; không cấp role nào cho `libetech_web`. Job trên d1-ai1 thuộc điểm dừng triển khai, lát 1 không dựng. Trường «Ai quyết» ghi BoM Tech, lần này Chairman tự chốt.
+- **Trạng thái lúc lập kế hoạch (trước quyết định):** chưa quyết. Kế hoạch lát 1 viết bảng và policy theo con trỏ phía A (role `libetech_projector`), hàm projector gọi được bằng login vận hành, test gọi projector tường minh; **không** nối vào đường chạy web, **không** cấp role nào cho `libetech_web`.
 
 ## OQ-23 — Bằng chứng nào cho nhãn «đã kiểm thực tế» của cầu nối bot
 
@@ -246,7 +247,8 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phía B:** nguồn duy nhất tiến trình web đang có là biến `LIBETECH_BRIDGE_CONFIG` (`src/app/api/health/route.ts:10`, giá trị `configured-not-runtime-verified`). Dấu vết lần gọi cầu nối đã ký nằm ở `identity.bridge_nonces` (`src/server/bridge.ts:25`), thuộc schema danh tính mà login web không đọc được và dòng có hạn 2 phút. Quyết định OQ-19 coi health tự khai là «thông tin báo cáo», không phải sự thật đã quan sát. Không tài liệu nào nói bằng chứng nào, mới tới mức nào, do ai ghi thì được gọi «đã kiểm thực tế».
 - **Phương án:** (a) lát 1 chỉ dựng mô hình ba trạng thái; nhãn «đã kiểm thực tế» chưa bao giờ bật cho tới khi có nguồn quan sát độc lập (gộp vào SPEC-010 của OQ-19); (b) bật khi AI OS đã nhận một lần gọi cầu nối có chữ ký hợp lệ trong N giờ gần nhất — cần ghi mốc thời gian vào một bảng mới hoặc đọc qua dịch vụ danh tính, và cần chốt N; (c) bật theo một biên nhận kiểm do người vận hành ghi có thời điểm và người ghi.
 - **Ai quyết:** BoM Tech (Quân); Chairman nếu chọn (c) vì là lời khẳng định vận hành.
-- **Trạng thái:** chưa quyết. Kế hoạch lát 1 để hàm cung cấp mốc kiểm trả «chưa có» (nhãn không bật) và có test khẳng định biến cấu hình không bao giờ sinh nhãn này.
+- **Quyết định 12/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối):** «(a) Chưa bật (Recommended)». Lát 1 chỉ dựng mô hình ba trạng thái; nhãn «đã kiểm thực tế» không bao giờ bật cho tới khi có nguồn quan sát độc lập (gộp vào SPEC-010). Trường «Ai quyết» ghi BoM Tech, lần này Chairman tự chốt.
+- **Trạng thái lúc lập kế hoạch (trước quyết định):** chưa quyết. Kế hoạch lát 1 để hàm cung cấp mốc kiểm trả «chưa có» (nhãn không bật) và có test khẳng định biến cấu hình không bao giờ sinh nhãn này.
 
 ## OQ-24 — Cùng mã thao tác dùng lại ở dự án khác cho thao tác tài liệu
 
@@ -255,4 +257,5 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phía B:** brief buộc thao tác tài liệu đi qua `deduplicate` (`src/server/service.ts:57-70`), mà bảng `commands` khoá theo `(tenant_id,project_id,actor_id,command_key)` (`migrations/001_foundation.sql:57`). Cùng người, cùng khoá, tài liệu ở **dự án khác** là một dòng `commands` khác: thao tác thứ hai được áp dụng, không báo xung đột. `WorkService` chạy như vậy từ bản 001; `tests/foundation.test.ts:133-140` chỉ kiểm cùng một việc.
 - **Phương án:** (a) giữ phạm vi khoá theo dự án như `commands` hiện có, ghi rõ trong đặc tả API và có test khẳng định; (b) từ chối dùng lại khoá khác dự án cho thao tác tài liệu — cần ràng buộc duy nhất mới không chứa `project_id` (bảng riêng cho lệnh tài liệu, hoặc sửa bảng `commands` cũ, đụng `WorkService`); (c) như (b) cho mọi thao tác, kể cả việc.
 - **Ai quyết:** BoM Tech (Quân).
-- **Trạng thái:** chưa quyết. Kế hoạch lát 1 dùng `deduplicate` nguyên trạng, kiểm đủ các ca cùng dự án, và **không** viết test khẳng định hành vi chéo dự án theo hướng nào.
+- **Quyết định 12/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối):** «(b) Từ chối, chỉ tài liệu (Recommended)». Thêm ràng buộc UNIQUE không chứa `project_id` cho lệnh tài liệu, đặt ở bảng riêng, không đụng `WorkService` hay bảng `commands` cũ. Theo cách sửa R-01: nếu RLS giấu dòng cũ thì xung đột phải trả mã 409, không phải lỗi chung. Viết test cho ca dùng lại khoá ở dự án khác. Trường «Ai quyết» ghi BoM Tech, lần này Chairman tự chốt.
+- **Trạng thái lúc lập kế hoạch (trước quyết định):** chưa quyết. Kế hoạch lát 1 dùng `deduplicate` nguyên trạng, kiểm đủ các ca cùng dự án, và **không** viết test khẳng định hành vi chéo dự án theo hướng nào.

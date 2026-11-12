@@ -622,3 +622,29 @@ export function Documents(props:{projects:{id:string;name:string}[];projectId:st
 10. Không có test tự động theo viewport; 360px/≥1200px kiểm bằng ảnh chụp tay và một ca đọc CSS.
 11. Dùng lại role `libetech_projector` (đang có quyền ghi `analytics.evidence_runs`) theo con trỏ brief; OQ-22 có thể đổi sang role hẹp riêng.
 12. Bot không được đọc sổ tài liệu ở lát 1 (không có thao tác cầu nối nào được giao); DOC-01 kiểm qua thao tác `reconciliation` sẵn có.
+
+---
+
+## Bổ sung sau quyết định của Chairman ngày 12/11/2026 (phiên điều phối ghi)
+
+- **OQ-22** «(b) Login vận hành (Recommended)» — trùng phần đã làm ở Task 11: projector chỉ chạy bằng login vận hành qua `scripts/project-document-index.ts`; giao diện hiện thời điểm chiếu; không cấp role cho `libetech_web`; job trên d1-ai1 là điểm dừng triển khai. Hết «dừng».
+- **OQ-23** «(a) Chưa bật (Recommended)» — trùng phần đã làm ở Task 5: `bridgeVerifiedAt()` luôn `null`. Hết «dừng».
+- **OQ-24** «(b) Từ chối, chỉ tài liệu (Recommended)» — việc mới, Task 17.
+
+### Task 17: OQ-24 (b) — khoá lệnh tài liệu duy nhất theo người, không theo dự án
+
+**Mục tiêu:** cùng một mã thao tác của cùng một người không được dùng cho thao tác tài liệu ở dự án khác; xung đột trả 409, kể cả khi RLS giấu dòng cũ. Không đụng `WorkService`, bảng `commands`, hay sổ dự án (`ProjectRegistryService` vẫn dùng `deduplicate`).
+
+**Tệp:** sửa `migrations/014_document_registry.sql`, `migrations/rollback/014_document_registry.sql`, `src/server/documents.ts`, `tests/documents.test.ts`, `tests/documents-concurrency.test.ts`.
+
+**Bảng `document_commands`** (trong 014, chưa áp lên DB thật nào): `id uuid PK DEFAULT gen_random_uuid()`, `tenant_id uuid NOT NULL`, `project_id uuid NOT NULL`, `actor_id uuid NOT NULL`, `command_key text NOT NULL`, `request_hash text NOT NULL`, `response jsonb`, `created_at`/`updated_at timestamptz NOT NULL DEFAULT now()`; FK `(project_id,tenant_id)` → `projects(id,tenant_id)`; **`UNIQUE(tenant_id,actor_id,command_key)`** (không có `project_id`); index `(tenant_id,project_id,created_at DESC)`; RLS `ENABLE` + `FORCE`, `scope_select`, `scope_insert`, `scope_update` (USING + WITH CHECK theo mẫu 013); quyền `libetech_runtime`: `SELECT`, `INSERT`, `UPDATE(response,updated_at)`. Tệp lùi 014 xoá cả bảng này.
+
+**Mã:** hàm riêng trong `documents.ts` (ví dụ `claimDocumentCommand(tx,p,projectId,key,input,action)`): kiểm khoá như `deduplicate` (`IDEMPOTENCY_REQUIRED` 400); `INSERT … ON CONFLICT (tenant_id,actor_id,command_key) DO NOTHING RETURNING id`; không có dòng → `SELECT request_hash,response FROM document_commands WHERE tenant_id=$1 AND actor_id=$2 AND command_key=$3` (theo RLS): thấy và cùng hash → trả `response` (replay); khác hash **hoặc không thấy** (dòng cũ ở dự án RLS che) → `AppError('IDEMPOTENCY_CONFLICT','Mã thao tác đã được dùng với nội dung khác.',409)`; lỗi `23505` nếu có cũng đổi thành mã 409 này. `register` và `proposeRevision` chuyển sang hàm này; dấu vân tay giữ nguyên.
+
+**Ca kiểm viết trước** (PGlite và native):
+- `same key reused to register in another project is IDEMPOTENCY_CONFLICT and creates nothing there` — `pm` đăng ký ở `ids.sales` bằng `k`, rồi đăng ký tài liệu khác ở `ids.transport` bằng `k` → 409; `ids.transport` không có record mới.
+- `same key reused for a revision in another project is IDEMPOTENCY_CONFLICT` — `k` dùng cho đăng ký ở `ids.sales`, rồi `proposeRevision` một tài liệu ở `ids.transport` bằng `k` → 409, không revision mới, version không đổi.
+- `document operations no longer write to the shared commands table` — `count(*) commands` trước/sau đăng ký + đề xuất bằng nhau.
+- `document_commands returns nothing without RLS context and rejects another project or tenant` — như các bảng khác.
+- Native (`describe.skipIf(!native)`): `one key raced across two projects applies once and conflicts once`.
+- Các ca cũ (cùng khoá cùng yêu cầu → replay; cùng khoá khác tài liệu cùng dự án → `IDEMPOTENCY_CONFLICT`) giữ xanh.
