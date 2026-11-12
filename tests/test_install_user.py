@@ -54,7 +54,9 @@ class PilotChats(unittest.TestCase):
         bad=['not json','[]',{'deniedChatIds':[]},{'internalChatId':'-10012345'},
              {'internalChatId':'10012345','deniedChatIds':[]},{'internalChatId':'-12','deniedChatIds':[]},
              {'internalChatId':-10012345,'deniedChatIds':[]},{'internalChatId':'-10012345','deniedChatIds':'-10067890'},
-             {'internalChatId':'-10012345','deniedChatIds':['-10067890',7]},{'internalChatId':'-10012345','deniedChatIds':['-10012345']}]
+             {'internalChatId':'-10012345','deniedChatIds':['-10067890',7]},{'internalChatId':'-10012345','deniedChatIds':['-10012345']},
+             # The bridge only accepts ^-[1-9][0-9]*$ (src/app/api/bridge/route.ts); a leading zero must stop the install.
+             {'internalChatId':'-00000','deniedChatIds':[]},{'internalChatId':'-10012345','deniedChatIds':['-012345']}]
         with tempfile.TemporaryDirectory() as d:
             for data in bad:
                 with self.subTest(data=data):
@@ -70,6 +72,16 @@ class PilotChats(unittest.TestCase):
             (Path(d)/'config.yaml').write_text('platforms:\n  telegram:\n    home_channel:\n      chat_id: -10012345\n')
             installer.check_recipient(('-10012345',[]),Path(d))
             with self.assertRaisesRegex(RuntimeError,'recipient drift'):installer.check_recipient(('-10099999',[]),Path(d))
+    @unittest.skipUnless(importlib.util.find_spec('yaml'),'PyYAML is required on d1-ai1 and for this check')
+    def test_unreadable_home_channel_never_echoes_the_chat_id(self):
+        broken=['platforms:\n  telegram:\n    home_channel:\n      chat_id: -10012345 : bad\n','platforms: {}\n','[]\n']
+        with tempfile.TemporaryDirectory() as d:
+            for text in broken:
+                with self.subTest(text=text):
+                    (Path(d)/'config.yaml').write_text(text)
+                    with self.assertRaisesRegex(RuntimeError,'home_channel') as caught:installer.check_recipient(('-10012345',[]),Path(d))
+                    self.assertNotIn('10012345',str(caught.exception))
+                    self.assertIsNone(caught.exception.__cause__);self.assertTrue(caught.exception.__suppress_context__)
     def test_resume_path_checks_the_recipient_before_writing(self):
         source=(Path(__file__).resolve().parents[1]/'deploy/install-user.py').read_text()
         resume=source[source.index('def resume_empty_database'):]

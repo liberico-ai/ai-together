@@ -13,7 +13,8 @@ TENANT=SCOPE['tenantId']
 PROJECT=SCOPE['projectId']
 # Telegram group IDs are not kept in the repository (audit 2026-11-12, option c).
 PILOT_CHATS_SETTING='LIBETECH_PILOT_CHATS'
-GROUP_CHAT_ID=re.compile(r'-[0-9]{5,20}')
+# Same shape the bridge accepts for chatScopes keys (src/app/api/bridge/route.ts): no leading zero.
+GROUP_CHAT_ID=re.compile(r'-[1-9][0-9]{4,19}')
 BASE=Path('/home/iptech/.local/share/libetech-ai-os')
 PROFILE=Path('/home/iptech/.hermes/profiles/libetech')
 NODE_SOURCE=Path('/home/iptech/.hermes/tools/node-26.12.1-linux-x64')
@@ -41,8 +42,13 @@ def chat_scopes(chats):
 def check_recipient(chats,profile:Path=PROFILE):
     """The approved group must equal the live Hermes home_channel before any grant is written."""
     import yaml
-    live=yaml.safe_load((profile/'config.yaml').read_text())
-    if str(live['platforms']['telegram']['home_channel']['chat_id'])!=chats[0]:raise RuntimeError('LibeAI recipient drift; reconcile before installing')
+    try:
+        live=yaml.safe_load((profile/'config.yaml').read_text())
+        channel=str(live['platforms']['telegram']['home_channel']['chat_id'])
+    except (OSError,yaml.YAMLError,KeyError,TypeError):
+        # Parser errors quote the offending line, which holds the chat ID; drop the cause on purpose.
+        raise RuntimeError('Cannot read home_channel from the Hermes profile config; inspect it on the server') from None
+    if channel!=chats[0]:raise RuntimeError('LibeAI recipient drift; reconcile before installing')
 
 def exclusive(path:Path,value:str):
     fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
