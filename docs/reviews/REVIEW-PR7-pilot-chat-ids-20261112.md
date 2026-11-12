@@ -47,3 +47,14 @@ VERDICT: CHANGES_REQUIRED
 - P1 (dạng mã): bộ nạp đổi sang `-[1-9][0-9]{4,19}`, cùng dạng không có số 0 đứng đầu mà route cầu nối chấp nhận. Thêm hai ca `-00000` (nhóm được duyệt) và `-012345` (nhóm bị từ chối); cả hai đỏ trước khi sửa.
 - P1 (lộ mã qua lỗi): `check_recipient` bắt lỗi đọc tệp, lỗi YAML, thiếu khoá, sai kiểu. Khi gặp, nó ném một thông báo cố định và bỏ `__cause__` có chủ đích, nên traceback của preflight root cũng không còn dòng YAML. Thêm ca với ba cấu hình hỏng: thông báo không chứa mã, `__cause__` rỗng; đỏ trước khi sửa.
 - Kiểm tại `df8ad26`: `python3 -m pytest tests/` 28 đạt (15 subtest); `npm run typecheck` exit 0. Mã TypeScript không đổi so với `f3bb585` (vitest 227 đạt, 9 bỏ qua tại đó).
+
+## Vòng 3 · head `233186d7e6d9032f51891bd3c25d936f961445c7` (sửa vòng 2, vòng sửa cuối được phép)
+
+VERDICT: PASS
+
+Không có finding. Các finding vòng 1–2 đã được xử lý trong diff; số liệu và dòng tham chiếu chính của audit khớp revision gốc. Đánh giá này chỉ dựa trên việc đọc mã, không xác nhận trạng thái triển khai.
+
+
+## Kết luận
+
+Codex PASS ở vòng 3. Trước đó có 6 finding qua hai vòng (1 P0, 3 P1, 2 P2), tất cả đã được xử lý trong PR này. PASS là kết quả review tĩnh: không chạy bộ cài trên d1-ai1 và không xác nhận trạng thái triển khai. Merge vẫn chờ Chairman duyệt.
