@@ -29,3 +29,21 @@ VERDICT: CHANGES_REQUIRED
 - P2 (test): thêm ca cho `chat_scopes` (chỉ nhóm được duyệt nhận dự án), cho `check_recipient` (khớp và lệch), và cho thứ tự bước ở resume, `install-d1.sh`, `provision-server.py`. Ba ca sau đỏ trên mã trước khi sửa, xanh sau khi sửa. Ca `chat_scopes` là ca phủ thêm, xanh cả trước khi sửa.
 - P2 (audit): câu «chỉ `b91f219`» ghi rõ «tính tới `decc492`». Mục «Quyết định» ghi rằng PR sửa dòng `DEPLOY-002.md:36`, dòng vẫn giữ G1, G3 theo (a).
 - Kiểm tại `f3bb585`: `npm run typecheck` exit 0; `npm run test` 227 đạt, 9 bỏ qua; `python3 -m pytest tests/` 27 đạt; `bash -n deploy/install-d1.sh` đạt. Ca `check_recipient` cần PyYAML; máy chạy kiểm có PyYAML nên ca đã chạy thật, không bị bỏ qua.
+
+## Vòng 2 · head `3025c88c00c5febaf14c121e409d85f915debe9d` (sửa vòng 1)
+
+VERDICT: CHANGES_REQUIRED
+
+- [P1] deploy/install-user.py:16 — Bộ nạp chấp nhận mã nhóm bị từ chối bắt đầu bằng `0`, dù bridge từ chối khóa đó.
+  Kịch bản: `deniedChatIds` chứa `-00000` → preflight qua, bộ cài ghi `bridge.json` và báo sẵn sàng, nhưng mọi yêu cầu bridge lỗi khi đọc cấu hình.
+  Căn cứ: Quyết định audit mục «Quyết định» yêu cầu tệp sai phải dừng cài; `src/app/api/bridge/route.ts:12` chỉ chấp nhận mã bắt đầu bằng `1–9`.
+
+- [P1] deploy/install-user.py:44 — Lỗi phân tích `config.yaml` có thể đưa nguyên mã nhóm vào thông báo lỗi.
+  Kịch bản: Dòng `home_channel.chat_id` chứa mã thật nhưng YAML sai cú pháp → PyYAML đưa cả dòng vào exception; bộ cài user in `str(exc)` tại dòng 212, còn preflight root in traceback.
+  Căn cứ: Yêu cầu kiểm PR #7 mục (a): bộ cài không in mã nhóm ra log hoặc lỗi.
+
+
+**Xử lý (commit `df8ad26`):**
+- P1 (dạng mã): bộ nạp đổi sang `-[1-9][0-9]{4,19}`, cùng dạng không có số 0 đứng đầu mà route cầu nối chấp nhận. Thêm hai ca `-00000` (nhóm được duyệt) và `-012345` (nhóm bị từ chối); cả hai đỏ trước khi sửa.
+- P1 (lộ mã qua lỗi): `check_recipient` bắt lỗi đọc tệp, lỗi YAML, thiếu khoá, sai kiểu. Khi gặp, nó ném một thông báo cố định và bỏ `__cause__` có chủ đích, nên traceback của preflight root cũng không còn dòng YAML. Thêm ca với ba cấu hình hỏng: thông báo không chứa mã, `__cause__` rỗng; đỏ trước khi sửa.
+- Kiểm tại `df8ad26`: `python3 -m pytest tests/` 28 đạt (15 subtest); `npm run typecheck` exit 0. Mã TypeScript không đổi so với `f3bb585` (vitest 227 đạt, 9 bỏ qua tại đó).
