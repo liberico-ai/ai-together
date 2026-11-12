@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { scoped,type Database } from './db';
-import { invariant } from './errors';
+import { AppError,invariant } from './errors';
 import { projectRole,type Principal } from './types';
 
 const input=z.object({projectId:z.uuid(),requestKey:z.uuid(),kind:z.enum(['bug','idea']),
@@ -43,11 +43,12 @@ export class FeedbackService {
   invariant(p.projectIds.includes(x.projectId)&&projectRole(p,x.projectId)==='manager',
     'FEEDBACK_MANAGER_REQUIRED','Cần quyền điều phối trong dự án.',403);
   return scoped(this.db,{...p,projectIds:[x.projectId]},async tx=>{
-   const prior=(await tx.query<{id:string;prior_version:number;next_state:string;reason:string}>(`
-    SELECT id,prior_version,next_state,reason FROM feedback_actions
+   const prior=(await tx.query<{id:string;project_id:string;report_id:string;prior_version:number;next_state:string;reason:string}>(`
+    SELECT id,project_id,report_id,prior_version,next_state,reason FROM feedback_actions
     WHERE tenant_id=$1 AND actor_id=$2 AND request_key=$3`,[p.tenantId,p.id,x.requestKey])).rows[0];
    if(prior) {
-    invariant(prior.prior_version===x.expectedVersion&&prior.next_state===x.state&&prior.reason===x.reason,
+    invariant(prior.project_id===x.projectId&&prior.report_id===x.reportId&&
+     prior.prior_version===x.expectedVersion&&prior.next_state===x.state&&prior.reason===x.reason,
       'FEEDBACK_KEY_CONFLICT','Yêu cầu đã dùng cho nội dung khác.',409);
     return {id:prior.id,replayed:true};
    }
@@ -64,7 +65,11 @@ export class FeedbackService {
    const action=(await tx.query<{id:string}>(`INSERT INTO feedback_actions
     (tenant_id,project_id,report_id,actor_id,request_key,prior_version,next_state,reason)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-    [p.tenantId,x.projectId,x.reportId,p.id,x.requestKey,x.expectedVersion,x.state,x.reason])).rows[0];
+    [p.tenantId,x.projectId,x.reportId,p.id,x.requestKey,x.expectedVersion,x.state,x.reason]).catch((error:unknown)=>{
+     // RLS hides this actor's earlier action in another project; UNIQUE(tenant_id,actor_id,request_key) still catches the reuse.
+     if((error as {code?:string})?.code==='23505') throw new AppError('FEEDBACK_KEY_CONFLICT','Yêu cầu đã dùng cho nội dung khác.',409);
+     throw error;
+    })).rows[0];
    return {id:action.id,replayed:false};
   });
  }
