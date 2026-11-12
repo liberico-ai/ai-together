@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS project_profiles (
   tenant_id uuid NOT NULL, project_id uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
   objective text NOT NULL DEFAULT '', owner_bu text NOT NULL DEFAULT '', pm_label text NOT NULL DEFAULT '',
-  vault_pointer text, repo_url text, status text NOT NULL DEFAULT 'proposed',
+  vault_pointer text, repo_url text, status text NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','active','paused','closed')),
   version integer NOT NULL DEFAULT 1 CHECK(version > 0), updated_by uuid NOT NULL,
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
   UNIQUE(tenant_id,project_id)
@@ -55,7 +55,8 @@ CREATE POLICY scope_select ON project_profiles FOR SELECT
 DROP POLICY IF EXISTS scope_insert ON project_profiles;
 CREATE POLICY scope_insert ON project_profiles FOR INSERT
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
-    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]));
+    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+    AND status = 'proposed' AND version = 1);
 ALTER TABLE project_channels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_channels FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS scope_select ON project_channels;

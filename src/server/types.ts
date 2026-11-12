@@ -19,3 +19,6 @@ export type Summary = { total: number; doing: number; review: number; done: numb
 export type Overview = { summary: Summary; asOf: string | null; source: 'Z2'; synthetic: boolean };
 export type Reconciliation = {code:string;source_sha:string;source_id:string;source_type:string;ingested_at:string;quality_score:string;result:Record<string,unknown>};
 export type WorkspaceData = { people:Principal[]; reconciliations:Reconciliation[]; projects: Project[]; services: Service[]; work: Work[]; overview: Overview };
+export type ProjectProfile = { project_id: string; objective: string; owner_bu: string; pm_label: string; vault_pointer: string | null; repo_url: string | null; status: 'proposed' | 'active' | 'paused' | 'closed'; version: number; updated_at: string };
+export type ProjectChannel = { id: string; project_id: string; chat_id: string; topic_id: string; mode: 'command_reply' | 'active'; state: 'proposed'; policy_version: string; enabled_from: null; approver_id: null; created_at: string };
+export type ProjectRegistry = { project: Project; profile: ProjectProfile | null; channels: ProjectChannel[]; domain: { code: 'LIBERICO_BU' | 'XECA' | 'IBS_HI' | null; label: string; countsTowardTotals: boolean } };

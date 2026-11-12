@@ -1,10 +1,15 @@
 import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {openHarness,type Harness} from './slice1-db';
-import {bot as _bot,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
+import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
 import {scoped} from '../src/server/db';
 import {ids} from '../src/server/identities';
+import {createHmac,randomUUID} from 'node:crypto';
+import {ZodError} from 'zod';
+import {IdentityService,secret} from '../src/server/identity';
+import {handleBridge,signingText} from '../src/server/bridge';
+import {demoSha} from '../src/server/seed';
+import {ProjectRegistryService} from '../src/server/projects-registry';
 
-void _bot;
 let h:Harness;
 beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);});
 afterEach(async()=>{await h.reset();await h.close();});
@@ -56,4 +61,127 @@ test('history tables reject update and delete',async()=>{
 
 test('migration 013 ships no domain mapping row',async()=>{
   expect((await h.operator.query<{n:number}>('SELECT count(*)::int n FROM project_domain_mappings')).rows[0].n).toBe(0);
+});
+
+
+const profile=(over:Record<string,unknown>={})=>({expectedVersion:0,objective:'Mục tiêu mẫu',ownerBu:'BU mẫu',pmLabel:'PM mẫu',vaultPointer:null,repoUrl:null,status:'proposed',...over});
+const key=()=>randomUUID().replace(/-/g,'');
+const eventCount=async(type='project_profile')=>(await h.operator.query<{n:number}>('SELECT count(*)::int n FROM registry_events WHERE entity_type=$1',[type])).rows[0].n;
+
+test('saveProfile creates then updates with expectedVersion and writes one event each',async()=>{
+  const s=new ProjectRegistryService(h.db);
+  const a=await s.saveProfile(pm,ids.sales,profile(),key());
+  expect(a.version).toBe(1);
+  const b=await s.saveProfile(pm,ids.sales,profile({expectedVersion:1,objective:'Mục tiêu mới',status:'active'}),key());
+  expect(b).toMatchObject({version:2,objective:'Mục tiêu mới',status:'active'});
+  expect(await eventCount()).toBe(2);
+});
+
+test('stale expectedVersion is REVISION_CONFLICT with no event and no version change',async()=>{
+  const s=new ProjectRegistryService(h.db);
+  await s.saveProfile(pm,ids.sales,profile(),key());
+  await s.saveProfile(pm,ids.sales,profile({expectedVersion:1}),key());
+  await expect(s.saveProfile(pm,ids.sales,profile({expectedVersion:1,objective:'Cũ'}),key())).rejects.toMatchObject({code:'REVISION_CONFLICT',status:409});
+  await expect(s.saveProfile(pm,ids.sales,profile({expectedVersion:0}),key())).rejects.toMatchObject({code:'REVISION_CONFLICT',status:409});
+  expect(await eventCount()).toBe(2);
+  expect((await h.operator.query<{version:number}>('SELECT version FROM project_profiles')).rows[0].version).toBe(2);
+});
+
+test('same key and same request replays; same key with different content is IDEMPOTENCY_CONFLICT',async()=>{
+  const s=new ProjectRegistryService(h.db),k=key();
+  const first=await s.saveProfile(pm,ids.sales,profile(),k);
+  expect(await s.saveProfile(pm,ids.sales,profile(),k)).toEqual(first);
+  expect(await eventCount()).toBe(1);
+  await expect(s.saveProfile(pm,ids.sales,profile({objective:'Khác'}),k)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+  await expect(s.saveProfile(pm,ids.sales,profile(),'x')).rejects.toMatchObject({code:'IDEMPOTENCY_REQUIRED'});
+});
+
+test('non-manager, viewer, bot and outsider cannot write',async()=>{
+  const s=new ProjectRegistryService(h.db);
+  const chan={chatId:'-1009990002',topicId:'',mode:'command_reply',policyVersion:'p1.0'};
+  await expect(s.saveProfile(member,ids.sales,profile(),key())).rejects.toMatchObject({code:'MANAGER_REQUIRED',status:403});
+  await expect(s.proposeChannel(member,ids.sales,chan,key())).rejects.toMatchObject({code:'MANAGER_REQUIRED'});
+  await expect(s.saveProfile(viewer,ids.transport,profile(),key())).rejects.toMatchObject({code:'MANAGER_REQUIRED'});
+  await expect(s.saveProfile(bot,ids.transport,profile(),key())).rejects.toMatchObject({code:'READ_ONLY',status:403});
+  await expect(s.proposeChannel(bot,ids.transport,chan,key())).rejects.toMatchObject({code:'READ_ONLY'});
+  await expect(s.registry(bot,ids.transport)).rejects.toMatchObject({code:'READ_ONLY'});
+  const denied=await s.saveProfile(outsider,ids.sales,profile(),key()).catch(e=>e);
+  expect(denied).toMatchObject({code:'SCOPE_DENIED',status:404});
+  expect(denied.message).not.toContain('Cổng bán hàng mẫu');
+  await expect(s.registry(outsider,ids.sales)).rejects.toMatchObject({code:'SCOPE_DENIED',status:404});
+  expect(await eventCount()).toBe(0);
+});
+
+test('identity fields in the body are rejected',async()=>{
+  const s=new ProjectRegistryService(h.db);
+  await expect(s.saveProfile(pm,ids.sales,profile({tenantId:ids.otherTenant}),key())).rejects.toBeInstanceOf(ZodError);
+  await expect(s.saveProfile(pm,ids.sales,profile({actorId:viewer.id}),key())).rejects.toBeInstanceOf(ZodError);
+  await expect(s.proposeChannel(pm,ids.sales,{chatId:'-100',topicId:'',mode:'active',policyVersion:'p',actorId:viewer.id},key())).rejects.toBeInstanceOf(ZodError);
+  await expect(s.saveProfile(pm,ids.sales,profile({repoUrl:'https://user:pw@example.com/x'}),key())).rejects.toBeInstanceOf(ZodError);
+});
+
+const telegram='555000111',bridgeKey=secret(),chat='-1009990001';
+function signed(payload:unknown){
+  const raw=JSON.stringify(payload),timestamp=String(Date.now()),nonce=secret();
+  return new Request('http://127.0.0.1/api/bridge',{method:'POST',headers:{'x-libetech-timestamp':timestamp,'x-libetech-nonce':nonce,'x-libetech-signature':createHmac('sha256',bridgeKey).update(signingText(timestamp,nonce,raw)).digest('hex')},body:raw});
+}
+const allRows=async()=>{
+  const out:Record<string,number>={};
+  for(const t of tables) out[t]=(await h.operator.query<{n:number}>(`SELECT count(*)::int n FROM ${t}`)).rows[0].n;
+  return out;
+};
+
+test('a proposed channel grants nothing',async()=>{
+  const s=new ProjectRegistryService(h.db);
+  const c=await s.proposeChannel(pm,ids.sales,{chatId:chat,topicId:'',mode:'command_reply',policyVersion:'p1.0'},key());
+  expect(c).toMatchObject({state:'proposed',approver_id:null,enabled_from:null,chat_id:chat});
+  await expect(s.proposeChannel(pm,ids.sales,{chatId:chat,topicId:'',mode:'active',policyVersion:'p1.0'},key())).rejects.toMatchObject({code:'CHANNEL_ALREADY_PROPOSED',status:409});
+  await h.operator.query('INSERT INTO identity.memberships(tenant_id,user_id,project_id) VALUES($1,$2,$3)',[ids.tenant,pm.id,ids.sales]);
+  await h.operator.query('INSERT INTO identity.telegram_links(tenant_id,user_id,telegram_id) VALUES($1,$2,$3)',[ids.tenant,pm.id,telegram]);
+  await h.operator.query(`INSERT INTO analytics.reconciliations(tenant_id,project_id,code,source_id,source_type,ingested_at,quality_score,source_sha,snapshot_hash,result) VALUES($1,$2,'TEST-014','https://github.com/example/test','github',now(),1,$3,$4,$5)`,[ids.tenant,ids.sales,demoSha,'a'.repeat(64),{checks:0,accepted:false}]);
+  const before=await allRows();
+  const req=signed({operation:'reconciliation',context:{telegramId:telegram,chatId:chat,chatType:'supergroup',profile:'libetech',messageId:'1'},code:'TEST-014',sourceSha:demoSha});
+  await expect(handleBridge(req,h.db,new IdentityService(h.operator,ids.tenant),bridgeKey,{})).rejects.toMatchObject({code:'SCOPE_DENIED'});
+  // DOC-01 second half: an unmapped chat creates no record in any registry table.
+  expect(await allRows()).toEqual(before);
+});
+
+test('unmapped project shows Chưa xác nhận and counts toward no total',async()=>{
+  const s=new ProjectRegistryService(h.db);
+  const unmapped={code:null,label:'Chưa xác nhận',countsTowardTotals:false};
+  expect((await s.registry(pm,ids.sales)).domain).toEqual(unmapped);
+  await h.operator.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,'XECA',$3,'fixture tổng hợp',1)",[ids.tenant,ids.transport,pm.id]);
+  expect((await s.registry(pm,ids.transport)).domain).toEqual({code:'XECA',label:'Xeca',countsTowardTotals:true});
+  expect((await s.registry(pm,ids.sales)).domain).toEqual(unmapped);
+  expect((await s.registry(pm,ids.sales)).profile).toBeNull();
+});
+
+test('R5: runtime cannot insert a non-proposed or version-2 profile',async()=>{
+  const ins=(status:string,version:number)=>scoped(h.db,pm,tx=>tx.query(
+    'INSERT INTO project_profiles(tenant_id,project_id,status,version,updated_by) VALUES($1,$2,$3,$4,$5)',[ids.tenant,ids.sales,status,version,pm.id]));
+  await expect(ins('active',1)).rejects.toThrow();
+  await expect(ins('proposed',2)).rejects.toThrow();
+  await expect(ins('proposed',1)).resolves.toBeTruthy();
+});
+
+test('R5: creation as active is PROJECT_STATUS_CONFLICT',async()=>{
+  const s=new ProjectRegistryService(h.db);
+  await expect(s.saveProfile(pm,ids.sales,profile({status:'active'}),key())).rejects.toMatchObject({code:'PROJECT_STATUS_CONFLICT',status:409});
+  expect(await eventCount()).toBe(0);
+});
+
+test('R5: status lifecycle follows the state machine',async()=>{
+  const s=new ProjectRegistryService(h.db);
+  let v=1;
+  await s.saveProfile(pm,ids.sales,profile(),key());
+  for(const st of ['active','paused','active','closed']){
+    expect((await s.saveProfile(pm,ids.sales,profile({expectedVersion:v,status:st}),key())).status).toBe(st);v++;
+  }
+  expect(await eventCount()).toBe(5);
+  await expect(s.saveProfile(pm,ids.sales,profile({expectedVersion:v,status:'active'}),key())).rejects.toMatchObject({code:'PROJECT_STATUS_CONFLICT',status:409});
+  expect(await eventCount()).toBe(5);
+  expect((await h.operator.query<{version:number}>('SELECT version FROM project_profiles')).rows[0].version).toBe(v);
+  await s.saveProfile(pm,ids.transport,profile(),key());
+  await expect(s.saveProfile(pm,ids.transport,profile({expectedVersion:1,status:'paused'}),key())).rejects.toMatchObject({code:'PROJECT_STATUS_CONFLICT'});
+  expect(await eventCount()).toBe(6);
 });
