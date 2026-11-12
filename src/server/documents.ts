@@ -3,7 +3,7 @@ import { scoped, type Database, type Queryable } from './db';
 import { AppError, invariant } from './errors';
 import { deduplicate } from './service';
 import { projectRole } from './types';
-import type { DocumentDetail, DocumentRecord, DocumentRevision, Principal, RegistryEvent, SourceLink } from './types';
+import type { DocumentDetail, DocumentRecord, DocumentRevision, Principal, RegistryEvent, SourceLink, SourceState, SourceType } from './types';
 
 const DOC_TYPES = ['project_index', 'change_brief', 'requirements', 'design', 'plan', 'verification', 'guide', 'other'] as const;
 const NOT_FOUND = 'Không tìm thấy tài liệu trong phạm vi được cấp.';
@@ -125,5 +125,16 @@ export class DocumentService {
     invariant(p?.role !== 'bot', 'READ_ONLY', 'Vai này không được dùng sổ tài liệu.', 403);
     invariant(z.string().uuid().safeParse(documentId).success, 'SCOPE_DENIED', NOT_FOUND, 404);
     return scoped(this.db, p, tx => load(tx, documentId));
+  }
+  async openSource(p: Principal, documentId: string): Promise<{ uri: string; sourceType: SourceType; sourceState: SourceState; title: string }> {
+    invariant(p?.role !== 'bot', 'READ_ONLY', 'Vai này không được dùng sổ tài liệu.', 403);
+    invariant(z.string().uuid().safeParse(documentId).success, 'SCOPE_DENIED', NOT_FOUND, 404);
+    return scoped(this.db, p, async tx => {
+      const r = (await tx.query<{ canonical_uri: string; source_type: SourceType; source_state: SourceState; title: string }>(
+        'SELECT canonical_uri,source_type,source_state,title FROM document_records WHERE id=$1', [documentId])).rows[0];
+      if (!r) throw denied();
+      invariant(r.source_state !== 'unavailable' && r.source_state !== 'denied', 'SOURCE_UNAVAILABLE', 'Nguồn hiện không mở được. Lịch sử trong sổ vẫn còn.', 409);
+      return { uri: r.canonical_uri, sourceType: r.source_type, sourceState: r.source_state, title: r.title };
+    });
   }
 }
