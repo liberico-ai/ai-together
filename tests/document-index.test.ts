@@ -1,6 +1,8 @@
 import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {native,openHarness,type Harness} from './slice1-db';
-import {pm,seedSlice1} from './slice1-fixtures';
+import {bot,member,outsider,pm,seedSlice1,sameBuProject,viewer} from './slice1-fixtures';
+import {ZodError} from 'zod';
+import {exportDocumentsCsv,findDocuments} from '../src/server/document-index';
 import {scoped} from '../src/server/db';
 import {ids} from '../src/server/identities';
 import {DocumentService} from '../src/server/documents';
@@ -98,5 +100,119 @@ describe.skipIf(!native)('document index on the web login',()=>{
     console.log('OQ-22 evidence:',err?.code,err?.message);
     expect(err).not.toBeNull();
     expect(await count('analytics.document_index')).toBe(0);
+  });
+});
+
+describe('document index reads (DOC-10, R-02)',()=>{
+  const reg=async(refCode:string,title:string,over:Record<string,unknown>={})=>(await svc().register(pm,base({refCode,title,canonicalUri:'https://example.com/docs/'+(refCode||'x')+Math.random().toString(36).slice(2),...over}),'k-'+Math.random().toString(36).slice(2,12))).record;
+  const codeOf=async(p:Promise<unknown>)=>p.then(()=>null,(e:{code?:string;status?:number;message?:string})=>e);
+  const GENERIC='Không tìm thấy tài liệu trong phạm vi được cấp.';
+  async function seedRead(){
+    for(const t of [ids.tenant,ids.otherTenant]) await h.operator.transaction(tx=>syncTemplateIndex(tx,t));
+    const a=await reg('XECA006','Nâng package theo npm audit');
+    const b=await reg('DOC-P2','Báo cáo 100% hoàn_thành',{docType:'plan'});
+    const c=await reg('LBRC014','Bản ghi đối soát LBRC014');
+    const t=await reg('DOC-T1','Tài liệu vận tải mẫu',{projectId:ids.transport,docType:'plan'});
+    await projectDocumentIndex(h.operator,ids.tenant,ids.sales);
+    await projectDocumentIndex(h.operator,ids.tenant,ids.transport);
+    return {a,b,c,t};
+  }
+  test('list by project returns only that project\'s index rows with total and projectedAt',async()=>{
+    await seedRead();
+    const r=await findDocuments(h.db,pm,{projectId:ids.sales});
+    expect(r.source).toBe('Z2');
+    expect(r.rows.map(x=>x.ref_code).sort()).toEqual(['DOC-P2','LBRC014','XECA006']);
+    expect(r.rows.every(x=>x.project_id===ids.sales)).toBe(true);
+    expect(r.total).toBe(3);
+    expect(typeof r.projectedAt).toBe('string');
+    const t=await findDocuments(h.db,pm,{projectId:ids.transport});
+    expect(t.rows.map(x=>x.ref_code)).toEqual(['DOC-T1']);
+    expect(t.total).toBe(1);
+    const page=await findDocuments(h.db,pm,{projectId:ids.sales,limit:1,offset:1});
+    expect(page.rows).toHaveLength(1);
+    expect(page.total).toBe(3);
+  });
+  test('an unprojected project has total 0 and projectedAt null',async()=>{
+    await seedRead();
+    expect(await findDocuments(h.db,pm,{projectId:ids.transport,q:'zzzz'})).toMatchObject({rows:[],total:0});
+    await h.operator.query('DELETE FROM analytics.document_index WHERE project_id=$1',[ids.transport]);
+    expect(await findDocuments(h.db,pm,{projectId:ids.transport})).toMatchObject({rows:[],total:0,projectedAt:null});
+  });
+  test('search matches title, type and code case-insensitively and treats wildcards literally',async()=>{
+    await seedRead();
+    const f=async(q:string)=>(await findDocuments(h.db,pm,{projectId:ids.sales,q})).rows.map(x=>x.ref_code).sort();
+    expect(await f('nâng PACKAGE')).toEqual(['XECA006']);
+    expect(await f('xeca006')).toEqual(['XECA006']);
+    expect(await f('design')).toEqual(['LBRC014','XECA006']);
+    expect(await f('%')).toEqual(['DOC-P2']);
+    expect(await f('_')).toEqual(['DOC-P2']);
+    expect(await f('\\')).toEqual([]);
+    expect((await findDocuments(h.db,pm,{projectId:ids.sales,q:'design',docType:'design'})).total).toBe(2);
+    expect((await findDocuments(h.db,pm,{projectId:ids.sales,docType:'plan'})).total).toBe(1);
+  });
+  test('cross-project and cross-tenant reads are denied before any query',async()=>{
+    await seedRead();
+    let calls=0;
+    const spy=new Proxy(h.db,{get:(t,k,r)=>{const v=Reflect.get(t,k,r);
+      return (k==='query'||k==='transaction')&&typeof v==='function'?(...a:unknown[])=>{calls++;return (v as (...x:unknown[])=>unknown).apply(t,a);}:v;}});
+    for(const [p,pid] of [[member,ids.transport],[member,sameBuProject],[outsider,ids.sales],[viewer,ids.sales]] as const){
+      const e=await codeOf(findDocuments(spy,p,{projectId:pid,q:'LBRC014'}));
+      expect(e).toMatchObject({code:'SCOPE_DENIED',status:404,message:GENERIC});
+      expect(e?.message).not.toMatch(/LBRC014|XECA006|vận tải|Bán hàng|\d/i);
+    }
+    expect(calls).toBe(0);
+    const v=await findDocuments(h.db,viewer,{projectId:ids.transport});
+    expect(v.rows.map(x=>x.ref_code)).toEqual(['DOC-T1']);
+    expect((await findDocuments(h.db,viewer,{projectId:ids.transport,q:'LBRC014'})).total).toBe(0);
+  });
+  test('a call without projectId is rejected',async()=>{
+    await expect(findDocuments(h.db,pm,{})).rejects.toBeInstanceOf(ZodError);
+    await expect(findDocuments(h.db,pm,{q:'x'})).rejects.toBeInstanceOf(ZodError);
+  });
+  test('a principal recomputed after membership removal can no longer list, search or export',async()=>{
+    await seedRead();
+    const before={...member};
+    const after={...member,projectIds:[sameBuProject],grants:[{projectId:sameBuProject,role:'engineer' as const,reportPermissions:[]}]};
+    expect((await findDocuments(h.db,before,{projectId:ids.sales})).rows.length).toBeGreaterThan(0);
+    expect(await codeOf(findDocuments(h.db,after,{projectId:ids.sales}))).toMatchObject({code:'SCOPE_DENIED'});
+    expect(await codeOf(findDocuments(h.db,after,{projectId:ids.sales,q:'xeca'}))).toMatchObject({code:'SCOPE_DENIED'});
+    expect(await codeOf(exportDocumentsCsv(h.db,after,ids.sales))).toMatchObject({code:'SCOPE_DENIED'});
+    await expect(findDocuments(h.db,after,{})).rejects.toBeInstanceOf(ZodError);
+    expect(await findDocuments(h.db,after,{projectId:sameBuProject})).toMatchObject({rows:[],total:0});
+  });
+  test('bot cannot read the document index',async()=>{
+    await seedRead();
+    expect(await codeOf(findDocuments(h.db,bot,{projectId:ids.transport}))).toMatchObject({code:'READ_ONLY'});
+    expect(await codeOf(exportDocumentsCsv(h.db,bot,ids.transport))).toMatchObject({code:'READ_ONLY'});
+  });
+  test('limit is capped at 200 and unknown fields are rejected',async()=>{
+    await expect(findDocuments(h.db,pm,{projectId:ids.sales,limit:201})).rejects.toBeInstanceOf(ZodError);
+    await expect(findDocuments(h.db,pm,{projectId:ids.sales,limit:0})).rejects.toBeInstanceOf(ZodError);
+    await expect(findDocuments(h.db,pm,{projectId:ids.sales,offset:-1})).rejects.toBeInstanceOf(ZodError);
+    await expect(findDocuments(h.db,pm,{projectId:ids.sales,tenantId:ids.otherTenant})).rejects.toBeInstanceOf(ZodError);
+    await expect(findDocuments(h.db,pm,{projectId:ids.sales,q:''})).rejects.toBeInstanceOf(ZodError);
+    await expect(findDocuments(h.db,pm,{projectId:ids.sales,docType:'secret'})).rejects.toBeInstanceOf(ZodError);
+  });
+  test('export has the fixed header, shows Chưa có for an empty approved pointer and neutralises formulas',async()=>{
+    for(const t of [ids.tenant]) await h.operator.transaction(tx=>syncTemplateIndex(tx,t));
+    const f=await reg('DOC-F1','=HYPERLINK("http://x","y")');
+    await reg('DOC-F2','Tài liệu, có "ngoặc"\nxuống dòng');
+    await propose(f.id);
+    await projectDocumentIndex(h.operator,ids.tenant,ids.sales);
+    const csv=await exportDocumentsCsv(h.db,pm,ids.sales);
+    expect(csv.split('\n')[0]).toBe('ma,loai,tieu_de,chu_noi_dung,nguon,ban_dang_soan,ban_chuan,muc_hash,trang_thai_nguon,dong_bang,thoi_diem_chieu');
+    expect(csv).toContain('"\'=HYPERLINK(""http://x"",""y"")"');
+    expect(csv).toContain('"Tài liệu, có ""ngoặc""\nxuống dòng"');
+    const line1=csv.split('\n').find(l=>l.startsWith('"DOC-F1"'))!;
+    expect(line1).toContain('"r1","Chưa có","tự khai"');
+    expect(line1).toContain('"SOURCE_NOT_FROZEN"');
+    expect(csv).toContain('"Chưa có","Chưa có",""');
+    expect(csv).not.toContain('đã duyệt');
+  });
+  test('export is denied across projects',async()=>{
+    await seedRead();
+    expect(await codeOf(exportDocumentsCsv(h.db,member,ids.transport))).toMatchObject({code:'SCOPE_DENIED',status:404,message:GENERIC});
+    expect(await codeOf(exportDocumentsCsv(h.db,outsider,ids.sales))).toMatchObject({code:'SCOPE_DENIED'});
+    await expect(exportDocumentsCsv(h.db,pm,'not-a-uuid')).rejects.toBeInstanceOf(Error);
   });
 });
