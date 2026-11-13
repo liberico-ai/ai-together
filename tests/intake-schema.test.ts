@@ -10,13 +10,19 @@ let h:Harness;
 beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);});
 afterEach(async()=>{await h.reset();await h.close();});
 
+// scoped() does not set app.person_id; the actor binding is exercised here by setting it explicitly.
+const asRuntime=<T>(fn:(tx:Queryable)=>Promise<T>,person:string|null=pm.id)=>scoped(h.db,pm,async tx=>{
+  if(person) await tx.query("SELECT set_config('app.person_id',$1,true)",[person]);
+  return fn(tx);
+});
 const tables=['source_events','source_event_revisions','intake_attachments','intake_candidates','intake_events'];
 const hex=(c:string)=>c.repeat(64);
 
-async function asIntake<T>(projectIds:string[],fn:(tx:Queryable)=>Promise<T>,tenant:string=ids.tenant):Promise<T>{
+async function asIntake<T>(projectIds:string[],fn:(tx:Queryable)=>Promise<T>,tenant:string=ids.tenant,principal:string|null=pm.id):Promise<T>{
   return h.operator.transaction(async tx=>{
     await tx.query('SET LOCAL ROLE libetech_intake');
     await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[tenant,projectIds.join(',')]);
+    if(principal) await tx.query("SELECT set_config('app.intake_principal_id',$1,true)",[principal]);
     return fn(tx);
   });
 }
@@ -103,8 +109,8 @@ test('runtime cannot insert source events, revisions, attachments or candidates'
   ];
   for(const [sql,p] of stmts) await expect(scoped(h.db,pm,tx=>tx.query(sql,p)),sql).rejects.toThrow(/permission denied/);
   // runtime may write human events only, and may update candidates in scope
-  await expect(scoped(h.db,pm,tx=>tx.query(evtSql,[ids.tenant,ids.sales,e,pm.id,'intake_service',randomUUID()]))).rejects.toThrow();
-  await expect(scoped(h.db,pm,tx=>tx.query(evtSql,[ids.tenant,ids.sales,e,pm.id,'user',randomUUID()]))).resolves.toBeTruthy();
+  await expect(asRuntime(tx=>tx.query(evtSql,[ids.tenant,ids.sales,e,pm.id,'intake_service',randomUUID()]))).rejects.toThrow();
+  await expect(asRuntime(tx=>tx.query(evtSql,[ids.tenant,ids.sales,e,pm.id,'user',randomUUID()]))).resolves.toBeTruthy();
   await expect(scoped(h.db,pm,tx=>tx.query("UPDATE intake_candidates SET state='dismissed',version=version+1,updated_at=now()"))).resolves.toBeTruthy();
   await expect(scoped(h.db,pm,tx=>tx.query("UPDATE intake_candidates SET chat_id='-1'"))).rejects.toThrow(/permission denied/);
 });
@@ -153,6 +159,19 @@ test('an attachment cannot point to a revision of a different source event',asyn
   const e2=(await h.operator.query<{id:string}>(eventSql,[ids.tenant,ids.sales,chatSales,'2',randomUUID()])).rows[0].id;
   await expect(h.operator.query(`INSERT INTO intake_attachments(tenant_id,project_id,source_event_id,revision_id,state) VALUES($1,$2,$3,$4,'failed')`,
     [ids.tenant,ids.sales,e2,r])).rejects.toThrow();
+});
+
+test('intake_events actor_id is bound to the acting identity (fail-closed)',async()=>{
+  const {e}=await seedAll();
+  const other=randomUUID();
+  const svc=(actor:string)=>(tx:Queryable)=>tx.query(evtSql,[ids.tenant,ids.sales,e,actor,'intake_service',randomUUID()]);
+  await expect(asIntake([ids.sales],svc(pm.id))).resolves.toBeTruthy();
+  await expect(asIntake([ids.sales],svc(other))).rejects.toThrow();
+  await expect(asIntake([ids.sales],svc(pm.id),ids.tenant,null)).rejects.toThrow();
+  const usr=(actor:string)=>(tx:Queryable)=>tx.query(evtSql,[ids.tenant,ids.sales,e,actor,'user',randomUUID()]);
+  await expect(asRuntime(usr(pm.id))).resolves.toBeTruthy();
+  await expect(asRuntime(usr(other))).rejects.toThrow();
+  await expect(asRuntime(usr(pm.id),null)).rejects.toThrow();
 });
 
 describe.skipIf(!native)('native roles',()=>{

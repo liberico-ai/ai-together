@@ -185,7 +185,8 @@ DROP POLICY IF EXISTS intake_insert ON intake_events;
 CREATE POLICY intake_insert ON intake_events FOR INSERT TO libetech_intake
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
     AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
-    AND actor_kind = 'intake_service');
+    AND actor_kind = 'intake_service'
+    AND actor_id = nullif(current_setting('app.intake_principal_id',true),'')::uuid);
 DROP POLICY IF EXISTS runtime_select ON intake_events;
 CREATE POLICY runtime_select ON intake_events FOR SELECT TO libetech_runtime
   USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
@@ -194,7 +195,8 @@ DROP POLICY IF EXISTS runtime_insert ON intake_events;
 CREATE POLICY runtime_insert ON intake_events FOR INSERT TO libetech_runtime
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
     AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
-    AND actor_kind = 'user');
+    AND actor_kind = 'user'
+    AND actor_id = nullif(current_setting('app.person_id',true),'')::uuid);
 
 DROP TRIGGER IF EXISTS source_events_immutable ON source_events;
 CREATE TRIGGER source_events_immutable BEFORE UPDATE OR DELETE ON source_events FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
