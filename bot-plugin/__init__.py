@@ -5,8 +5,9 @@ Two principals, two key files. The bot (`bridge.json`) reads and links only. The
 """
 from __future__ import annotations
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import fcntl
+import functools
 import hashlib
 import hmac
 import http.client
@@ -43,6 +44,17 @@ ALLOWED_MIME = frozenset({
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 })
 SPOOL_LIMIT = 1000
+# A spooled event the backend keeps ANSWERING with a retryable status leaves the head after this many answers, or once
+# it has been spooled longer than SPOOL_MAX_AGE; it moves to intake-dead.jsonl. No answer at all never counts.
+SPOOL_MAX_ATTEMPTS = 5
+SPOOL_MAX_AGE = timedelta(hours=24)
+# Work the hook may do inside the gateway's dispatch path, per message: one live POST plus HOOK_REPLAYS spooled ones,
+# each with HOOK_TIMEOUT seconds; the spool lock is waited on for at most SPOOL_LOCK_SECONDS.
+HOOK_TIMEOUT = 2
+HOOK_REPLAYS = 5
+SPOOL_LOCK_SECONDS = 1.0
+# Runtime intake.json (never in the repo): {"key": ..., "hookEnabled": true, "chats": ["<group chat id>", ...]}.
+INTAKE_CONFIG_FIELDS = frozenset({"key", "hookEnabled", "chats"})
 # Gateway hook observed for intake. Not verified against the running gateway (plan, stop point 3).
 INTAKE_HOOK = "pre_gateway_dispatch"
 LOG = logging.getLogger("libetech_ai_os_bridge")
@@ -52,6 +64,8 @@ UUID = APPROVAL_ID
 GROUP_CHAT = re.compile(r"-[1-9][0-9]{0,19}\Z")
 MEDIA_GROUP = re.compile(r"[0-9A-Za-z_-]{1,64}\Z")
 CODE = re.compile(r"[A-Z0-9_]{1,64}\Z")
+# This plugin's own commands. Typed in a group by mistake (a pairing code, say), they never reach intake.
+OWN_COMMAND = re.compile(r"/(?:libetech(?:[-_][^\s@]*)?|duyet)(?:@\S*)?", re.IGNORECASE)
 # A reconcile receipt must carry a lease token, which the server does not compare for that phase.
 # Without a journal line there is no token to repeat, so the nil UUID says "none known" instead of inventing one.
 NIL_LEASE = "00000000-0000-0000-0000-000000000000"
@@ -107,17 +121,30 @@ class BackendError(ValueError):
 def _encode(payload):
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
 
-def _read_key(path):
+def _read_private_json(path):
+    """An owner-only JSON object. Missing, a symlink, or not a JSON object: BRIDGE_NOT_CONFIGURED."""
     if path.is_symlink() or path.parent.is_symlink() or not path.is_file():
         raise ValueError("BRIDGE_NOT_CONFIGURED")
     if stat.S_IMODE(path.stat().st_mode) & 0o077:
         raise ValueError("BRIDGE_CONFIG_PERMISSIONS")
-    key = json.loads(path.read_text())["key"]
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, ValueError):
+        raise ValueError("BRIDGE_NOT_CONFIGURED") from None
+    if not isinstance(value, dict):
+        raise ValueError("BRIDGE_NOT_CONFIGURED")
+    return value
+
+def _key_of(config):
+    key = config.get("key")
     if not isinstance(key, str) or len(key) < 43:
         raise ValueError("BRIDGE_NOT_CONFIGURED")
     return key
 
-def call_backend(home, payload, *, path="/api/bridge", key_file="bridge.json"):
+def _read_key(path):
+    return _key_of(_read_private_json(path))
+
+def call_backend(home, payload, *, path="/api/bridge", key_file="bridge.json", timeout=5):
     if home.resolve() != EXPECTED_HOME:
         raise ValueError("PROFILE_SCOPE_MISMATCH")
     if not isinstance(path, str) or ROUTE_KEYS.get(path) != key_file:
@@ -132,7 +159,7 @@ def call_backend(home, payload, *, path="/api/bridge", key_file="bridge.json"):
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     request = urllib.request.Request(ORIGIN + path, data=raw, headers=headers, method="POST")
     try:
-        response = opener.open(request, timeout=5)
+        response = opener.open(request, timeout=timeout)
     except urllib.error.HTTPError as exc:
         response = exc
     status = int(getattr(response, "status", None) or getattr(response, "code", None) or 0)
@@ -150,13 +177,19 @@ def call_backend(home, payload, *, path="/api/bridge", key_file="bridge.json"):
             raise BackendError(str(code or "BRIDGE_UNAVAILABLE"), status)
         return result["data"]
 
-def _retryable(error):
-    """Transient or operator-fixable: keep the item for a later attempt. A refusal of the item itself is final."""
+def _failure_kind(error):
+    """How the intake path treats one failed POST.
+    network:  no answer (status 0, OSError, HTTPException). Kept in order and retried; never counted.
+    answered: the backend answered 404, 408, 429 or 5xx. Retried, counted against SPOOL_MAX_ATTEMPTS and SPOOL_MAX_AGE.
+    disabled: this gateway's intake key file is missing or unsafe. Nothing new is spooled; what is spooled stays.
+    final:    anything else, including 401 and 403. Retrying cannot help: the message is dropped with its code."""
     if isinstance(error, BackendError):
-        return error.status == 0 or error.status >= 500 or error.status in (401, 404, 408, 429)
+        if error.status == 0:
+            return "network"
+        return "answered" if error.status >= 500 or error.status in (404, 408, 429) else "final"
     if isinstance(error, ValueError):
-        return str(error) in ("BRIDGE_NOT_CONFIGURED", "BRIDGE_CONFIG_PERMISSIONS")
-    return isinstance(error, (OSError, http.client.HTTPException))
+        return "disabled" if str(error) in ("BRIDGE_NOT_CONFIGURED", "BRIDGE_CONFIG_PERMISSIONS") else "final"
+    return "network" if isinstance(error, (OSError, http.client.HTTPException)) else "final"
 
 def safe_error(error):
     code = str(error) if isinstance(error, ValueError) else "BRIDGE_UNAVAILABLE"
@@ -197,30 +230,59 @@ def _cut_units(text, limit):
         used += width
     return "".join(kept)
 
+# An optional field the gateway handed over malformed: left out of the body and logged by name, never guessed.
+_DROPPED = object()
+
 def _optional_id(value):
     if value is None or value == "":
         return None
     if type(value) is int:
         value = str(value)
-    if not isinstance(value, str) or not POSITIVE.fullmatch(value):
-        raise ValueError("INTAKE_EVENT_INVALID")
-    return value
+    return value if isinstance(value, str) and POSITIVE.fullmatch(value) else _DROPPED
+
+def _optional_album(value):
+    if value is None or value == "":
+        return None
+    if type(value) is int:
+        value = str(value)
+    return value if isinstance(value, str) and MEDIA_GROUP.fullmatch(value) else _DROPPED
+
+def _parse_iso(value):
+    """An aware ISO 8601 time, or None (naive, unreadable or not a string)."""
+    if not isinstance(value, str) or len(value) > 40:
+        return None
+    try:
+        moment = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+    except ValueError:
+        return None
+    return moment if moment.utcoffset() is not None else None
 
 def _optional_stamp(value):
-    if value is None:
+    """An aware datetime, epoch seconds (Telegram's `date`) or an aware ISO string, as the wire time. None when absent;
+    _DROPPED when naive or unreadable, so a naive time is never read as UTC and never replaced by "now"."""
+    if value is None or value == "":
         return None
+    if isinstance(value, str):
+        value = _parse_iso(value)
     try:
         if isinstance(value, datetime) and value.utcoffset() is not None:
             return _iso(value)
         if type(value) in (int, float) and value > 0:
             return _iso(datetime.fromtimestamp(value, timezone.utc))
     except (OverflowError, OSError, ValueError):
-        raise ValueError("INTAKE_EVENT_INVALID") from None
-    raise ValueError("INTAKE_EVENT_INVALID")
+        pass
+    return _DROPPED
 
-def intake_event(event):
+def _own_command(text):
+    words = text.split(None, 1)
+    return bool(words) and OWN_COMMAND.fullmatch(words[0]) is not None
+
+def intake_event(event, chats=None):
     """Intake body built from the gateway's own event object; identity and placement never come from the text.
-    None: not a person's message in a Telegram group of the libetech profile, or a route the gateway rejected."""
+    None: not a person's message in a Telegram group of the libetech profile, a route the gateway rejected, a chat not
+    in `chats` (the gateway-side allowlist from intake.json, which the hook always passes; the server's allowlist stays
+    authoritative), one of this plugin's own commands, or an empty message without a file. Never raises for a malformed
+    optional field: that field is dropped with INTAKE_FIELD_DROPPED in the log and the message is still recorded."""
     source = getattr(event, "source", None)
     if event is None or source is None or getattr(event, "internal", False) is True:
         return None
@@ -237,24 +299,35 @@ def intake_event(event):
         context = dict(validated_context(values))
     except ValueError:
         return None
-    # Optional placement: present but malformed is refused, never guessed.
-    topic = _optional_id(getattr(source, "thread_id", None))
-    reply = _optional_id(getattr(event, "reply_to_message_id", None))
-    album = getattr(event, "media_group_id", None)
-    if album is not None and album != "":
-        album = str(album) if type(album) is int else album
-        if not isinstance(album, str) or not MEDIA_GROUP.fullmatch(album):
-            raise ValueError("INTAKE_EVENT_INVALID")
+    # Before anything is downloaded, spooled or posted: only the chats this gateway may take.
+    if chats is not None and context["chatId"] not in chats:
+        return None
+    text = getattr(event, "text", "")
+    text = text.encode("utf-8", "replace").decode("utf-8") if isinstance(text, str) else ""
+    if _own_command(text):
+        return None
+    if not text.strip() and getattr(event, "attachment", None) is None:
+        return None
+    dropped = []
+    def optional(name, value):
+        if value is _DROPPED:
+            dropped.append(name)
+            return None
+        return value
+    topic = optional("topicId", _optional_id(getattr(source, "thread_id", None)))
+    reply = optional("replyToMessageId", _optional_id(getattr(event, "reply_to_message_id", None)))
+    album = optional("mediaGroupId", _optional_album(getattr(event, "media_group_id", None)))
+    edited = optional("editedAt", _optional_stamp(getattr(event, "edited_at", None)))
+    # observedAt is required by the intake schema, so an absent or unusable gateway time becomes the time seen here.
+    observed = optional("observedAt", _optional_stamp(getattr(event, "timestamp", None))) or _now()
+    for name in dropped:
+        LOG.warning("libetech intake: %s %s", "INTAKE_FIELD_DROPPED", name)
+    if album:
         context["mediaGroupId"] = album
     if topic:
         context["topicId"] = topic
     if reply:
         context["replyToMessageId"] = reply
-    edited = _optional_stamp(getattr(event, "edited_at", None))
-    seen = getattr(event, "timestamp", None)
-    observed = _iso(seen) if isinstance(seen, datetime) and seen.utcoffset() is not None else _now()
-    text = getattr(event, "text", "")
-    text = text.encode("utf-8", "replace").decode("utf-8") if isinstance(text, str) else ""
     addressed = (text.lstrip().startswith("/") or getattr(event, "mentions_bot", False) is True
                  or getattr(event, "reply_to_bot", False) is True)
     payload = {"context": context, "observedAt": observed}
@@ -275,6 +348,10 @@ def fit_event(payload):
     text = text.encode("utf-8", "replace").decode("utf-8")
     if not event.get("textTruncated"):
         event["contentHash"] = hashlib.sha256(text.encode()).hexdigest()
+    # PostgreSQL text refuses U+0000, so NUL is removed from the text that is SENT, after hashing: contentHash stays
+    # the hash of the full original text (brief), so it is not the hash of the sent text when a NUL was removed.
+    # Removing NUL alone does not set textTruncated.
+    text = text.replace("\x00", "")
     full = {**event, "text": text, "textTruncated": bool(event.get("textTruncated"))}
     if _units(text) <= MAX_TEXT_UNITS and len(_encode(full)) <= MAX_EVENT_BYTES:
         return full
@@ -349,9 +426,19 @@ def _write_atomic(path, data):
 
 @contextmanager
 def _locked(path):
+    """Exclusive spool lock, never waited on for long: the hook runs in the gateway's dispatch path. Still held by
+    another process after SPOOL_LOCK_SECONDS: SPOOL_BUSY (the caller's message is then lost: a known limit)."""
     descriptor = _open_private(path, os.O_RDWR | os.O_CREAT)
     try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        deadline = time.monotonic() + SPOOL_LOCK_SECONDS
+        while True:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise ValueError("SPOOL_BUSY") from None
+                time.sleep(0.05)
         yield
     finally:
         os.close(descriptor)
@@ -399,10 +486,11 @@ def store_attachment(home, raw, download):
     digest = hashlib.sha256(data).hexdigest()
     try:
         folder = _runtime_dir(home) / "attachments"
-        if folder.is_symlink():
+        # exist_ok: two hooks may create it at once. Whoever created it, it must be an owner-only real folder.
+        folder.mkdir(mode=0o700, exist_ok=True)
+        info = os.lstat(folder)
+        if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) & 0o077:
             raise ValueError("STORE_UNAVAILABLE")
-        if not folder.is_dir():
-            folder.mkdir(mode=0o700)
         _write_atomic(folder / digest, bytes(data))
     except (OSError, ValueError):
         return failed("STORE_UNAVAILABLE", len(data))
@@ -412,97 +500,179 @@ def store_attachment(home, raw, download):
         result["fileName"] = name
     return result
 
+def _line(value):
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+def _spool_entry(line):
+    """(entry, first spooled time) of one spool line, or None when the line is not one."""
+    try:
+        entry = json.loads(line)
+    except ValueError:
+        return None
+    if (not isinstance(entry, dict) or set(entry) != {"firstSpooledAt", "attempts", "event"}
+            or type(entry["attempts"]) is not int or entry["attempts"] < 0 or not isinstance(entry["event"], dict)):
+        return None
+    spooled = _parse_iso(entry["firstSpooledAt"])
+    return (entry, spooled) if spooled is not None else None
+
 class Spool:
-    """Events the backend could not take yet, oldest first: one JSON line each, owner-only, at most SPOOL_LIMIT."""
+    """Events the backend could not take yet, oldest first, at most SPOOL_LIMIT, owner-only. One JSON line each:
+    {"firstSpooledAt": ISO time, "attempts": retryable answers so far, "event": the intake body}.
+    Lines that can never be delivered move to intake-dead.jsonl (owner-only) with a reason, never silently."""
     def __init__(self, home):
         self.home = home
 
     def _paths(self):
         folder = _runtime_dir(self.home)
-        return folder / "intake-spool.jsonl", folder / "intake-spool.lock"
+        return folder / "intake-spool.jsonl", folder / "intake-spool.lock", folder / "intake-dead.jsonl"
 
     def pending(self):
         return len(_read_lines(self._paths()[0]))
 
-    def put(self, payload):
-        path, lock = self._paths()
-        line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    def put(self, payload, *, attempts=0):
+        path, lock, _ = self._paths()
+        line = _line({"firstSpooledAt": _now(), "attempts": attempts, "event": payload})
         with _locked(lock):
             if len(_read_lines(path)) >= SPOOL_LIMIT:
                 raise ValueError("SPOOL_FULL")
             _append_line(path, line)
 
-    def drain(self, send):
-        """Replay in order with spooled=True. Stops at the first transient failure; an event the backend refuses for
-        itself is dropped with a code in the log. Sending twice after a crash is harmless: the backend keys events by
-        chat and message id."""
-        path, lock = self._paths()
+    def drain(self, send, *, limit=None):
+        """Replay oldest first with spooled=True, at most `limit` sends. Returns the number sent.
+        No answer (network) or no usable key: stop, keep the line and its order, count nothing.
+        Answered 404/408/429/5xx: count one attempt; at SPOOL_MAX_ATTEMPTS, or when spooled longer than SPOOL_MAX_AGE,
+        the line moves to the dead-letter file (INTAKE_DEAD_LETTER) and the drain continues; otherwise it stays at
+        the head with its new count. Any other refusal (401, 403, 422...): dropped with its code, the drain continues.
+        Sending twice after a crash is harmless: the backend keys events by chat and message id."""
+        path, lock, dead_path = self._paths()
         lines = _read_lines(path)
-        sent = done = forgotten = 0
+        now = datetime.now(timezone.utc)
+        sent = calls = start = index = 0
+        dead, head = [], []
+        def bury(value, reason):
+            dead.append(_line(dict(value, deadAt=_now(), reason=reason)))
+            LOG.warning("libetech intake spool: %s %s", "INTAKE_DEAD_LETTER", reason)
         try:
-            for line in lines:
+            while index < len(lines):
+                parsed = _spool_entry(lines[index])
+                if parsed is None:
+                    bury({"line": lines[index]}, "SPOOL_LINE_UNREADABLE")
+                    index += 1
+                    continue
+                if limit is not None and calls >= limit:
+                    break
+                entry, spooled_at = parsed
+                calls += 1
                 try:
-                    payload = json.loads(line)
-                except ValueError:
-                    payload = None
-                if not isinstance(payload, dict):
-                    LOG.warning("libetech intake spool: %s", "SPOOL_LINE_UNREADABLE")
-                else:
-                    payload["spooled"] = True
-                    try:
-                        send(payload)
-                        sent += 1
-                    except Exception as error:
-                        if _retryable(error):
-                            break
+                    send(dict(entry["event"], spooled=True))
+                    sent += 1
+                except Exception as error:
+                    kind = _failure_kind(error)
+                    if kind in ("network", "disabled"):
+                        break
+                    if kind == "final":
                         LOG.warning("libetech intake spool dropped one event: %s", safe_error(error)["error"])
-                done += 1
-                if done - forgotten >= 50:
-                    self._forget(path, lock, lines[forgotten:done])
-                    forgotten = done
+                    else:
+                        entry["attempts"] += 1
+                        if entry["attempts"] >= SPOOL_MAX_ATTEMPTS:
+                            bury(entry, "INTAKE_RETRY_LIMIT")
+                        elif now - spooled_at > SPOOL_MAX_AGE:
+                            bury(entry, "INTAKE_TOO_OLD")
+                        else:
+                            head = [_line(entry)]
+                            index += 1
+                            break
+                index += 1
+                if index - start >= 50:
+                    self._commit(path, lock, dead_path, lines[start:index], [], dead)
+                    start, dead = index, []
         finally:
-            self._forget(path, lock, lines[forgotten:done])
+            self._commit(path, lock, dead_path, lines[start:index], head, dead)
         return sent
 
     @staticmethod
-    def _forget(path, lock, head):
-        if not head:
+    def _commit(path, lock, dead_path, consumed, head, dead):
+        """Replace the lines this drain settled by `head` (the head line with its new count, if any), after appending
+        the dead ones. Nothing is written if another drain settled the same lines first."""
+        if not consumed:
             return
         with _locked(lock):
             current = _read_lines(path)
-            if current[:len(head)] == head:
-                _write_atomic(path, "".join(line + "\n" for line in current[len(head):]).encode())
+            if current[:len(consumed)] != consumed:
+                return
+            if dead:
+                _append_line(dead_path, "\n".join(dead))
+            _write_atomic(path, "".join(line + "\n" for line in head + current[len(consumed):]).encode())
 
-def submit_event(home, payload, spool):
-    """Post one fitted event on the intake key. Spooled events go first, so the backend never sees a newer message
-    before an older one. Network failure or 5xx: the event is spooled; a full spool raises SPOOL_FULL."""
+def submit_event(home, payload, spool, *, timeout=5, replays=None):
+    """Post one fitted event on the intake key. Spooled events go first (at most `replays` of them), so the backend
+    never sees a newer message before an older one; while any remain, the new message is spooled behind them.
+    No answer: spooled. Answered 404/408/429/5xx: spooled with that answer counted. 401, 403 and other refusals:
+    dropped, the code returned. Intake key file missing or unsafe: nothing is spooled. A full spool raises SPOOL_FULL."""
     def post(event):
-        return call_backend(home, event, path=INTAKE_PATH, key_file="intake.json")
+        return call_backend(home, event, path=INTAKE_PATH, key_file="intake.json", timeout=timeout)
     if spool.pending():
-        spool.drain(post)
+        spool.drain(post, limit=replays)
         if spool.pending():
             spool.put(payload)
             return {"ok": False, "spooled": True}
     try:
         return {"ok": True, "data": post(payload)}
     except Exception as error:
-        if not _retryable(error):
+        kind = _failure_kind(error)
+        if kind not in ("network", "answered"):
             return {"ok": False, "error": safe_error(error)["error"]}
-        spool.put(payload)
+        spool.put(payload, attempts=1 if kind == "answered" else 0)
         return {"ok": False, "spooled": True}
 
-def intake_hook(home, *args, **kwargs):
-    """Observe one gateway message. Always None: never blocks, rewrites or reroutes dispatch, never raises into the
-    gateway, and logs fixed codes only (no text, chat id or name)."""
+def _intake_config(home):
+    """Runtime intake.json, read on every hook call so an operator can switch intake off without a restart.
+    "hookEnabled" must be the JSON value true for the hook to do anything (absent: false). "chats" lists the group chat
+    ids this gateway may take; it mirrors the server's intake.chats, which stays authoritative (absent: none).
+    Missing or malformed: BRIDGE_NOT_CONFIGURED; unsafe mode: BRIDGE_CONFIG_PERMISSIONS; any other field or a wrong
+    type: INTAKE_CONFIG_INVALID."""
+    config = _read_private_json(_runtime_dir(home) / "intake.json")
+    _key_of(config)
+    enabled = config.get("hookEnabled", False)
+    chats = config.get("chats", [])
+    if (set(config) - INTAKE_CONFIG_FIELDS or type(enabled) is not bool or not isinstance(chats, list)
+            or not all(isinstance(chat, str) and GROUP_CHAT.fullmatch(chat) for chat in chats)):
+        raise ValueError("INTAKE_CONFIG_INVALID")
+    return {"hookEnabled": enabled, "chats": frozenset(chats)}
+
+def _intake_hook_enabled(home):
+    """Registration only: an absent intake.json is the ordinary case and says nothing; a present one that cannot be
+    used is logged by code."""
+    if not os.path.lexists(Path(home) / "runtime/libetech-ai-os/intake.json"):
+        return False
     try:
+        return _intake_config(home)["hookEnabled"]
+    except Exception as error:
+        LOG.warning("libetech intake hook not registered: %s", safe_error(error)["error"])
+        return False
+
+def intake_hook(profile_home, /, *args, **kwargs):
+    """Observe one gateway message. Always None: never blocks, rewrites or reroutes dispatch, never raises into the
+    gateway, and logs fixed codes only (no text, chat id or name). `profile_home` is positional-only, so a gateway
+    keyword named `home` (or anything else) cannot collide with it.
+    Bounded work: intake.json first (missing or malformed: nothing else happens); a chat outside its "chats" stops
+    before download, spool or POST; then at most HOOK_REPLAYS spooled events and one live POST, each with HOOK_TIMEOUT."""
+    try:
+        config = _intake_config(profile_home)
+        if not config["hookEnabled"]:
+            return None
         event = kwargs["event"] if "event" in kwargs else (args[0] if args else None)
-        payload = intake_event(event)
+        payload = intake_event(event, chats=config["chats"])
         if payload is None:
             return None
         raw = getattr(event, "attachment", None)
         if raw is not None:
-            payload["attachment"] = store_attachment(home, raw, getattr(event, "download_attachment", None))
-        result = submit_event(home, fit_event(payload), Spool(home))
+            # WIRING-STEP VERIFICATION ITEM: the download stays inline in the gateway's dispatch path, up to
+            # MAX_ATTACHMENT_BYTES, with whatever timeout the gateway's download_attachment() has. Check that it is safe
+            # there (thread, timeout, side effects) before "hookEnabled" is set on a real gateway.
+            payload["attachment"] = store_attachment(profile_home, raw, getattr(event, "download_attachment", None))
+        result = submit_event(profile_home, fit_event(payload), Spool(profile_home),
+                              timeout=HOOK_TIMEOUT, replays=HOOK_REPLAYS)
         if result.get("spooled"):
             LOG.warning("libetech intake: %s", "INTAKE_SPOOLED")
         elif not result.get("ok"):
@@ -995,10 +1165,11 @@ def register(ctx):
                          description="Từ chối cấp tài khoản Tech qua Telegram", args_hint="<mã phiếu>")
     ctx.register_command("duyet", handler=access_review,
                          description="Xem phiếu Tech trong chat riêng và chọn Yes hoặc No")
-    # Intake is a separate principal: only with gateway hook support and its own key file. Otherwise the plugin
-    # registers exactly what it did before. The hook only observes; the real send and outbox schedule are not wired.
-    if hasattr(ctx, "register_hook") and (home / "runtime/libetech-ai-os/intake.json").exists():
+    # Intake is a separate principal with its own key file, and its hook is a deliberate step: only with gateway hook
+    # support and "hookEnabled": true in intake.json (the key file alone is not enough). Otherwise the plugin registers
+    # exactly what it did before. The hook only observes; the real send and outbox schedule are not wired.
+    if hasattr(ctx, "register_hook") and _intake_hook_enabled(home):
         try:
-            ctx.register_hook(INTAKE_HOOK, lambda *args, **kwargs: intake_hook(home, *args, **kwargs))
+            ctx.register_hook(INTAKE_HOOK, functools.partial(intake_hook, home))
         except Exception as error:
             LOG.warning("libetech intake hook not registered: %s", safe_error(error)["error"])

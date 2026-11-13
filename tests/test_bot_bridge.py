@@ -110,9 +110,9 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(bridge.safe_error(ValueError('secret token: hidden'))['error'],'BRIDGE_UNAVAILABLE')
 
 # ---- Slice 2 · Task 11: separately keyed intake/delivery adapter. Fakes only: nothing is installed or sent. ----
-import hashlib,hmac,json,os,re,stat,sys,tempfile,urllib.error
+import fcntl,hashlib,hmac,json,os,re,stat,sys,tempfile,time,urllib.error
 from contextlib import contextmanager
-from datetime import datetime,timezone
+from datetime import datetime,timedelta,timezone
 from unittest.mock import Mock,patch
 
 GROUP='-1000000000001'
@@ -126,17 +126,35 @@ ISO=r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$'
 DM=dict(platform='telegram',profile='libetech',user_id='123',chat_id='123',chat_type='private',message_id='456')
 RECEIVED='Đã ghi nhận, mã IN-0A1B2C3D. PM sẽ xác nhận loại và dự án; đây chưa phải việc đã giao.'
 DM_CARD='Có phiếu Tech chờ anh/chị xác nhận. Gõ /duyet trong chat riêng này.'
+# The runtime intake.json of a gateway whose hook is switched on for the one synthetic group.
+HOOK_ON=dict(hookEnabled=True,chats=[GROUP])
 
 @contextmanager
-def profile_home(intake=True,bot=True):
+def profile_home(intake=True,bot=True,**intake_fields):
     with tempfile.TemporaryDirectory() as tmp:
         home=Path(tmp).resolve()
         runtime=home/'runtime/libetech-ai-os';runtime.mkdir(parents=True)
-        for name,key,wanted in (('intake.json',INTAKE_KEY,intake),('bridge.json',BOT_KEY,bot)):
+        for name,content,wanted in (('intake.json',{'key':INTAKE_KEY}|intake_fields,intake),('bridge.json',{'key':BOT_KEY},bot)):
             if wanted:
-                (runtime/name).write_text(json.dumps({'key':key}));os.chmod(runtime/name,0o600)
+                (runtime/name).write_text(json.dumps(content));os.chmod(runtime/name,0o600)
         with patch.object(bridge,'EXPECTED_HOME',home):
             yield home
+
+def spool_lines(home):
+    path=home/'runtime/libetech-ai-os/intake-spool.jsonl'
+    return [json.loads(line) for line in path.read_text().split('\n') if line] if path.exists() else []
+
+def dead_lines(home):
+    path=home/'runtime/libetech-ai-os/intake-dead.jsonl'
+    return [json.loads(line) for line in path.read_text().split('\n') if line] if path.exists() else []
+
+def fitted(number,text='Nhờ kiểm tra báo cáo tuần',**fields):
+    return bridge.fit_event(bridge.intake_event(tg_event(text,source=dict(message_id=str(number)),**fields)))
+
+def hook_of(home):
+    _,hooks=register_with(home,register_hook=True)
+    (_,hook),=hooks
+    return hook
 
 def tg_event(text='Nhờ kiểm tra báo cáo tuần',source=None,**fields):
     values=dict(platform=SimpleNamespace(value='telegram'),profile='libetech',user_id=SENDER,chat_id=GROUP,chat_type='supergroup',message_id='41')
@@ -188,7 +206,7 @@ def raising(error):
     return fail
 
 def access_row(**overrides):
-    row={'id':'00000000-0000-4000-8000-0000000000c1','kind':'access_change','name':'Trần  Văn Bình','username':'binhtv',
+    row={'id':'00000000-0000-4000-8000-0000000000c1','kind':'access_change','name':'Người  mẫu Hai','username':'nguoimau2',
          'reason':'Bổ sung việc nghiệm thu','project_interest':None,'state':'pending','agreed':0,
          'grants':[{'projectId':'50000000-0000-4000-8000-000000000001','role':'engineer','reportPermissions':['people_read']},
                    {'projectId':'50000000-0000-4000-8000-000000000002','role':'viewer','reportPermissions':[]}],
@@ -321,14 +339,40 @@ class IntakeAdapterTests(unittest.TestCase):
         plain=bridge.intake_event(tg_event())
         for key in ('replyToMessageId','topicId','mediaGroupId'):self.assertNotIn(key,plain['context'])
         self.assertNotIn('editedAt',plain);self.assertFalse(plain['forwarded'])
-        # Metadata the gateway hands over malformed is refused, never guessed.
-        for fields in [dict(reply_to_message_id='abc'),dict(reply_to_message_id='0'),dict(media_group_id='x'*65),
-                       dict(edited_at=datetime(2026,1,1)),dict(edited_at='yesterday'),dict(source=dict(thread_id='-7'))]:
-            with self.assertRaisesRegex(ValueError,'^INTAKE_EVENT_INVALID$'):bridge.intake_event(tg_event(**fields))
+        # An aware ISO string is a time too; Telegram's own `date` is an epoch int.
+        for stamp in ('2026-11-14T02:03:04Z','2026-11-14T09:03:04+07:00','2026-11-14T02:03:04.000+00:00'):
+            self.assertEqual(bridge.intake_event(tg_event(edited_at=stamp))['editedAt'],'2026-11-14T02:03:04.000Z')
+        for stamp in (int(edited.timestamp()),edited,'2026-11-14T02:03:04Z'):
+            self.assertEqual(bridge.intake_event(tg_event(timestamp=stamp))['observedAt'],'2026-11-14T02:03:04.000Z')
+
+    def test_malformed_optional_metadata_is_dropped_and_the_message_still_recorded(self):
+        # Never guessed and never fatal: the field is left out, its name is logged as a fixed code, the message is kept.
+        cases=[(dict(reply_to_message_id='abc'),'replyToMessageId'),(dict(reply_to_message_id='0'),'replyToMessageId'),
+               (dict(reply_to_message_id=True),'replyToMessageId'),(dict(media_group_id='x'*65),'mediaGroupId'),
+               (dict(source=dict(thread_id='-7')),'topicId'),(dict(edited_at=datetime(2026,1,1)),'editedAt'),
+               (dict(edited_at='yesterday'),'editedAt'),(dict(edited_at='2026-11-14T02:03:04'),'editedAt'),
+               (dict(edited_at=True),'editedAt'),(dict(edited_at=float('inf')),'editedAt'),(dict(edited_at=10**15),'editedAt')]
+        for fields,key in cases:
+            with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                payload=bridge.intake_event(tg_event(**fields))
+            self.assertEqual(payload['context']['messageId'],'41',fields)
+            self.assertNotIn(key,payload['context']);self.assertNotIn(key,payload)
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_FIELD_DROPPED {key}'],fields)
+        # A naive edit time is not replaced by "now": the field is simply absent.
+        self.assertNotIn('editedAt',bridge.intake_event(tg_event(edited_at=datetime(2026,11,14,2,3,4))))
+        # observedAt is required by the intake schema, so an unusable gateway time falls back to the time seen here.
+        before=datetime.now(timezone.utc).replace(microsecond=0)
+        with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+            payload=bridge.intake_event(tg_event(timestamp=datetime(2026,1,1)))
+        self.assertGreaterEqual(datetime.fromisoformat(payload['observedAt'].replace('Z','+00:00')),before)
+        self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_FIELD_DROPPED observedAt'])
+        # Identity stays required: a missing or invalid chat, message or sender is still not a message.
+        for source in [dict(chat_id=''),dict(chat_id='abc'),dict(message_id='0'),dict(user_id='x'),dict(user_id=None)]:
+            self.assertIsNone(bridge.intake_event(tg_event(source=source)),source)
 
     def test_addressed_means_command_mention_or_reply_to_bot(self):
         self.assertFalse(bridge.intake_event(tg_event('Báo cáo tuần đã gửi'))['addressed'])
-        for event in [tg_event('/libetech-check LBRC014'),tg_event('  /start'),tg_event('xem giúp',mentions_bot=True),tg_event('ok',reply_to_bot=True)]:
+        for event in [tg_event('/baocao tuần này'),tg_event('  /start'),tg_event('xem giúp',mentions_bot=True),tg_event('ok',reply_to_bot=True)]:
             self.assertTrue(bridge.intake_event(event)['addressed'])
         # Only an explicit True from the gateway counts; text that merely contains a slash does not.
         self.assertFalse(bridge.intake_event(tg_event('a/b',mentions_bot='yes',reply_to_bot=1))['addressed'])
@@ -426,9 +470,13 @@ class IntakeAdapterTests(unittest.TestCase):
                 if replayed:raise urllib.error.URLError('down again')
                 replayed.append(payload)
             self.assertEqual(spool.drain(flaky),1)
-            self.assertEqual([json.loads(line)['context']['messageId'] for line in path.read_text().splitlines()],['56'])
+            self.assertEqual([line['event']['context']['messageId'] for line in spool_lines(home)],['56'])
+            # Each line carries its first spooled time and the number of answers so far, around the event itself.
+            (line,)=spool_lines(home)
+            self.assertEqual((set(line),line['attempts']),({'firstSpooledAt','attempts','event'},0))
+            self.assertRegex(line['firstSpooledAt'],ISO)
             # A full spool refuses loudly; nothing is dropped silently.
-            line=json.dumps(event('57','tin bảy'),ensure_ascii=False)
+            line=json.dumps({'firstSpooledAt':bridge._now(),'attempts':0,'event':event('57','tin bảy')},ensure_ascii=False)
             path.write_text((line+'\n')*1000)
             with self.assertRaisesRegex(ValueError,'^SPOOL_FULL$'):spool.put(event('58','tin tám'))
             with patch.object(bridge,'call_backend',side_effect=urllib.error.URLError('down')):
@@ -452,6 +500,101 @@ class IntakeAdapterTests(unittest.TestCase):
             view=bridge.SendJournal(home).view()
             self.assertFalse(view.damaged)
             self.assertEqual(view.pending()[0]['note'],text)
+
+    def test_an_event_always_answered_500_is_dead_lettered_and_intake_continues(self):
+        # Regression (gate 4, I-1): one event the backend always answers with 500 stopped all intake for good.
+        self.assertEqual((bridge.SPOOL_MAX_ATTEMPTS,bridge.SPOOL_MAX_AGE),(5,timedelta(hours=24)))
+        with profile_home() as home:
+            spool=bridge.Spool(home)
+            calls=[];delivered=[]
+            def backend(_home,payload,**kwargs):
+                calls.append(payload['context']['messageId'])
+                if payload['context']['messageId']=='61':raise bridge.BackendError('INTERNAL_ERROR',500)
+                delivered.append((payload['context']['messageId'],payload['spooled']));return {'persisted':True}
+            with patch.object(bridge,'call_backend',side_effect=backend),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                # A is answered 500 live (attempt 1) and on each of the next three replays; B, C and D wait behind it.
+                for number in (61,62,63,64):
+                    self.assertEqual(bridge.submit_event(home,fitted(number,'tin A' if number==61 else 'tin khác'),spool),{'ok':False,'spooled':True})
+                    self.assertEqual(spool_lines(home)[0]['attempts'],number-60)
+                self.assertEqual(delivered,[])
+                # The fifth answer moves A to the dead-letter file, and the drain continues with B, C, D and then E live.
+                self.assertTrue(bridge.submit_event(home,fitted(65),spool)['ok'])
+            self.assertEqual(calls,['61']*5+['62','63','64','65'])
+            self.assertEqual(delivered,[('62',True),('63',True),('64',True),('65',False)])
+            self.assertEqual(spool_lines(home),[])
+            (dead,)=dead_lines(home)
+            self.assertEqual((dead['reason'],dead['attempts'],dead['event']['context']['messageId'],dead['event']['text']),('INTAKE_RETRY_LIMIT',5,'61','tin A'))
+            self.assertRegex(dead['deadAt'],ISO);self.assertRegex(dead['firstSpooledAt'],ISO)
+            self.assertEqual(stat.S_IMODE((home/'runtime/libetech-ai-os/intake-dead.jsonl').stat().st_mode),0o600)
+            self.assertIn(f'WARNING:{bridge.LOG.name}:libetech intake spool: INTAKE_DEAD_LETTER INTAKE_RETRY_LIMIT',logs.output)
+            for record in logs.output:self.assertNotIn('tin A',record)
+
+    def test_network_errors_keep_the_head_and_an_old_answered_line_is_dead_lettered(self):
+        with profile_home() as home:
+            spool=bridge.Spool(home)
+            spool.put(fitted(71));spool.put(fitted(72))
+            # No answer is not an answer: order is kept and nothing is counted, however often it happens.
+            for error in [urllib.error.URLError('down'),bridge.BackendError('BRIDGE_UNAVAILABLE',0),ConnectionRefusedError(),TimeoutError()]*3:
+                self.assertEqual(spool.drain(raising(error)),0)
+            self.assertEqual([(line['event']['context']['messageId'],line['attempts']) for line in spool_lines(home)],[('71',0),('72',0)])
+            # Lines older than 24 h still wait while the backend is unreachable...
+            old=(datetime.now(timezone.utc)-timedelta(hours=25)).isoformat(timespec='milliseconds').replace('+00:00','Z')
+            lines=spool_lines(home);lines[0]['firstSpooledAt']=old
+            path=home/'runtime/libetech-ai-os/intake-spool.jsonl'
+            path.write_text(''.join(json.dumps(line,ensure_ascii=False)+'\n' for line in lines))
+            self.assertEqual(spool.drain(raising(urllib.error.URLError('down'))),0)
+            self.assertEqual(dead_lines(home),[])
+            # ...but once the backend answers one with a retryable status, it leaves the head at once.
+            sent=[]
+            def answer(payload):
+                if payload['context']['messageId']=='71':raise bridge.BackendError('RATE_LIMITED',429)
+                sent.append(payload['context']['messageId'])
+            with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                self.assertEqual(spool.drain(answer),1)
+            self.assertEqual(sent,['72'])
+            self.assertEqual([(line['reason'],line['attempts']) for line in dead_lines(home)],[('INTAKE_TOO_OLD',1)])
+            self.assertIn(f'WARNING:{bridge.LOG.name}:libetech intake spool: INTAKE_DEAD_LETTER INTAKE_TOO_OLD',logs.output)
+            # An unreadable line is moved aside too, and the drain goes on.
+            path.write_text('{"broken\n'+json.dumps({'firstSpooledAt':bridge._now(),'attempts':0,'event':fitted(73)})+'\n')
+            os.chmod(path,0o600)
+            sent.clear()
+            with self.assertLogs(bridge.LOG.name,level='DEBUG'):
+                self.assertEqual(spool.drain(answer),1)
+            self.assertEqual(sent,['73'])
+            self.assertEqual([(line['reason'],line.get('line')) for line in dead_lines(home)][1:],[('SPOOL_LINE_UNREADABLE','{"broken')])
+
+    def test_nul_is_removed_from_the_sent_text_and_the_hash_is_of_the_original(self):
+        original='mở\x00đầu\x00'
+        payload=bridge.fit_event(bridge.intake_event(tg_event(original)))
+        self.assertEqual((payload['text'],payload['textTruncated']),('mởđầu',False))
+        self.assertEqual(payload['contentHash'],hashlib.sha256(original.encode()).hexdigest())
+        cut=bridge.fit_event(bridge.intake_event(tg_event('\x00'+'\x01'*4096)))
+        self.assertTrue(cut['textTruncated']);self.assertNotIn('\x00',cut['text'])
+        self.assertLessEqual(len(encoded(cut)),bridge.MAX_EVENT_BYTES)
+
+    def test_retry_classes_401_and_403_drop_and_408_429_404_5xx_spool(self):
+        with profile_home() as home:
+            spool=bridge.Spool(home)
+            path=home/'runtime/libetech-ai-os/intake-spool.jsonl'
+            for code,status in [('BRIDGE_AUTH_DENIED',401),('UNAUTHENTICATED',401),('SCOPE_DENIED',403),('INVALID_INPUT',422)]:
+                with patch.object(bridge,'call_backend',side_effect=bridge.BackendError(code,status)):
+                    self.assertEqual(bridge.submit_event(home,fitted(81),spool),{'ok':False,'error':code})
+                self.assertEqual(spool.pending(),0)
+            for status in (408,429,404,500,503):
+                path.unlink(missing_ok=True)
+                with patch.object(bridge,'call_backend',side_effect=bridge.BackendError('RATE_LIMITED',status)):
+                    self.assertEqual(bridge.submit_event(home,fitted(82),spool),{'ok':False,'spooled':True},status)
+                self.assertEqual([line['attempts'] for line in spool_lines(home)],[1],status)
+            # A spooled line refused with 401 is dropped with its code, not retried and not dead-lettered.
+            path.unlink();spool.put(fitted(83));spool.put(fitted(84))
+            with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                self.assertEqual(spool.drain(raising(bridge.BackendError('BRIDGE_AUTH_DENIED',401))),0)
+            self.assertEqual((spool_lines(home),dead_lines(home)),([],[]))
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake spool dropped one event: BRIDGE_AUTH_DENIED']*2)
+            # A missing intake key is not a reason to spool the message.
+            os.unlink(home/'runtime/libetech-ai-os/intake.json')
+            self.assertEqual(bridge.submit_event(home,fitted(85),spool),{'ok':False,'error':'BRIDGE_NOT_CONFIGURED'})
+            self.assertEqual(spool.pending(),0)
 
     def test_templates_render_verbatim_and_unknown_is_refused(self):
         params={'ref':'IN-0A1B2C3D','observedAt':'2026-11-14T01:02:03.000Z'}
@@ -605,7 +748,7 @@ class IntakeAdapterTests(unittest.TestCase):
     def test_access_change_card_shows_current_and_proposed_grants_without_ids(self):
         row=access_row()
         question=bridge.approval_question(row)
-        self.assertEqual(question,'Đổi quyền cho Trần Văn Bình (binhtv)?\n'
+        self.assertEqual(question,'Đổi quyền cho Người mẫu Hai (nguoimau2)?\n'
                                   'Quyền hiện tại: Dự án mẫu A (Chỉ đọc)\n'
                                   'Quyền sau khi đổi: Dự án mẫu A (Thực hiện) + Xem điểm nhân sự; Dự án mẫu B (Chỉ đọc)\n'
                                   'Căn cứ: Bổ sung việc nghiệm thu\nChọn Yes hoặc No.')
@@ -667,7 +810,18 @@ class IntakeAdapterTests(unittest.TestCase):
         with profile_home(intake=False) as home:
             registered,hooks=register_with(home,register_hook=True)
             self.assertEqual((len(registered),hooks),(7,[]))
+        # The key file alone is not enough: the hook is a deliberate step, "hookEnabled": true in intake.json.
         with profile_home() as home:
+            registered,hooks=register_with(home,register_hook=True)
+            self.assertEqual((len(registered),hooks),(7,[]))
+        for fields,logged in [(dict(hookEnabled=False,chats=[GROUP]),[]),(dict(hookEnabled='true',chats=[GROUP]),['INTAKE_CONFIG_INVALID']),
+                              (dict(hookEnabled=1),['INTAKE_CONFIG_INVALID']),(dict(hookEnable=True),['INTAKE_CONFIG_INVALID'])]:
+            with profile_home(**fields) as home,self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                bridge.LOG.debug('probe')
+                registered,hooks=register_with(home,register_hook=True)
+            self.assertEqual((len(registered),hooks),(7,[]),fields)
+            self.assertEqual([record.split(': ')[-1] for record in logs.output[1:]],logged,fields)
+        with profile_home(**HOOK_ON) as home:
             registered,hooks=register_with(home)
             self.assertEqual((len(registered),hooks),(7,[]))
             registered,hooks=register_with(home,register_hook=True)
@@ -677,33 +831,206 @@ class IntakeAdapterTests(unittest.TestCase):
         self.assertEqual((len(registered),hooks),(7,[]))
 
     def test_hook_returns_none_and_never_raises(self):
-        text='Nhờ Nguyễn Văn Mẫu xem lỗi đăng nhập'
-        with profile_home() as home:
-            _,hooks=register_with(home,register_hook=True)
-            (_,hook),=hooks
-            event=tg_event(text,source=dict(user_name='Nguyễn Văn Mẫu'))
+        text='Nhờ Người mẫu Ba xem lỗi đăng nhập'
+        with profile_home(**HOOK_ON) as home:
+            hook=hook_of(home)
+            event=tg_event(text,source=dict(user_name='Người mẫu Ba'))
             with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs,patch.object(bridge,'submit_event',side_effect=RuntimeError(text+' '+GROUP)):
                 self.assertIsNone(hook(event=event))
                 self.assertIsNone(hook(event))
             for record in logs.output:
-                for hidden in (text,GROUP,SENDER,'Nguyễn'):self.assertNotIn(hidden,record)
-            with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
-                self.assertIsNone(hook(event=tg_event(edited_at='yesterday')))
-            self.assertTrue(any('INTAKE_EVENT_INVALID' in record for record in logs.output))
-            for args,kwargs in [((),{}),((None,),{}),((object(),),{}),((),{'event':object(),'gateway':object()}),((),{'event':tg_event(source=dict(chat_type='private',chat_id=SENDER))})]:
-                self.assertIsNone(hook(*args,**kwargs))
+                for hidden in (text,GROUP,SENDER,'Người mẫu Ba'):self.assertNotIn(hidden,record)
             posted=[]
             def live(_home,payload,**kwargs):
                 posted.append((kwargs,payload));return {'persisted':True}
-            attached=tg_event(text,attachment={'mime_type':'application/pdf','file_size':10,'file_name':'bao-cao.pdf'},download_attachment=None)
-            with patch.object(bridge,'call_backend',side_effect=live):
+            backend=Mock(side_effect=live)
+            with patch.object(bridge,'call_backend',backend):
+                for args,kwargs in [((),{}),((None,),{}),((object(),),{}),((),{'event':object(),'gateway':object()}),((),{'event':tg_event(source=dict(chat_type='private',chat_id=SENDER))})]:
+                    self.assertIsNone(hook(*args,**kwargs))
+                backend.assert_not_called()
+                # A malformed optional field no longer loses the message: it is posted without that field.
+                with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                    self.assertIsNone(hook(event=tg_event(edited_at='yesterday')))
+                self.assertTrue(any('INTAKE_FIELD_DROPPED editedAt' in record for record in logs.output))
+                self.assertNotIn('editedAt',posted.pop()[1])
+                attached=tg_event(text,attachment={'mime_type':'application/pdf','file_size':10,'file_name':'bao-cao.pdf'},download_attachment=None)
                 self.assertIsNone(hook(event=tg_event(text)))
                 self.assertIsNone(hook(event=attached))
-            self.assertEqual([(kwargs['path'],kwargs['key_file']) for kwargs,_ in posted],[(bridge.INTAKE_PATH,'intake.json')]*2)
+                # `home` is positional-only in the hook, so a gateway keyword with that name cannot collide with it.
+                self.assertIsNone(hook(event=tg_event(text,source=dict(message_id='42')),home='/elsewhere',profile_home='/elsewhere'))
+            self.assertEqual([(kwargs['path'],kwargs['key_file']) for kwargs,_ in posted],[(bridge.INTAKE_PATH,'intake.json')]*3)
             self.assertEqual(posted[0][1]['context']['chatId'],GROUP)
             self.assertNotIn('attachment',posted[0][1])
             self.assertEqual({key:posted[1][1]['attachment'][key] for key in ('state','reasonCode')},{'state':'failed','reasonCode':'DOWNLOAD_UNAVAILABLE'})
+            self.assertEqual(posted[2][1]['context']['messageId'],'42')
             with patch.object(bridge,'call_backend',side_effect=urllib.error.URLError('down')),self.assertLogs(bridge.LOG.name,level='DEBUG'):
                 self.assertIsNone(hook(event=tg_event(text,source=dict(message_id='77'))))
             self.assertEqual(len((home/'runtime/libetech-ai-os/intake-spool.jsonl').read_text().splitlines()),1)
+
+    def test_hook_does_nothing_when_intake_json_is_missing_malformed_or_switched_off(self):
+        with profile_home(**HOOK_ON) as home:
+            hook=hook_of(home)
+            runtime=home/'runtime/libetech-ai-os';key=runtime/'intake.json'
+            backend=Mock(return_value={'persisted':True})
+            cases=[(None,'BRIDGE_NOT_CONFIGURED'),('not json','BRIDGE_NOT_CONFIGURED'),('[]','BRIDGE_NOT_CONFIGURED'),
+                   (json.dumps({'hookEnabled':True,'chats':[GROUP]}),'BRIDGE_NOT_CONFIGURED'),
+                   (json.dumps({'key':'short','hookEnabled':True,'chats':[GROUP]}),'BRIDGE_NOT_CONFIGURED'),
+                   (json.dumps({'key':INTAKE_KEY,'hookEnabled':True,'chats':[int(GROUP)]}),'INTAKE_CONFIG_INVALID'),
+                   (json.dumps({'key':INTAKE_KEY,'hookEnabled':True,'chats':GROUP}),'INTAKE_CONFIG_INVALID'),
+                   (json.dumps({'key':INTAKE_KEY,'hookEnabled':'yes','chats':[GROUP]}),'INTAKE_CONFIG_INVALID')]
+            for content,code in cases:
+                key.unlink(missing_ok=True)
+                if content is not None:
+                    key.write_text(content);os.chmod(key,0o600)
+                with patch.object(bridge,'call_backend',backend),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                    self.assertIsNone(hook(event=tg_event()))
+                self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: {code}'],content)
+                backend.assert_not_called()
+                self.assertFalse((runtime/'intake-spool.jsonl').exists(),content)
+            # Unsafe permissions are refused before the key is read.
+            key.write_text(json.dumps({'key':INTAKE_KEY}|HOOK_ON));os.chmod(key,0o644)
+            with patch.object(bridge,'call_backend',backend),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                self.assertIsNone(hook(event=tg_event()))
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: BRIDGE_CONFIG_PERMISSIONS'])
+            # The signed call refuses a malformed key file as unconfigured too, before any network use.
+            key.write_text('not json');os.chmod(key,0o600)
+            with patch.object(bridge.urllib.request,'build_opener') as build:
+                with self.assertRaisesRegex(ValueError,'^BRIDGE_NOT_CONFIGURED$'):
+                    bridge.call_backend(home,{},path=bridge.INTAKE_PATH,key_file='intake.json')
+                build.assert_not_called()
+            # Switched off after registration: read on each call, so nothing happens and nothing is logged.
+            key.write_text(json.dumps({'key':INTAKE_KEY,'hookEnabled':False,'chats':[GROUP]}));os.chmod(key,0o600)
+            with patch.object(bridge,'call_backend',backend):
+                self.assertIsNone(hook(event=tg_event()))
+            backend.assert_not_called()
+            self.assertFalse((runtime/'intake-spool.jsonl').exists())
+
+    def test_a_chat_outside_the_intake_allowlist_is_never_downloaded_spooled_or_posted(self):
+        other='-1000000000002'
+        with profile_home(**HOOK_ON) as home:
+            hook=hook_of(home)
+            runtime=home/'runtime/libetech-ai-os'
+            bridge.Spool(home).put(fitted(91))
+            before=(runtime/'intake-spool.jsonl').read_bytes()
+            download=Mock(return_value=b'%PDF-1.4 synthetic')
+            backend=Mock(return_value={'persisted':True})
+            attached=dict(attachment={'mime_type':'application/pdf','file_size':18,'file_name':'a.pdf'},download_attachment=download)
+            with patch.object(bridge,'call_backend',backend):
+                self.assertIsNone(hook(event=tg_event(source=dict(chat_id=other),**attached)))
+                self.assertIsNone(hook(event=tg_event(source=dict(chat_id=other))))
+            download.assert_not_called();backend.assert_not_called()
+            self.assertEqual((runtime/'intake-spool.jsonl').read_bytes(),before)
+            self.assertFalse((runtime/'attachments').exists())
+            self.assertIsNone(bridge.intake_event(tg_event(source=dict(chat_id=other)),chats=[GROUP]))
+            self.assertEqual(bridge.intake_event(tg_event(),chats=[GROUP])['context']['chatId'],GROUP)
+        # Without a "chats" list no chat is taken at all: the gateway side fails closed.
+        with profile_home(hookEnabled=True) as home:
+            hook=hook_of(home)
+            backend=Mock(return_value={'persisted':True})
+            with patch.object(bridge,'call_backend',backend):
+                self.assertIsNone(hook(event=tg_event()))
+            backend.assert_not_called()
+            self.assertFalse((home/'runtime/libetech-ai-os/intake-spool.jsonl').exists())
+            self.assertIsNone(bridge.intake_event(tg_event(),chats=[]))
+
+    def test_plugin_commands_and_empty_messages_never_reach_intake(self):
+        code='Q'*43
+        with profile_home(**HOOK_ON) as home:
+            hook=hook_of(home)
+            backend=Mock(return_value={'persisted':True});download=Mock(return_value=b'%PDF-1.4 synthetic')
+            commands=['/libetech-link '+code,'  /LIBETECH-LINK@libetech_bot '+code,'/libetech_link\n'+code,'/libetech-check LBRC014 '+'a'*40,
+                      '/libetech-access-approve '+code,'/libetech','/duyet','/duyet@libetech_bot','/Duyet '+code]
+            with patch.object(bridge,'call_backend',backend),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                bridge.LOG.debug('probe')
+                for text in commands:
+                    self.assertIsNone(bridge.intake_event(tg_event(text)),text)
+                    self.assertIsNone(hook(event=tg_event(text,attachment={'mime_type':'application/pdf','file_size':18},download_attachment=download)))
+                for text in ['','   \n\t',None,123]:
+                    self.assertIsNone(bridge.intake_event(tg_event(text)),text)
+                    self.assertIsNone(hook(event=tg_event(text)))
+            backend.assert_not_called();download.assert_not_called()
+            self.assertFalse((home/'runtime/libetech-ai-os/intake-spool.jsonl').exists())
+            for record in logs.output:self.assertNotIn(code,record)
+            # A file without a caption is still a message; text that only looks like our commands is not ours.
+            self.assertEqual(bridge.intake_event(tg_event('',attachment={'mime_type':'application/pdf'}))['text'],'')
+            for text in ['/duyetlai','/libetechx','xem /libetech-link giúp','/start']:
+                self.assertIsNotNone(bridge.intake_event(tg_event(text)),text)
+
+    def test_hook_work_is_bounded_per_call(self):
+        self.assertEqual((bridge.HOOK_TIMEOUT,bridge.HOOK_REPLAYS),(2,5))
+        with profile_home(**HOOK_ON) as home:
+            hook=hook_of(home)
+            spool=bridge.Spool(home)
+            for number in range(100,120):spool.put(fitted(number))
+            calls=[];per_hook=[]
+            def live(_home,payload,**kwargs):
+                calls.append((kwargs['timeout'],payload['context']['messageId'],payload['spooled']));return {'persisted':True}
+            with patch.object(bridge,'call_backend',side_effect=live):
+                for number in range(200,205):
+                    count=len(calls)
+                    self.assertIsNone(hook(event=tg_event(source=dict(message_id=str(number)))))
+                    per_hook.append(len(calls)-count)
+            # A 20-line spool: five replays per message, the new one queued behind them, until it is empty.
+            self.assertEqual(per_hook,[5,5,5,5,5])
+            self.assertTrue(all(count<=6 for count in per_hook))
+            self.assertEqual({timeout for timeout,_,_ in calls},{2})
+            self.assertEqual([number for _,number,_ in calls],[str(n) for n in range(100,120)]+[str(n) for n in range(200,205)])
+            self.assertEqual([spooled for _,number,spooled in calls if number=='204'],[False])
+            self.assertEqual(spool.pending(),0)
+            # Through the real signed call: a hook POST waits 2 s, any other call keeps 5 s.
+            class Recorder(FakeOpener):
+                def open(self,request,timeout):
+                    self.requests.append(timeout);return FakeResponse(b'{"data":{"persisted":true},"error":null}')
+            opener=Recorder()
+            with patch.object(bridge.urllib.request,'build_opener',return_value=opener):
+                self.assertIsNone(hook(event=tg_event(source=dict(message_id='300'))))
+                bridge.call_backend(home,{'limit':1},path=bridge.PULL_PATH,key_file='intake.json')
+            self.assertEqual(opener.requests,[2,5])
+
+    def test_a_busy_spool_lock_is_given_up_quickly_with_spool_busy(self):
+        self.assertEqual(bridge.SPOOL_LOCK_SECONDS,1.0)
+        with profile_home(**HOOK_ON) as home:
+            hook=hook_of(home)
+            spool=bridge.Spool(home)
+            descriptor=os.open(home/'runtime/libetech-ai-os/intake-spool.lock',os.O_RDWR|os.O_CREAT,0o600)
+            try:
+                fcntl.flock(descriptor,fcntl.LOCK_EX)
+                started=time.monotonic()
+                with self.assertRaisesRegex(ValueError,'^SPOOL_BUSY$'):spool.put(fitted(95))
+                self.assertLess(time.monotonic()-started,2)
+                with patch.object(bridge,'call_backend',side_effect=urllib.error.URLError('down')),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                    started=time.monotonic()
+                    self.assertIsNone(hook(event=tg_event(source=dict(message_id='96'))))
+                    elapsed=time.monotonic()-started
+                self.assertTrue(0.5<elapsed<2,elapsed)
+                self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: SPOOL_BUSY'])
+            finally:
+                os.close(descriptor)
+            # The message was lost (a documented limit); the lock is usable again once released.
+            self.assertEqual(spool.pending(),0)
+            spool.put(fitted(97))
+            self.assertEqual(spool.pending(),1)
+
+    def test_an_existing_attachment_folder_must_be_owner_only_and_a_racing_create_is_fine(self):
+        data=b'%PDF-1.4 synthetic test file'
+        raw={'mime_type':'application/pdf','file_size':len(data)}
+        with profile_home() as home:
+            folder=home/'runtime/libetech-ai-os/attachments'
+            folder.mkdir(mode=0o700);os.chmod(folder,0o755)
+            self.assertEqual(bridge.store_attachment(home,raw,lambda:data)['reasonCode'],'STORE_UNAVAILABLE')
+            self.assertEqual(list(folder.iterdir()),[])
+            os.chmod(folder,0o700)
+            self.assertEqual(bridge.store_attachment(home,raw,lambda:data)['state'],'stored')
+        with profile_home() as home:
+            # Another hook creates the folder between our look and our mkdir: still stored, not STORE_UNAVAILABLE.
+            folder=home/'runtime/libetech-ai-os/attachments'
+            real=os.mkdir
+            def racing(path,mode=0o777,*args,**kwargs):
+                if Path(path)==folder and not folder.exists():real(path,0o700)
+                return real(path,mode,*args,**kwargs)
+            with patch('os.mkdir',racing):
+                self.assertEqual(bridge.store_attachment(home,raw,lambda:data)['state'],'stored')
+        with profile_home() as home:
+            (home/'runtime/libetech-ai-os/attachments').write_text('not a folder')
+            self.assertEqual(bridge.store_attachment(home,raw,lambda:data)['reasonCode'],'STORE_UNAVAILABLE')
 if __name__=='__main__':unittest.main()
