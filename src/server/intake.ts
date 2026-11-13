@@ -76,7 +76,7 @@ export class IntakeService {
     if(!ev) throw new AppError('SOURCE_EVENT_CONFLICT','Không ghi nhận được tin này.',409);
    }
    await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[ev.id]);
-   const excerpt=contentMode==='excerpt'?redactSecrets(e.text).slice(0,4096):null;
+   const excerpt=contentMode==='excerpt'?redactSecrets(e.text.slice(0,4096)).slice(0,4096):null;
    const rev=(await tx.query<{id:string;revision_no:number}>(
     `INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,text_excerpt,text_truncated)
      SELECT $1::uuid,$2::uuid,$3::uuid,coalesce(max(revision_no),0)+1,$4::text,$5::timestamptz,$6::text,$7::text,$8::boolean FROM source_event_revisions WHERE source_event_id=$3::uuid

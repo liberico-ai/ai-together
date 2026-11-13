@@ -277,3 +277,45 @@ test('M4 computed source fields: locator, source_id, source_actor, correlation_i
   const r2=await s2.ingest(ev({context:{chatId:legacy}}));
   expect((await h.operator.query<{locator:string}>('SELECT locator FROM source_events WHERE id=$1',[r2.sourceEventId])).rows[0].locator).toBe('');
 });
+
+test('R2-1 redactSecrets stays linear on adversarial 12 KB inputs',()=>{
+  const n=12288;
+  const shapes:Record<string,string>={
+    a_token_:'a_token_'.repeat(Math.ceil(n/8)).slice(0,n),
+    _secret:'_secret'.repeat(Math.ceil(n/7)).slice(0,n),
+    run:'a'.repeat(n),
+    'password=':'password='.repeat(Math.ceil(n/9)).slice(0,n),
+    'token ':'token '.repeat(Math.ceil(n/6)).slice(0,n),
+  };
+  let total=0;
+  for(const [k,v] of Object.entries(shapes)){
+    const t0=performance.now();redactSecrets(v);const dt=performance.now()-t0;total+=dt;
+    console.info('redact timing',k,Math.round(dt),'ms');
+  }
+  expect(total).toBeLessThan(200);
+});
+
+test('R2-2 an unquoted value is redacted to the next whitespace; a quoted value to its matching quote',()=>{
+  for(const [input,leak] of [['password=abc;def','def'],['token=ab,cd','cd'],['secret=a}b','b'],['api_key=x"y"z','z'],
+    ["password='it\"s;ok, fine'",'fine'],['password="a\'b,c;d"','c;d'],['DB_PASSWORD=p@ss;w0rd,x','w0rd']] as const){
+    const r=redactSecrets('trước '+input+' sau');
+    expect(r,input).not.toContain(leak);expect(r).toContain('[đã che]');expect(r.startsWith('trước ')).toBe(true);
+  }
+  expect(redactSecrets('token=ab cd')).toBe('token=[đã che] cd');
+});
+
+test('R2-3 ingest writes run as libetech_intake: current_user is the role and an out-of-grant column is denied',async()=>{
+  let who='',denied='';
+  const s=svcWith(bridgeConfig.chatScopes,async tx=>{
+    who=(await tx.query<{u:string}>('SELECT current_user u')).rows[0].u;
+    await tx.query('SAVEPOINT probe');
+    try{await tx.query("INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,created_at) SELECT tenant_id,project_id,id,99,$1,$1,now() FROM source_events",[hex('f')]);}
+    catch(err){denied=String((err as Error).message);}
+    await tx.query('ROLLBACK TO SAVEPOINT probe');
+    return 'none';
+  });
+  await s.ingest(ev({}));
+  expect(who).toBe('libetech_intake');
+  expect(denied).toMatch(/permission denied/);
+  expect(await count('source_event_revisions')).toBe(1);
+});
