@@ -1,5 +1,6 @@
 import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {readFile} from 'node:fs/promises';
+import {readdirSync} from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {ZodError} from 'zod';
@@ -39,7 +40,8 @@ async function catalog(){
 }
 const rollbackSql=(f:string)=>readFile(dir('migrations/rollback/'+f),'utf8');
 const forwardSql=(f:string)=>readFile(dir('migrations/'+f),'utf8');
-const FILES=['013_project_registry.sql','014_document_registry.sql','015_document_index_z2.sql'];
+// Derived from the rollback directory so every later migration (016, 017, 018...) is rolled back and re-applied too.
+const FILES=readdirSync(dir('migrations/rollback')).filter(f=>/^\d+.*\.sql$/.test(f)).sort();
 
 describe('item 1 rollback safety',()=>{
   test('rollback files carry no CASCADE',async()=>{
@@ -55,7 +57,7 @@ describe('item 1 rollback safety',()=>{
     }
     expect(await h.operator.query("SELECT to_regclass('public.document_records')::text r").then(r=>(r.rows[0] as {r:string}).r)).toBe('document_records');
   });
-  test('forward → rollback 015,014,013 → forward restores an identical catalog',async()=>{
+  test('forward → rollback highest-first → forward restores an identical catalog',async()=>{
     const before=await catalog();
     expect(before.constraints.length).toBeGreaterThan(20);
     for(const f of [...FILES].reverse()) await h.exec(await rollbackSql(f));
