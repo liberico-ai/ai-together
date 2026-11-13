@@ -25,6 +25,22 @@ function Grants({projects,initial=[]}:{projects:Project[];initial?:ProjectGrant[
   })}</fieldset>;
 }
 
+/** Mirrors the server rule (AccountService reducesAccess): anything that is not a pure reduction needs a ballot. */
+export function expandsAccess(before:ProjectGrant[],after:ProjectGrant[]):boolean {
+  return !after.every(next=>{
+    const prior=before.find(grant=>grant.projectId===next.projectId);
+    return prior&&(next.role===prior.role||next.role==='viewer')&&next.reportPermissions.every(permission=>prior.reportPermissions.includes(permission));
+  });
+}
+
+/** Widening goes through a ballot; the server still refuses a widening save without an approved ballot. Reducing keeps the direct save. */
+export function AccessActions({expands,busy}:{expands:boolean;busy:boolean}) {
+  return expands?<>
+    <button type="submit" className="primary" disabled={busy} value="propose_access_change">Trình phiếu đổi quyền</button>
+    <button type="submit" className="secondary" disabled={busy} value="access">Áp quyền đã được duyệt</button>
+  </>:<button type="submit" className="primary" disabled={busy} value="access">Lưu quyền</button>;
+}
+
 function readGrants(form:FormData,projects:Project[]):ProjectGrant[] {
   return projects.flatMap(({id})=>{
     const role=form.get(id) as ProjectGrant['role']|'';
@@ -37,6 +53,7 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
   const [requests,setRequests]=useState(initialRequests);
   const [invitation,setInvitation]=useState(''),[notice,setNotice]=useState(''),[error,setError]=useState('');
   const user=accounts.find(account=>account.id===selected);
+  const [expands,setExpands]=useState(false);
   async function review(event:FormEvent<HTMLFormElement>,requestId:string) {
     event.preventDefault();const form=new FormData(event.currentTarget);
     const button=(event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement|null;
@@ -48,7 +65,7 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
         ...(kind==='approve_registration'?{grants:readGrants(form,projects)}:{})});
       if(result.invitation) setInvitation(location.origin+'/activate#'+result.invitation.token);
       setRequests(await api<RegistrationRequest[]>('/api/team/registrations'));
-      setAccounts(await api<Account[]>('/api/team/accounts'));
+      setAccounts(await api<Account[]>('/api/team/accounts'));setExpands(false);
       setNotice(kind==='approve_registration'?'Đã tạo phiếu. Anh và ít nhất một thành viên BoM chọn Yes trên nền.':
         kind==='issue_approved_registration'?'Đã có xác nhận của anh và BoM. Gửi riêng liên kết mời cho đúng người.':'Đã từ chối yêu cầu.');
     } catch(e) {setError((e as Error).message);} finally {setBusy(false);}
@@ -62,7 +79,7 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
     const reason=form.get('reason'),grants=readGrants(form,projects);
     const command=isNew?{kind,username:form.get('username'),name:form.get('name'),reason,grants}:
       {kind,userId:user?.id,expectedVersion:user?.version,reason,
-        ...(kind==='access'?{grants}:{}),
+        ...(kind==='access'||kind==='propose_access_change'?{grants}:{}),
         ...(kind==='verify_github'?{githubId:form.get('githubId'),sourceId:form.get('sourceId')}:{}),
       };
     setBusy(true);setError('');setNotice('');setInvitation('');
@@ -70,7 +87,7 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
       const result=await api<Result>('/api/team/accounts',command);
       if(result.invitation) setInvitation(location.origin+'/activate#'+result.invitation.token);
       setAccounts(await api<Account[]>('/api/team/accounts'));
-      setNotice('Đã lưu thay đổi tài khoản.');
+      setNotice(kind==='propose_access_change'?'Đã trình phiếu đổi quyền. Anh và ít nhất một thành viên BoM chọn Yes trên nền; quyền chưa đổi cho tới khi áp quyền đã được duyệt.':'Đã lưu thay đổi tài khoản.');
       if(isNew) element.reset();
     } catch(error) { setError((error as Error).message); }
     finally {setBusy(false);}
@@ -104,10 +121,11 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
         <p><a href="/approvals">Mở phiếu để chọn Yes hoặc No trên nền</a>.</p></section>
       <section className="panel team-form">
         <h2>Tài khoản đã tạo</h2>
-        <label>Thành viên<select value={selected} onChange={event=>setSelected(event.target.value)}>
+        <label>Thành viên<select value={selected} onChange={event=>{setSelected(event.target.value);setExpands(false);}}>
           <option value="">Chọn tài khoản</option>{accounts.map(account=><option key={account.id} value={account.id}>{account.name} · {account.username}</option>)}
         </select></label>
-        {user?<form key={user.id+':'+user.version} className="action-form" onSubmit={event=>submit(event,false)}>
+        {user?<form key={user.id+':'+user.version} className="action-form" onSubmit={event=>submit(event,false)}
+          onChange={event=>setExpands(expandsAccess(user.grants,readGrants(new FormData(event.currentTarget),projects)))}>
           <p>{!user.active?'Đã khóa':user.activated?'Đang hoạt động':'Chờ kích hoạt'}</p>
           <Grants projects={projects} initial={user.grants}/>
           {user.active&&user.activated&&<details><summary>Xác minh tài khoản GitHub</summary>
@@ -118,7 +136,7 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
           </details>}
           <label>Lý do thay đổi<input name="reason" required minLength={5} maxLength={500}/></label>
           <div className="team-actions">
-            <button type="submit" className="primary" disabled={busy} value="access">Lưu quyền</button>
+            <AccessActions expands={expands} busy={busy}/>
             {user.active&&!user.activated&&<><button className="secondary" disabled={busy} value="reissue">Cấp lại lời mời</button>
               <button className="secondary" disabled={busy} value="cancel">Hủy lời mời</button></>}
             {user.active&&user.activated&&<button className="secondary" disabled={busy} value="revoke_sessions">Thu hồi phiên</button>}
