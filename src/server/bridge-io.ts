@@ -4,6 +4,7 @@ import type {BridgeConfig} from './bridge-config';
 import {verifySigned} from './bridge-auth';
 import {AppError,invariant} from './errors';
 import {IntakeService,type EnqueueReceipt} from './intake';
+import {OutboxService,enqueueReceipt} from './outbox';
 
 export type IntakePrincipal={id:string;tenantId:string;projectIds:string[]};
 export type IoDeps={intakeDb:Database;identity:IdentityService;config:BridgeConfig;tenantId:string;enqueueReceipt?:EnqueueReceipt};
@@ -18,10 +19,13 @@ export async function handleBridgeIo(request:Request,parts:string[],deps:IoDeps)
  const raw=await verifySigned(request,{key:deps.config.intake.key,path:route,maxBytes:MAX_BYTES[route],identity:deps.identity,throttleBucket:'bridge-intake',throttleLimit:600});
  if(route==='/api/bridge/intake/events') {
   const i=deps.config.intake;
-  return new IntakeService(deps.intakeDb,deps.tenantId,i.principalId,deps.config.chatScopes,i.chats,deps.enqueueReceipt).ingest(JSON.parse(raw));
+  return new IntakeService(deps.intakeDb,deps.tenantId,i.principalId,deps.config.chatScopes,i.chats,deps.enqueueReceipt??enqueueReceipt).ingest(JSON.parse(raw));
  }
- // Task 6 replaces the outbox routes.
- throw new AppError('NOT_IMPLEMENTED','Chưa triển khai.',501);
+ // Pull scope is the union of the projects of the configured intake chats; empty fails closed in intakeScoped.
+ const i=deps.config.intake;
+ const projectIds=[...new Set(i.chats.flatMap(c=>deps.config.chatScopes[c]??[]))];
+ const outbox=new OutboxService(deps.intakeDb,deps.identity,{id:i.principalId,tenantId:deps.tenantId,projectIds});
+ return route==='/api/bridge/outbox/pull'?outbox.pull(JSON.parse(raw)):outbox.report(JSON.parse(raw));
 }
 
 export async function intakeScoped<T>(db:Database,p:IntakePrincipal,fn:(tx:Queryable)=>Promise<T>):Promise<T> {

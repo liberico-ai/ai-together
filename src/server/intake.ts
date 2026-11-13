@@ -109,10 +109,14 @@ export class IntakeService {
 
    const ack:IntakeAck={sourceEventId:ev.id,revisionNo,candidateRef:candidateId?refOf(candidateId):null,replayed,persisted:true,receipt:'none'};
    if(!e.addressed) return ack;
-   if(attState&&attState!=='stored') return {...ack,receipt:'withheld',reason:'ATTACHMENT_NOT_STORED'};
-   if(replayed||revisionNo>1) return ack;
-   const receipt=await this.enqueueReceipt(tx,{tenantId,projectId,sourceEventId:ev.id,candidateId:candidateId??null,chatId:c.chatId,topicId:c.topicId??'',replyToMessageId:c.messageId,
-    template:e.spooled?'intake.recovered':'intake.received',params:candidateId?{candidateRef:refOf(candidateId)}:{},traceId:ev.trace_id,correlationId:ev.correlation_id});
+   const notStored=Boolean(attState&&attState!=='stored');
+   if(replayed||revisionNo>1) return notStored?{...ack,receipt:'withheld',reason:'ATTACHMENT_NOT_STORED'}:ack;
+   // Only a new, addressed event queues anything. Params carry the reference and observedAt, never the message text.
+   const queued=await this.enqueueReceipt(tx,{tenantId,projectId,sourceEventId:ev.id,candidateId:candidateId??null,chatId:c.chatId,topicId:c.topicId??'',replyToMessageId:c.messageId,
+    template:notStored?'intake.attachment_failed':e.spooled?'intake.recovered':'intake.received',params:{ref:candidateId?refOf(candidateId):'',observedAt:e.observedAt},traceId:ev.trace_id,correlationId:ev.correlation_id});
+   // A failed file never claims success, whatever was queued.
+   if(notStored) return {...ack,receipt:'withheld',reason:'ATTACHMENT_NOT_STORED'};
+   const receipt=queued;
    return {...ack,receipt};
   });
  }

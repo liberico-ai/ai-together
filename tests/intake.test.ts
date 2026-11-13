@@ -119,7 +119,8 @@ test('DOC-04 a failed, oversized or unsupported file never yields a success rece
     const a=(await h.operator.query<{state:string;locator:string|null;sha256:string|null}>('SELECT state,locator,sha256 FROM intake_attachments WHERE source_event_id=$1',[r.sourceEventId])).rows[0];
     expect(a).toEqual({state,locator:null,sha256:null});
   }
-  expect(enq).not.toHaveBeenCalled();
+  // Task 6: the failure notice is queued, the ack still never claims success.
+  expect(enq.mock.calls.map(c=>c[1].template)).toEqual(['intake.attachment_failed','intake.attachment_failed','intake.attachment_failed']);
   expect(await count('source_events')).toBe(3);
 });
 
@@ -248,7 +249,8 @@ test('receipts: queued only for a new addressed message; template follows spoole
   expect(await s.ingest(ev({spooled:true}))).toMatchObject({receipt:'queued'});
   expect(calls.map(c=>c.template)).toEqual(['intake.received','intake.recovered']);
   expect(calls[0]).toMatchObject({tenantId:ids.tenant,projectId:ids.sales,chatId:chatSales,replyToMessageId:e.context.messageId,traceId:expect.any(String),correlationId:expect.any(String)});
-  expect(calls[0].params.candidateRef).toMatch(/^IN-/);
+  expect(calls[0].params.ref).toMatch(/^IN-/);
+  expect(Object.keys(calls[0].params).sort()).toEqual(['observedAt','ref']);
 });
 
 test('M1 one ingest shares one request_id across its intake_events rows',async()=>{
