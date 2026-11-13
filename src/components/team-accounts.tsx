@@ -2,13 +2,14 @@
 import { useState,type FormEvent } from 'react';
 import { api } from './api';
 import type { Project,ProjectGrant,ReportPermission } from '@/server/types';
+import { widensAccess } from '../server/access-grants';
+import { PERMISSION_LABELS,ROLE_LABELS } from './grant-labels';
 
 type Account={id:string;username:string;name:string;active:boolean;activated:boolean;version:number;grants:ProjectGrant[];githubId:string|null};
 type Result={invitation?:{token:string;expiresInHours:number};pendingTelegramApproval?:boolean;approvalId?:string};
 type RegistrationRequest={id:string;username:string;name:string;project_interest:string;note:string;created_at:string;
   approval_id:string|null;approval_state:string|null;approval_agreed:number;chairman_agreed:boolean;bom_agreed:number;approval_grants:ProjectGrant[]|null};
-const roles={viewer:'Chỉ đọc',engineer:'Thực hiện',manager:'Điều phối',technical:'Nghiệm thu kỹ thuật',business:'Nghiệm thu nghiệp vụ'};
-const permissions:Record<ReportPermission,string>={people_read:'Xem điểm nhân sự',quality_review:'Đánh giá phản hồi',report_approve:'Chốt kết quả'};
+const roles=ROLE_LABELS,permissions=PERMISSION_LABELS;
 
 function Grants({projects,initial=[]}:{projects:Project[];initial?:ProjectGrant[]}) {
   return <fieldset><legend>Phạm vi dự án</legend>{projects.map(project=>{
@@ -25,13 +26,8 @@ function Grants({projects,initial=[]}:{projects:Project[];initial?:ProjectGrant[
   })}</fieldset>;
 }
 
-/** Mirrors the server rule (AccountService reducesAccess): anything that is not a pure reduction needs a ballot. */
-export function expandsAccess(before:ProjectGrant[],after:ProjectGrant[]):boolean {
-  return !after.every(next=>{
-    const prior=before.find(grant=>grant.projectId===next.projectId);
-    return prior&&(next.role===prior.role||next.role==='viewer')&&next.reportPermissions.every(permission=>prior.reportPermissions.includes(permission));
-  });
-}
+/** The server's own rule (AccountService): anything that is not a pure reduction needs a ballot. */
+export const expandsAccess=(before:ProjectGrant[],after:ProjectGrant[]):boolean=>widensAccess(before,after);
 
 /** Widening goes through a ballot; the server still refuses a widening save without an approved ballot. Reducing keeps the direct save. */
 export function AccessActions({expands,busy}:{expands:boolean;busy:boolean}) {

@@ -2,9 +2,9 @@ import {afterEach,beforeEach,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
-import {openHarness,type Harness} from './slice1-db';
+import {native,openHarness,type Harness} from './slice1-db';
 import {outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
-import {scoped,type Queryable} from '../src/server/db';
+import {assertRestrictedLogin,scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
 import {intakeScoped} from '../src/server/bridge-io';
 import {IdentityService} from '../src/server/identity';
@@ -695,4 +695,185 @@ test('payload cap counts bytes, envelope constants and error codes are closed',a
   const {g}=await seedBoth();
   await expect(receipt(o,g,ids.sales,{attempt_no:2,error_code:'free text'})).rejects.toThrow();
   await expect(receipt(o,g,ids.sales,{attempt_no:2,error_code:'RECIPIENT_UNLINKED'})).resolves.toBeTruthy();
+});
+
+// ---- Database review I-1: the role-membership invariant the proof by privilege depends on ----
+// Every probe runs in one operator transaction that is always rolled back: no role, grant or attribute change outlives the test.
+const DUAL='libetech_test_dual_member';
+const guardBlock=async(file:string,name:string)=>{
+  const src=await readFile(path.join(process.cwd(),'migrations',file),'utf8');
+  const m=new RegExp(`-- guard:${name} begin\\n([\\s\\S]*?)\\n-- guard:${name} end`).exec(src);
+  if(!m) throw new Error(`no guard ${name} in ${file}`);
+  return m[1];
+};
+type Probe=(sql:string,params?:unknown[])=>Promise<string|null>;
+async function rolledBack(fn:(tx:Queryable,probe:Probe)=>Promise<void>):Promise<void>{
+  const done=new Error('rolled back');
+  await h.operator.transaction(async tx=>{
+    let n=0;
+    // null when the statement succeeds, else its error message; a savepoint keeps the outer transaction usable
+    const probe:Probe=async(sql,params=[])=>{
+      const sp='probe_'+(++n);
+      await tx.query('SAVEPOINT '+sp);
+      try {await tx.query(sql,params);await tx.query('RELEASE SAVEPOINT '+sp);return null;}
+      catch(e){await tx.query('ROLLBACK TO SAVEPOINT '+sp);return (e as Error).message;}
+    };
+    await fn(tx,probe);
+    throw done;
+  }).catch(e=>{if(e!==done) throw e;});
+}
+
+test('DB I-1 016 and 017 refuse a role that can act as both libetech_runtime and libetech_intake, directly or through another role',async()=>{
+  const g16=await guardBlock('016_intake_inbox.sql','role-separation'),g17=await guardBlock('017_outbox.sql','role-separation');
+  expect(g17).toBe(g16);
+  const BOTH=/both libetech_runtime and libetech_intake/;
+  await rolledBack(async(tx,probe)=>{
+    expect(await probe(g16)).toBeNull();
+    await tx.query(`CREATE ROLE ${DUAL} NOLOGIN`);
+    await tx.query(`GRANT libetech_runtime TO ${DUAL}`);
+    expect(await probe(g16)).toBeNull();
+    await tx.query(`GRANT libetech_intake TO ${DUAL}`);
+    expect(await probe(g16)).toMatch(BOTH);
+  });
+  await rolledBack(async(tx,probe)=>{
+    await tx.query(`CREATE ROLE ${DUAL} NOLOGIN`);
+    await tx.query(`GRANT libetech_web, libetech_intake_svc TO ${DUAL}`);
+    expect(await probe(g16)).toMatch(BOTH);
+  });
+  await rolledBack(async(tx,probe)=>{
+    await tx.query('GRANT libetech_intake TO libetech_runtime');
+    expect(await probe(g16)).toMatch(BOTH);
+  });
+});
+
+test('DB M-5 016 checks the intake roles it did not create',async()=>{
+  const g=await guardBlock('016_intake_inbox.sql','intake-roles');
+  await rolledBack(async(_tx,probe)=>{expect(await probe(g)).toBeNull();});
+  const ROLE='ALTER '+'ROLE';
+  for(const [setup,message] of [
+    [`${ROLE} libetech_intake LOGIN`,/libetech_intake must be NOLOGIN, NOSUPERUSER and NOBYPASSRLS/],
+    [`${ROLE} libetech_intake BYPASSRLS`,/libetech_intake must be NOLOGIN, NOSUPERUSER and NOBYPASSRLS/],
+    [`${ROLE} libetech_intake_svc CREATEDB`,/libetech_intake_svc must be NOSUPERUSER, NOBYPASSRLS, NOCREATEDB and NOCREATEROLE/],
+    [`${ROLE} libetech_intake_svc CREATEROLE`,/libetech_intake_svc must be NOSUPERUSER, NOBYPASSRLS, NOCREATEDB and NOCREATEROLE/],
+    ['GRANT libetech_identity TO libetech_intake_svc',/libetech_intake_svc may reach no application role other than libetech_intake/],
+    ['GRANT libetech_web TO libetech_intake_svc',/libetech_intake_svc may reach no application role other than libetech_intake/],
+  ] as const) await rolledBack(async(tx,probe)=>{await tx.query(setup);expect(await probe(g),setup).toMatch(message);});
+});
+
+test('DB I-1 017 refuses an audit role that has a member or is a member of any role',async()=>{
+  const g=await guardBlock('017_outbox.sql','outbox-audit');
+  await rolledBack(async(_tx,probe)=>{expect(await probe(g)).toBeNull();});
+  await rolledBack(async(tx,probe)=>{
+    await tx.query(`CREATE ROLE ${DUAL} NOLOGIN`);
+    await tx.query(`GRANT ${AUDIT} TO ${DUAL}`);
+    expect(await probe(g)).toMatch(/libetech_outbox_audit must have no members and be a member of no role/);
+  });
+  await rolledBack(async(tx,probe)=>{
+    await tx.query(`CREATE ROLE ${DUAL} NOLOGIN`);
+    await tx.query(`GRANT ${DUAL} TO ${AUDIT}`);
+    expect(await probe(g)).toMatch(/libetech_outbox_audit must have no members and be a member of no role/);
+  });
+});
+
+test('DB I-1 a restricted login refuses to start when it can reach more than one app role or the audit role (db.ts, fail closed)',async()=>{
+  const as=async(tx:Queryable,role:string)=>{
+    await tx.query('SAVEPOINT login');
+    await tx.query(`SET LOCAL ROLE ${role}`);
+    const r=await assertRestrictedLogin(tx).then(()=>null,(e:Error)=>e.message);
+    await tx.query('ROLLBACK TO SAVEPOINT login');
+    return r;
+  };
+  const REFUSED=/must not own tables, hold elevated database privileges or reach more than one application role/;
+  await rolledBack(async tx=>{
+    for(const login of ['libetech_web','libetech_auth','libetech_intake_svc']) expect(await as(tx,login),login).toBeNull();
+    await tx.query(`CREATE ROLE ${DUAL} LOGIN NOINHERIT`);
+    await tx.query(`GRANT libetech_runtime TO ${DUAL}`);
+    expect(await as(tx,DUAL)).toBeNull();
+    await tx.query(`GRANT libetech_intake TO ${DUAL}`);
+    expect(await as(tx,DUAL)).toMatch(REFUSED);
+  });
+  await rolledBack(async tx=>{
+    await tx.query(`CREATE ROLE ${DUAL} LOGIN NOINHERIT`);
+    await tx.query(`GRANT libetech_web, ${AUDIT} TO ${DUAL}`);
+    expect(await as(tx,DUAL)).toMatch(REFUSED);
+  });
+  await rolledBack(async tx=>{
+    await tx.query(`CREATE ROLE ${DUAL} LOGIN NOINHERIT`);
+    await tx.query(`GRANT libetech_auth, libetech_intake_svc TO ${DUAL}`);
+    expect(await as(tx,DUAL)).toMatch(REFUSED);
+  });
+  // no row for the current role is a refusal too
+  await expect(assertRestrictedLogin({query:async()=>({rows:[]})} as Queryable)).rejects.toThrow(REFUSED);
+});
+
+// PGlite (single-user backend) does not restore SET LOCAL SESSION AUTHORIZATION at commit or rollback, so the two probes that need
+// another session user run on native PostgreSQL only; the forgery itself was reproduced on PGlite too (fix-wave RED log).
+test.skipIf(!native)('DB I-1 the reviewer\'s probe: a login that can act as both roles cannot record a runtime abandon as intake_service',async()=>{
+  const d=await mkRow('dead');
+  const before=await eventsFull(d);
+  let refused:string|null='not run',written:EventFull[]=[];
+  await rolledBack(async(tx,probe)=>{
+    // a tooling login granted both roles after the migrations ran (the guards above see only what exists when they run)
+    await tx.query(`CREATE ROLE ${DUAL} LOGIN NOINHERIT`);
+    await tx.query(`GRANT libetech_runtime, libetech_intake TO ${DUAL}`);
+    await tx.query(`SET LOCAL SESSION AUTHORIZATION ${DUAL}`);
+    await tx.query('SET LOCAL ROLE libetech_runtime');
+    await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.person_id',$3,true),set_config('app.intake_principal_id',$4,true)",
+      [ids.tenant,both().join(','),pm.id,intakePrincipalId]);
+    await setSignal(tx,'abandon');
+    // the BEFORE guard runs as runtime and allows dead -> abandoned; RETURNING rewrites role and the recorded invoker before the AFTER trigger
+    refused=await probe("UPDATE outbox_messages SET state='abandoned',version=version+1,updated_at=now() WHERE id=$1 RETURNING set_config('role','libetech_intake',true),set_config('app.outbox_invoker','libetech_intake',true)",[d]);
+    // read back in the same transaction, as whichever app role is now set (both may read their project's events)
+    written=(await tx.query<EventFull>('SELECT from_state,to_state,signal,actor_kind,actor_id,request_id FROM outbox_state_events WHERE outbox_id=$1 ORDER BY outbox_version',[d])).rows;
+  });
+  expect(written.filter(e=>e.signal==='abandon')).toEqual([]);
+  expect(refused).toMatch(/can act as both libetech_runtime and libetech_intake/);
+  expect((await stateOf(d)).state).toBe('dead');
+  expect(await eventsFull(d)).toEqual(before);
+});
+
+test.skipIf(!native)('DB I-1 a login that is a member of the audit role cannot insert a state event directly',async()=>{
+  const d=await mkRow('dead');
+  let refused:string|null='not run';
+  await rolledBack(async(tx,probe)=>{
+    await tx.query(`CREATE ROLE ${DUAL} LOGIN NOINHERIT`);
+    await tx.query(`GRANT ${AUDIT} TO ${DUAL}`);
+    const v=(await tx.query<{version:number}>('SELECT version FROM outbox_messages WHERE id=$1',[d])).rows[0].version;
+    await tx.query(`SET LOCAL SESSION AUTHORIZATION ${DUAL}`);
+    await tx.query(`SET LOCAL ROLE ${AUDIT}`);
+    await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[ids.tenant,both().join(',')]);
+    refused=await probe(`INSERT INTO outbox_state_events(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,request_id,trace_id)
+      VALUES($1,$2,$3,'dead','abandoned','abandon',3,$4,'intake_service',$5,$6,$6)`,[ids.tenant,ids.sales,d,v+1,intakePrincipalId,randomUUID()]);
+  });
+  expect(refused).toMatch(/member of libetech_outbox_audit/);
+});
+
+test('DB M-1 018 sets a lock timeout before it changes identity.account_approvals',async()=>{
+  const src=await readFile(path.join(process.cwd(),'migrations','018_access_change_approval.sql'),'utf8');
+  const lines=src.split('\n').filter(l=>l.trim()&&!l.trim().startsWith('--'));
+  expect(lines[0]).toBe('BEGIN;');
+  expect(lines[1]).toBe("SET LOCAL lock_timeout = '5s';");
+  expect(src.indexOf('SET LOCAL lock_timeout')).toBeLessThan(src.indexOf('TABLE identity.account_approvals'));
+});
+
+test('DB M-8 outbox counters keep their range: attempt_no >= 0 and version >= 1',async()=>{
+  const id=await mkRow('pending');
+  await rolledBack(async(tx,probe)=>{
+    // replica mode skips the guard triggers, so only the CHECK constraints stand in the way
+    await tx.query("SET LOCAL session_replication_role = 'replica'");
+    expect(await probe('UPDATE outbox_messages SET attempt_no=-1 WHERE id=$1',[id])).toMatch(/outbox_messages_attempt_no_nonnegative/);
+    expect(await probe('UPDATE outbox_messages SET version=0 WHERE id=$1',[id])).toMatch(/outbox_messages_version_positive/);
+    expect(await probe('UPDATE outbox_messages SET attempt_no=0, version=1 WHERE id=$1',[id])).toBeNull();
+  });
+});
+
+test('DB M-9 the redundant indexes are gone and each FK keeps an index that leads with its column',async()=>{
+  const idx=(await h.operator.query<{n:string}>("SELECT indexname n FROM pg_indexes WHERE schemaname='public' AND tablename IN ('intake_attachments','delivery_receipts','outbox_state_events')")).rows.map(r=>r.n);
+  for(const gone of ['idx_intake_attachments_revision_fk','idx_delivery_receipts_outbox_created','idx_outbox_state_events_outbox_created']) expect(idx).not.toContain(gone);
+  // intake_attachments.revision_id leads UNIQUE(revision_id); the receipt and event outbox FKs keep their own index
+  const lead=(await h.operator.query<{t:string;c:string}>(`SELECT t.relname::text t,a.attname::text c FROM pg_index i JOIN pg_class t ON t.oid=i.indrelid
+    JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=i.indkey[0] WHERE t.relname IN ('intake_attachments','delivery_receipts','outbox_state_events')`)).rows;
+  expect(lead).toContainEqual({t:'intake_attachments',c:'revision_id'});
+  expect(lead).toContainEqual({t:'delivery_receipts',c:'outbox_id'});
+  expect(lead).toContainEqual({t:'outbox_state_events',c:'outbox_id'});
 });

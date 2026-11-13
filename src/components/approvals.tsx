@@ -1,15 +1,13 @@
 'use client';
 import {useState} from 'react';
 import {api} from './api';
+import {permissionLabel,roleLabel} from './grant-labels';
 
 type Grant={name:string;role:string;reportPermissions:string[]};
 export type Pending={id:string;kind?:'registration'|'access_change';name:string;username:string;project_interest:string|null;reason:string;
   grant_details:Grant[];previous_grant_details?:Grant[]|null;expires_at:string};
-const roles:Record<string,string>={viewer:'Chỉ đọc',engineer:'Thực hiện',manager:'Điều phối',
- technical:'Nghiệm thu kỹ thuật',business:'Nghiệm thu nghiệp vụ'};
-
 const grantText=(grants:Grant[]|null|undefined,empty:string)=>grants?.length?grants.map(g=>
-  `${g.name} (${roles[g.role]??g.role}${g.reportPermissions?.length?', quyền báo cáo: '+g.reportPermissions.join(', '):''})`).join('; '):empty;
+  `${g.name} (${roleLabel(g.role)}${g.reportPermissions?.length?', quyền báo cáo: '+g.reportPermissions.map(permissionLabel).join(', '):''})`).join('; '):empty;
 
 /** A ballot shows what it is. An access change names the account and puts the frozen current grants next to the proposed ones, so a voter never approves a widening they cannot see. */
 export function ApprovalItem({item,busy,onVote}:{item:Pending;busy:boolean;onVote:(id:string,choice:'agree'|'reject')=>void|Promise<void>}) {

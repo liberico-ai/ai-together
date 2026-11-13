@@ -2,6 +2,8 @@
 -- Order: roll back 018, then 017, then 016. Refuses while a later migration is recorded or while any access_change ballot exists:
 -- such a row has no registration and cannot be represented once registration_id is NOT NULL again. No CASCADE; no role is touched.
 BEGIN;
+-- Same lock_timeout as 018: the reverse ALTERs take the same locks on identity.account_approvals.
+SET LOCAL lock_timeout = '5s';
 -- Read the rows without row-level security: a role that RLS would filter gets an error here instead of a silent empty count.
 SET LOCAL row_security = off;
 DO $$ DECLARE has_rows boolean; BEGIN

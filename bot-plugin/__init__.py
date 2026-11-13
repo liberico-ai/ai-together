@@ -19,6 +19,7 @@ import re
 import secrets
 import stat
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import uuid
@@ -281,7 +282,8 @@ def intake_event(event, chats=None):
     """Intake body built from the gateway's own event object; identity and placement never come from the text.
     None: not a person's message in a Telegram group of the libetech profile, a route the gateway rejected, a chat not
     in `chats` (the gateway-side allowlist from intake.json, which the hook always passes; the server's allowlist stays
-    authoritative), one of this plugin's own commands, or an empty message without a file. Never raises for a malformed
+    authoritative), no `chats` at all (None: fails closed, never permissive), one of this plugin's own commands, or an
+    empty message without a file. Never raises for a malformed
     optional field: that field is dropped with INTAKE_FIELD_DROPPED in the log and the message is still recorded."""
     source = getattr(event, "source", None)
     if event is None or source is None or getattr(event, "internal", False) is True:
@@ -299,8 +301,8 @@ def intake_event(event, chats=None):
         context = dict(validated_context(values))
     except ValueError:
         return None
-    # Before anything is downloaded, spooled or posted: only the chats this gateway may take.
-    if chats is not None and context["chatId"] not in chats:
+    # Before anything is downloaded, spooled or posted: only the chats this gateway may take. No list: none.
+    if chats is None or context["chatId"] not in chats:
         return None
     text = getattr(event, "text", "")
     text = text.encode("utf-8", "replace").decode("utf-8") if isinstance(text, str) else ""
@@ -450,6 +452,8 @@ def _file_name(value):
     if not isinstance(value, str):
         return ""
     name = re.sub(r"[\x00-\x1f\x7f]", "", re.split(r"[\\/]", value)[-1])
+    # Bidi overrides, zero-width and other format (Cf) characters can disguise a name such as "x\u202efdp.exe" (Sec M4).
+    name = "".join(ch for ch in name if unicodedata.category(ch) != "Cf")
     return _cut_units(name, 200)
 
 def store_attachment(home, raw, download):
@@ -849,7 +853,10 @@ def _delivery_target(item):
         raise ValueError("DELIVERY_INVALID")
     return chat, topic or None, reply, payload.get("template"), payload.get("params")
 
-def _deliver(item, send, journal, summary):
+def _deliver(item, send, journal, summary, allowed):
+    """`allowed`: the group chat ids of intake.json "chats". A group target outside it is refused before anything is
+    journaled or sent (Security M5: the target comes from the backend; this is defence in depth). DM targets are the
+    linked private chats the backend checks, not group chats, so the list does not apply to them."""
     key = _attempt_key(item)
     lease = item.get("leaseToken") if key else None
     if key is None or not isinstance(lease, str) or not UUID.fullmatch(lease):
@@ -870,6 +877,8 @@ def _deliver(item, send, journal, summary):
         return receipt("uncertain", errorCode="SEND_STATE_UNKNOWN")
     try:
         chat_id, topic_id, reply_to, template, params = _delivery_target(item)
+        if item.get("audience") == "group" and chat_id not in allowed:
+            raise ValueError("TARGET_NOT_ALLOWED")
         text = render(template, params)
     except ValueError as error:
         summary["failed"] += 1
@@ -997,7 +1006,8 @@ def drain_outbox(home, send, journal, *, limit=10):
                 or not isinstance(pulled.get("reconcile"), list)
                 or len(pulled["deliveries"]) > 10 or len(pulled["reconcile"]) > 10):
             raise ValueError("OUTBOX_RESPONSE_INVALID")
-        fresh = [receipt for receipt in (_deliver(item, send, journal, summary) for item in pulled["deliveries"]) if receipt]
+        allowed = _intake_config(home)["chats"] if pulled["deliveries"] else frozenset()
+        fresh = [receipt for receipt in (_deliver(item, send, journal, summary, allowed) for item in pulled["deliveries"]) if receipt]
         fresh += [receipt for receipt in (_reconcile(item, journal, summary) for item in pulled["reconcile"]) if receipt]
         _report(home, journal, fresh, summary)
     except Exception as error:
@@ -1133,8 +1143,8 @@ def register(ctx):
             if not isinstance(pending, list):
                 raise ValueError("APPROVAL_INVALID")
             if not pending:
-                return "Không có phiếu cấp tài khoản cần xác nhận."
-            recorded = []
+                return "Không có phiếu cần xác nhận."
+            recorded, kinds = [], set()
             for row in pending:
                 selection = ctx.ask_choice(approval_question(row), [
                     {"value": "yes", "label": "Yes · Đồng ý"},
@@ -1147,7 +1157,11 @@ def register(ctx):
                                     "approvalId": row["id"],
                                     "choice": "agree" if selection == "yes" else "reject"})
                 recorded.append(f"{row['name']}: {selection.upper()}")
-            return "Đã ghi lựa chọn Telegram: " + "; ".join(recorded) + ". Chưa tự cấp lời mời."
+                kinds.add(row.get("kind", "registration"))
+            # Say what the vote did not do for the kinds actually voted on (code m-9): a vote never applies anything.
+            not_done = ("Chưa tự áp quyền mới hay cấp lời mời nào." if kinds == set(APPROVAL_KINDS)
+                        else "Chưa tự áp quyền mới." if kinds == {"access_change"} else "Chưa tự cấp lời mời.")
+            return "Đã ghi lựa chọn Telegram: " + "; ".join(recorded) + ". " + not_done
         except Exception as error:
             return safe_error(error)["error"]
 

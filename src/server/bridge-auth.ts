@@ -7,6 +7,10 @@ export const signingText=(timestamp:string,nonce:string,raw:string,path='/api/br
 /** Shared HMAC check for every bridge route. Returns the authenticated raw body. */
 export async function verifySigned(request:Request,o:{key:string;path:string;maxBytes:number;identity:IdentityService;throttleBucket:string;throttleLimit:number}):Promise<string> {
  invariant(o.key.length>=43,'BRIDGE_UNCONFIGURED','Cầu nối chưa được cấu hình.',503);
+ // A declared length above the cap is refused before anything is buffered (Security M2); the byte check after the read stays,
+ // for a body sent without a length or with a wrong one.
+ const declared=request.headers.get('content-length');
+ invariant(declared===null||!/^\d+$/.test(declared)||Number(declared)<=o.maxBytes,'PAYLOAD_TOO_LARGE','Yêu cầu quá lớn.',413);
  const raw=await request.text(); invariant(Buffer.byteLength(raw)<=o.maxBytes,'PAYLOAD_TOO_LARGE','Yêu cầu quá lớn.',413);
  const timestamp=request.headers.get('x-libetech-timestamp')??'',nonce=request.headers.get('x-libetech-nonce')??'',signature=request.headers.get('x-libetech-signature')??'';
  invariant(/^\d{13}$/.test(timestamp)&&Math.abs(Date.now()-Number(timestamp))<60000&&/^[A-Za-z0-9_-]{20,80}$/.test(nonce)&&/^[a-f0-9]{64}$/.test(signature),'BRIDGE_AUTH_DENIED','Không xác thực được cầu nối.',401);

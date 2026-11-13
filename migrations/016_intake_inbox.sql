@@ -11,6 +11,35 @@ DO $$ BEGIN
  END IF;
 END $$;
 GRANT libetech_intake TO libetech_intake_svc;
+-- Roles that existed before this migration are checked, not trusted (Database review M-5): same attributes as created above,
+-- and the service login reaches no application role but libetech_intake.
+-- guard:intake-roles begin
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='libetech_intake' AND (rolcanlogin OR rolsuper OR rolbypassrls)) THEN
+  RAISE EXCEPTION 'libetech_intake must be NOLOGIN, NOSUPERUSER and NOBYPASSRLS';
+ END IF;
+ IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='libetech_intake_svc' AND (rolsuper OR rolbypassrls OR rolcreatedb OR rolcreaterole)) THEN
+  RAISE EXCEPTION 'libetech_intake_svc must be NOSUPERUSER, NOBYPASSRLS, NOCREATEDB and NOCREATEROLE';
+ END IF;
+ IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles s JOIN pg_catalog.pg_roles g
+     ON g.rolname IN ('libetech_runtime','libetech_identity','libetech_projector','libetech_outbox_audit','libetech_web','libetech_auth')
+   WHERE s.rolname='libetech_intake_svc' AND pg_catalog.pg_has_role(s.oid,g.oid,'MEMBER')) THEN
+  RAISE EXCEPTION 'libetech_intake_svc may reach no application role other than libetech_intake';
+ END IF;
+END $$;
+-- guard:intake-roles end
+-- The outbox state-event actor (017) is proven by role, which holds only if no role can act as both libetech_runtime and
+-- libetech_intake, directly or through another role (Database review I-1). Superusers are outside every role check anyway.
+-- The same block runs in 017; a membership granted after both ran is refused by the 017 state trigger and by src/server/db.ts.
+-- guard:role-separation begin
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles r
+   JOIN pg_catalog.pg_roles a ON a.rolname='libetech_runtime' JOIN pg_catalog.pg_roles b ON b.rolname='libetech_intake'
+   WHERE NOT r.rolsuper AND pg_catalog.pg_has_role(r.oid,a.oid,'MEMBER') AND pg_catalog.pg_has_role(r.oid,b.oid,'MEMBER')) THEN
+  RAISE EXCEPTION 'A role can act as both libetech_runtime and libetech_intake; separate the logins before applying this migration';
+ END IF;
+END $$;
+-- guard:role-separation end
 
 CREATE TABLE IF NOT EXISTS source_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -95,7 +124,8 @@ CREATE INDEX IF NOT EXISTS idx_source_event_revisions_event_fk ON source_event_r
 CREATE INDEX IF NOT EXISTS idx_intake_attachments_scope_created ON intake_attachments(tenant_id,project_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_intake_attachments_project_fk ON intake_attachments(project_id,tenant_id);
 CREATE INDEX IF NOT EXISTS idx_intake_attachments_event_fk ON intake_attachments(source_event_id,tenant_id,project_id);
-CREATE INDEX IF NOT EXISTS idx_intake_attachments_revision_fk ON intake_attachments(revision_id,source_event_id,tenant_id,project_id);
+-- The revision FK is served by UNIQUE(revision_id), which leads with it (Database review M-9); an earlier draft added a copy.
+DROP INDEX IF EXISTS idx_intake_attachments_revision_fk;
 CREATE INDEX IF NOT EXISTS idx_intake_candidates_scope_created ON intake_candidates(tenant_id,project_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_intake_candidates_scope_state ON intake_candidates(tenant_id,project_id,state,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_intake_candidates_project_fk ON intake_candidates(project_id,tenant_id);

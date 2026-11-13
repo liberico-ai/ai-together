@@ -5,6 +5,7 @@ import { digest, IdentityService, secret } from './identity';
 import type { Queryable } from './db';
 import type { Principal, ProjectGrant } from './types';
 import {approvalReady,notifyVoters,verifiedApprovalSeats} from './account-approval';
+import {widensAccess} from './access-grants';
 
 const grantsSchema=z.array(z.object({
   projectId:z.uuid(),role:z.enum(['manager','engineer','technical','business','viewer']),
@@ -31,13 +32,6 @@ const reviewRegistration=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('issue_approved_registration'),requestId:z.uuid(),reason}).strict(),
  z.object({kind:z.literal('reject_registration'),requestId:z.uuid(),reason}).strict(),
 ]);
-function reducesAccess(before:ProjectGrant[],after:ProjectGrant[]) {
- return after.every(next=>{
-  const prior=before.find(grant=>grant.projectId===next.projectId);
-  return prior&&(next.role===prior.role||next.role==='viewer')
-   &&next.reportPermissions.every(permission=>prior.reportPermissions.includes(permission));
- });
-}
 /** Grants compared as a set: entries ordered by projectId, report permissions ordered within each entry. */
 function sameGrants(a:ProjectGrant[],b:ProjectGrant[]) {
  const norm=(grants:ProjectGrant[])=>JSON.stringify([...grants]
@@ -205,7 +199,7 @@ export class AccountService {
         this.validate(cmd.grants,scope);
         // Reducing access needs no ballot. Widening it needs an approved access-change ballot for this account, frozen at this
         // account version, whose grants are exactly these grants.
-        if(!reducesAccess(before,cmd.grants)) {
+        if(widensAccess(before,cmd.grants)) {
           const ballot=(await tx.query<{id:string;grants:ProjectGrant[];subject_account_version:number;previous_grants:ProjectGrant[]}>(`SELECT id,grants,subject_account_version,previous_grants
             FROM identity.account_approvals WHERE kind='access_change' AND subject_user_id=$1 AND state='approved' AND expires_at>now()
             ORDER BY created_at DESC LIMIT 1`,[user.id])).rows[0];
@@ -259,7 +253,7 @@ export class AccountService {
   private async proposeAccessChange(tx:Queryable,p:Principal,scope:Set<string>,user:Account,before:ProjectGrant[],grants:ProjectGrant[],reason:string) {
     invariant(user.active&&user.activated,'ACCOUNT_INACTIVE','Cần tài khoản đang hoạt động.',409);
     this.validate(grants,scope);
-    invariant(!reducesAccess(before,grants),'ACCESS_CHANGE_NOT_NEEDED','Thay đổi chỉ giảm quyền; áp trực tiếp, không cần phiếu.',409);
+    invariant(widensAccess(before,grants),'ACCESS_CHANGE_NOT_NEEDED','Thay đổi chỉ giảm quyền; áp trực tiếp, không cần phiếu.',409);
     // Ballots past their deadline, or frozen at an older account version, can never apply: close them before checking for an open one.
     const expired=(await tx.query<{id:string}>(`UPDATE identity.account_approvals SET state='expired',updated_at=now()
       WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved')

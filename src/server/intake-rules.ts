@@ -42,7 +42,30 @@ function maskKeyedValues(text:string):string {
  return out+text.slice(last);
 }
 // A bare keyword followed by whitespace ("bearer abc"); prose such as "secretary meeting" or "tokens are" is untouched.
-const SPACED=new RegExp(`((?<![A-Za-z0-9_])(?:${KW})\\s+)${VALUE}`,'gi');
+// One linking word may sit between ("password is abc", "secret là abc"): the value after it is masked, not the word.
+const LINK='(?:is|là|la)';
+const SPACED=new RegExp(`((?<![A-Za-z0-9_])(?:${KW})\\s+(?:${LINK}\\s+)?)${VALUE}`,'gi');
+// How the team writes a credential in its own words (Security I1). Every keyword is bounded by letters and digits on both
+// sides (a "_" or "-" before it is allowed: DB_PASS, wifi-pass), so "mkdir", "bypass", "passenger" are not keywords.
+// - mật khẩu / mat khau / passcode are unambiguous: one qualifier word may follow ("mật khẩu wifi"), then ":" / "=" or a
+//   linking word. Without a separator ("mật khẩu mới đã đổi") nothing is masked.
+// - mk (also slang for "mình"), pass ("pass qua") and otp are ambiguous: they need ":" or "=", with at most one qualifier
+//   word; otp alone also takes a linking word ("mã OTP là 123456"). "pin" is left out: in Vietnamese it is a battery.
+// Each attempt starts at a keyword and scans at most one word plus a separator: linear.
+const WORD='[\\p{L}\\p{N}_-]+',EDGE='(?![\\p{L}\\p{N}_-])';
+const PLAIN=new RegExp('((?<![\\p{L}\\p{N}])(?:'
+ +`(?:mật\\s*khẩu|mat\\s*khau|passcode)${EDGE}(?:\\s+${WORD})?(?:\\s*[:=]\\s*|\\s+${LINK}\\s+)`
+ +`|(?:mk|pass|otp)${EDGE}(?:\\s+${WORD})?\\s*[:=]\\s*`
+ +`|otp\\s+${LINK}\\s+`
+ +'))'+VALUE,'giu');
+// HTTP Basic credentials: always after an Authorization header; elsewhere only when the token looks encoded (a digit,
+// + / =, or a lower-to-upper case change), so "Basic training" stays prose.
+const AUTH_BASIC=/(authorization["']?\s*[:=]\s*["']?\s*basic\s+)[A-Za-z0-9+/]+=*/gi;
+const BARE_BASIC=/(\bBasic\s+)([A-Za-z0-9+/]{8,}=*)(?![A-Za-z0-9+/=])/g;
+const ENCODED=/[0-9+/=]|[a-z][A-Z]/;
+// A PEM private-key block, header to footer. With no footer (the excerpt is cut at 4096 characters before this runs)
+// the rest of the text is masked: a partial key is still a key. One attempt per header, and a footer-less one ends the scan.
+const PEM=/-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z0-9 ]{0,40}PRIVATE KEY-----|[\s\S]*$)/g;
 const FORMATS:RegExp[]=[
  /\b(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}/g,
  /\bsk-[A-Za-z0-9_-]{20,}/g,
@@ -70,13 +93,17 @@ function maskJwt(text:string):string {
 // ('a-a-a-…') is scanned once instead of once per letter.
 const USERINFO=/((?<![a-z0-9+.-])[a-z0-9+.-]+:\/\/[^\s:\/@]+:)[^\s@\/]+(@)/gi;
 export function redactSecrets(text:string):string {
- let t=maskKeyedValues(text).replace(SPACED,(_m,k:string)=>k+MASK).replace(USERINFO,(_m,a:string,b:string)=>a+MASK+b);
+ let t=maskKeyedValues(text.replace(PEM,MASK)).replace(SPACED,(_m,k:string)=>k+MASK).replace(PLAIN,(_m,k:string)=>k+MASK)
+  .replace(AUTH_BASIC,(_m,k:string)=>k+MASK).replace(BARE_BASIC,(m,k:string,v:string)=>ENCODED.test(v)?k+MASK:m)
+  .replace(USERINFO,(_m,a:string,b:string)=>a+MASK+b);
  for(const f of FORMATS) t=t.replace(f,MASK);
  return maskJwt(t);
 }
+/** Last path segment, without C0 controls, DEL and Unicode format characters (Cf: bidi overrides and isolates, LRM/RLM,
+ * zero-width marks, BOM), so a right-to-left override cannot make "…fdp.exe" read as "…exe.pdf" in the Inbox (Sec M4). */
 export function cleanFileName(name:string):string {
  const last=name.split(/[\\/]/).pop()??'';
- return last.replace(/[\u0000-\u001f\u007f]/g,'').slice(0,200);
+ return last.replace(/[\u0000-\u001f\u007f\p{Cf}]/gu,'').slice(0,200);
 }
 export const MAX_ATTACHMENT_BYTES=20971520;
 export const ALLOWED_MIME:ReadonlySet<string>=new Set([
@@ -95,7 +122,8 @@ export type CandidateState='new'|'needs_info'|'confirmed'|'duplicate'|'dismissed
 export type CandidateAction='confirm'|'need_info'|'mark_duplicate'|'dismiss'|'reopen'|'link_ticket';
 const CANDIDATE_MOVES:Record<CandidateState,Partial<Record<CandidateAction,CandidateState>>>={
  new:{confirm:'confirmed',need_info:'needs_info',mark_duplicate:'duplicate',dismiss:'dismissed'},
- needs_info:{confirm:'confirmed',mark_duplicate:'duplicate',dismiss:'dismissed',reopen:'new'},
+ // needs_info + need_info: the manager asks again; the new list replaces the old one and the move is its own audit event.
+ needs_info:{confirm:'confirmed',need_info:'needs_info',mark_duplicate:'duplicate',dismiss:'dismissed',reopen:'new'},
  confirmed:{reopen:'new'},duplicate:{reopen:'new'},dismissed:{reopen:'new'},
 };
 /** Sole decision of what a PM action does to a candidate (E-INT-05). link_ticket keeps the state. No action creates, assigns, closes or accepts work. */

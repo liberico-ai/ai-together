@@ -118,7 +118,7 @@ test('(5) no intake or bot path creates, assigns, closes or accepts work',async(
 test('candidateTransition follows the listed moves only',()=>{
   const ok:[CandidateState,CandidateAction,CandidateState][]=[
     ['new','need_info','needs_info'],['new','confirm','confirmed'],['new','mark_duplicate','duplicate'],['new','dismiss','dismissed'],
-    ['needs_info','confirm','confirmed'],['needs_info','mark_duplicate','duplicate'],['needs_info','dismiss','dismissed'],['needs_info','reopen','new'],
+    ['needs_info','confirm','confirmed'],['needs_info','need_info','needs_info'],['needs_info','mark_duplicate','duplicate'],['needs_info','dismiss','dismissed'],['needs_info','reopen','new'],
     ['confirmed','reopen','new'],['duplicate','reopen','new'],['dismissed','reopen','new'],['confirmed','link_ticket','confirmed'],['new','link_ticket','new']];
   for(const [s,a,x] of ok) expect(candidateTransition(s,a),`${s}+${a}`).toBe(x);
   for(const [s,a] of [['new','reopen'],['confirmed','confirm'],['dismissed','dismiss'],['duplicate','need_info'],['confirmed','dismiss']] as [CandidateState,CandidateAction][])
@@ -166,6 +166,30 @@ test('need_info keeps the missing fields and mark_duplicate needs a visible targ
   expect(await kinds(b.id)).toContain('candidate.marked_duplicate');
 });
 
+test('I-2 the incident note of a confirm reaches the audit event that «Xem chi tiết» reads; no note, no key',async()=>{
+  const a=await ingest(),b=await ingest();
+  const note='Mất kết nối 15 phút; đã khởi động lại cổng';
+  await inbox().command(pm,a.id,{kind:'confirm',expectedVersion:1,classification:'incident',note},k(),randomUUID());
+  const ev=(await inbox().detail(pm,a.id)).events.find(e=>e.kind==='candidate.confirmed');
+  expect(ev?.payload).toMatchObject({classification:'incident',note,stateBefore:'new',stateAfter:'confirmed'});
+  await inbox().command(pm,b.id,{kind:'confirm',expectedVersion:1,classification:'document'},k(),randomUUID());
+  const plain=(await inbox().detail(pm,b.id)).events.find(e=>e.kind==='candidate.confirmed');
+  expect(plain?.payload).toMatchObject({classification:'document'});
+  expect(plain?.payload).not.toHaveProperty('note');
+  // the note is the manager's own text: it is kept for a pointer-only project too, still capped at 1000 characters
+  await expect(inbox().command(pm,b.id,{kind:'confirm',expectedVersion:2,classification:'incident',note:'x'.repeat(1001)},k(),randomUUID())).rejects.toBeInstanceOf(ZodError);
+});
+
+test('I-2 a needs_info card can be asked again: the new list replaces the old one, with its own audit event',async()=>{
+  const a=await ingest();
+  await inbox().command(pm,a.id,{kind:'need_info',expectedVersion:1,missingFields:['địa điểm']},k(),randomUUID());
+  const again=await inbox().command(pm,a.id,{kind:'need_info',expectedVersion:2,missingFields:['địa điểm','ảnh chụp lỗi']},k(),randomUUID());
+  expect(again).toMatchObject({state:'needs_info',classification:null,missingFields:['địa điểm','ảnh chụp lỗi'],version:3});
+  expect((await kinds(a.id)).filter(x=>x==='candidate.needs_info')).toHaveLength(2);
+  const done=await inbox().command(pm,a.id,{kind:'confirm',expectedVersion:3,classification:'request'},k(),randomUUID());
+  expect(done).toMatchObject({state:'confirmed',classification:'request',missingFields:[],version:4});
+});
+
 test('PM-07 reopening keeps history and earlier delivery receipts',async()=>{
   const {candidateId,outboxId}=await settle({});
   const before={receipts:await n('delivery_receipts'),outbox:await n('outbox_messages')};
@@ -206,6 +230,8 @@ test('a group with no received message shows Chưa xác minh khả năng nhận 
   const one=(await inbox().sources(pm,ids.sales))[0];
   expect(one).toMatchObject({state:'partially-received',coverageStart:new Date(first.e.observedAt).toISOString(),coverageGaps:[]});
   expect(one.label).toContain('không có lịch sử trước mốc này');
+  // UI-4: the time is coverageStart, formatted by the screen; the label carries no raw ISO timestamp
+  expect(one.label).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:/);
   await ingest({spooled:true});
   const two=(await inbox().sources(pm,ids.sales))[0];
   expect(two.coverageGaps).toHaveLength(1);
@@ -255,6 +281,22 @@ test('failures lists dead, uncertain and overdue messages; requeue and abandon n
   expect(await rows("SELECT 1 FROM intake_events WHERE entity_id=$1 AND kind='outbox.abandoned'",[unsure.outboxId])).toHaveLength(1);
   expect((await inbox().failures(pm,ids.sales)).some(r=>r.outboxId===unsure.outboxId)).toBe(false);
   await expect(inbox().failureCommand(pm,unsure.outboxId,{kind:'take',expectedVersion:u.version+1,reason:'x',actorId:pm.id},k(),randomUUID())).rejects.toBeInstanceOf(ZodError);
+});
+
+test('M-3 a leased row whose lease ran out is listed as stuck, and every row names its card',async()=>{
+  const a=await ingest(),b=await ingest();
+  const d=(await outbox().pull({limit:5})).deliveries;
+  expect(d).toHaveLength(2);
+  const [stuck,live]=d;
+  await h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE id=$1",[stuck.outboxId]);
+  const list=await inbox().failures(pm,ids.sales);
+  expect(list.map(r=>r.outboxId)).toEqual([stuck.outboxId]);
+  expect(list[0]).toMatchObject({state:'leased',overdue:true,template:'intake.received'});
+  const owner=(await rows<{candidate_id:string}>('SELECT candidate_id FROM outbox_messages WHERE id=$1',[stuck.outboxId]))[0].candidate_id;
+  expect([a.id,b.id]).toContain(owner);
+  expect(list[0].candidateRef).toMatch(/^IN-[0-9A-F]+/);
+  expect((await inbox().list(pm,{projectId:ids.sales})).items.find(c=>c.candidateId===owner)?.ref).toBe(list[0].candidateRef);
+  void live;
 });
 
 test('the newest revision is chosen by edited_at',async()=>{

@@ -112,8 +112,10 @@ export class OutboxService {
   const ctx:OutboxCtx={requestId};
   const t=this.p.tenantId;
   const first=await intakeScoped(this.intakeDb,this.p,async tx=>{
-   // (1) leases whose gateway went silent become uncertain: reconcile before any resend.
-   const expired=(await tx.query<Row>(`SELECT ${COLS} FROM outbox_messages WHERE tenant_id=$1 AND state='leased' AND lease_expires_at<now() ORDER BY created_at FOR UPDATE SKIP LOCKED`,[t])).rows;
+   // (1) leases whose gateway went silent become uncertain: reconcile before any resend. The sweep takes at most `limit` rows
+   // per pull (oldest first, skipping rows another pull holds), so a large backlog after an outage is worked off across pulls
+   // instead of in one unbounded transaction (Database review M-4).
+   const expired=(await tx.query<Row>(`SELECT ${COLS} FROM outbox_messages WHERE tenant_id=$1 AND state='leased' AND lease_expires_at<now() ORDER BY created_at,id LIMIT $2 FOR UPDATE SKIP LOCKED`,[t,limit])).rows;
    for(const r of expired) {
     await applyOutboxSignal(tx,r,'lease_expired',ctx);
     await this.audit(tx,r,'outbox.uncertain',requestId,{attemptNo:r.attempt_no,reason:'lease_expired'});
@@ -135,6 +137,9 @@ export class OutboxService {
   });
 
   // (3) The recipient link is read through the identity role in its own transaction (never nested in the intake one).
+  // The pull is three transactions: the lease above has committed; the identity read and the unlinked-DM kill below are separate.
+  // If either of those fails, the DM rows stay 'leased' with no delivery handed out. Nothing is lost: once LEASE_SECONDS pass,
+  // step (1) of a later pull turns them 'uncertain' and they come back for reconciliation, never for a blind resend (code m-6).
   const dms=first.leased.filter(l=>l.row.audience==='dm');
   let dead=new Set<string>();
   if(dms.length) {

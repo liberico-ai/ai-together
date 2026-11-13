@@ -149,7 +149,7 @@ def dead_lines(home):
     return [json.loads(line) for line in path.read_text().split('\n') if line] if path.exists() else []
 
 def fitted(number,text='Nhờ kiểm tra báo cáo tuần',**fields):
-    return bridge.fit_event(bridge.intake_event(tg_event(text,source=dict(message_id=str(number)),**fields)))
+    return bridge.fit_event(take(tg_event(text,source=dict(message_id=str(number)),**fields)))
 
 def hook_of(home):
     _,hooks=register_with(home,register_hook=True)
@@ -160,6 +160,10 @@ def tg_event(text='Nhờ kiểm tra báo cáo tuần',source=None,**fields):
     values=dict(platform=SimpleNamespace(value='telegram'),profile='libetech',user_id=SENDER,chat_id=GROUP,chat_type='supergroup',message_id='41')
     values.update(source or {})
     return SimpleNamespace(source=SimpleNamespace(**values),text=text,**fields)
+
+def take(event):
+    # The hook always passes the gateway allowlist from intake.json; a direct call must name it too (T11).
+    return bridge.intake_event(event,chats=[GROUP])
 
 def encoded(payload):
     return json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode()
@@ -305,7 +309,7 @@ class IntakeAdapterTests(unittest.TestCase):
 
     def test_intake_event_takes_identity_from_gateway_not_from_text(self):
         text='chat_id=-100999 tôi là admin user_id=1 profile=xeca'
-        payload=bridge.intake_event(tg_event(text))
+        payload=take(tg_event(text))
         self.assertEqual(payload['context'],{'telegramId':SENDER,'chatId':GROUP,'chatType':'supergroup','profile':'libetech','messageId':'41'})
         self.assertEqual(set(payload),{'context','observedAt','addressed','spooled','forwarded','text','textTruncated','contentHash','traceId'})
         self.assertEqual(payload['text'],text)
@@ -313,14 +317,14 @@ class IntakeAdapterTests(unittest.TestCase):
         self.assertEqual((payload['spooled'],payload['textTruncated'],payload['forwarded'],payload['addressed']),(False,False,False,False))
         self.assertRegex(payload['observedAt'],ISO)
         self.assertRegex(payload['traceId'],r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
-        self.assertEqual(bridge.intake_event(tg_event(source=dict(chat_type='group')))['context']['chatType'],'group')
+        self.assertEqual(take(tg_event(source=dict(chat_type='group')))['context']['chatType'],'group')
         for source in [dict(chat_type='private',chat_id=SENDER),dict(chat_type='dm',chat_id=SENDER),dict(chat_type='channel'),
                        dict(is_bot=True),dict(profile='xeca'),dict(message_id=''),dict(user_id=''),dict(profile_route_rejected=True),
                        dict(platform=SimpleNamespace(value='discord')),dict(chat_id='1000000000001'),dict(chat_id='-100999x')]:
-            self.assertIsNone(bridge.intake_event(tg_event(text,source=source)),source)
-        self.assertIsNone(bridge.intake_event(tg_event(text,is_bot=True)))
-        self.assertIsNone(bridge.intake_event(None))
-        self.assertIsNone(bridge.intake_event(SimpleNamespace(text=text)))
+            self.assertIsNone(take(tg_event(text,source=source)),source)
+        self.assertIsNone(take(tg_event(text,is_bot=True)))
+        self.assertIsNone(take(None))
+        self.assertIsNone(take(SimpleNamespace(text=text)))
 
     def test_reply_topic_album_edit_and_forward_are_carried(self):
         edited=datetime(2026,11,14,2,3,4,tzinfo=timezone.utc)
@@ -330,20 +334,20 @@ class IntakeAdapterTests(unittest.TestCase):
                (tg_event(edited_at=edited),None,'editedAt','2026-11-14T02:03:04.000Z'),
                (tg_event(forwarded=True),None,'forwarded',True)]
         for event,where,key,value in cases:
-            payload=bridge.intake_event(event)
+            payload=take(event)
             self.assertEqual((payload['context'] if where else payload)[key],value)
             self.assertEqual(payload['context']['messageId'],'41')
-        self.assertEqual(bridge.intake_event(tg_event(edited_at=int(edited.timestamp())))['editedAt'],'2026-11-14T02:03:04.000Z')
-        self.assertEqual(bridge.intake_event(tg_event(reply_to_message_id=40,source=dict(thread_id=7)))['context'] | {},
+        self.assertEqual(take(tg_event(edited_at=int(edited.timestamp())))['editedAt'],'2026-11-14T02:03:04.000Z')
+        self.assertEqual(take(tg_event(reply_to_message_id=40,source=dict(thread_id=7)))['context'] | {},
                          {'telegramId':SENDER,'chatId':GROUP,'chatType':'supergroup','profile':'libetech','messageId':'41','topicId':'7','replyToMessageId':'40'})
-        plain=bridge.intake_event(tg_event())
+        plain=take(tg_event())
         for key in ('replyToMessageId','topicId','mediaGroupId'):self.assertNotIn(key,plain['context'])
         self.assertNotIn('editedAt',plain);self.assertFalse(plain['forwarded'])
         # An aware ISO string is a time too; Telegram's own `date` is an epoch int.
         for stamp in ('2026-11-14T02:03:04Z','2026-11-14T09:03:04+07:00','2026-11-14T02:03:04.000+00:00'):
-            self.assertEqual(bridge.intake_event(tg_event(edited_at=stamp))['editedAt'],'2026-11-14T02:03:04.000Z')
+            self.assertEqual(take(tg_event(edited_at=stamp))['editedAt'],'2026-11-14T02:03:04.000Z')
         for stamp in (int(edited.timestamp()),edited,'2026-11-14T02:03:04Z'):
-            self.assertEqual(bridge.intake_event(tg_event(timestamp=stamp))['observedAt'],'2026-11-14T02:03:04.000Z')
+            self.assertEqual(take(tg_event(timestamp=stamp))['observedAt'],'2026-11-14T02:03:04.000Z')
 
     def test_malformed_optional_metadata_is_dropped_and_the_message_still_recorded(self):
         # Never guessed and never fatal: the field is left out, its name is logged as a fixed code, the message is kept.
@@ -354,32 +358,32 @@ class IntakeAdapterTests(unittest.TestCase):
                (dict(edited_at=True),'editedAt'),(dict(edited_at=float('inf')),'editedAt'),(dict(edited_at=10**15),'editedAt')]
         for fields,key in cases:
             with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
-                payload=bridge.intake_event(tg_event(**fields))
+                payload=take(tg_event(**fields))
             self.assertEqual(payload['context']['messageId'],'41',fields)
             self.assertNotIn(key,payload['context']);self.assertNotIn(key,payload)
             self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_FIELD_DROPPED {key}'],fields)
         # A naive edit time is not replaced by "now": the field is simply absent.
-        self.assertNotIn('editedAt',bridge.intake_event(tg_event(edited_at=datetime(2026,11,14,2,3,4))))
+        self.assertNotIn('editedAt',take(tg_event(edited_at=datetime(2026,11,14,2,3,4))))
         # observedAt is required by the intake schema, so an unusable gateway time falls back to the time seen here.
         before=datetime.now(timezone.utc).replace(microsecond=0)
         with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
-            payload=bridge.intake_event(tg_event(timestamp=datetime(2026,1,1)))
+            payload=take(tg_event(timestamp=datetime(2026,1,1)))
         self.assertGreaterEqual(datetime.fromisoformat(payload['observedAt'].replace('Z','+00:00')),before)
         self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_FIELD_DROPPED observedAt'])
         # Identity stays required: a missing or invalid chat, message or sender is still not a message.
         for source in [dict(chat_id=''),dict(chat_id='abc'),dict(message_id='0'),dict(user_id='x'),dict(user_id=None)]:
-            self.assertIsNone(bridge.intake_event(tg_event(source=source)),source)
+            self.assertIsNone(take(tg_event(source=source)),source)
 
     def test_addressed_means_command_mention_or_reply_to_bot(self):
-        self.assertFalse(bridge.intake_event(tg_event('Báo cáo tuần đã gửi'))['addressed'])
+        self.assertFalse(take(tg_event('Báo cáo tuần đã gửi'))['addressed'])
         for event in [tg_event('/baocao tuần này'),tg_event('  /start'),tg_event('xem giúp',mentions_bot=True),tg_event('ok',reply_to_bot=True)]:
-            self.assertTrue(bridge.intake_event(event)['addressed'])
+            self.assertTrue(take(event)['addressed'])
         # Only an explicit True from the gateway counts; text that merely contains a slash does not.
-        self.assertFalse(bridge.intake_event(tg_event('a/b',mentions_bot='yes',reply_to_bot=1))['addressed'])
+        self.assertFalse(take(tg_event('a/b',mentions_bot='yes',reply_to_bot=1))['addressed'])
 
     def test_long_text_is_truncated_to_fit_and_hash_is_of_the_full_text(self):
         quotes='"'*4096
-        original=bridge.intake_event(tg_event(quotes))
+        original=take(tg_event(quotes))
         payload=bridge.fit_event(original)
         self.assertLessEqual(len(encoded(payload)),bridge.MAX_EVENT_BYTES)
         self.assertEqual(bridge.MAX_EVENT_BYTES,16384)
@@ -389,7 +393,7 @@ class IntakeAdapterTests(unittest.TestCase):
         self.assertEqual(original['text'],quotes)
         # Characters that escape to six bytes each do not fit: cut to the longest prefix that does.
         control='\x01'*4096
-        cut=bridge.fit_event(bridge.intake_event(tg_event(control)))
+        cut=bridge.fit_event(take(tg_event(control)))
         self.assertTrue(cut['textTruncated'])
         self.assertLessEqual(len(encoded(cut)),bridge.MAX_EVENT_BYTES)
         self.assertTrue(control.startswith(cut['text']) and len(cut['text'])<4096)
@@ -397,7 +401,7 @@ class IntakeAdapterTests(unittest.TestCase):
         self.assertEqual(cut['contentHash'],hashlib.sha256(control.encode()).hexdigest())
         # The server counts 4 096 UTF-16 units, not code points.
         emoji='😀'*4096
-        short=bridge.fit_event(bridge.intake_event(tg_event(emoji)))
+        short=bridge.fit_event(take(tg_event(emoji)))
         self.assertTrue(short['textTruncated'])
         self.assertEqual(len(short['text'].encode('utf-16-le'))//2,4096)
         self.assertEqual(short['contentHash'],hashlib.sha256(emoji.encode()).hexdigest())
@@ -433,9 +437,13 @@ class IntakeAdapterTests(unittest.TestCase):
             self.assertEqual((folder/digest).read_bytes(),data)
             self.assertEqual(stat.S_IMODE((folder/digest).stat().st_mode),0o600)
             self.assertEqual([path.name for path in folder.iterdir()],[digest])
+            # Sec M4: bidi and other Unicode format characters never reach the name shown to a PM
+            for raw_name,clean in [('bao\u202ecod.exe.pdf','baocod.exe.pdf'),('\u200bbao\u2066-cao\u2069.pdf\ufeff','bao-cao.pdf'),
+                                   ('ho\u00ader\u061c.pdf','hoer.pdf'),('bi\u00ean-ba\u0309n.pdf','bi\u00ean-ba\u0309n.pdf')]:
+                self.assertEqual(bridge._file_name(raw_name),clean,raw_name)
 
     def test_backend_down_spools_and_recovery_replays_in_order_with_spooled_flag(self):
-        def event(number,text):return bridge.fit_event(bridge.intake_event(tg_event(text,source=dict(message_id=number))))
+        def event(number,text):return bridge.fit_event(take(tg_event(text,source=dict(message_id=number))))
         with profile_home() as home:
             spool=bridge.Spool(home)
             path=home/'runtime/libetech-ai-os/intake-spool.jsonl'
@@ -488,7 +496,7 @@ class IntakeAdapterTests(unittest.TestCase):
         text='dòng một dòng hai dòng ba\u0085hết'
         with profile_home() as home:
             spool=bridge.Spool(home)
-            spool.put(bridge.fit_event(bridge.intake_event(tg_event(text))))
+            spool.put(bridge.fit_event(take(tg_event(text))))
             self.assertEqual(spool.pending(),1)
             sent=[]
             self.assertEqual(spool.drain(sent.append),1)
@@ -565,10 +573,10 @@ class IntakeAdapterTests(unittest.TestCase):
 
     def test_nul_is_removed_from_the_sent_text_and_the_hash_is_of_the_original(self):
         original='mở\x00đầu\x00'
-        payload=bridge.fit_event(bridge.intake_event(tg_event(original)))
+        payload=bridge.fit_event(take(tg_event(original)))
         self.assertEqual((payload['text'],payload['textTruncated']),('mởđầu',False))
         self.assertEqual(payload['contentHash'],hashlib.sha256(original.encode()).hexdigest())
-        cut=bridge.fit_event(bridge.intake_event(tg_event('\x00'+'\x01'*4096)))
+        cut=bridge.fit_event(take(tg_event('\x00'+'\x01'*4096)))
         self.assertTrue(cut['textTruncated']);self.assertNotIn('\x00',cut['text'])
         self.assertLessEqual(len(encoded(cut)),bridge.MAX_EVENT_BYTES)
 
@@ -614,7 +622,7 @@ class IntakeAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'^TEMPLATE_PARAMS_INVALID$'):bridge.render('intake.recovered',bad)
 
     def test_drain_outbox_reports_delivered_and_journals_before_sending(self):
-        with profile_home() as home:
+        with profile_home(chats=[GROUP]) as home:
             journal=bridge.SendJournal(home)
             path=home/'runtime/libetech-ai-os/send-journal.jsonl'
             order=[]
@@ -647,8 +655,33 @@ class IntakeAdapterTests(unittest.TestCase):
             for limit in (0,11,True,'5'):
                 with self.assertRaisesRegex(ValueError,'^INVALID_LIMIT$'):bridge.drain_outbox(home,Mock(),journal,limit=limit)
 
-    def test_send_timeout_is_uncertain_and_permission_error_is_permanent(self):
+    def test_drain_refuses_a_group_target_outside_the_gateway_allowlist(self):
+        # Sec M5, defence in depth: a group target comes from the backend; one outside intake.json "chats" is never sent.
+        other='-1000000000002'
+        with profile_home(chats=[GROUP]) as home:
+            journal=bridge.SendJournal(home)
+            sent=[]
+            backend=FakeBackend([{'deliveries':[delivery(OUTBOX_A,LEASE_A),delivery(OUTBOX_B,LEASE_B,chat=other),
+                                                 delivery(OUTBOX_C,LEASE_C,template='account_approval.pending',params={},audience='dm',chat=SENDER,topic='',reply=None)],
+                                  'reconcile':[]}])
+            with patch.object(bridge,'call_backend',side_effect=backend):
+                summary=bridge.drain_outbox(home,lambda *args:(sent.append(args[0]),9003)[1],journal)
+            self.assertEqual(sent,[GROUP,SENDER])
+            self.assertEqual([(r['outboxId'],r['outcome'],r.get('errorCode')) for r in backend.reports[0]],
+                             [(OUTBOX_A,'delivered',None),(OUTBOX_B,'failed_permanent','TARGET_NOT_ALLOWED'),(OUTBOX_C,'delivered',None)])
+            self.assertNotIn(('sending',OUTBOX_B),{(line['state'],line['outboxId']) for line in journal_lines(home)})
+            self.assertEqual((summary['delivered'],summary['failed']),(2,1))
+        # No "chats" in intake.json: no group target at all.
         with profile_home() as home:
+            never=Mock()
+            backend=FakeBackend([{'deliveries':[delivery(OUTBOX_A,LEASE_A)],'reconcile':[]}])
+            with patch.object(bridge,'call_backend',side_effect=backend):
+                bridge.drain_outbox(home,never,bridge.SendJournal(home))
+            never.assert_not_called()
+            self.assertEqual([(r['outcome'],r['errorCode']) for r in backend.reports[0]],[('failed_permanent','TARGET_NOT_ALLOWED')])
+
+    def test_send_timeout_is_uncertain_and_permission_error_is_permanent(self):
+        with profile_home(chats=[GROUP]) as home:
             journal=bridge.SendJournal(home)
             failures=iter([TimeoutError(),PermissionError('bot was blocked by the user '+GROUP),ConnectionRefusedError()])
             calls=[]
@@ -705,7 +738,7 @@ class IntakeAdapterTests(unittest.TestCase):
             self.assertEqual(backend.reports,[]);self.assertEqual(summary['held'],1)
 
     def test_rejected_receipts_are_not_resubmitted(self):
-        with profile_home() as home:
+        with profile_home(chats=[GROUP]) as home:
             journal=bridge.SendJournal(home)
             # Pass 1: the receipt is lost in transit, so it stays pending in the journal.
             lost=FakeBackend([{'deliveries':[delivery(OUTBOX_A,LEASE_A)],'reconcile':[]}],report=raising(urllib.error.URLError('down')))
@@ -765,6 +798,24 @@ class IntakeAdapterTests(unittest.TestCase):
         self.assertEqual(questions,[question])
         self.assertEqual([(r['operation'],r.get('approvalId'),r.get('choice')) for r in requests],
                          [('account_approval_pending',None,None),('account_approval_vote',row['id'],'agree')])
+
+    def test_review_copy_names_what_was_not_applied_for_each_ballot_kind(self):
+        # code m-9: an access-change vote is never answered with "no invitation was issued"; the empty list is kind-neutral.
+        registration=access_row(id='00000000-0000-4000-8000-0000000000c2',kind='registration',previous_grant_details=None,name='Người mẫu Ba')
+        cases=[([],'Không có phiếu cần xác nhận.'),
+               ([access_row()],'. Chưa tự áp quyền mới.'),
+               ([registration],'. Chưa tự cấp lời mời.'),
+               ([access_row(),registration],'. Chưa tự áp quyền mới hay cấp lời mời nào.')]
+        for rows,ending in cases:
+            registered,_=register_with(Path('/tmp/hermes-probe'),ask_choice=lambda question,choices:'yes')
+            review=next(kwargs['handler'] for name,kwargs in registered if name=='duyet')
+            def backend(_home,payload,rows=rows):
+                return rows if payload['operation']=='account_approval_pending' else {'state':'pending'}
+            with patch.object(bridge,'call_backend',side_effect=backend):
+                answer=review('',source=SimpleNamespace(**DM))
+            self.assertTrue(answer.endswith(ending),(answer,ending))
+            if any(row.get('kind')=='access_change' for row in rows) and len(rows)==1:
+                self.assertNotIn('lời mời',answer)
 
     def test_unknown_ballot_kind_never_asks(self):
         for kind in ['role_swap','','ACCESS_CHANGE',None,['access_change']]:
@@ -933,6 +984,14 @@ class IntakeAdapterTests(unittest.TestCase):
             self.assertFalse((home/'runtime/libetech-ai-os/intake-spool.jsonl').exists())
             self.assertIsNone(bridge.intake_event(tg_event(),chats=[]))
 
+    def test_intake_event_without_an_allowlist_fails_closed(self):
+        # T11: no chats argument (or None) means no allowlist was read, so nothing is taken; it is never permissive.
+        self.assertIsNone(bridge.intake_event(tg_event()))
+        self.assertIsNone(bridge.intake_event(tg_event(),chats=None))
+        self.assertIsNone(bridge.intake_event(tg_event(),None))
+        self.assertIsNone(bridge.intake_event(tg_event(),chats=frozenset()))
+        self.assertEqual(bridge.intake_event(tg_event(),chats=frozenset([GROUP]))['context']['chatId'],GROUP)
+
     def test_plugin_commands_and_empty_messages_never_reach_intake(self):
         code='Q'*43
         with profile_home(**HOOK_ON) as home:
@@ -943,18 +1002,18 @@ class IntakeAdapterTests(unittest.TestCase):
             with patch.object(bridge,'call_backend',backend),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
                 bridge.LOG.debug('probe')
                 for text in commands:
-                    self.assertIsNone(bridge.intake_event(tg_event(text)),text)
+                    self.assertIsNone(take(tg_event(text)),text)
                     self.assertIsNone(hook(event=tg_event(text,attachment={'mime_type':'application/pdf','file_size':18},download_attachment=download)))
                 for text in ['','   \n\t',None,123]:
-                    self.assertIsNone(bridge.intake_event(tg_event(text)),text)
+                    self.assertIsNone(take(tg_event(text)),text)
                     self.assertIsNone(hook(event=tg_event(text)))
             backend.assert_not_called();download.assert_not_called()
             self.assertFalse((home/'runtime/libetech-ai-os/intake-spool.jsonl').exists())
             for record in logs.output:self.assertNotIn(code,record)
             # A file without a caption is still a message; text that only looks like our commands is not ours.
-            self.assertEqual(bridge.intake_event(tg_event('',attachment={'mime_type':'application/pdf'}))['text'],'')
+            self.assertEqual(take(tg_event('',attachment={'mime_type':'application/pdf'}))['text'],'')
             for text in ['/duyetlai','/libetechx','xem /libetech-link giúp','/start']:
-                self.assertIsNotNone(bridge.intake_event(tg_event(text)),text)
+                self.assertIsNotNone(take(tg_event(text)),text)
 
     def test_hook_work_is_bounded_per_call(self):
         self.assertEqual((bridge.HOOK_TIMEOUT,bridge.HOOK_REPLAYS),(2,5))

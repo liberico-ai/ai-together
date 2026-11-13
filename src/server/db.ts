@@ -11,13 +11,27 @@ export async function embeddedDatabase(dataDir?: string): Promise<Database> {
   for (const file of (await readdir(path.join(process.cwd(),'migrations'))).filter(f=>/^\d+.*\.sql$/.test(f)).sort()) await pg.exec(await readFile(path.join(process.cwd(),'migrations',file),'utf8'));
   return { query: (sql, params) => pg.query(sql, params), transaction: fn => pg.transaction(tx => fn({ query: (sql, params) => tx.query(sql, params) })), close: () => pg.close() };
 }
+/**
+ * Refuses a login that owns tables, holds an elevated attribute, can reach more than one of the application roles, or can reach
+ * the outbox audit role. The 017 state-event actor is proven by role only while no login can act as both libetech_runtime and
+ * libetech_intake and nobody can act as libetech_outbox_audit (Database review I-1). No row for the current role also refuses.
+ */
+export async function assertRestrictedLogin(q: Queryable): Promise<void> {
+  const row = (await q.query(`SELECT r.rolsuper,r.rolbypassrls,r.rolcreatedb,r.rolcreaterole,
+      EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relowner=r.oid AND n.nspname IN ('public','identity','analytics')) AS owns_tables,
+      (SELECT count(*) FROM pg_roles g WHERE g.rolname IN ('libetech_runtime','libetech_intake','libetech_identity','libetech_outbox_audit')
+        AND pg_has_role(r.oid,g.oid,'MEMBER'))>1 AS several_app_roles,
+      EXISTS(SELECT 1 FROM pg_roles g WHERE g.rolname='libetech_outbox_audit' AND pg_has_role(r.oid,g.oid,'MEMBER')) AS audit_role
+    FROM pg_roles r WHERE r.rolname=current_user`)).rows[0];
+  if (!row || Object.values(row).some(Boolean))
+    throw new Error('Runtime login must not own tables, hold elevated database privileges or reach more than one application role.');
+}
 export function pooledDatabase(url: string, requireRestricted=false): Database {
   const pool = new Pool({ connectionString: url, max: 10, connectionTimeoutMillis: 5000, statement_timeout: 10000 });
   let checked:Promise<void>|undefined;
   const check=()=>checked??=(async()=>{
     if(!requireRestricted) return;
-    const row=(await pool.query(`SELECT r.rolsuper,r.rolbypassrls,r.rolcreatedb,r.rolcreaterole,EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relowner=r.oid AND n.nspname IN ('public','identity','analytics')) AS owns_tables FROM pg_roles r WHERE r.rolname=current_user`)).rows[0];
-    if(!row||Object.values(row).some(Boolean)) throw new Error('Runtime login must not own tables or hold elevated database privileges.');
+    await assertRestrictedLogin({ query: async <T>(sql: string, params?: unknown[]) => ({ rows: (await pool.query(sql, params)).rows as T[] }) });
   })();
   const queryOn = (client: PoolClient): Queryable => ({ query: async <T>(sql: string, params?: unknown[]) => ({ rows: (await client.query(sql, params)).rows as T[] }) });
   return {

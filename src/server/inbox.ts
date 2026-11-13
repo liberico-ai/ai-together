@@ -21,7 +21,8 @@ export type RevisionView={revisionNo:number;editedAt:string|null;contentHash:str
 export type EventView={id:string;kind:string;actorKind:string;actorId:string;createdAt:string;payload:Record<string,unknown>};
 export type DeliveryView={outboxId:string;template:string;state:OutboxState;attemptNo:number;deliveredAt:string|null;acknowledgedAt:string|null;
  receipts:{attemptNo:number;phase:string;outcome:string;reportedAt:string}[]};
-export type FailureRow={outboxId:string;state:'dead'|'uncertain'|'pending';template:string;lastErrorCode:string|null;ownerId:string|null;overdue:boolean;version:number};
+// leased appears only once its lease has run out: the gateway took it and never answered, so it waits for the next pull's sweep.
+export type FailureRow={outboxId:string;state:'dead'|'uncertain'|'pending'|'leased';template:string;candidateRef:string|null;lastErrorCode:string|null;ownerId:string|null;overdue:boolean;version:number};
 
 const DENIED=()=>new AppError('SCOPE_DENIED','Không tìm thấy mục trong phạm vi được cấp.',404);
 const READ_ROLES=new Set(['manager','engineer','technical','business']);
@@ -42,7 +43,7 @@ const listSchema=z.object({projectId:uuid,state:z.enum(['new','needs_info','conf
 const expectedVersion=z.number().int().min(1);
 const reason=z.string().trim().min(1).max(500);
 const commandSchema=z.discriminatedUnion('kind',[
- z.object({kind:z.literal('confirm'),expectedVersion,classification:z.enum(['incident','request','document']),note:z.string().max(1000).optional()}).strict(),
+ z.object({kind:z.literal('confirm'),expectedVersion,classification:z.enum(['incident','request','document']),note:z.string().trim().max(1000).optional()}).strict(),
  z.object({kind:z.literal('need_info'),expectedVersion,missingFields:z.array(z.string().trim().min(1).max(100)).min(1).max(10)}).strict(),
  z.object({kind:z.literal('mark_duplicate'),expectedVersion,duplicateOf:uuid,reason}).strict(),
  z.object({kind:z.literal('dismiss'),expectedVersion,reason}).strict(),
@@ -168,7 +169,9 @@ export class InboxService {
    const set={classification:row.classification,duplicateOf:row.duplicate_of,missing:row.missing_fields,note:row.note,ticketRef:row.ticket_ref};
    const detail:Record<string,unknown>={};
    switch(input.kind) {
-    case 'confirm': set.classification=input.classification;set.duplicateOf=null;set.missing=[];set.note=input.note??'';detail.classification=input.classification;break;
+    // The incident note is the manager's own text (impact / recovery); the event payload is what «Xem chi tiết» shows.
+    case 'confirm': set.classification=input.classification;set.duplicateOf=null;set.missing=[];set.note=input.note??'';detail.classification=input.classification;
+     if(input.note) detail.note=input.note;break;
     case 'need_info': set.missing=input.missingFields;detail.missingFields=input.missingFields;break;
     case 'mark_duplicate': {
      if(input.duplicateOf===candidateId) throw new AppError('INVALID_DUPLICATE_TARGET','Không thể đánh dấu trùng với chính nó.',422);
@@ -209,7 +212,8 @@ export class InboxService {
     const gaps=(await tx.query<{observed_at:unknown;ingested_at:unknown}>(`SELECT observed_at,ingested_at FROM source_events WHERE ${match} AND spooled ORDER BY observed_at LIMIT 100`,[projectId,ch.chat_id,ch.topic_id])).rows;
     const start=iso(first);
     out.push({chatId:ch.chat_id,topicId:ch.topic_id,state:'partially-received',coverageStart:start,coverageGaps:gaps.map(g=>({from:iso(g.observed_at),to:iso(g.ingested_at)})),
-     label:`Nhận từ ${start}; không có lịch sử trước mốc này`});
+     // the instant is coverageStart; the screen formats it, so no raw ISO reaches the label (UI-4)
+     label:'Nhận từ mốc ghi đầu tiên; không có lịch sử trước mốc này'});
    }
    return out;
   });
@@ -217,13 +221,15 @@ export class InboxService {
 
  async failures(p:Principal,projectId:string):Promise<FailureRow[]> {
   readable(p,projectId);
-  return this.run(p,projectId,async tx=>(await tx.query<{id:string;state:FailureRow['state'];template:string;last_error_code:string|null;failure_owner_id:string|null;version:number;overdue:boolean}>(
-   `SELECT id,state,template,last_error_code,failure_owner_id,version,
-      (delivered_at IS NULL AND created_at < now() - make_interval(secs => $2::double precision)) AS overdue
+  return this.run(p,projectId,async tx=>(await tx.query<{id:string;state:FailureRow['state'];template:string;candidate_id:string|null;last_error_code:string|null;failure_owner_id:string|null;version:number;overdue:boolean}>(
+   `SELECT id,state,template,candidate_id,last_error_code,failure_owner_id,version,
+      (state='leased' OR (delivered_at IS NULL AND created_at < now() - make_interval(secs => $2::double precision))) AS overdue
     FROM outbox_messages
-    WHERE project_id=$1 AND (state IN ('dead','uncertain') OR (state='pending' AND created_at < now() - make_interval(secs => $2::double precision)))
+    WHERE project_id=$1 AND (state IN ('dead','uncertain')
+      OR (state='pending' AND created_at < now() - make_interval(secs => $2::double precision))
+      OR (state='leased' AND lease_expires_at < now()))
     ORDER BY created_at,id LIMIT 200`,[projectId,OVERDUE_SECONDS])).rows
-   .map(r=>({outboxId:r.id,state:r.state,template:r.template,lastErrorCode:r.last_error_code,ownerId:r.failure_owner_id,overdue:r.overdue,version:r.version})));
+   .map(r=>({outboxId:r.id,state:r.state,template:r.template,candidateRef:r.candidate_id?refOf(r.candidate_id):null,lastErrorCode:r.last_error_code,ownerId:r.failure_owner_id,overdue:r.overdue,version:r.version})));
  }
 
  async failureCommand(p:Principal,outboxId:string,raw:unknown,key:string,requestId:string):Promise<void> {

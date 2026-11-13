@@ -188,7 +188,7 @@ test('one bad receipt does not block the valid ones in the same batch, and a res
   expect(await n('delivery_receipts')).toBe(2);
 });
 
-test('(3) a pull scoped to Xeca projects never returns LBRC or IBS HI messages',async()=>{
+test('(3) a pull scoped to a project the message is not in returns nothing and leaves it pending; an empty scope is refused',async()=>{
   await intake().ingest(ev({}));
   expect((await outbox([ids.transport]).pull({limit:5})).deliveries).toEqual([]);
   expect((await one((await rows<{id:string}>('SELECT id FROM outbox_messages'))[0].id)).state).toBe('pending');
@@ -328,4 +328,41 @@ test('FB-5 the envelope carries version and source from the row',async()=>{
 test('FB-7 a spooled event with a failed file queues attachment_failed, never recovered',async()=>{
   await intake().ingest(ev({spooled:true,attachment:{state:'failed',reasonCode:'download_failed'}}));
   expect(await rows<{template:string}>('SELECT template FROM outbox_messages')).toEqual([{template:'intake.attachment_failed'}]);
+});
+
+// ---- Fix wave: DB M-4 and code m-6 ----
+test('DB M-4 the expired-lease sweep is bounded by the pull limit and the next pull continues it',async()=>{
+  for(let i=0;i<3;i++) await intake().ingest(ev({}));
+  const leased=(await outbox().pull({limit:5})).deliveries;
+  expect(leased).toHaveLength(3);
+  await h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute'");
+  const states=async()=>(await rows<{state:string}>('SELECT state FROM outbox_messages ORDER BY created_at,id')).map(r=>r.state);
+  await outbox().pull({limit:2});
+  expect((await states()).sort()).toEqual(['leased','uncertain','uncertain']);
+  expect((await rows("SELECT 1 FROM outbox_state_events WHERE signal='lease_expired'"))).toHaveLength(2);
+  await outbox().pull({limit:2});
+  expect(await states()).toEqual(['uncertain','uncertain','uncertain']);
+  expect((await rows("SELECT 1 FROM outbox_state_events WHERE signal='lease_expired'"))).toHaveLength(3);
+});
+
+test('code m-6 when the third pull transaction fails, the leased DM is not lost: it expires to uncertain on a later pull',async()=>{
+  await linkPm('900000042');await mkDm('dm-c','900000042');
+  await h.operator.query('DELETE FROM identity.telegram_links WHERE user_id=$1',[pm.id]);
+  // the intake database refuses its second transaction (the unlinked-DM kill); the first (the lease) commits
+  let txs=0;
+  const flaky={query:h.operator.query.bind(h.operator),close:async()=>{},
+    transaction:<T>(fn:(tx:Parameters<Parameters<typeof h.operator.transaction>[0]>[0])=>Promise<T>)=>{
+      if(++txs===2) return Promise.reject(new Error('simulated failure of the third pull transaction'));
+      return h.operator.transaction(fn);
+    }};
+  const svc=new OutboxService(flaky,identity,{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales,ids.transport]});
+  await expect(svc.pull({limit:5})).rejects.toThrow('simulated failure');
+  const dm=async()=>(await rows<{state:string;lease_expires_at:string|null}>("SELECT state,lease_expires_at FROM outbox_messages WHERE dedupe_key='dm-c'"))[0];
+  expect((await dm()).state).toBe('leased');
+  expect((await dm()).lease_expires_at).not.toBeNull();
+  await h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE dedupe_key='dm-c'");
+  const later=await outbox().pull({limit:5});
+  expect(later.deliveries).toEqual([]);
+  expect((await dm()).state).toBe('uncertain');
+  expect(later.reconcile).toHaveLength(1);
 });

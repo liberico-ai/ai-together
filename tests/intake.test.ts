@@ -5,6 +5,7 @@ import {pm,seedSlice1} from './slice1-fixtures';
 import {bridgeConfig,chatMulti,chatNotIntake,chatSales,chatUnknown,intakePrincipalId,messageEvent,type EventOverride} from './slice2-fixtures';
 import {IntakeService,LATEST_REVISION_ORDER,type EnqueueReceipt} from '../src/server/intake';
 import {attachmentVerdict,cleanFileName,qualityScore,redactSecrets,threadKey} from '../src/server/intake-rules';
+import {enqueueReceipt} from '../src/server/outbox';
 import {ids} from '../src/server/identities';
 
 let h:Harness;
@@ -149,12 +150,25 @@ test('(4) a resent message creates no second candidate',async()=>{
 });
 
 test('DOC-16 an edit or a reply never asks the reporter to re-enter the request',async()=>{
+  // the real receipt enqueuer, so the visible "ask again" channel (a second receipt in the group) is measured too (code m-8)
+  const s=svcWith(bridgeConfig.chatScopes,enqueueReceipt);
   const e=ev({});
-  const a=await svc().ingest(e);
-  const b=await svc().ingest({...e,editedAt:new Date(1760009999000).toISOString(),contentHash:hex('c')});
-  const c=await svc().ingest(ev({context:{replyToMessageId:e.context.messageId}}));
+  const a=await s.ingest(e);
+  expect(await count('outbox_messages')).toBe(1);
+  const b=await s.ingest({...e,editedAt:new Date(1760009999000).toISOString(),contentHash:hex('c')});
+  // a follow-up reply to the reporter's own message (it does not call the bot, so the gateway marks it not addressed)
+  const c=await s.ingest(ev({addressed:false,context:{replyToMessageId:e.context.messageId}}));
   expect(new Set([a.candidateRef,b.candidateRef,c.candidateRef]).size).toBe(1);
   expect(a.candidateRef).not.toBeNull();
+  expect(await count('intake_candidates')).toBe(1);
+  expect(await count('outbox_messages')).toBe(1);
+  expect([b.receipt,c.receipt]).toEqual(['none','none']);
+  // a reply that calls the bot is a new addressed event and gets its own receipt (plan Task 6 :322); it carries the SAME
+  // reference, so it never presents the follow-up as a new request to re-enter
+  const d=await s.ingest(ev({context:{replyToMessageId:e.context.messageId}}));
+  expect(d.candidateRef).toBe(a.candidateRef);
+  const refs=(await h.operator.query<{ref:string}>("SELECT payload->'params'->>'ref' AS ref FROM outbox_messages")).rows.map(r=>r.ref);
+  expect(refs).toEqual([a.candidateRef,a.candidateRef]);
   expect(await count('intake_candidates')).toBe(1);
 });
 
@@ -388,4 +402,64 @@ test('R5 two-word keys glued after a prefix (X-Api Key, client_api key, Stripe-P
   expect(redactSecrets('monkey key: visible')).toBe('monkey key: visible');
   expect(redactSecrets('secretary meeting')).toBe('secretary meeting');
   expect(redactSecrets('tokens are fine')).toBe('tokens are fine');
+});
+
+// Security I1. All values are synthetic. The PEM header is assembled from parts so a secret scanner reading this file
+// does not take the fixture for a real key.
+const pem=(kind:string,body:string,end=true)=>['-----BEGIN '+kind+' PRIVATE'+' KEY-----',body,...(end?['-----END '+kind+' PRIVATE'+' KEY-----']:[])].join('\n');
+test('I1 Vietnamese and plain credential phrasings, Basic auth, PEM blocks and «<keyword> is <value>» are masked',()=>{
+  const cases:[string,string][]=[
+    ['mật khẩu: Vn2026abc','Vn2026abc'],['Mật khẩu wifi: Vn2026abc','Vn2026abc'],['MẬT KHẨU = Vn2026abc','Vn2026abc'],
+    ['mat khau: Vn2026abc','Vn2026abc'],['matkhau=Vn2026abc','Vn2026abc'],['Mat khau server: Vn2026abc','Vn2026abc'],
+    ['mật khẩu là Vn2026abc','Vn2026abc'],['mật khẩu wifi là Vn2026abc','Vn2026abc'],['mat khau la Vn2026abc','Vn2026abc'],
+    ['mk: Vn2026abc','Vn2026abc'],['MK=Vn2026abc','Vn2026abc'],['mk wifi: Vn2026abc','Vn2026abc'],
+    ['pass: Vn2026abc','Vn2026abc'],['Pass wifi: Vn2026abc','Vn2026abc'],['DB_PASS=Vn2026abc','Vn2026abc'],['wifi-pass: Vn2026abc','Vn2026abc'],
+    ['passcode=482913','482913'],['passcode là 482913','482913'],['otp: 482913','482913'],['mã OTP là 482913','482913'],['otp is 482913','482913'],
+    ['password is Vn2026abc','Vn2026abc'],['the token is Vn2026abc','Vn2026abc'],['secret là Vn2026abc','Vn2026abc'],
+    ['Authorization: Basic dXNlcjpzeW50aGV0aWM=','dXNlcjpzeW50aGV0aWM'],['{"Authorization": "Basic dXNlcjpzeW50aGV0aWM="}','dXNlcjpzeW50aGV0aWM'],
+    ['curl -H "authorization: basic dXNlcjpzeW50aGV0aWM="','dXNlcjpzeW50aGV0aWM'],['dùng Basic dXNlcjpzeW50aGV0aWM nhé','dXNlcjpzeW50aGV0aWM'],
+    [pem('OPENSSH','c3ludGhldGljLW9wZW5zc2gtYm9keQ\nAAAAsynthetic'),'c3ludGhldGlj'],[pem('RSA','MIIEsyntheticRSAbody'),'MIIEsynthetic'],
+    [pem('','MIGHsyntheticPKCS8'),'MIGHsynthetic'],[pem('ENCRYPTED','MIIFsyntheticEnc'),'MIIFsynthetic'],
+    // the excerpt is cut at 4096 characters before redaction, so a block that lost its END line is still masked to the end
+    [pem('OPENSSH','b3BlbnNzaC1zeW50aGV0aWM\nmore-synthetic-lines',false),'more-synthetic'],
+  ];
+  for(const [input,leak] of cases){
+    const r=redactSecrets('trước '+input+' sau');
+    expect(r,input).not.toContain(leak);expect(r,input).toContain('[đã che]');expect(r.startsWith('trước '),input).toBe(true);
+  }
+  // the value is masked, never the linking word; the keyword and the header stay readable
+  expect(redactSecrets('password is Vn2026abc')).toBe('password is [đã che]');
+  expect(redactSecrets('mật khẩu là Vn2026abc nhé')).toBe('mật khẩu là [đã che] nhé');
+  expect(redactSecrets('Mật khẩu wifi: Vn2026abc')).toBe('Mật khẩu wifi: [đã che]');
+  expect(redactSecrets('mk: Vn2026abc')).toBe('mk: [đã che]');
+  expect(redactSecrets('Authorization: Basic dXNlcjpzeW50aGV0aWM=')).toBe('Authorization: Basic [đã che]');
+  expect(redactSecrets('khoá: '+pem('OPENSSH','c3ludGhldGlj')+'\nhết')).toBe('khoá: [đã che]\nhết');
+});
+
+test('I1 ordinary Vietnamese and English words near the new keywords stay as written',()=>{
+  for(const t of ['pass qua bước kiểm tra rồi','pass qua là xong','mk đi trước nhé','mk là sinh viên năm hai','mkdir -p /tmp/x','smk: 3',
+    'bypass: bật','compass: hướng bắc','passenger: 3','mật khẩu mới đã đổi xong','gửi lại mã otp nhé','Basic training tuần sau',
+    'Basic understanding of the flow','pin: 80%','pin là 4000mAh','secretary meeting','tokens are fine'])
+    expect(redactSecrets(t),t).toBe(t);
+});
+
+test('I1 the new rules stay linear at 12 KB and 48 KB',()=>{
+  const shapes=(n:number):Record<string,string>=>({
+    'mật khẩu ':rep('mật khẩu ',n),'mat khau wifi ':rep('mat khau wifi ',n),'mk a-':rep('mk a-',n),'mk-':rep('mk-',n),'pass wifi ':rep('pass wifi ',n),
+    'otp ':rep('otp ',n),'password is ':rep('password is ',n),'Basic ':rep('Basic ',n),'Basic aB':rep('Basic aB',n),
+    'authorization: basic ':rep('authorization: basic ',n),'-----BEGIN ':rep('-----BEGIN ',n),'BEGIN header':rep('-----BEGIN RSA PRIVATE'+' KEY-----\n',n),
+  });
+  let total=0;
+  for(const n of [12288,49152]) for(const [k,v] of Object.entries(shapes(n))){
+    const t0=performance.now();redactSecrets(v);const dt=performance.now()-t0;total+=dt;
+    console.info('redact timing I1',n,k,dt.toFixed(1),'ms');
+  }
+  expect(total).toBeLessThan(200);
+});
+
+test('Sec M4 attachment file names lose bidi and other Unicode format characters at ingest',()=>{
+  for(const [input,out] of [['hoa-don‮fdp.exe','hoa-donfdp.exe'],['⁦bao-cao⁩.pdf','bao-cao.pdf'],['a‎‏b.pdf','ab.pdf'],
+    ['﻿x.pdf','x.pdf'],['a‪‫‬‭b.txt','ab.txt'],['a⁧⁨b.csv','ab.csv'],['a\u0000\u001f\u007fb.pdf','ab.pdf'],
+    ['Báo cáo tháng 11.pdf','Báo cáo tháng 11.pdf'],['../../etc/passwd','passwd']] as const)
+    expect(cleanFileName(input),JSON.stringify(input)).toBe(out);
 });

@@ -2,8 +2,9 @@
 import { useState, type ReactNode } from 'react';
 import type { CandidateCard, SourceAvailabilityRow, FailureRow, RevisionView, EventView, DeliveryView } from '../server/inbox';
 import { api } from './api';
-import { inboxState, statusLabel, failureLabel, variantOf, primaryAction, commandErrorMessage, formatTime, sizeLabel, chatTail,
-  VARIANT_NAMES, STATE_NAMES, CONFLICT_COPY, NOT_MANAGER_COPY, POINTER_ONLY_COPY, type InboxPageState } from './inbox-view';
+import { inboxState, statusLabel, failureLabel, variantOf, isOpen, initialDraft, cardActions, commandErrorMessage, formatTime, sizeLabel, chatTail,
+  templateLabel, sourceLabel, reloadInbox, VARIANT_NAMES, STATE_NAMES, CONFLICT_COPY, NOT_MANAGER_COPY, POINTER_ONLY_COPY,
+  type CardAction, type CardDraft, type InboxPageState } from './inbox-view';
 
 type Page = { items: CandidateCard[]; total: number };
 type Detail = { card: CandidateCard; revisions: RevisionView[]; events: EventView[]; deliveries: DeliveryView[] };
@@ -19,7 +20,7 @@ export function SourceList({ sources }: { sources: SourceAvailabilityRow[] }) {
     {sources.length === 0 ? <p className="doc-meta">Chưa có nhóm Telegram nào được đề xuất cho dự án này.</p> : <ul className="inbox-plain">
       {sources.map(s => <li key={s.chatId + ':' + s.topicId} className="inbox-source">
         <strong>Nhóm {chatTail(s.chatId)}{s.topicId ? ' · chủ đề ' + s.topicId : ''}</strong>
-        <span className="doc-wrap">{s.label}</span>
+        <span className="doc-wrap">{sourceLabel(s)}</span>
         {s.coverageGaps.length > 0 && <small className="doc-meta">Có {s.coverageGaps.length} khoảng ghi chậm (tin vào spool rồi mới ghi): {s.coverageGaps.slice(0, 3).map(g => formatTime(g.from) + ' → ' + formatTime(g.to)).join('; ')}</small>}
       </li>)}</ul>}
   </section>;
@@ -30,7 +31,7 @@ export function FailureList({ failures }: { failures: FailureRow[] }) {
     {failures.length === 0 ? <p className="doc-meta">Không có tin gửi nào cần xử lý.</p> : <ul className="inbox-plain">
       {failures.map(f => <li key={f.outboxId} className="inbox-source">
         <strong>{failureLabel(f)}</strong>
-        <span className="doc-wrap">Loại tin: {f.template}{f.lastErrorCode ? ' · mã lỗi: ' + f.lastErrorCode : ''}</span>
+        <span className="doc-wrap">Loại tin: {templateLabel(f.template)}{f.candidateRef ? ' · tin ' + f.candidateRef : ''}{f.lastErrorCode ? ' · mã lỗi: ' + f.lastErrorCode : ''}</span>
         <small className="doc-meta">{f.ownerId ? 'Đã có người nhận xử lý' : 'Chưa có người nhận xử lý'}</small>
       </li>)}</ul>}
   </section>;
@@ -48,7 +49,7 @@ function DetailView({ detail }: { detail: Detail }) {
     {detail.events.length === 0 ? <p className="doc-meta">Chưa có thao tác.</p> : <ul className="inbox-plain">{detail.events.map(e => <li key={e.id} className="doc-wrap">
       {e.kind} · {formatTime(e.createdAt)}{typeof e.payload.note === 'string' && e.payload.note ? ' · Ảnh hưởng / khôi phục: ' + e.payload.note : ''}</li>)}</ul>}
     {detail.deliveries.length > 0 && <><h4>Biên nhận gửi</h4><ul className="inbox-plain">{detail.deliveries.map(d => <li key={d.outboxId}>
-      {d.template} · {statusLabel({ receivedAt: '', persistedAt: '', projectedAt: null, deliveredAt: d.deliveredAt, acknowledgedAt: d.acknowledgedAt, outboxState: d.state })} · lượt {d.attemptNo}</li>)}</ul></>}
+      {templateLabel(d.template)} · {statusLabel({ receivedAt: '', persistedAt: '', projectedAt: null, deliveredAt: d.deliveredAt, acknowledgedAt: d.acknowledgedAt, outboxState: d.state })} · lượt {d.attemptNo}</li>)}</ul></>}
   </div>;
 }
 
@@ -68,24 +69,23 @@ function CardDetail({ candidateId }: { candidateId: string }) {
 }
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => <div className="inbox-variant"><h4>{title}</h4>{children}</div>;
+const FieldList = ({ fields }: { fields: string[] }) => <ul className="inbox-plain">{fields.map(f => <li key={f} className="doc-wrap">{f}</li>)}</ul>;
 
-export function IntakeCard({ card, canAct, onCommand }: { card: CandidateCard; canAct: boolean; onCommand: (cmd: unknown) => Promise<void> }) {
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [note, setNote] = useState(''), [missing, setMissing] = useState(''), [reason, setReason] = useState(''), [dupOf, setDupOf] = useState('');
-  const variant = variantOf(card), open = card.state === 'new' || card.state === 'needs_info', primary = primaryAction(card, canAct);
-  async function run(cmd: Record<string, unknown>) {
-    setBusy(true); setError('');
-    try { await onCommand({ expectedVersion: card.version, ...cmd }); } catch (e) { setError(commandErrorMessage(e)); } finally { setBusy(false); }
-  }
-  const needReason = (cmd: Record<string, unknown>) => { if (!reason.trim()) { setError('Nhập căn cứ trước khi thực hiện thao tác này.'); return; } void run({ ...cmd, reason: reason.trim() }); };
-  const lines = missing.split('\n').map(l => l.trim()).filter(Boolean);
-  const onPrimary = () => {
-    if (primary === 'Bổ sung thông tin') { if (!lines.length) { setError('Nhập ít nhất một thông tin còn thiếu, mỗi dòng một mục.'); return; } void run({ kind: 'need_info', missingFields: lines }); }
-    else if (card.classification) void run({ kind: 'confirm', classification: card.classification, ...(card.classification === 'incident' && note.trim() ? { note: note.trim() } : {}) });
-  };
+export type CardViewProps = { card: CandidateCard; canAct: boolean; draft: CardDraft; busy: boolean; error: string;
+  onDraft: (patch: Partial<CardDraft>) => void; onSubmit: (cmd: Record<string, unknown>) => void; onInvalid: (message: string) => void };
+
+/**
+ * One card, without state of its own: the unsaved choices come in as `draft` and every change goes out through a callback.
+ * An open card (new, needs_info) is always unclassified on the server; picking a type only changes the draft and shows that
+ * type's inputs. The server is written only by a commit button, with the version the card was read at.
+ */
+export function CardView({ card, canAct, draft, busy, error, onDraft, onSubmit, onInvalid }: CardViewProps) {
+  const open = isOpen(card), editing = canAct && open, variant = variantOf(card, draft), unsaved = !card.classification && variant !== 'unclassified';
+  const press = (a: CardAction) => { const b = a.build(); if (b.ok) onSubmit({ expectedVersion: card.version, ...b.cmd }); else onInvalid(b.error); };
   return <article className="inbox-card" aria-label={'Tin ' + card.ref} data-variant={variant} data-state={card.state}>
     <header className="inbox-head">
       <h3 className="doc-title">{card.ref}</h3>
-      <p className="inbox-badges"><span className="inbox-badge">{VARIANT_NAMES[variant]}</span><span className="inbox-badge">{STATE_NAMES[card.state]}</span>
+      <p className="inbox-badges"><span className="inbox-badge">{VARIANT_NAMES[variant]}{unsaved ? ' · chưa lưu' : ''}</span><span className="inbox-badge">{STATE_NAMES[card.state]}</span>
         {card.forwarded && <span className="inbox-badge">Tin chuyển tiếp</span>}</p>
     </header>
     <p className="doc-meta doc-wrap">Tin gốc: {card.sourceRef}{card.ticketRef ? ' · Mã việc ngoài: ' + card.ticketRef : ''}</p>
@@ -102,35 +102,49 @@ export function IntakeCard({ card, canAct, onCommand }: { card: CandidateCard; c
     </dl>
     {card.duplicateCandidates.length > 0 && <Section title="Có thể trùng">
       <ul className="inbox-plain">{card.duplicateCandidates.map(d => <li key={d.candidateId} className="doc-wrap"><span className="doc-ref">{d.ref}</span> — {d.reason}</li>)}</ul></Section>}
+    {card.state === 'needs_info' && <Section title="Đã hỏi bổ sung">
+      {card.missingFields.length > 0 ? <FieldList fields={card.missingFields} /> : <p className="doc-meta">Chưa ghi thông tin nào còn thiếu.</p>}</Section>}
     {variant === 'incident' && <Section title="Ảnh hưởng / khôi phục">
-      {canAct && open ? <label className="doc-field">Ghi ảnh hưởng và cách khôi phục (tuỳ chọn)<textarea className="inbox-textarea" value={note} maxLength={1000} onChange={e => setNote(e.target.value)} /></label>
+      {editing ? <label className="doc-field">Ghi ảnh hưởng và cách khôi phục (tuỳ chọn, đi cùng xác nhận)<textarea name="note" className="inbox-textarea" value={draft.note} maxLength={1000}
+        onChange={e => onDraft({ note: e.target.value })} /></label>
         : <p className="doc-meta">Ghi chú ảnh hưởng và khôi phục xem ở «Xem chi tiết» → Lịch sử thao tác.</p>}</Section>}
     {variant === 'request' && <Section title="Cần làm rõ">
-      {card.missingFields.length > 0 ? <ul className="inbox-plain">{card.missingFields.map(f => <li key={f} className="doc-wrap">{f}</li>)}</ul> : <p className="doc-meta">Chưa ghi thông tin nào còn thiếu.</p>}
-      {canAct && card.state === 'new' && <label className="doc-field">Thông tin còn thiếu (mỗi dòng một mục)<textarea className="inbox-textarea" value={missing} onChange={e => setMissing(e.target.value)} /></label>}</Section>}
+      {editing ? <label className="doc-field">Thông tin còn thiếu (mỗi dòng một mục, tối đa 10)<textarea name="missing" className="inbox-textarea" value={draft.missing}
+        onChange={e => onDraft({ missing: e.target.value })} /></label>
+        : card.state !== 'needs_info' && (card.missingFields.length > 0 ? <FieldList fields={card.missingFields} /> : <p className="doc-meta">Không còn thông tin nào cần hỏi.</p>)}</Section>}
     {variant === 'document' && <Section title="Đăng ký nguồn">
       <a className="doc-action inbox-secondary" href={'/documents?projectId=' + card.projectId}>Mở Tài liệu dự án để đăng ký nguồn</a></Section>}
     {error && <p role="alert" className="doc-problem">{error}</p>}
     {canAct ? <div className="inbox-actions">
-      {variant === 'unclassified' && open && <div className="inbox-choices" role="group" aria-label="Chọn loại tin">
-        <p className="doc-meta">Chọn tin này thuộc loại nào. Hệ thống không tự phân loại.</p>
-        {(['incident', 'request', 'document'] as const).map(c => <button key={c} type="button" className="doc-action" disabled={busy} onClick={() => void run({ kind: 'confirm', classification: c })}>{VARIANT_NAMES[c]}</button>)}</div>}
-      {primary && <button type="button" className="doc-action" disabled={busy} onClick={onPrimary}>{primary}</button>}
-      {open && variant === 'request' && card.state === 'new' && <button type="button" className="doc-action inbox-secondary" disabled={busy} onClick={() => void run({ kind: 'confirm', classification: 'request' })}>Xác nhận đủ thông tin</button>}
-      <label className="doc-field">Căn cứ (cần cho bỏ qua, trùng, mở lại)<input value={reason} maxLength={500} onChange={e => setReason(e.target.value)} /></label>
-      {open && card.duplicateCandidates.length > 0 && <>
-        <label className="doc-field">Trùng với<select value={dupOf} onChange={e => setDupOf(e.target.value)}><option value="">Chọn tin</option>
-          {card.duplicateCandidates.map(d => <option key={d.candidateId} value={d.candidateId}>{d.ref}</option>)}</select></label>
-        <button type="button" className="doc-action inbox-secondary" disabled={busy} onClick={() => dupOf ? needReason({ kind: 'mark_duplicate', duplicateOf: dupOf }) : setError('Chọn tin bị trùng trước.')}>Đánh dấu trùng</button></>}
-      {open && <button type="button" className="doc-action inbox-secondary" disabled={busy} onClick={() => needReason({ kind: 'dismiss' })}>Bỏ qua tin này</button>}
-      {!open && <button type="button" className="doc-action inbox-secondary" disabled={busy} onClick={() => needReason({ kind: 'reopen' })}>Mở lại</button>}
+      {editing && !draft.pick && <div className="inbox-choices" role="group" aria-label="Chọn loại tin">
+        <p className="doc-meta">Chọn tin này thuộc loại nào. Hệ thống không tự phân loại. Chọn loại chưa ghi gì; chỉ nút xác nhận mới ghi.</p>
+        <div className="inbox-choice-row">{(['incident', 'request', 'document'] as const).map(c =>
+          <button key={c} type="button" className="doc-action inbox-secondary" disabled={busy} onClick={() => onDraft({ pick: c })}>{VARIANT_NAMES[c]}</button>)}</div></div>}
+      {editing && draft.pick && <button type="button" className="doc-action inbox-secondary" disabled={busy} onClick={() => onDraft({ pick: null })}>Đổi loại</button>}
+      {open && card.duplicateCandidates.length > 0 && <label className="doc-field">Trùng với<select name="dupOf" value={draft.dupOf} onChange={e => onDraft({ dupOf: e.target.value })}>
+        <option value="">Chọn tin</option>{card.duplicateCandidates.map(d => <option key={d.candidateId} value={d.candidateId}>{d.ref}</option>)}</select></label>}
+      <label className="doc-field">Căn cứ (cần cho bỏ qua, trùng, mở lại)<input name="reason" value={draft.reason} maxLength={500} onChange={e => onDraft({ reason: e.target.value })} /></label>
+      {cardActions(card, draft, canAct).map(a => <button key={a.label} type="button" className={a.primary ? 'doc-action' : 'doc-action inbox-secondary'} disabled={busy}
+        onClick={() => press(a)}>{a.label}</button>)}
     </div> : <p className="doc-meta inbox-readonly">{NOT_MANAGER_COPY}</p>}
     <CardDetail candidateId={card.candidateId} />
   </article>;
 }
 
+/** Holds one card's draft, busy flag and error. Without a command handler the card is read-only (I-1: nothing to send). */
+export function IntakeCard({ card, canAct, onCommand }: { card: CandidateCard; canAct: boolean; onCommand?: (cmd: Record<string, unknown>) => Promise<void> }) {
+  const [draft, setDraft] = useState(() => initialDraft(card)), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  async function submit(cmd: Record<string, unknown>) {
+    if (!onCommand) return;
+    setBusy(true); setError('');
+    try { await onCommand(cmd); } catch (e) { setError(commandErrorMessage(e)); } finally { setBusy(false); }
+  }
+  return <CardView card={card} canAct={canAct && Boolean(onCommand)} draft={draft} busy={busy} error={error}
+    onDraft={patch => { setError(''); setDraft(d => ({ ...d, ...patch })); }} onSubmit={cmd => void submit(cmd)} onInvalid={setError} />;
+}
+
 export function InboxBody({ state, items, total, error, projectLabel, canAct, onRetry, onCommand }:
-  { state: InboxPageState; items: CandidateCard[]; total: number; error: string | null; projectLabel: string; canAct: boolean; onRetry?: () => void; onCommand: (c: CandidateCard, cmd: unknown) => Promise<void> }) {
+  { state: InboxPageState; items: CandidateCard[]; total: number; error: string | null; projectLabel: string; canAct: boolean; onRetry?: () => void; onCommand?: (c: CandidateCard, cmd: Record<string, unknown>) => Promise<void> }) {
   if (state === 'loading') return <div className="doc-list doc-skeleton" aria-busy="true" aria-label="Đang tải Inbox">{[0, 1, 2].map(i => <div key={i} className="doc-skel-row" aria-hidden="true" />)}</div>;
   if (state === 'denied') return <div className="doc-state doc-denied" role="status"><h2>Anh/chị chưa có quyền xem Inbox của dự án này</h2>
     <p>Liên hệ người quản lý để được cấp quyền. Trang này không hiện dữ liệu của dự án.</p></div>;
@@ -139,27 +153,29 @@ export function InboxBody({ state, items, total, error, projectLabel, canAct, on
   if (state === 'empty') return <div className="doc-state doc-empty"><h2>Chưa có tin nào được tiếp nhận cho dự án này</h2>
     <p>Tin chỉ vào Inbox khi gateway nhận được từ nhóm đã được cấu hình. Xem mục «Nguồn tin» ở trên để biết nhóm nào đã nhận.</p></div>;
   return <div className="doc-list" role="list" aria-label={'Tin của ' + projectLabel}>
-    {items.map(c => <div role="listitem" key={c.candidateId + ':' + c.version}><IntakeCard card={c} canAct={canAct} onCommand={cmd => onCommand(c, cmd)} /></div>)}
+    {items.map(c => <div role="listitem" key={c.candidateId + ':' + c.version}><IntakeCard card={c} canAct={canAct} onCommand={onCommand && (cmd => onCommand(c, cmd))} /></div>)}
     <p className="doc-meta" role="status">{items.length} / {total} tin</p></div>;
 }
 
-export function Inbox({ projects, projectId, initial, sources, failures, denied, canAct }:
+export function Inbox({ projects, projectId, initial, sources: initialSources, failures: initialFailures, denied, canAct }:
   { projects: { id: string; name: string }[]; projectId: string | null; initial: Page | null; sources: SourceAvailabilityRow[]; failures: FailureRow[]; denied: boolean; canAct: boolean }) {
   const [page, setPage] = useState<Page | null>(initial), [loading, setLoading] = useState(false), [error, setError] = useState<string | null>(null),
-    [notice, setNotice] = useState(''), [stale, setStale] = useState(false);
+    [notice, setNotice] = useState(''), [stale, setStale] = useState(false),
+    [sources, setSources] = useState(initialSources), [failures, setFailures] = useState(initialFailures);
   if (denied) return <main className="doc-page"><a className="doc-action doc-back" href="/">← Về không gian làm việc</a><h1>Inbox dự án</h1>
-    <InboxBody state="denied" items={[]} total={0} error={null} projectLabel="" canAct={false} onCommand={async () => {}} /></main>;
+    <InboxBody state="denied" items={[]} total={0} error={null} projectLabel="" canAct={false} /></main>;
   if (!projectId) return <main className="doc-page"><a className="doc-action doc-back" href="/">← Về không gian làm việc</a><h1>Inbox dự án</h1>
     <nav className="doc-picker" aria-label="Chọn dự án"><p className="doc-meta">Chọn dự án để xem Inbox.</p>
       {projects.length === 0 ? <p>Chưa có dự án nào anh/chị được xem Inbox.</p> : projects.map(p => <a key={p.id} className="doc-action" href={'/inbox?projectId=' + p.id}>{p.name}</a>)}</nav></main>;
   const projectLabel = projects.find(p => p.id === projectId)?.name ?? 'Dự án trong phạm vi';
   const state = inboxState({ loading, error, denied: false, count: page?.items.length ?? 0 });
+  /** Page, sources and failures are read again together, so a receipt the command changed is not left showing its old state (m-3). */
   async function load() {
     setLoading(true); setError(null); setStale(false);
-    try { setPage(await api<Page>('/api/inbox?' + new URLSearchParams({ projectId: projectId! }).toString())); }
+    try { const next = await reloadInbox(projectId!, api); setPage(next.page); setSources(next.sources); setFailures(next.failures); }
     catch (e) { setError(commandErrorMessage(e)); } finally { setLoading(false); }
   }
-  async function command(c: CandidateCard, cmd: unknown) {
+  async function command(c: CandidateCard, cmd: Record<string, unknown>) {
     setNotice('');
     try { await api('/api/inbox/' + c.candidateId + '/commands', cmd); }
     catch (e) { if (commandErrorMessage(e) === CONFLICT_COPY) setStale(true); throw e; }

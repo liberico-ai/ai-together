@@ -13,6 +13,26 @@ DO $$ BEGIN
     RAISE EXCEPTION 'libetech_outbox_audit must be NOLOGIN, NOSUPERUSER and NOBYPASSRLS';
   END IF;
 END $$;
+-- Nobody may act as the audit role: a member could SET ROLE to it and insert state events directly (Database review I-1).
+-- Migrations run as a superuser (deploy/install-user.py, the bootstrap user), which needs no membership to own the trigger below.
+-- guard:outbox-audit begin
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles a ON a.rolname='libetech_outbox_audit'
+   WHERE m.roleid=a.oid OR m.member=a.oid) THEN
+  RAISE EXCEPTION 'libetech_outbox_audit must have no members and be a member of no role';
+ END IF;
+END $$;
+-- guard:outbox-audit end
+-- Same block as in 016: no role may act as both libetech_runtime and libetech_intake (see the state trigger below).
+-- guard:role-separation begin
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles r
+   JOIN pg_catalog.pg_roles a ON a.rolname='libetech_runtime' JOIN pg_catalog.pg_roles b ON b.rolname='libetech_intake'
+   WHERE NOT r.rolsuper AND pg_catalog.pg_has_role(r.oid,a.oid,'MEMBER') AND pg_catalog.pg_has_role(r.oid,b.oid,'MEMBER')) THEN
+  RAISE EXCEPTION 'A role can act as both libetech_runtime and libetech_intake; separate the logins before applying this migration';
+ END IF;
+END $$;
+-- guard:role-separation end
 
 CREATE TABLE IF NOT EXISTS outbox_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -75,6 +95,16 @@ CREATE TABLE IF NOT EXISTS outbox_state_events (
   FOREIGN KEY(outbox_id,tenant_id) REFERENCES outbox_messages(id,tenant_id),
   UNIQUE(outbox_id,outbox_version)
 );
+-- Range of the outbox counters (Database review M-8). Integrity only: who may change them is the guard trigger's business.
+-- Added by name so a copy created by an earlier draft of this file gets them too.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='outbox_messages_attempt_no_nonnegative' AND conrelid='public.outbox_messages'::regclass) THEN
+    ALTER TABLE outbox_messages ADD CONSTRAINT outbox_messages_attempt_no_nonnegative CHECK(attempt_no>=0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='outbox_messages_version_positive' AND conrelid='public.outbox_messages'::regclass) THEN
+    ALTER TABLE outbox_messages ADD CONSTRAINT outbox_messages_version_positive CHECK(version>=1);
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_outbox_messages_due ON outbox_messages(tenant_id,state,next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_messages_scope_created ON outbox_messages(tenant_id,project_id,created_at DESC);
@@ -83,12 +113,14 @@ CREATE INDEX IF NOT EXISTS idx_outbox_messages_project_fk ON outbox_messages(pro
 CREATE INDEX IF NOT EXISTS idx_outbox_messages_source_event_fk ON outbox_messages(source_event_id,tenant_id,project_id);
 CREATE INDEX IF NOT EXISTS idx_outbox_messages_candidate_fk ON outbox_messages(candidate_id,tenant_id,project_id);
 CREATE INDEX IF NOT EXISTS idx_outbox_messages_recipient_fk ON outbox_messages(recipient_user_id,tenant_id);
-CREATE INDEX IF NOT EXISTS idx_delivery_receipts_outbox_created ON delivery_receipts(outbox_id,created_at);
+-- Database review M-9: (outbox_id, created_at) duplicated the outbox FK index and UNIQUE(outbox_id, ...) on both history tables;
+-- reads go by outbox_id then attempt or version. An earlier draft created them, so they are dropped if present.
+DROP INDEX IF EXISTS idx_delivery_receipts_outbox_created;
+DROP INDEX IF EXISTS idx_outbox_state_events_outbox_created;
 CREATE INDEX IF NOT EXISTS idx_delivery_receipts_scope_created ON delivery_receipts(tenant_id,project_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_delivery_receipts_created ON delivery_receipts(created_at);
 CREATE INDEX IF NOT EXISTS idx_delivery_receipts_project_fk ON delivery_receipts(project_id,tenant_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_receipts_outbox_fk ON delivery_receipts(outbox_id,tenant_id);
-CREATE INDEX IF NOT EXISTS idx_outbox_state_events_outbox_created ON outbox_state_events(outbox_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_state_events_scope_created ON outbox_state_events(tenant_id,project_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_outbox_state_events_created ON outbox_state_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_state_events_project_fk ON outbox_state_events(project_id,tenant_id);
@@ -286,6 +318,11 @@ CREATE TRIGGER outbox_messages_guard_state BEFORE UPDATE ON outbox_messages FOR 
 CREATE OR REPLACE FUNCTION outbox_state_events_validate() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
   IF current_user <> 'libetech_outbox_audit' THEN RAISE EXCEPTION 'State events are written only by the outbox state trigger'; END IF;
+  -- The state trigger runs as the audit role for any login; a login that can itself SET ROLE to it is the one that must not insert.
+  IF NOT coalesce((SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname = session_user), false)
+     AND pg_catalog.pg_has_role(session_user, 'libetech_outbox_audit', 'MEMBER') THEN
+    RAISE EXCEPTION 'State events are not written by a login that is a member of libetech_outbox_audit';
+  END IF;
   IF NOT ((NEW.from_state = 'pending' AND NEW.to_state = 'leased')
        OR (NEW.from_state = 'leased' AND NEW.to_state IN ('delivered','pending','dead','uncertain'))
        OR (NEW.from_state = 'uncertain' AND NEW.to_state IN ('delivered','pending','dead','abandoned'))
@@ -319,6 +356,12 @@ CREATE TRIGGER outbox_state_events_validate BEFORE INSERT ON outbox_state_events
 -- Inside, current_user is the owner. The invoking role is the 'role' setting (changed only by SET ROLE, and only to a role the session
 -- belongs to; a security-definer function cannot change it), and must equal the current_user that the guard trigger recorded with the
 -- caller's rights for this update. Any other role, or a disagreement, raises.
+-- That check alone is not a proof. The statement can still change both values after the guard ran and before this AFTER trigger fires
+-- (RETURNING set_config('role',…), set_config('app.outbox_invoker',…)); they then agree on a role the session can also take. The
+-- actor is therefore proven only under an invariant on memberships: no login is a member of both libetech_runtime and libetech_intake,
+-- and no role is a member of libetech_outbox_audit or has it as a member (Database review I-1). 016 and 017 refuse to apply when it
+-- is broken, src/server/db.ts refuses to start a restricted login that breaks it, and this trigger and the validator above refuse a
+-- state change by a login that breaks it, for memberships granted after the migrations ran. Superuser sessions are outside the proof.
 CREATE OR REPLACE FUNCTION public.outbox_messages_record_state_event() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE sig text; req text; invoker text; recorded text; kind text; who uuid;
@@ -326,6 +369,10 @@ BEGIN
   sig := nullif(pg_catalog.current_setting('app.outbox_signal', true), '');
   req := nullif(pg_catalog.current_setting('app.request_id', true), '');
   IF sig IS NULL OR req IS NULL THEN RAISE EXCEPTION 'Outbox state change needs app.outbox_signal and app.request_id'; END IF;
+  IF NOT coalesce((SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname = session_user), false)
+     AND pg_catalog.pg_has_role(session_user, 'libetech_runtime', 'MEMBER') AND pg_catalog.pg_has_role(session_user, 'libetech_intake', 'MEMBER') THEN
+    RAISE EXCEPTION 'Outbox state change: the login can act as both libetech_runtime and libetech_intake, so its actor cannot be proven';
+  END IF;
   invoker := pg_catalog.current_setting('role');
   recorded := nullif(pg_catalog.current_setting('app.outbox_invoker', true), '');
   IF invoker = 'libetech_runtime' THEN

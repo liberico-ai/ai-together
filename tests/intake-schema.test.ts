@@ -115,6 +115,27 @@ test('runtime cannot insert source events, revisions, attachments or candidates'
   await expect(scoped(h.db,pm,tx=>tx.query("UPDATE intake_candidates SET chat_id='-1'"))).rejects.toThrow(/permission denied/);
 });
 
+test('34c a runtime UPDATE of a candidate in another project or another tenant affects 0 rows and changes nothing',async()=>{
+  const o=h.operator;
+  const mk=async(project:string,tenant:string,msg:string)=>{
+    const e=(await o.query<{id:string}>(eventSql,[tenant,project,chatSales,msg,randomUUID()])).rows[0].id;
+    return (await o.query<{id:string}>(candSql,[tenant,project,chatSales,e])).rows[0].id;
+  };
+  const own=await mk(ids.sales,ids.tenant,'1'),otherProject=await mk(ids.transport,ids.tenant,'2'),otherTenant=await mk(ids.otherProject,ids.otherTenant,'3');
+  // a manager of both projects, scoped to sales for this request, the way InboxService.run scopes one project
+  const salesOnly={...pm,projectIds:[ids.sales]};
+  const asSales=<T>(fn:(tx:Queryable)=>Promise<T>)=>scoped(h.db,salesOnly,async tx=>{await tx.query("SELECT set_config('app.person_id',$1,true)",[pm.id]);return fn(tx);});
+  const upd="UPDATE intake_candidates SET state='dismissed',note='ngoài phạm vi',decided_by=$2,version=version+1,updated_at=now() WHERE id=$1 RETURNING id";
+  for(const id of [otherProject,otherTenant]) expect(await asSales(async tx=>(await tx.query(upd,[id,pm.id])).rows),id).toEqual([]);
+  // the tenant and project in the WHERE clause do not widen it either
+  expect(await asSales(async tx=>(await tx.query(upd.replace('WHERE id=$1','WHERE id=$1 AND tenant_id=$3 AND project_id=$4'),[otherTenant,pm.id,ids.otherTenant,ids.otherProject])).rows)).toEqual([]);
+  // an UPDATE with no WHERE reaches the in-scope row only
+  expect(await asSales(async tx=>(await tx.query("UPDATE intake_candidates SET note='mọi dòng',version=version+1,updated_at=now() RETURNING id")).rows.map(r=>r.id))).toEqual([own]);
+  const after=(await o.query<{id:string;state:string;version:number;note:string;decided_by:string|null}>('SELECT id,state,version,note,decided_by FROM intake_candidates')).rows;
+  for(const id of [otherProject,otherTenant]) expect(after.find(r=>r.id===id),id).toMatchObject({state:'new',version:1,note:'',decided_by:null});
+  expect(after.find(r=>r.id===own)).toMatchObject({version:2,note:'mọi dòng'});
+});
+
 test('history tables reject update and delete; candidates reject delete',async()=>{
   await seedAll();
   for(const t of ['source_events','source_event_revisions','intake_attachments','intake_events']){

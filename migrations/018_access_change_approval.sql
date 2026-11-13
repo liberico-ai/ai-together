@@ -4,7 +4,11 @@
 -- and account version; it never changes memberships itself. RLS (ENABLE + FORCE) and the tenant_scope policy with USING and WITH CHECK
 -- come from 009 and are unchanged; no grant is needed: libetech_identity already holds INSERT on the table and UPDATE(state,updated_at).
 -- Rollback: migrations/rollback/018_access_change_approval.sql (refuses while an access_change row exists).
+-- lock_timeout (Database review M-1): the ALTERs take ACCESS EXCLUSIVE on identity.account_approvals and SHARE ROW EXCLUSIVE on
+-- identity.users. Behind a long transaction they would queue every later login and vote behind them; after 5 s the whole file
+-- (one transaction) fails instead and is retried, nothing is applied in part.
 BEGIN;
+SET LOCAL lock_timeout = '5s';
 ALTER TABLE identity.account_approvals ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'registration' CHECK(kind IN ('registration','access_change'));
 ALTER TABLE identity.account_approvals ADD COLUMN IF NOT EXISTS subject_user_id uuid;
 ALTER TABLE identity.account_approvals ADD COLUMN IF NOT EXISTS subject_account_version integer;
