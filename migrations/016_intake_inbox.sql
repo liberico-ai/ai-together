@@ -210,11 +210,19 @@ DROP TRIGGER IF EXISTS intake_candidates_no_delete ON intake_candidates;
 CREATE TRIGGER intake_candidates_no_delete BEFORE DELETE ON intake_candidates FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 
 GRANT USAGE ON SCHEMA public TO libetech_intake;
-GRANT SELECT, INSERT ON source_events, source_event_revisions, intake_attachments, intake_candidates, intake_events TO libetech_intake;
+GRANT SELECT ON source_events, source_event_revisions, intake_attachments, intake_candidates, intake_events TO libetech_intake;
+-- Column-level INSERT (pattern 013/014): id, created_at/updated_at, ingested_at, version, hash_verification and candidate decision columns come from defaults.
+REVOKE INSERT ON source_events, source_event_revisions, intake_attachments, intake_candidates, intake_events FROM libetech_intake;
+REVOKE INSERT ON intake_events FROM libetech_runtime;
+GRANT INSERT(tenant_id,project_id,source_id,source_type,quality_score,chat_id,topic_id,message_id,reply_to_message_id,media_group_id,thread_key,source_actor,source_actor_label,observed_at,locator,forwarded,addressed,spooled,content_mode,trace_id,correlation_id) ON source_events TO libetech_intake;
+GRANT INSERT(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,text_excerpt,text_truncated) ON source_event_revisions TO libetech_intake;
+GRANT INSERT(tenant_id,project_id,source_event_id,revision_id,state,locator,sha256,mime_type,size_bytes,file_name,reason_code) ON intake_attachments TO libetech_intake;
+GRANT INSERT(tenant_id,project_id,chat_id,thread_key,root_source_event_id) ON intake_candidates TO libetech_intake;
+GRANT INSERT(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload) ON intake_events TO libetech_intake;
 GRANT SELECT(id,tenant_id) ON projects TO libetech_intake;
 GRANT SELECT ON project_domain_mappings TO libetech_intake;
 GRANT SELECT ON source_events, source_event_revisions, intake_attachments, intake_candidates, intake_events TO libetech_runtime;
 GRANT UPDATE(state,classification,duplicate_of,missing_fields,note,ticket_ref,decided_by,version,updated_at) ON intake_candidates TO libetech_runtime;
-GRANT INSERT ON intake_events TO libetech_runtime;
+GRANT INSERT(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload) ON intake_events TO libetech_runtime;
 INSERT INTO schema_migrations(version) VALUES('016') ON CONFLICT(version) DO NOTHING;
 COMMIT;

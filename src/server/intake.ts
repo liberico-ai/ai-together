@@ -94,9 +94,10 @@ export class IntakeService {
    }
 
    let candidateId:string|undefined;
+   const requestId=randomUUID();
    const audit=(entityType:string,entityId:string,kind:string,payload:Record<string,unknown>)=>tx.query(
     `INSERT INTO intake_events(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload) VALUES($1,$2,$3,$4,$5,'intake_service',$6,$7,$8,$9)`,
-    [tenantId,projectId,entityType,entityId,this.principalId,kind,randomUUID(),e.traceId,JSON.stringify(payload)]);
+    [tenantId,projectId,entityType,entityId,this.principalId,kind,requestId,e.traceId,JSON.stringify(payload)]);
    if(rev) {
     await audit('source_event',ev.id,isNewEvent?'source_event.persisted':'source_event.revised',{revisionNo,contentMode});
     const created=(await tx.query<{id:string}>(

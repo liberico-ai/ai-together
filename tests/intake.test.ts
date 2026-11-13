@@ -34,6 +34,21 @@ test('pure rules: key, quality, redaction, file name, verdict',()=>{
   expect(attachmentVerdict({mimeType:'application/zip',sizeBytes:1})).toBe('unsupported_type');
 });
 
+test('I1 redactSecrets covers compound keys, quoted forms and known token formats; prose stays intact',()=>{
+  const must:string[]=['OPENAI_API_KEY=sk-live-XYZ','GITHUB_TOKEN=ghp_XYZ','DB_PASSWORD=hunter2','access_token=XYZ','client_secret: XYZ','{"password":"hunter2"}','"api_key": "XYZ"'];
+  const leaks=['sk-live-XYZ','ghp_XYZ','hunter2','XYZ'];
+  for(const m of must){const r=redactSecrets(m);expect(r,m).toContain('[đã che]');for(const l of leaks) expect(r,m).not.toContain(l);}
+  const fmt:[string,string][]=[
+    ['ghp_'+'A1b2C3d4E5f6G7h8I9j0K1','ghp_A1b2'],['gho_'+'A1b2C3d4E5f6G7h8I9j0K1','gho_A1b2'],['github_pat_'+'A1b2C3d4E5f6G7h8I9j0K1','github_pat_A1b2'],
+    ['sk-'+'abcdefghij0123456789ABCD','sk-abcdefghij'],['AKIA'+'ABCDEFGHIJKLMNOP','AKIAABCDEF'],['xoxb-'+'1234567890-abcdef','xoxb-1234'],
+    ['eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abc_DEF-123','eyJhbGci']];
+  for(const [tok,frag] of fmt){const r=redactSecrets(`xin xem ${tok} nhé`);expect(r,tok).not.toContain(frag);expect(r).toContain('[đã che]');expect(r).toContain('xin xem');}
+  const u=redactSecrets('mở postgres://admin:S3cretPw@db.example.test:5432/app');
+  expect(u).not.toContain('S3cretPw');expect(u).toContain('postgres://admin:');expect(u).toContain('@db.example.test');
+  expect(redactSecrets('secretary meeting')).toBe('secretary meeting');
+  expect(redactSecrets('tokens are fine')).toBe('tokens are fine');
+});
+
 test('DOC-01 a message from an unmapped group is refused and nothing is stored (mức mã; nhóm thật là kiểm runtime)',async()=>{
   for(const chatId of [chatUnknown,chatNotIntake]) await expect(svc().ingest(ev({context:{chatId}}))).rejects.toMatchObject({code:'SCOPE_DENIED',status:403});
   await expect(svcWith({...bridgeConfig.chatScopes,[chatSales]:[]}).ingest(ev({}))).rejects.toMatchObject({code:'SCOPE_DENIED',status:403});
@@ -234,4 +249,31 @@ test('receipts: queued only for a new addressed message; template follows spoole
   expect(calls.map(c=>c.template)).toEqual(['intake.received','intake.recovered']);
   expect(calls[0]).toMatchObject({tenantId:ids.tenant,projectId:ids.sales,chatId:chatSales,replyToMessageId:e.context.messageId,traceId:expect.any(String),correlationId:expect.any(String)});
   expect(calls[0].params.candidateRef).toMatch(/^IN-/);
+});
+
+test('M1 one ingest shares one request_id across its intake_events rows',async()=>{
+  const r=await svc().ingest(ev({}));
+  const rows=(await h.operator.query<{request_id:string}>('SELECT request_id FROM intake_events')).rows;
+  expect(rows.length).toBe(2);
+  expect(new Set(rows.map(x=>x.request_id)).size).toBe(1);
+  const r2=await svc().ingest(ev({}));
+  expect(r2.sourceEventId).not.toBe(r.sourceEventId);
+  expect((await h.operator.query('SELECT DISTINCT request_id FROM intake_events')).rows).toHaveLength(2);
+});
+
+test('M4 computed source fields: locator, source_id, source_actor, correlation_id',async()=>{
+  const e=ev({context:{telegramId:'424242'}});
+  const r=await svc().ingest(e);
+  const row=(await h.operator.query<{locator:string;source_id:string;source_actor:string;correlation_id:string;trace_id:string}>('SELECT locator,source_id,source_actor,correlation_id,trace_id FROM source_events WHERE id=$1',[r.sourceEventId])).rows[0];
+  expect(row.locator).toBe(`https://t.me/c/${chatSales.slice(4)}/${e.context.messageId}`);
+  expect(row.locator).toBe(`https://t.me/c/0000000001/${e.context.messageId}`);
+  expect(row.source_id).toBe(`telegram:${chatSales}:${e.context.messageId}`);
+  expect(row.source_actor).toBe('tg:424242');
+  expect(row.trace_id).toBe(e.traceId);
+  expect(row.correlation_id).toMatch(/^[0-9a-f-]{36}$/);
+  expect(row.correlation_id).not.toBe(e.traceId);
+  const legacy='-5000000001';
+  const s2=new IntakeService(h.operator,ids.tenant,intakePrincipalId,{...bridgeConfig.chatScopes,[legacy]:[ids.sales]},[...chats,legacy]);
+  const r2=await s2.ingest(ev({context:{chatId:legacy}}));
+  expect((await h.operator.query<{locator:string}>('SELECT locator FROM source_events WHERE id=$1',[r2.sourceEventId])).rows[0].locator).toBe('');
 });

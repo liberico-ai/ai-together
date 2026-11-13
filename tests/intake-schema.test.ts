@@ -185,3 +185,27 @@ describe.skipIf(!native)('native roles',()=>{
     expect(member).toEqual(['libetech_intake']);
   });
 });
+
+test('item 2 column-level INSERT grants: defaults own ids, timestamps, ingested_at, version, hash level',async()=>{
+  const e=(await h.operator.query<{id:string}>(eventSql,[ids.tenant,ids.sales,chatSales,'1',randomUUID()])).rows[0].id;
+  const r=(await h.operator.query<{id:string}>(revSql,[ids.tenant,ids.sales,e,hex('a'),hex('b')])).rows[0].id;
+  const T=[ids.tenant,ids.sales];
+  const tryIns=(table:string,cols:string,vals:unknown[],extra:[string,unknown],who:'intake'|'runtime')=>{
+    const names=cols+','+extra[0],ph=[...vals,extra[1]].map((_,i)=>'$'+(i+1)).join(',');
+    const run=(tx:Queryable)=>tx.query(`INSERT INTO ${table}(${names}) VALUES(${ph})`,[...vals,extra[1]]);
+    return who==='intake'?asIntake([ids.sales],run):asRuntime(run);
+  };
+  const old='2020-01-01T00:00:00Z',idv='00000000-0000-4000-8000-0000000000cc';
+  const cases:[string,string,unknown[],[string,unknown][]][]=[
+    ['source_events','tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,content_mode,trace_id,correlation_id',
+      [...T,'g','telegram_gateway',80,chatSales,'91','t','a',old,false,false,'excerpt',idv,idv],[['ingested_at',old],['created_at',old],['id',idv]]],
+    ['source_event_revisions','tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash',[...T,e,2,hex('c'),hex('d')],[['created_at',old],['id',idv]]],
+    ['intake_attachments','tenant_id,project_id,source_event_id,revision_id,state',[...T,e,r,'failed'],[['created_at',old],['hash_verification','gateway_declared']]],
+    ['intake_candidates','tenant_id,project_id,chat_id,thread_key,root_source_event_id',[...T,chatSales,'t9',e],[['created_at',old],['version',5],['note','x'],['missing_fields','[]']]],
+    ['intake_events','tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload',[...T,'source_event',e,pm.id,'intake_service','k',idv,idv,'{}'],[['created_at',old],['id',idv]]],
+  ];
+  for(const [table,cols,vals,extras] of cases) for(const x of extras)
+    await expect(tryIns(table,cols,vals,x,'intake'),table+'.'+x[0]).rejects.toThrow(/permission denied/);
+  await expect(tryIns('intake_events','tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload',[...T,'source_event',e,pm.id,'user','k',idv,idv,'{}'],['created_at',old],'runtime')).rejects.toThrow(/permission denied/);
+  await expect(tryIns('intake_events','tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id',[...T,'source_event',e,pm.id,'user','k',idv,idv],['id',idv],'runtime')).rejects.toThrow(/permission denied/);
+});
