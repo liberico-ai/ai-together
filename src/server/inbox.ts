@@ -31,7 +31,7 @@ const iso=(v:unknown)=>new Date(v as string).toISOString();
 const isoOrNull=(v:unknown)=>v==null?null:iso(v);
 
 // Read needs a project role in {manager, engineer, technical, business} (OQ S5 placeholder); acting needs manager. Bot and viewer never pass.
-function readable(p:Principal,projectId:string):void {
+export function readable(p:Principal,projectId:string):void {
  if(!p||p.role==='bot'||!p.projectIds?.includes(projectId)||!READ_ROLES.has(projectRole(p,projectId))) throw DENIED();
 }
 function managerOf(p:Principal,projectId:string):void {

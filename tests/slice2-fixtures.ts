@@ -43,3 +43,10 @@ export function messageEvent(over:EventOverride={}):IntakeEventInput{
     ...rest,
   };
 }
+
+/** Task 7/8 assertion shared: no slice-2 table may hold a ticket status/state column (AI OS keeps only an external reference). */
+export async function ticketStateColumns(query:(sql:string)=>Promise<{column_name:string}[]>):Promise<string[]>{
+  return (await query(`SELECT column_name FROM information_schema.columns WHERE table_schema='public'
+    AND table_name IN ('source_events','source_event_revisions','intake_attachments','intake_candidates','intake_events','outbox_messages','delivery_receipts','outbox_state_events')
+    AND (column_name LIKE '%ticket_status%' OR column_name LIKE '%ticket_state%')`)).map(r=>r.column_name);
+}

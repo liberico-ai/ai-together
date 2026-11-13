@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {ZodError} from 'zod';
 import {openHarness,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
-import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,type EventOverride} from './slice2-fixtures';
+import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,ticketStateColumns,type EventOverride} from './slice2-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {InboxService} from '../src/server/inbox';
 import {OutboxService} from '../src/server/outbox';
@@ -193,10 +193,7 @@ test('link_ticket stores an external reference only',async()=>{
   expect(await kinds(a.id)).toContain('candidate.ticket_linked');
   for(const bad of ['tk-xeca-202611-001','TK-XECA-202611','TK-XECA-202611-1','https://x.test/TK-XECA-202611-001'])
     await expect(inbox().command(pm,a.id,{kind:'link_ticket',expectedVersion:2,ticketRef:bad},k()),bad).rejects.toBeInstanceOf(ZodError);
-  const cols=await rows<{column_name:string}>(`SELECT column_name FROM information_schema.columns WHERE table_schema='public'
-    AND table_name IN ('source_events','source_event_revisions','intake_attachments','intake_candidates','intake_events','outbox_messages','delivery_receipts','outbox_state_events')
-    AND (column_name LIKE '%ticket_status%' OR column_name LIKE '%ticket_state%')`);
-  expect(cols).toEqual([]);
+  expect(await ticketStateColumns(async q=>(await h.operator.query<{column_name:string}>(q)).rows)).toEqual([]);
 });
 
 test('a group with no received message shows Chưa xác minh khả năng nhận tin',async()=>{
