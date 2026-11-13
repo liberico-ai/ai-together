@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { scoped, type Database, type Queryable } from './db';
 import { AppError, invariant } from './errors';
+import { sourceHostProblem } from './source-hosts';
 import { projectRole } from './types';
 import type { DocumentDetail, DocumentRecord, DocumentRevision, Principal, RegistryEvent, SourceLink, SourceState, SourceType } from './types';
 
@@ -48,7 +49,11 @@ const registerSchema = z.object({
   metadata: z.object({ author: note, reviewer: note, authorityNote: note, audienceNote: note, readingLimits: note,
     missingFields: z.array(z.string().max(120)).max(20) }).strict(),
   sourceLinks: z.array(z.object({ kind: z.literal('z2_source_ref'), value: z.string().min(3).max(300) }).strict()).max(10),
-}).strict();
+}).strict().superRefine((v, ctx) => {
+  // OQ-25 (a): the canonical link's host must be on the fixed list for its source type.
+  const problem = sourceHostProblem(v.sourceType, v.canonicalUri);
+  if (problem) ctx.addIssue({ code: 'custom', path: ['canonicalUri'], message: problem });
+});
 
 const line = z.string().max(200);
 const sourceRef = z.object({ kind: z.enum(['git_sha', 'url', 'z2_source_ref']), label: z.string().min(1).max(80), value: z.string().min(1).max(1000) }).strict().superRefine((r, ctx) => {
@@ -189,6 +194,7 @@ export class DocumentService {
       invariant(r.source_state !== 'unavailable' && r.source_state !== 'denied', 'SOURCE_UNAVAILABLE', 'Nguồn hiện không mở được. Lịch sử trong sổ vẫn còn.', 409);
       const safe = checkPointer(r.canonical_uri);
       invariant(safe.ok, 'SOURCE_UNAVAILABLE', 'Nguồn hiện không mở được. Lịch sử trong sổ vẫn còn.', 409);
+      invariant(!sourceHostProblem(r.source_type, safe.href), 'SOURCE_UNAVAILABLE', 'Máy chủ của nguồn này không nằm trong danh sách được phép nên không mở. Lịch sử trong sổ vẫn còn.', 409);
       return { uri: r.canonical_uri, host: safe.host, sourceType: r.source_type, sourceState: r.source_state, title: r.title };
     });
   }

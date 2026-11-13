@@ -20,7 +20,7 @@ afterEach(async()=>{await h.reset();await h.close();});
 const dir=(p:string)=>path.join(process.cwd(),p);
 const svc=()=>new DocumentService(h.db);
 const base=(over:Record<string,unknown>={})=>({projectId:ids.sales,refCode:'DOC-FW-1',docType:'design',title:'Tài liệu đợt sửa tổng hợp',sourceType:'drive',
-  canonicalUri:'https://example.com/docs/fw-1',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:[]},sourceLinks:[],...over});
+  canonicalUri:'https://docs.google.com/docs/fw-1',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:[]},sourceLinks:[],...over});
 const revBody=(over:Record<string,unknown>={})=>({expectedVersion:1,basedOnRevisionId:null,sourceRevision:null,sourceHash:null,sourceModifiedAt:null,
   changes:{summary:'Tóm tắt thay đổi tổng hợp',present:['Mục A'],missing:[]},sourceRefs:[],...over});
 const key=(()=>{let n=0;return ()=>'fw-key-'+String(++n).padStart(6,'0');})();
@@ -74,9 +74,9 @@ describe('item 2 column-level INSERT grants',()=>{
     {table:'project_profiles',cols:'tenant_id,project_id,updated_by',vals:()=>[ids.tenant,ids.sales,pm.id]},
     {table:'project_channels',cols:'tenant_id,project_id,chat_id,mode,policy_version,proposed_by',vals:()=>[ids.tenant,ids.sales,'-100123','command_reply','p1',pm.id]},
     {table:'document_records',cols:'tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by',
-      vals:()=>[ids.tenant,ids.sales,'design','Tiêu đề thử nghiệm','drive','https://example.com/grant-1',pm.id]},
+      vals:()=>[ids.tenant,ids.sales,'design','Tiêu đề thử nghiệm','drive','https://docs.google.com/grant-1',pm.id]},
     {table:'document_revisions',cols:'tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by',
-      vals:d=>[ids.tenant,ids.sales,d,1,'https://example.com/docs/fw-1','drive',pm.id]},
+      vals:d=>[ids.tenant,ids.sales,d,1,'https://docs.google.com/docs/fw-1','drive',pm.id]},
     {table:'document_commands',cols:'tenant_id,project_id,actor_id,command_key,request_hash',vals:()=>[ids.tenant,ids.sales,pm.id,'grant-cmd-0001','h']},
   ];
   const extras:Record<string,[string,unknown][]>={
@@ -128,8 +128,8 @@ describe('item 4 template index script',()=>{
 describe('item 5 UPDATE isolation',()=>{
   const ids2=ids.transport;
   async function seed(){
-    const a=await svc().register(pm,base({canonicalUri:'https://example.com/docs/iso-a'}),key());
-    const b=await svc().register(pm,base({projectId:ids2,refCode:'DOC-FW-2',canonicalUri:'https://example.com/docs/iso-b'}),key());
+    const a=await svc().register(pm,base({canonicalUri:'https://docs.google.com/docs/iso-a'}),key());
+    const b=await svc().register(pm,base({projectId:ids2,refCode:'DOC-FW-2',canonicalUri:'https://docs.google.com/docs/iso-b'}),key());
     for(const p of [ids.sales,ids2]) await h.operator.query("INSERT INTO project_profiles(tenant_id,project_id,updated_by,objective) VALUES($1,$2,$3,'orig')",[ids.tenant,p,pm.id]);
     return {a,b};
   }
@@ -189,12 +189,12 @@ describe('item 7 source link hardening',()=>{
   test('registration refuses a credential-bearing query parameter (any case) with a Vietnamese message',async()=>{
     for(const n of names)
       for(const spelled of [n,n.toUpperCase()]){
-        const e=await svc().register(pm,base({canonicalUri:`https://example.com/d?x=1&${spelled}=abc`}),key()).catch(x=>x);
+        const e=await svc().register(pm,base({canonicalUri:`https://docs.google.com/d?x=1&${spelled}=abc`}),key()).catch(x=>x);
         expect(e,spelled).toBeInstanceOf(ZodError);
         expect((e as ZodError).issues[0].message,spelled).toMatch(/tham số/);
       }
     expect(await count('document_records')).toBe(0);
-    await expect(svc().register(pm,base({canonicalUri:'https://example.com/d?page=2&q=ok'}),key())).resolves.toBeTruthy();
+    await expect(svc().register(pm,base({canonicalUri:'https://docs.google.com/d?page=2&q=ok'}),key())).resolves.toBeTruthy();
   });
   test('url source refs are checked and normalised like canonicalUri',async()=>{
     const d=await svc().register(pm,base(),key());
@@ -204,9 +204,9 @@ describe('item 7 source link hardening',()=>{
     expect(ok.revisions[0].source_refs[0].value).toBe('https://example.com/a%20b');
   });
   test('openSource re-validates the stored URI and returns the host',async()=>{
-    const d=await svc().register(pm,base({canonicalUri:'https://docs.example.com/d?x=1'}),key());
-    expect(await svc().openSource(pm,d.record.id)).toMatchObject({uri:'https://docs.example.com/d?x=1',host:'docs.example.com',sourceType:'drive'});
-    for(const bad of ['https://example.com/d?token=zzz','https://user:pw@example.com/d','https://example.com/d?Sig=1']){
+    const d=await svc().register(pm,base({canonicalUri:'https://docs.google.com/d?x=1'}),key());
+    expect(await svc().openSource(pm,d.record.id)).toMatchObject({uri:'https://docs.google.com/d?x=1',host:'docs.google.com',sourceType:'drive'});
+    for(const bad of ['https://docs.google.com/d?token=zzz','https://user:pw@example.com/d','https://docs.google.com/d?Sig=1']){
       await h.operator.query('UPDATE document_records SET canonical_uri=$1 WHERE id=$2',[bad,d.record.id]);
       expect(await codeOf(svc().openSource(pm,d.record.id)),bad).toEqual({code:'SOURCE_UNAVAILABLE',status:409});
     }
@@ -214,9 +214,9 @@ describe('item 7 source link hardening',()=>{
 });
 
 describe('round 1: fragment, path and normalised secret names',()=>{
-  const bad=['https://example.com/d#access_token=x','https://example.com/d#?token=x','https://example.com/doc;token=x','https://example.com/d?token[]=x',
-    'https://example.com/d?resourcekey=x','https://example.com/d?X-Goog-Credential=x','https://example.com/d?%74oken=x','https://example.com/a;v=1;sig=x/b',
-    'https://example.com/d?session_id=x','https://example.com/d#x=1&client-secret=y'];
+  const bad=['https://docs.google.com/d#access_token=x','https://docs.google.com/d#?token=x','https://docs.google.com/doc;token=x','https://docs.google.com/d?token[]=x',
+    'https://docs.google.com/d?resourcekey=x','https://docs.google.com/d?X-Goog-Credential=x','https://docs.google.com/d?%74oken=x','https://docs.google.com/a;v=1;sig=x/b',
+    'https://docs.google.com/d?session_id=x','https://docs.google.com/d#x=1&client-secret=y'];
   test('registration and url refs reject them; a normal Google Docs link is accepted',async()=>{
     for(const u of bad) expect(await svc().register(pm,base({canonicalUri:u}),key()).catch(e=>e),u).toBeInstanceOf(ZodError);
     const d=await svc().register(pm,base({canonicalUri:'https://docs.google.com/document/d/abc/edit#heading=h.1'}),key());
@@ -229,7 +229,7 @@ describe('round 1: fragment, path and normalised secret names',()=>{
       await h.operator.query('UPDATE document_records SET canonical_uri=$1 WHERE id=$2',[u,d.record.id]);
       const e=await svc().openSource(pm,d.record.id).catch(x=>x);
       expect(e,u).toMatchObject({code:'SOURCE_UNAVAILABLE',status:409});
-      expect(JSON.stringify(e),u).not.toContain('example.com');
+      expect(JSON.stringify(e),u).not.toContain('docs.google.com');
     }
   });
   test('template_version is ordered numerically (0.10.0 beats 0.9.0)',async()=>{
@@ -245,21 +245,21 @@ describe('round 1: fragment, path and normalised secret names',()=>{
 describe('round 2',()=>{
   test('plain heading anchors are accepted; fragments with parameters are still checked',async()=>{
     for(const f of ['session-management','token-handling','authorization','tokens']){
-      const u='https://example.com/guide#'+f;
+      const u='https://docs.google.com/guide#'+f;
       expect((await svc().register(pm,base({canonicalUri:u,refCode:'DOC-A-'+f.length}),key())).record.canonical_uri,u).toBe(u);
     }
-    for(const u of ['https://example.com/g#access_token=x','https://example.com/g#?token=x','https://example.com/g#a=1&session=2'])
+    for(const u of ['https://docs.google.com/g#access_token=x','https://docs.google.com/g#?token=x','https://docs.google.com/g#a=1&session=2'])
       expect(await svc().register(pm,base({canonicalUri:u}),key()).catch(e=>e),u).toBeInstanceOf(ZodError);
   });
   test('percent-encoded fragment parameters are decoded and checked; a malformed escape is a validation error',async()=>{
     for(const f of ['access_token%3Dxyz','x%26token%3Dy','%E0%A4%A']){
-      const u='https://example.com/g#'+f;
+      const u='https://docs.google.com/g#'+f;
       const e=await svc().register(pm,base({canonicalUri:u}),key()).catch(x=>x);
       expect(e,u).toBeInstanceOf(ZodError);
       expect((e as ZodError).issues[0].message,u).toMatch(/tham số/);
     }
     for(const f of ['session-management','token-handling','authorization','tokens','heading=h.1'])
-      await expect(svc().register(pm,base({canonicalUri:'https://example.com/g#'+f,refCode:'DOC-B-'+f.length}),key()),f).resolves.toBeTruthy();
+      await expect(svc().register(pm,base({canonicalUri:'https://docs.google.com/g#'+f,refCode:'DOC-B-'+f.length}),key()),f).resolves.toBeTruthy();
   });
   test('template_version must be dotted digits',async()=>{
     const ins=(v:string)=>h.operator.query("INSERT INTO document_templates(tenant_id,code,template_version,doc_type,title,path,content_hash) VALUES($1,'T3',$2,'design','t','p',$3)",[ids.tenant,v,'a'.repeat(64)]);
@@ -316,7 +316,7 @@ describe('item 13 deterministic template choice',()=>{
 describe('item 14 CSV export cap',()=>{
   test('more than 5000 rows is EXPORT_TOO_LARGE',async()=>{
     await h.operator.query(`INSERT INTO document_records(tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by)
-      SELECT $1,$2,'other','Tài liệu mẫu '||g,'drive','https://example.com/bulk/'||g,$3 FROM generate_series(1,5001) g`,[ids.tenant,ids.sales,pm.id]);
+      SELECT $1,$2,'other','Tài liệu mẫu '||g,'drive','https://docs.google.com/bulk/'||g,$3 FROM generate_series(1,5001) g`,[ids.tenant,ids.sales,pm.id]);
     await projectDocumentIndex(h.operator,ids.tenant,ids.sales);
     expect(await count('analytics.document_index')).toBe(5001);
     const e=await exportDocumentsCsv(h.db,pm,ids.sales).catch(x=>x);
