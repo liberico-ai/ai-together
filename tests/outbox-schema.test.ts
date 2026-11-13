@@ -123,6 +123,13 @@ test('runtime cannot mark a message delivered',async()=>{
   await expect(asIntake([ids.sales],tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now()'))).rejects.toThrow(/permission denied/);
 });
 
+test('identity cannot acknowledge a group outbox row',async()=>{
+  const {g}=await seedBoth();
+  const r=await asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now() WHERE id=$1 RETURNING id',[g]));
+  expect(r.rows).toHaveLength(0);
+  expect((await h.operator.query<{a:unknown}>('SELECT acknowledged_at a FROM outbox_messages WHERE id=$1',[g])).rows[0].a).toBeNull();
+});
+
 test('a DM row has no project and a group row has one',async()=>{
   const o=h.operator;
   await expect(insert(o,groupVals({project_id:null}))).rejects.toThrow();

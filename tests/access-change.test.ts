@@ -245,3 +245,15 @@ test("pending shows both kinds with frozen current and proposed grants; another 
  expect(again.grant_details).toEqual(accessRow.grant_details);
  expect(JSON.stringify([again.previous_grant_details,again.grant_details])).not.toContain('Dự án tenant đối chứng');
 });
+
+test('an approved ballot does not apply once the frozen grants no longer match, even if account_version did not move',async()=>{
+ const id=await proposeId();
+ await say(0,id);await say(1,id);
+ expect(await approval(id)).toMatchObject({state:'approved'});
+ // a membership written behind the service's back: same account_version, different grants than the ballot froze
+ await h.operator.query(`INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) VALUES($1,$2,$3,'viewer')`,[ids.tenant,subject.id,ids.transport]);
+ const before=await memberships();
+ await expect(access(wider)).rejects.toMatchObject({code:'TELEGRAM_APPROVAL_REQUIRED'});
+ expect(await memberships()).toEqual(before);
+ expect(await approval(id)).toMatchObject({state:'approved'});
+});

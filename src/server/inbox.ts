@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {scoped,type Database,type Queryable} from './db';
 import {AppError} from './errors';
@@ -18,7 +17,7 @@ export type CandidateCard={candidateId:string;ref:string;projectId:string;projec
  duplicateCandidates:{candidateId:string;ref:string;reason:string}[];contentMode:'excerpt'|'pointer_only';excerpt:string|null;forwarded:boolean;
  attachments:{state:string;mimeType:string;sizeBytes:number|null;fileName:string}[];ticketRef:string|null;status:IntakeStatus;version:number};
 export type SourceAvailabilityRow={chatId:string;topicId:string;state:'not-configured'|'partially-received';coverageStart:string|null;coverageGaps:{from:string;to:string}[];label:string};
-export type RevisionView={revisionNo:number;editedAt:string|null;contentHash:string;excerpt:string|null;textTruncated:boolean;recordedAt:string};
+export type RevisionView={revisionNo:number;editedAt:string|null;contentHash:string|null;excerpt:string|null;textTruncated:boolean;recordedAt:string};
 export type EventView={id:string;kind:string;actorKind:string;actorId:string;createdAt:string;payload:Record<string,unknown>};
 export type DeliveryView={outboxId:string;template:string;state:OutboxState;attemptNo:number;deliveredAt:string|null;acknowledgedAt:string|null;
  receipts:{attemptNo:number;phase:string;outcome:string;reportedAt:string}[]};
@@ -127,8 +126,10 @@ export class InboxService {
    const card=await loadCard(tx,projectId,candidateId);
    const root=(await tx.query<{root_source_event_id:string;content_mode:string}>('SELECT c.root_source_event_id,e.content_mode FROM intake_candidates c JOIN source_events e ON e.id=c.root_source_event_id WHERE c.id=$1',[candidateId])).rows[0];
    const revisions=(await tx.query<{revision_no:number;edited_at:unknown;content_hash:string;text_excerpt:string|null;text_truncated:boolean;created_at:unknown}>(
-    'SELECT revision_no,edited_at,content_hash,text_excerpt,text_truncated,created_at FROM source_event_revisions WHERE source_event_id=$1 ORDER BY revision_no DESC',[root.root_source_event_id])).rows
-    .map(r=>({revisionNo:r.revision_no,editedAt:isoOrNull(r.edited_at),contentHash:r.content_hash,excerpt:root.content_mode==='excerpt'?r.text_excerpt:null,textTruncated:r.text_truncated,recordedAt:iso(r.created_at)}));
+    `SELECT r.revision_no,r.edited_at,r.content_hash,r.text_excerpt,r.text_truncated,r.created_at FROM source_event_revisions r JOIN source_events e ON e.id=r.source_event_id
+     WHERE r.source_event_id=$1 ORDER BY ${LATEST_REVISION_ORDER}`,[root.root_source_event_id])).rows
+    // pointer_only: AGENTS.md allows hashes only as stored pointers; OQ-28 is open, so no hash is shown for such a project.
+    .map(r=>({revisionNo:r.revision_no,editedAt:isoOrNull(r.edited_at),contentHash:root.content_mode==='excerpt'?r.content_hash:null,excerpt:root.content_mode==='excerpt'?r.text_excerpt:null,textTruncated:r.text_truncated,recordedAt:iso(r.created_at)}));
    const events=(await tx.query<{id:string;kind:string;actor_kind:string;actor_id:string;created_at:unknown;payload:Record<string,unknown>}>(
     'SELECT id,kind,actor_kind,actor_id,created_at,payload FROM intake_events WHERE project_id=$1 AND entity_id IN ($2,$3) ORDER BY created_at,id LIMIT 500',[projectId,candidateId,root.root_source_event_id])).rows
     .map(e=>({id:e.id,kind:e.kind,actorKind:e.actor_kind,actorId:e.actor_id,createdAt:iso(e.created_at),payload:e.payload}));
@@ -144,12 +145,20 @@ export class InboxService {
   });
  }
 
- async command(p:Principal,candidateId:string,raw:unknown,key:string):Promise<CandidateCard> {
+ /** requestId comes from the caller (the HTTP request id), never from JSON. */
+ async command(p:Principal,candidateId:string,raw:unknown,key:string,requestId:string):Promise<CandidateCard> {
+  uuid.parse(requestId);
   const projectId=await this.locate(p,'intake_candidates',candidateId);
   managerOf(p,projectId);
   const input=commandSchema.parse(raw);
   const action:CandidateAction=input.kind;
-  return this.run(p,projectId,tx=>deduplicate(tx,p,projectId,key,{op:'inbox.candidate.'+input.kind,candidateId,...input},async()=>{
+  return this.run(p,projectId,async tx=>{
+   // The stored idempotent response holds ids, state and version only; the card is always re-read.
+   const done=await deduplicate(tx,p,projectId,key,{op:'inbox.candidate.'+input.kind,candidateId,...input},async()=>{
+   if(input.kind==='mark_duplicate') {
+    // Lock source and target in id order so two opposite marks serialize instead of forming a cycle.
+    await tx.query('SELECT id FROM intake_candidates WHERE id=ANY($1::uuid[]) AND project_id=$2 ORDER BY id FOR UPDATE',[[candidateId,input.duplicateOf],projectId]);
+   }
    const row=(await tx.query<{id:string;state:CandidateState;version:number;classification:string|null;duplicate_of:string|null;missing_fields:string[];note:string;ticket_ref:string|null;trace_id:string}>(
     `SELECT c.id,c.state,c.version,c.classification,c.duplicate_of,c.missing_fields,c.note,c.ticket_ref,e.trace_id
      FROM intake_candidates c JOIN source_events e ON e.id=c.root_source_event_id WHERE c.id=$1 AND c.project_id=$2 FOR UPDATE OF c`,[candidateId,projectId])).rows[0];
@@ -180,9 +189,11 @@ export class InboxService {
    const kind={confirm:'candidate.confirmed',need_info:'candidate.needs_info',mark_duplicate:'candidate.marked_duplicate',dismiss:'candidate.dismissed',reopen:'candidate.reopened',link_ticket:'candidate.ticket_linked'}[input.kind];
    await tx.query(
     `INSERT INTO intake_events(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload) VALUES($1,$2,'intake_candidate',$3,$4,'user',$5,$6,$7,$8)`,
-    [p.tenantId,projectId,candidateId,p.id,kind,randomUUID(),row.trace_id,JSON.stringify({stateBefore:row.state,stateAfter:next,versionBefore:row.version,versionAfter:row.version+1,...detail})]);
-   return loadCard(tx,projectId,candidateId);
-  }));
+    [p.tenantId,projectId,candidateId,p.id,kind,requestId,row.trace_id,JSON.stringify({stateBefore:row.state,stateAfter:next,versionBefore:row.version,versionAfter:row.version+1,...detail})]);
+   return {candidateId,state:next,version:row.version+1};
+   });
+   return loadCard(tx,projectId,done.candidateId);
+  });
  }
 
  async sources(p:Principal,projectId:string):Promise<SourceAvailabilityRow[]> {
@@ -215,7 +226,8 @@ export class InboxService {
    .map(r=>({outboxId:r.id,state:r.state,template:r.template,lastErrorCode:r.last_error_code,ownerId:r.failure_owner_id,overdue:r.overdue,version:r.version})));
  }
 
- async failureCommand(p:Principal,outboxId:string,raw:unknown,key:string):Promise<void> {
+ async failureCommand(p:Principal,outboxId:string,raw:unknown,key:string,requestId:string):Promise<void> {
+  uuid.parse(requestId);
   const projectId=await this.locate(p,'outbox_messages',outboxId);
   managerOf(p,projectId);
   const input=failureSchema.parse(raw);
@@ -224,7 +236,6 @@ export class InboxService {
     'SELECT id,tenant_id,project_id,state,attempt_no,version,trace_id FROM outbox_messages WHERE id=$1 AND project_id=$2 FOR UPDATE',[outboxId,projectId])).rows[0];
    if(!row) throw DENIED();
    if(row.version!==input.expectedVersion) throw new AppError('REVISION_CONFLICT','Tin đã thay đổi; tải lại rồi thao tác lại.',409);
-   const requestId=randomUUID();
    if(input.kind==='take') {
     // Same state: not a transition, so it does not go through applyOutboxSignal.
     if(row.state!=='dead'&&row.state!=='uncertain'&&row.state!=='pending') throw new AppError('OUTBOX_TRANSITION_INVALID','Không nhận xử lý được tin ở trạng thái này.',409);
@@ -236,7 +247,8 @@ export class InboxService {
    await tx.query(
     `INSERT INTO intake_events(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload) VALUES($1,$2,'outbox_message',$3,$4,'user',$5,$6,$7,$8)`,
     [p.tenantId,projectId,outboxId,p.id,kind,requestId,row.trace_id,JSON.stringify({stateBefore:row.state,versionBefore:row.version,reason:input.reason})]);
-   return {ok:true};
+   const stateAfter=input.kind==='requeue'?'pending':input.kind==='abandon'?'abandoned':row.state;
+   return {outboxId,state:stateAfter,version:row.version+1};
   }));
  }
 }

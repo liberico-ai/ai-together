@@ -206,10 +206,11 @@ export class AccountService {
         // Reducing access needs no ballot. Widening it needs an approved access-change ballot for this account, frozen at this
         // account version, whose grants are exactly these grants.
         if(!reducesAccess(before,cmd.grants)) {
-          const ballot=(await tx.query<{id:string;grants:ProjectGrant[];subject_account_version:number}>(`SELECT id,grants,subject_account_version
+          const ballot=(await tx.query<{id:string;grants:ProjectGrant[];subject_account_version:number;previous_grants:ProjectGrant[]}>(`SELECT id,grants,subject_account_version,previous_grants
             FROM identity.account_approvals WHERE kind='access_change' AND subject_user_id=$1 AND state='approved' AND expires_at>now()
             ORDER BY created_at DESC LIMIT 1`,[user.id])).rows[0];
-          invariant(ballot&&ballot.subject_account_version===user.version&&sameGrants(grantsSchema.parse(ballot.grants),cmd.grants),
+          invariant(ballot&&ballot.subject_account_version===user.version&&sameGrants(grantsSchema.parse(ballot.grants),cmd.grants)
+            &&sameGrants(grantsSchema.parse(ballot.previous_grants),before),
             'TELEGRAM_APPROVAL_REQUIRED','Mở rộng quyền cần phiếu duyệt Telegram mới.',409);
           const approval=await approvalReady(tx,this.identity,ballot.id,'access_change');
           await tx.query(`UPDATE identity.account_approvals SET state='issued',updated_at=now() WHERE id=$1`,[approval.id]);

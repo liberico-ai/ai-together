@@ -65,7 +65,7 @@ test('AI OS holds no ticket state to change',async()=>{
 test('differences are listed, never repaired',async()=>{
   const a101=await put('101');const a102=await put('102');const a104=await put('104');const a105=await put('105');
   const inbox=new InboxService(h.db);
-  await inbox.command(pm,a105.id!,{kind:'link_ticket',expectedVersion:1,ticketRef:'TK-TEST-202611-009'},k());
+  await inbox.command(pm,a105.id!,{kind:'link_ticket',expectedVersion:1,ticketRef:'TK-TEST-202611-009'},k(),randomUUID());
   const before=await snapshot();
   const rows1=await inboxRows(h.db,pm,ids.sales,win);
   const rep=reconcileLedger(rows1,[tk('TK-TEST-202611-001','101'),tk('TK-TEST-202611-003','103'),tk('TK-TEST-202611-005','104'),tk('TK-TEST-202611-006','104'),tk('TK-TEST-202611-004','105')]);
@@ -85,7 +85,7 @@ test('differences are listed, never repaired',async()=>{
 
 test('a matched and already linked pair is reported as linked',async()=>{
   const a=await put('101');
-  await new InboxService(h.db).command(pm,a.id!,{kind:'link_ticket',expectedVersion:1,ticketRef:'TK-TEST-202611-001'},k());
+  await new InboxService(h.db).command(pm,a.id!,{kind:'link_ticket',expectedVersion:1,ticketRef:'TK-TEST-202611-001'},k(),randomUUID());
   const rep=reconcileLedger(await inboxRows(h.db,pm,ids.sales,win),[tk('TK-TEST-202611-001','101')]);
   expect(rep.matched).toHaveLength(1);
   expect(rep.matched[0]).toMatchObject({linked:true,ticketId:'TK-TEST-202611-001'});
