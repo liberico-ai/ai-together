@@ -6,6 +6,9 @@ import {bridgeConfig,intakePrincipalId,messageEvent} from './slice2-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {IdentityService} from '../src/server/identity';
 import {OutboxService,enqueueDm,enqueueReceipt} from '../src/server/outbox';
+import {AccountService} from '../src/server/accounts';
+import {notifyVoters} from '../src/server/account-approval';
+import {provisionApprovers} from './account-approval-fixture';
 import {ids} from '../src/server/identities';
 
 describe.skipIf(!native)('outbox crash and concurrency (native PostgreSQL)',()=>{
@@ -29,6 +32,27 @@ describe.skipIf(!native)('outbox crash and concurrency (native PostgreSQL)',()=>
    throw new Error('forced failure after the DM write');
   })).rejects.toThrow('forced failure');
   expect(await count('outbox_messages')).toBe(0);
+  // Task 9: identity.scope proposes a real ballot, queues its DMs, then dies: no ballot, no voter, no DM row survives
+  const adminId=randomUUID();
+  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,'crash-admin','Admin','manager','fixture-only')`,[adminId,ids.tenant]);
+  await h.operator.query('INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) VALUES($1,$2,$3,$4)',[ids.tenant,adminId,ids.sales,'manager']);
+  const approving=new IdentityService(h.operator,ids.tenant,adminId);
+  await provisionApprovers(h.operator,approving,adminId,ids.sales);
+  await approving.requestRegistration({username:'crash.member',name:'Crash Member',projectInterest:'Team Tech',note:''});
+  const admin={id:adminId,tenantId:ids.tenant,name:'Admin',role:'manager' as const,projectIds:[ids.sales],accountAdmin:true};
+  const request=(await new AccountService(approving).pendingRegistrations(admin))[0];
+  let queued=0;
+  const dying:typeof notifyVoters=async(tx,service,approvalId,voters,traceId)=>{
+   await notifyVoters(tx,service,approvalId,voters,traceId);
+   queued=(await tx.query<{n:number}>("SELECT count(*)::int n FROM outbox_messages WHERE audience='dm'")).rows[0].n;
+   throw new Error('forced failure after the ballot DMs');
+  };
+  await expect(new AccountService(approving,dying).registrationDecision(admin,{kind:'approve_registration',requestId:request.id,
+   grants:[{projectId:ids.sales,role:'viewer',reportPermissions:[]}],reason:'Kiểm thử chết giữa chừng'})).rejects.toThrow('forced failure after the ballot DMs');
+  expect(queued).toBe(4);
+  expect(await count('outbox_messages')).toBe(0);
+  expect(await count('identity.account_approvals')).toBe(0);
+  expect(await count('identity.account_approval_voters')).toBe(0);
  });
 
  test('a process that dies between write and send still delivers exactly once after restart',async()=>{

@@ -201,13 +201,17 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
   const reg=async(t:string)=>(await h.operator.query<{r:string|null}>('SELECT to_regclass($1)::text r',[t])).rows[0].r;
   const proc=async(f:string)=>(await h.operator.query<{r:string|null}>('SELECT to_regprocedure($1)::text r',[f])).rows[0].r;
   const schemaAcl=async()=>(await h.operator.query<{a:string}>("SELECT coalesce(nspacl::text,'') a FROM pg_namespace WHERE nspname='public'")).rows[0].a;
+  // 018 is real since Task 9: its kind column blocks this rollback until 018 itself is rolled back (order 018 → 017 → 016).
+  const rb18=await readFile(dir('migrations/rollback/018_access_change_approval.sql'),'utf8');
+  const fw18=await readFile(dir('migrations/018_access_change_approval.sql'),'utf8');
+  const hasKind=async()=>(await h.operator.query("SELECT 1 FROM information_schema.columns WHERE table_schema='identity' AND table_name='account_approvals' AND column_name='kind'")).rows.length===1;
   try {
-    // Task 9 (migration 018) adds this column; it is faked here only to exercise the guard.
-    await h.exec('ALTER TABLE identity.account_approvals ADD COLUMN IF NOT EXISTS kind text');
+    expect(await hasKind()).toBe(true);
     await expect(h.exec(rb)).rejects.toThrow('Roll back 018 before 017');
     await h.exec('ROLLBACK').catch(()=>{});
     expect(await reg('public.outbox_messages')).toBe('outbox_messages');
-    await h.exec('ALTER TABLE identity.account_approvals DROP COLUMN kind');
+    await h.exec(rb18);
+    expect(await hasKind()).toBe(false);
     await h.exec(rb);
     expect(await reg('public.outbox_messages')).toBeNull();
     expect(await reg('public.delivery_receipts')).toBeNull();
@@ -219,11 +223,13 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
     expect((await h.operator.query("SELECT 1 FROM schema_migrations WHERE version='017'")).rows).toHaveLength(0);
   } finally {
     await h.exec('ROLLBACK').catch(()=>{});
-    await h.exec('ALTER TABLE identity.account_approvals DROP COLUMN IF EXISTS kind');
     await h.exec(fw);
+    await h.exec(fw18);
   }
   expect(await reg('public.outbox_messages')).toBe('outbox_messages');
+  expect(await hasKind()).toBe(true);
   await h.exec(fw); // forward twice in a row
+  await h.exec(fw18);
   expect(await schemaAcl()).toContain('libetech_outbox_audit=');
 });
 

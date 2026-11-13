@@ -105,9 +105,10 @@ export class IdentityService {
        AND r.state='approved' AND r.user_id=$2`,[row.id,row.user_id,this.adminId])).rows[0];
     if(!pilot){
      invariant(row.account_approval_id,'TELEGRAM_APPROVAL_REQUIRED','Lời mời chưa qua phiếu duyệt.',403);
+     // Only a registration ballot opens an invitation; an access-change ballot (018) never does.
      const approved=(await tx.query<{id:string}>(`SELECT a.id FROM identity.account_approvals a
        JOIN identity.registration_requests r ON (r.id,r.tenant_id)=(a.registration_id,a.tenant_id)
-       WHERE a.id=$1 AND a.state='issued' AND r.state='approved' AND r.user_id=$2
+       WHERE a.id=$1 AND a.kind='registration' AND a.state='issued' AND r.state='approved' AND r.user_id=$2
        AND EXISTS (SELECT 1 FROM identity.account_approval_voters av
          JOIN identity.account_approval_votes v ON v.approval_id=av.approval_id AND v.voter_id=av.user_id
          WHERE av.approval_id=a.id AND av.seat='chairman' AND av.user_id=$3 AND v.choice='agree')
