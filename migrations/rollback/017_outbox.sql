@@ -13,6 +13,8 @@ DROP TRIGGER IF EXISTS outbox_messages_bind_target ON outbox_messages;
 DROP TRIGGER IF EXISTS outbox_messages_guard_state ON outbox_messages;
 DROP FUNCTION IF EXISTS outbox_messages_bind_target();
 DROP FUNCTION IF EXISTS outbox_messages_guard_state();
+DROP TRIGGER IF EXISTS outbox_state_events_validate ON outbox_state_events;
+DROP FUNCTION IF EXISTS outbox_state_events_validate();
 DROP TRIGGER IF EXISTS outbox_state_events_derive_project ON outbox_state_events;
 DROP FUNCTION IF EXISTS outbox_state_events_derive_project();
 DROP TABLE IF EXISTS outbox_state_events, delivery_receipts, outbox_messages;

@@ -29,7 +29,7 @@ test('outboxTransition accepts the listed moves and rejects the rest',()=>{
   const ok:[OutboxState,OutboxSignal,number,OutboxState][]=[
     ['pending','lease',0,'leased'],['leased','delivered',1,'delivered'],['leased','failed_retryable',1,'pending'],['leased','failed_retryable',MAX_ATTEMPTS,'dead'],
     ['leased','failed_permanent',1,'dead'],['leased','uncertain',1,'uncertain'],['leased','lease_expired',1,'uncertain'],['uncertain','reconciled_delivered',1,'delivered'],
-    ['uncertain','reconciled_not_sent',1,'pending'],['dead','requeue',6,'pending'],['dead','abandon',6,'abandoned'],['uncertain','abandon',1,'abandoned']];
+    ['uncertain','reconciled_not_sent',1,'pending'],['uncertain','reconciled_not_sent',MAX_ATTEMPTS,'dead'],['dead','requeue',6,'pending'],['dead','abandon',6,'abandoned'],['uncertain','abandon',1,'abandoned']];
   for(const [s,g,a,x] of ok) expect(outboxTransition(s,g,a),`${s}+${g}`).toBe(x);
   const bad:[OutboxState,OutboxSignal][]=[['delivered','lease'],['pending','delivered'],['uncertain','lease'],['abandoned','requeue'],['delivered','requeue'],['pending','abandon'],['leased','requeue']];
   for(const [s,g] of bad) expect(()=>outboxTransition(s,g,1),`${s}+${g}`).toThrowError(expect.objectContaining({code:'OUTBOX_TRANSITION_INVALID',status:409}));
@@ -286,7 +286,7 @@ test('FB-1 a rejected receipt leaves no state event and no intake_events row; re
   expect(await rows("SELECT state,last_error_code FROM outbox_messages WHERE dedupe_key='dm-b'")).toEqual([{state:'dead',last_error_code:'RECIPIENT_UNLINKED'}]);
 });
 
-test('FB-3 not_sent loop stops at the attempt cap and applies backoff',async()=>{
+test('FB-3 not_sent loop applies backoff below the cap and is dead at once at the cap with one uncertain>dead event',async()=>{
   await intake().ingest(ev({}));
   let id='';
   for(let a=1;a<=MAX_ATTEMPTS;a++){
@@ -294,14 +294,21 @@ test('FB-3 not_sent loop stops at the attempt cap and applies backoff',async()=>
     await outbox().report({receipts:[rcpt(d,{outcome:'uncertain',telegramMessageId:undefined})]});
     await outbox().report({receipts:[rcpt(d,{phase:'reconcile',outcome:'not_sent',telegramMessageId:undefined})]});
     const row=await one(id);
-    expect(row.state).toBe('pending');
-    const wait=(await rows<{s:number}>('SELECT extract(epoch FROM (next_attempt_at-now()))::float s FROM outbox_messages WHERE id=$1',[id]))[0].s;
-    expect(wait).toBeGreaterThan(backoffSeconds(a)-5);expect(wait).toBeLessThanOrEqual(backoffSeconds(a)+1);
-    expect((await outbox().pull({limit:5})).deliveries).toEqual([]);
-    await due(id);
+    if(a<MAX_ATTEMPTS){
+      expect(row.state).toBe('pending');
+      const wait=(await rows<{s:number}>('SELECT extract(epoch FROM (next_attempt_at-now()))::float s FROM outbox_messages WHERE id=$1',[id]))[0].s;
+      expect(wait).toBeGreaterThan(backoffSeconds(a)-5);expect(wait).toBeLessThanOrEqual(backoffSeconds(a)+1);
+      expect((await outbox().pull({limit:5})).deliveries).toEqual([]);
+      await due(id);
+    } else expect(row).toMatchObject({state:'dead',last_error_code:'MAX_ATTEMPTS_EXHAUSTED',attempt_no:MAX_ATTEMPTS});
   }
+  const last=(await stateEvents()).slice(-2);
+  expect(last.map(e=>`${e.from_state}>${e.to_state}:${e.signal}`)).toEqual(['leased>uncertain:uncertain','uncertain>dead:reconciled_not_sent']);
+  expect(await n("outbox_state_events WHERE from_state='uncertain' AND to_state='dead'")).toBe(1);
+  expect(await n("outbox_state_events WHERE signal='lease' AND attempt_no>6")).toBe(0);
+  await due(id);
   expect((await outbox().pull({limit:5})).deliveries).toEqual([]);
-  expect(await one(id)).toMatchObject({state:'dead',last_error_code:'MAX_ATTEMPTS_EXHAUSTED',attempt_no:MAX_ATTEMPTS});
+  expect((await stateEvents()).length).toBe(MAX_ATTEMPTS*3);
 });
 
 test('FB-4 a malformed errorCode fails the whole request as a schema error',async()=>{

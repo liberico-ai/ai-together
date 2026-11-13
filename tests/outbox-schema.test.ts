@@ -295,6 +295,7 @@ test('runtime may only requeue dead rows with attempt_no reset or abandon dead a
   await expect(run('runtime',setState('abandoned'),await mkRow('dead'))).resolves.toBeTruthy();
   await expect(run('runtime',setState('abandoned'),await mkRow('uncertain'))).resolves.toBeTruthy();
   await expect(run('runtime',setState('pending',',attempt_no=0'),await mkRow('uncertain'))).rejects.toThrow(/state/i);
+  await expect(run('runtime',setState('dead'),await mkRow('uncertain'))).rejects.toThrow(/state/i);
   // abandoned is terminal
   const a=await mkRow('dead');await run('runtime',setState('abandoned'),a);
   await expect(run('runtime',setState('pending',',attempt_no=0'),a)).rejects.toThrow();
@@ -310,7 +311,7 @@ test('runtime keeps its non-state columns to failure_owner_id, last_error_code, 
 test('intake follows the allowed moves; delivered and abandoned are terminal',async()=>{
   const move=(from:keyof typeof PATHS,to:string)=>mkRow(from).then(id=>run('intake',setState(to,to==='delivered'?',delivered_at=now()':''),id));
   const ok:[string,string][]=[['pending','leased'],['leased','delivered'],['leased','pending'],['leased','dead'],['leased','uncertain'],
-    ['uncertain','delivered'],['uncertain','pending'],['uncertain','abandoned'],['dead','pending'],['dead','abandoned']];
+    ['uncertain','delivered'],['uncertain','pending'],['uncertain','dead'],['uncertain','abandoned'],['dead','pending'],['dead','abandoned']];
   for(const [f,t] of ok) await expect(move(f,t),f+'→'+t).resolves.toBeTruthy();
   const bad:[string,string][]=[['delivered','leased'],['delivered','pending'],['pending','delivered'],['pending','dead'],['pending','abandoned'],['leased','abandoned'],['uncertain','leased'],['dead','leased']];
   for(const [f,t] of bad) await expect(move(f,t),f+'→'+t).rejects.toThrow();
@@ -335,8 +336,10 @@ const stateEvent=(tx:Queryable,outboxId:string,project:string|null,over:Row={})=
   return tx.query(`INSERT INTO outbox_state_events(${cols.join(',')}) VALUES(${cols.map((_,i)=>'$'+(i+1)).join(',')})`,Object.values(v));
 };
 
+const leaseBoth=async(...ids2:string[])=>{for(const id of ids2) await h.operator.query("UPDATE outbox_messages SET state='leased',attempt_no=1 WHERE id=$1",[id]);};
+
 test('outbox_state_events: no context returns nothing; roles see only their rows',async()=>{
-  const {g,d}=await seedBoth();
+  const {g,d}=await seedBoth();await leaseBoth(g,d);
   await stateEvent(h.operator,g,ids.sales);await stateEvent(h.operator,d,null);
   for(const role of ['libetech_intake','libetech_runtime','libetech_identity'])
     expect(await h.operator.transaction(async tx=>{await tx.query(`SET LOCAL ROLE ${role}`);return count(tx,'outbox_state_events');}),role).toBe(0);
@@ -349,7 +352,7 @@ test('outbox_state_events: no context returns nothing; roles see only their rows
 });
 
 test('outbox_state_events: actor binding, derived project and role limits',async()=>{
-  const {g,d}=await seedBoth();
+  const {g,d}=await seedBoth();await leaseBoth(g,d);
   const bothP=[ids.sales,ids.transport];
   // intake: service actor bound to the principal; project derived from the outbox row
   await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.sales))).resolves.toBeTruthy();
@@ -361,19 +364,47 @@ test('outbox_state_events: actor binding, derived project and role limits',async
   await expect(asIntake(bothP,tx=>stateEvent(tx,d,ids.sales))).rejects.toThrow();
   await expect(asIntake([ids.transport],tx=>stateEvent(tx,g,ids.transport))).rejects.toThrow();
   await expect(asIntake(bothP,tx=>stateEvent(tx,randomUUID(),null))).rejects.toThrow();
-  // runtime: human actor bound to app.person_id, project rows only
+  // runtime: human actor bound to app.person_id, project rows only; only requeue and abandon are allowed
   const hum={actor_kind:'user',actor_id:pm.id};
-  await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales,hum))).resolves.toBeTruthy();
-  await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales,{...hum,actor_id:randomUUID()}))).rejects.toThrow();
-  await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales,hum),null)).rejects.toThrow();
+  const dead=await mkRow('dead');
+  const rq={...hum,from_state:'dead',to_state:'pending',signal:'requeue',attempt_no:0};
+  await h.operator.query("UPDATE outbox_messages SET state='pending',attempt_no=0 WHERE id=$1",[dead]);
+  await expect(asRuntimePerson(tx=>stateEvent(tx,dead,ids.sales,rq))).resolves.toBeTruthy();
+  await expect(asRuntimePerson(tx=>stateEvent(tx,dead,ids.sales,{...rq,actor_id:randomUUID()}))).rejects.toThrow();
+  await expect(asRuntimePerson(tx=>stateEvent(tx,dead,ids.sales,rq),null)).rejects.toThrow();
   await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales))).rejects.toThrow();
-  await expect(asRuntimePerson(tx=>stateEvent(tx,d,null,hum))).rejects.toThrow();
+  await expect(asRuntimePerson(tx=>stateEvent(tx,d,null,rq))).rejects.toThrow();
   // identity cannot insert
   await expect(asIdentity(tx=>stateEvent(tx,d,null,hum))).rejects.toThrow(/permission denied/);
 });
 
+test('outbox_state_events: a forged event is refused for intake and runtime; a valid one after a real update is accepted',async()=>{
+  const bothP=[ids.sales,ids.transport];
+  const hum={actor_kind:'user',actor_id:pm.id};
+  const asRole=(who:'intake'|'runtime',id:string,over:Row)=>who==='intake'?asIntake(bothP,tx=>stateEvent(tx,id,ids.sales,over)):asRuntimePerson(tx=>stateEvent(tx,id,ids.sales,{...hum,...over}));
+  // intake: the row is really leased at attempt 1
+  const leased=await mkRow('leased');await h.operator.query('UPDATE outbox_messages SET attempt_no=1 WHERE id=$1',[leased]);
+  await expect(asRole('intake',leased,{})).resolves.toBeTruthy();                                       // valid
+  await expect(asRole('intake',leased,{to_state:'delivered',from_state:'leased',signal:'delivered'})).rejects.toThrow(/state event/i); // wrong to_state
+  await expect(asRole('intake',leased,{attempt_no:2})).rejects.toThrow(/state event/i);                 // wrong attempt_no
+  await expect(asRole('intake',leased,{from_state:'delivered'})).rejects.toThrow(/state event/i); // move not in the table
+  // runtime: a dead row requeued is the only forward move besides abandon
+  const dead=await mkRow('dead');
+  await expect(asRole('runtime',dead,{from_state:'leased',to_state:'delivered',signal:'delivered',attempt_no:3})).rejects.toThrow(/state event/i);
+  const del=await mkRow('delivered');
+  await expect(asRole('runtime',del,{from_state:'leased',to_state:'delivered',signal:'delivered',attempt_no:3})).rejects.toThrow(/state event/i);
+  await expect(asRole('runtime',dead,{from_state:'dead',to_state:'dead',signal:'requeue',attempt_no:3})).rejects.toThrow(/state event/i);
+  const unc=await mkRow('uncertain');
+  await expect(asRole('runtime',unc,{from_state:'uncertain',to_state:'dead',signal:'reconciled_not_sent',attempt_no:3})).rejects.toThrow(/state event/i);
+  await h.operator.query("UPDATE outbox_messages SET state='abandoned' WHERE id=$1",[unc]);
+  await expect(asRole('runtime',unc,{from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3})).resolves.toBeTruthy();
+  const dead2=await mkRow('dead');await h.operator.query("UPDATE outbox_messages SET state='abandoned' WHERE id=$1",[dead2]);
+  await expect(asRole('runtime',dead2,{from_state:'dead',to_state:'abandoned',signal:'abandon',attempt_no:3})).resolves.toBeTruthy();
+  expect(await count(h.operator,'outbox_state_events')).toBe(3);
+});
+
 test('outbox_state_events: append-only, closed label sets, column-level grants',async()=>{
-  const {g}=await seedBoth();
+  const {g}=await seedBoth();await leaseBoth(g);
   await stateEvent(h.operator,g,ids.sales);
   await expect(h.operator.query("UPDATE outbox_state_events SET signal='lease'")).rejects.toThrow('Append-only history');
   await expect(h.operator.query('DELETE FROM outbox_state_events')).rejects.toThrow('Append-only history');

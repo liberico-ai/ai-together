@@ -24,7 +24,7 @@ export function outboxTransition(state:OutboxState,signal:OutboxSignal,attemptNo
     return undefined;
    case 'uncertain':
     if(signal==='reconciled_delivered') return 'delivered';
-    if(signal==='reconciled_not_sent') return 'pending';
+    if(signal==='reconciled_not_sent') return attemptNo<MAX_ATTEMPTS?'pending':'dead';
     if(signal==='abandon') return 'abandoned';
     return undefined;
    case 'dead':
@@ -126,14 +126,6 @@ export class OutboxService {
    const leased:{row:Row;attemptNo:number;leaseToken:string}[]=[];
    for(const r of due) {
     const leaseToken=randomUUID();
-    if(r.attempt_no>=MAX_ATTEMPTS) {
-     // A reconciled "not sent" at the cap cannot go uncertain -> dead (017 guard), so it ends here: lease, then dead; never returned.
-     await applyOutboxSignal(tx,r,'lease',ctx,{set:{lease_token:leaseToken},leaseExpiresInSeconds:LEASE_SECONDS});
-     await this.audit(tx,r,'outbox.leased',requestId,{attemptNo:r.attempt_no});
-     await applyOutboxSignal(tx,{...r,state:'leased',version:r.version+1},'failed_permanent',ctx,{set:{last_error_code:'MAX_ATTEMPTS_EXHAUSTED',lease_token:null,lease_expires_at:null}});
-     await this.audit(tx,r,'outbox.dead',requestId,{attemptNo:r.attempt_no,errorCode:'MAX_ATTEMPTS_EXHAUSTED'});
-     continue;
-    }
     const attemptNo=r.attempt_no+1;
     await applyOutboxSignal(tx,r,'lease',ctx,{set:{attempt_no:attemptNo,lease_token:leaseToken},leaseExpiresInSeconds:LEASE_SECONDS});
     await this.audit(tx,r,'outbox.leased',requestId,{attemptNo});
@@ -204,8 +196,10 @@ export class OutboxService {
     } else if(r.outcome==='uncertain') {
      next=await applyOutboxSignal(tx,row,'uncertain',ctx,{set:{...clear,last_error_code:r.errorCode??null}});
     } else {
-     // not sent: back to pending with backoff; at the attempt cap the next pull ends it as dead (see pull).
-     next=await applyOutboxSignal(tx,row,'reconciled_not_sent',ctx,{nextAttemptInSeconds:backoffSeconds(row.attempt_no)});
+     // not sent: below the cap back to pending with backoff; at the cap straight to dead (uncertain->dead, never for the runtime role).
+     next=row.attempt_no>=MAX_ATTEMPTS
+      ?await applyOutboxSignal(tx,row,'reconciled_not_sent',ctx,{set:{last_error_code:'MAX_ATTEMPTS_EXHAUSTED'}})
+      :await applyOutboxSignal(tx,row,'reconciled_not_sent',ctx,{nextAttemptInSeconds:backoffSeconds(row.attempt_no)});
     }
     await this.audit(tx,row,'outbox.'+(next==='pending'?'retry_scheduled':next),requestId,{attemptNo:r.attemptNo,phase:r.phase,outcome:r.outcome});
     accepted++;

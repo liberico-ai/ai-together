@@ -225,7 +225,7 @@ BEGIN
   IF NEW.state IS DISTINCT FROM OLD.state THEN
     IF NOT ((OLD.state = 'pending' AND NEW.state = 'leased')
          OR (OLD.state = 'leased' AND NEW.state IN ('delivered','pending','dead','uncertain'))
-         OR (OLD.state = 'uncertain' AND NEW.state IN ('delivered','pending','abandoned'))
+         OR (OLD.state = 'uncertain' AND NEW.state IN ('delivered','pending','dead','abandoned'))
          OR (OLD.state = 'dead' AND NEW.state IN ('pending','abandoned'))) THEN
       RAISE EXCEPTION 'Outbox state move % to % is not allowed', OLD.state, NEW.state;
     END IF;
@@ -276,6 +276,29 @@ BEGIN
 END $$;
 DROP TRIGGER IF EXISTS outbox_state_events_derive_project ON outbox_state_events;
 CREATE TRIGGER outbox_state_events_derive_project BEFORE INSERT ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION outbox_state_events_derive_project();
+-- A state event must describe a real, current transition: written after the UPDATE in the same transaction, so to_state and attempt_no
+-- must equal the live row. Runtime (a person) may only requeue dead rows or abandon dead/uncertain rows. Not SECURITY DEFINER: RLS applies.
+CREATE OR REPLACE FUNCTION outbox_state_events_validate() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE cur_state text; cur_attempt integer;
+BEGIN
+  SELECT o.state, o.attempt_no INTO cur_state, cur_attempt FROM public.outbox_messages o WHERE o.id = NEW.outbox_id AND o.tenant_id = NEW.tenant_id;
+  IF cur_state IS NULL THEN RAISE EXCEPTION 'State event outbox row is not visible'; END IF;
+  IF NEW.to_state IS DISTINCT FROM cur_state THEN RAISE EXCEPTION 'State event to_state must equal the current outbox state'; END IF;
+  IF NEW.attempt_no IS DISTINCT FROM cur_attempt THEN RAISE EXCEPTION 'State event attempt_no must equal the current outbox attempt_no'; END IF;
+  IF NOT ((NEW.from_state = 'pending' AND NEW.to_state = 'leased')
+       OR (NEW.from_state = 'leased' AND NEW.to_state IN ('delivered','pending','dead','uncertain'))
+       OR (NEW.from_state = 'uncertain' AND NEW.to_state IN ('delivered','pending','dead','abandoned'))
+       OR (NEW.from_state = 'dead' AND NEW.to_state IN ('pending','abandoned'))) THEN
+    RAISE EXCEPTION 'State event move % to % is not an allowed move', NEW.from_state, NEW.to_state;
+  END IF;
+  IF current_user = 'libetech_runtime' AND NOT ((NEW.signal = 'requeue' AND NEW.from_state = 'dead' AND NEW.to_state = 'pending')
+       OR (NEW.signal = 'abandon' AND NEW.from_state IN ('dead','uncertain') AND NEW.to_state = 'abandoned')) THEN
+    RAISE EXCEPTION 'State event signal % is not allowed for the runtime role', NEW.signal;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS outbox_state_events_validate ON outbox_state_events;
+CREATE TRIGGER outbox_state_events_validate BEFORE INSERT ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION outbox_state_events_validate();
 DROP TRIGGER IF EXISTS outbox_state_events_immutable ON outbox_state_events;
 CREATE TRIGGER outbox_state_events_immutable BEFORE UPDATE OR DELETE ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 
