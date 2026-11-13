@@ -1,5 +1,5 @@
 name: libetech-ai-os-bridge
 version: "0.2.1"
-description: Read-only LibeTech AI OS reconciliation and verified private Telegram account linking. Independent of libetech-priority1.
+description: Read-only reconciliation, verified private account linking, and a separately keyed intake/delivery adapter. Independent of libetech-priority1.
 provides_tools:
   - libetech_os_read
