@@ -4,9 +4,8 @@ import { AppError, invariant } from './errors';
 import { authenticatedPrincipal, checkOrigin } from './auth';
 import type { Database } from './db';
 import { WorkService } from './service';
-export function success(data:unknown, status=200) { return Response.json({data,error:null,meta:{requestId:randomUUID()}},{status,headers:{'Cache-Control':'no-store'}}); }
-export function failure(error:unknown) {
-  const requestId=randomUUID();
+export function success(data:unknown, status=200, requestId:string=randomUUID()) { return Response.json({data,error:null,meta:{requestId}},{status,headers:{'Cache-Control':'no-store'}}); }
+export function failure(error:unknown, requestId:string=randomUUID()) {
   if(error instanceof AppError) return Response.json({data:null,error:{code:error.code,message:error.message},meta:{requestId}},{status:error.status,headers:{'Cache-Control':'no-store'}});
   if(error instanceof ZodError || error instanceof SyntaxError) return Response.json({data:null,error:{code:'INVALID_INPUT',message:'Dữ liệu không hợp lệ. Kiểm tra các trường và không gửi trường định danh ngoài biểu mẫu.'},meta:{requestId}},{status:422});
   if((error as {code?:string})?.code === '23505') return Response.json({data:null,error:{code:'DUPLICATE_CODE',message:'Mã việc đã tồn tại trong dự án.'},meta:{requestId}},{status:409});
