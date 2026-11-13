@@ -362,6 +362,8 @@ test('R4 redactSecrets stays linear at 12 KB and 48 KB, including scheme-like ru
     'a-':rep('a-',n),'token-':rep('token-',n),'a+b.c-':rep('a+b.c-',n),'sk-':rep('sk-',n),'xoxb-':rep('xoxb-',n),
     'ab:/':rep('ab:/',n),'a://b:':rep('a://b:',n),'eyJ-':rep('eyJ-',n),'eyJa.':rep('eyJa.',n),'a.':rep('a.',n),
     'a=':rep('a=',n),'token=':rep('token=',n),'api ':rep('api ',n),'token="':rep('token="',n),
+    'x_api ':rep('x_api ',n),'api key ':rep('api key ',n),'x-private key ':rep('x-private key ',n),'api\\n':rep('api\n',n),
+    'x_api one word':rep('x_api',n),'x_api one word + key':rep('x_api',n-5)+' key=',
   });
   let total=0;
   for(const n of [12288,49152]) for(const [k,v] of Object.entries({...r21Shapes(n),...extra(n)})){
@@ -370,4 +372,18 @@ test('R4 redactSecrets stays linear at 12 KB and 48 KB, including scheme-like ru
   }
   console.info('redact timing total',total.toFixed(1),'ms');
   expect(total).toBeLessThan(200);
+});
+
+test('R5 two-word keys glued after a prefix (X-Api Key, client_api key, Stripe-Private Key) are masked',()=>{
+  for(const [input,leak] of [
+    ['X-Api Key: abc123','abc123'],['client_api key: abc9','abc9'],['OpenAI_API KEY=abc9','abc9'],['Stripe-Private Key: abc9','abc9'],
+    ['myprivate key: abc9','abc9'],['bot-api key = abc9','abc9'],['"X-Api Key": "abc9"','abc9'],['X-Api KeyId: abc9','abc9'],
+  ] as const){
+    const r=redactSecrets('trước '+input+' sau');
+    expect(r,input).not.toContain(leak);expect(r,input).toContain('[đã che]');expect(r.startsWith('trước ')).toBe(true);
+  }
+  expect(redactSecrets('X-Api Key: abc123')).toBe('X-Api Key: [đã che]');
+  expect(redactSecrets('monkey key: visible')).toBe('monkey key: visible');
+  expect(redactSecrets('secretary meeting')).toBe('secretary meeting');
+  expect(redactSecrets('tokens are fine')).toBe('tokens are fine');
 });

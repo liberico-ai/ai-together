@@ -16,12 +16,15 @@ export function qualityScore(i:{forwarded:boolean;textTruncated:boolean;attachme
 const MASK='[đã che]';
 const KW='token|secret|passw(?:or)?d|pwd|api[_\\s-]?key|private[_\\s-]?key|bearer';
 const VALUE='("[^"]*"|\'[^\']*\'|\\S+)';
-// Tokenizer for key/value pairs. KEY matches a key name of any length (letters, digits, _ and -, optionally
-// preceded by "api " or "private ") + optional closing quote + : or =. It starts only where a name starts, so
-// each name is scanned once: linear. The name is then tested for a keyword anywhere inside it
-// (accessToken, DB_PASSWORD, X-API-Key). The value is not part of KEY: after a non-secret pair the scan resumes
-// at the value, so "user=bob&password=x" and "Server=db;Password=x" still reach the secret key.
-const KEY=/(?<![A-Za-z0-9_-])((?:(?:api|private)\s)?[A-Za-z0-9_-]+)(["']?\s*[:=]\s*)/gi;
+// Tokenizer for key/value pairs. KEY matches a key name of any length (letters, digits, _ and -) + optional
+// closing quote + : or =. A name whose word ends in "api" or "private" may continue over one whitespace into a
+// word starting with "key" (the only whitespace the keyword list allows, api[_\s-]?key / private[_\s-]?key), so
+// "X-Api Key", "OpenAI_API KEY" and "Stripe-Private Key" stay one name. KEY starts only where a name starts, and
+// each alternative scans a word once plus a bounded check at its end: linear. The name is then tested for a
+// keyword anywhere inside it (accessToken, DB_PASSWORD, X-API-Key). The value is not part of KEY: after a
+// non-secret pair the scan resumes at the value, so "user=bob&password=x" and "Server=db;Password=x" still reach
+// the secret key.
+const KEY=/(?<![A-Za-z0-9_-])([A-Za-z0-9_-]*(?:api|private)\skey[A-Za-z0-9_-]*|[A-Za-z0-9_-]+)(["']?\s*[:=]\s*)/gi;
 const KW_IN_KEY=new RegExp(`(${KW})`,'i');
 const VALUE_AT=new RegExp(VALUE,'y');
 function maskKeyedValues(text:string):string {
