@@ -71,8 +71,8 @@ test('PM-03 a replayed message and a replayed pull never duplicate a receipt',as
   const d=await pullOne();
   expect((await outbox().pull({limit:5})).deliveries).toEqual([]);
   const r=rcpt(d);
-  expect(await outbox().report({receipts:[r]})).toEqual({accepted:1,replayed:0});
-  expect(await outbox().report({receipts:[r]})).toEqual({accepted:0,replayed:1});
+  expect(await outbox().report({receipts:[r]})).toEqual({accepted:1,replayed:0,rejected:[]});
+  expect(await outbox().report({receipts:[r]})).toEqual({accepted:0,replayed:1,rejected:[]});
   expect(await n('delivery_receipts')).toBe(1);
   const q=(await rows<{quality_score:number;source_type:string}>('SELECT quality_score,source_type FROM delivery_receipts'))[0];
   expect(q).toEqual({quality_score:100,source_type:'telegram_gateway'});
@@ -147,23 +147,43 @@ test('network failures back off and stop at six attempts',async()=>{
 test('a receipt with an expired or foreign lease, or a second different outcome, is refused',async()=>{
   await intake().ingest(ev({}));
   const d=await pullOne();
-  await expect(outbox().report({receipts:[rcpt({...d,leaseToken:randomUUID()})]})).rejects.toMatchObject({code:'LEASE_INVALID',status:409});
+  const rej=(o:{outboxId:string;attemptNo:number},code:string)=>({outboxId:o.outboxId,attemptNo:o.attemptNo,code});
+  expect(await outbox().report({receipts:[rcpt({...d,leaseToken:randomUUID()})]})).toEqual({accepted:0,replayed:0,rejected:[rej(d,'LEASE_INVALID')]});
   expect(await n('delivery_receipts')).toBe(0);
-  await expect(outbox().report({receipts:[rcpt({...d,attemptNo:2})]})).rejects.toMatchObject({code:'LEASE_INVALID'});
+  expect(await outbox().report({receipts:[rcpt({...d,attemptNo:2})]})).toMatchObject({accepted:0,rejected:[{code:'LEASE_INVALID'}]});
   await h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE id=$1",[d.outboxId]);
   await outbox().pull({limit:5});
   expect((await one(d.outboxId)).state).toBe('uncertain');
-  await expect(outbox().report({receipts:[rcpt(d)]})).rejects.toMatchObject({code:'LEASE_INVALID'});
+  expect(await outbox().report({receipts:[rcpt(d)]})).toMatchObject({accepted:0,rejected:[{code:'LEASE_INVALID'}]});
   expect((await one(d.outboxId)).state).toBe('uncertain');
+  expect(await n('delivery_receipts')).toBe(0);
   // second different outcome on a delivered attempt
   await outbox().report({receipts:[rcpt(d,{phase:'reconcile',outcome:'delivered'})]});
-  await expect(outbox().report({receipts:[rcpt(d,{phase:'reconcile',outcome:'not_sent',telegramMessageId:undefined})]})).rejects.toMatchObject({code:'RECEIPT_CONFLICT',status:409});
+  expect(await outbox().report({receipts:[rcpt(d,{phase:'reconcile',outcome:'not_sent',telegramMessageId:undefined})]})).toMatchObject({accepted:0,rejected:[{code:'RECEIPT_CONFLICT'}]});
   expect((await one(d.outboxId)).state).toBe('delivered');
   await intake().ingest(ev({}));
   const d2=await pullOne();
   await outbox().report({receipts:[rcpt(d2)]});
-  await expect(outbox().report({receipts:[rcpt(d2,{outcome:'failed_permanent',telegramMessageId:undefined})]})).rejects.toMatchObject({code:'RECEIPT_CONFLICT'});
+  expect(await outbox().report({receipts:[rcpt(d2,{outcome:'failed_permanent',telegramMessageId:undefined})]})).toMatchObject({rejected:[{code:'RECEIPT_CONFLICT'}]});
   expect((await one(d2.outboxId)).state).toBe('delivered');
+});
+
+test('one bad receipt does not block the valid ones in the same batch, and a resubmit is stable',async()=>{
+  for(let i=0;i<3;i++) await intake().ingest(ev({}));
+  const [a,b,c]=(await outbox().pull({limit:5})).deliveries;
+  await outbox().report({receipts:[rcpt(c)]});            // c is delivered; a later different outcome conflicts
+  const batch=[rcpt(a),rcpt({...b,leaseToken:randomUUID()}),rcpt(c,{outcome:'failed_permanent',telegramMessageId:undefined})];
+  const rejected=[{outboxId:b.outboxId,attemptNo:1,code:'LEASE_INVALID'},{outboxId:c.outboxId,attemptNo:1,code:'RECEIPT_CONFLICT'}];
+  expect(await outbox().report({receipts:batch})).toEqual({accepted:1,replayed:0,rejected});
+  expect((await one(a.outboxId)).state).toBe('delivered');
+  expect(await rows('SELECT outbox_id FROM delivery_receipts WHERE outbox_id=$1',[a.outboxId])).toHaveLength(1);
+  expect(await rows('SELECT outbox_id FROM delivery_receipts WHERE outbox_id=$1',[b.outboxId])).toHaveLength(0);
+  expect((await one(b.outboxId)).state).toBe('leased');
+  expect((await one(c.outboxId)).state).toBe('delivered');
+  expect(await rows('SELECT outbox_id FROM delivery_receipts WHERE outbox_id=$1',[c.outboxId])).toHaveLength(1);
+  expect(await n('delivery_receipts')).toBe(2);
+  expect(await outbox().report({receipts:batch})).toEqual({accepted:0,replayed:1,rejected});
+  expect(await n('delivery_receipts')).toBe(2);
 });
 
 test('(3) a pull scoped to Xeca projects never returns LBRC or IBS HI messages',async()=>{
@@ -215,7 +235,7 @@ test('routes: outbox/pull and outbox/receipts work through handleBridgeIo with t
   const call=(p:string,b:unknown)=>handleBridgeIo(signedRequest(p,b),p.replace('/api/bridge/','').split('/'),deps);
   const pulled=await call('/api/bridge/outbox/pull',{limit:5}) as {deliveries:{outboxId:string;attemptNo:number;leaseToken:string}[]};
   expect(pulled.deliveries).toHaveLength(1);
-  expect(await call('/api/bridge/outbox/receipts',{receipts:[rcpt(pulled.deliveries[0])]})).toEqual({accepted:1,replayed:0});
+  expect(await call('/api/bridge/outbox/receipts',{receipts:[rcpt(pulled.deliveries[0])]})).toEqual({accepted:1,replayed:0,rejected:[]});
   await expect(handleBridgeIo(signedRequest('/api/bridge/outbox/pull',{limit:5},{key:bridgeConfig.key}),['outbox','pull'],deps)).rejects.toMatchObject({code:'BRIDGE_AUTH_DENIED'});
   // events route now queues through the real enqueueReceipt
   await handleBridgeIo(signedRequest('/api/bridge/intake/events',ev({})),['intake','events'],deps);

@@ -146,12 +146,16 @@ export class OutboxService {
   return {deliveries,reconcile:first.reconcile};
  }
 
- async report(raw:unknown):Promise<{accepted:number;replayed:number}> {
+ async report(raw:unknown):Promise<{accepted:number;replayed:number;rejected:{outboxId:string;attemptNo:number;code:string}[]}> {
   const {receipts}=reportSchema.parse(raw);
   const requestId=randomUUID();
   return intakeScoped(this.intakeDb,this.p,async tx=>{
    let accepted=0,replayed=0;
+   const rejected:{outboxId:string;attemptNo:number;code:string}[]=[];
    for(const r of receipts) {
+    // Each receipt runs in its own savepoint: a bad one rolls back alone and the valid ones still apply.
+    await tx.query('SAVEPOINT receipt_one');
+    try {
     const row=(await tx.query<Row>(`SELECT ${COLS} FROM outbox_messages WHERE id=$1 AND tenant_id=$2 FOR UPDATE`,[r.outboxId,this.p.tenantId])).rows[0];
     if(!row) throw new AppError('LEASE_INVALID','Biên nhận không khớp lượt gửi hiện tại.',409);
     const ins=await tx.query<{id:string}>(
@@ -161,9 +165,9 @@ export class OutboxService {
     if(!ins.rows.length) {
      const old=(await tx.query<{outcome:string}>('SELECT outcome FROM delivery_receipts WHERE outbox_id=$1 AND attempt_no=$2 AND phase=$3',[row.id,r.attemptNo,r.phase])).rows[0];
      if(old?.outcome!==r.outcome) throw new AppError('RECEIPT_CONFLICT','Biên nhận khác với biên nhận đã ghi cho lượt này.',409);
-     replayed++;continue;
+     replayed++;await tx.query('RELEASE SAVEPOINT receipt_one');continue;
     }
-    // A throw below rolls back the whole batch including the receipt row just inserted.
+    // A throw below rolls back to the savepoint, including the receipt row just inserted.
     const validSend=r.phase==='send'&&row.state==='leased'&&row.lease_token===r.leaseToken&&row.attempt_no===r.attemptNo;
     const validReconcile=r.phase==='reconcile'&&row.state==='uncertain'&&row.attempt_no===r.attemptNo;
     if(!validSend&&!validReconcile) throw new AppError('LEASE_INVALID','Biên nhận không khớp lượt gửi hiện tại.',409);
@@ -182,8 +186,15 @@ export class OutboxService {
     }
     await this.audit(tx,row,'outbox.'+(next==='pending'?'retry_scheduled':next),requestId,{attemptNo:r.attemptNo,phase:r.phase,outcome:r.outcome});
     accepted++;
+    await tx.query('RELEASE SAVEPOINT receipt_one');
+    } catch(error) {
+     if(!(error instanceof AppError)||(error.code!=='LEASE_INVALID'&&error.code!=='RECEIPT_CONFLICT')) throw error;
+     await tx.query('ROLLBACK TO SAVEPOINT receipt_one');
+     await tx.query('RELEASE SAVEPOINT receipt_one');
+     rejected.push({outboxId:r.outboxId,attemptNo:r.attemptNo,code:error.code});
+    }
    }
-   return {accepted,replayed};
+   return {accepted,replayed,rejected};
   });
  }
 }
