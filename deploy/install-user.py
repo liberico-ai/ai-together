@@ -5,18 +5,50 @@ contents inside a new, private directory. It never invokes dpkg/apt install or
 package maintainer scripts and never changes another PostgreSQL instance.
 """
 from __future__ import annotations
-import argparse,hashlib,json,os,platform,secrets,shutil,socket,stat,subprocess,time
+import argparse,hashlib,json,os,platform,re,secrets,shutil,socket,stat,subprocess,time
 from pathlib import Path
 
 SCOPE=json.loads((Path(__file__).parent/'pilot-scope.json').read_text())
 TENANT=SCOPE['tenantId']
 PROJECT=SCOPE['projectId']
-LIBEAI=SCOPE['internalChatId']
-XECA=SCOPE['deniedChatIds'][0]
+# Telegram group IDs are not kept in the repository (audit 2026-11-12, option c).
+PILOT_CHATS_SETTING='LIBETECH_PILOT_CHATS'
+# Same shape the bridge accepts for chatScopes keys (src/app/api/bridge/route.ts): no leading zero.
+GROUP_CHAT_ID=re.compile(r'-[1-9][0-9]{4,19}')
 BASE=Path('/home/iptech/.local/share/libetech-ai-os')
 PROFILE=Path('/home/iptech/.hermes/profiles/libetech')
 NODE_SOURCE=Path('/home/iptech/.hermes/tools/node-26.12.1-linux-x64')
 UNIT_NAMES=('libetech-os-postgres.service','libetech-ai-os.service')
+
+def load_pilot_chats(location):
+    """Read the approved and denied group IDs from the server-side file; stop on anything unexpected."""
+    if not location:raise RuntimeError(PILOT_CHATS_SETTING+' must name the server-side pilot chat file')
+    path=Path(location)
+    if path.is_symlink() or not path.is_file():raise RuntimeError('Pilot chat setting must name a regular file')
+    if stat.S_IMODE(path.stat().st_mode)&0o077:raise RuntimeError('Pilot chat file must have permission 0600')
+    try:data=json.loads(path.read_text())
+    except ValueError as exc:raise RuntimeError('Invalid pilot chat file: not JSON') from exc
+    if not isinstance(data,dict):raise RuntimeError('Invalid pilot chat file: expected an object')
+    internal,denied=data.get('internalChatId'),data.get('deniedChatIds')
+    if not isinstance(internal,str) or not GROUP_CHAT_ID.fullmatch(internal):raise RuntimeError('Invalid pilot chat file: internalChatId')
+    if not isinstance(denied,list) or not all(isinstance(c,str) and GROUP_CHAT_ID.fullmatch(c) for c in denied):raise RuntimeError('Invalid pilot chat file: deniedChatIds')
+    if internal in denied:raise RuntimeError('Invalid pilot chat file: the approved group is also denied')
+    return internal,denied
+
+def chat_scopes(chats):
+    internal,denied=chats
+    return {internal:[PROJECT],**{chat:[] for chat in denied}}
+
+def check_recipient(chats,profile:Path=PROFILE):
+    """The approved group must equal the live Hermes home_channel before any grant is written."""
+    import yaml
+    try:
+        live=yaml.safe_load((profile/'config.yaml').read_text())
+        channel=str(live['platforms']['telegram']['home_channel']['chat_id'])
+    except (OSError,yaml.YAMLError,KeyError,TypeError):
+        # Parser errors quote the offending line, which holds the chat ID; drop the cause on purpose.
+        raise RuntimeError('Cannot read home_channel from the Hermes profile config; inspect it on the server') from None
+    if channel!=chats[0]:raise RuntimeError('LibeAI recipient drift; reconcile before installing')
 
 def exclusive(path:Path,value:str):
     fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
@@ -46,7 +78,7 @@ def verify_bundle(bundle:Path):
         if hashlib.sha256(path.read_bytes()).hexdigest()!=expected:raise RuntimeError('Bundle content mismatch: '+name)
     return manifest
 
-def inspect(bundle:Path,dump:Path):
+def inspect(bundle:Path,dump:Path,chats):
     if socket.gethostname()!='d1-ai1' or os.getuid()!=1000 or platform.machine()!='x86_64':raise RuntimeError('Expected iptech on d1-ai1 x86_64')
     if not dump.is_file() or dump.is_symlink():raise RuntimeError('Pilot archive must be a regular file')
     if stat.S_IMODE(dump.stat().st_mode)&0o077:raise RuntimeError('Pilot archive must have permission 0600')
@@ -59,16 +91,15 @@ def inspect(bundle:Path,dump:Path):
     if shutil.disk_usage(BASE.parent).free<4*1024**3:raise RuntimeError('Less than 4 GiB free')
     if run(['loginctl','show-user','iptech','-p','Linger','--value'],quiet=True).strip()!='yes':raise RuntimeError('User service persistence unavailable')
     if run(['systemctl','--user','is-system-running'],quiet=True).strip()!='running':raise RuntimeError('User service manager unavailable')
-    import yaml
-    live=yaml.safe_load((PROFILE/'config.yaml').read_text())
-    if str(live['platforms']['telegram']['home_channel']['chat_id'])!=LIBEAI:raise RuntimeError('LibeAI recipient drift; reconcile before installing')
+    check_recipient(chats)
     return verify_bundle(bundle)
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('archive',type=Path);parser.add_argument('--inspect-only',action='store_true');parser.add_argument('--resume-empty-db',action='store_true');args=parser.parse_args()
     bundle=Path(__file__).resolve().parents[1];dump=args.archive.resolve()
-    if args.resume_empty_db:resume_empty_database(bundle,dump);return
-    manifest=inspect(bundle,dump)
+    chats=load_pilot_chats(os.environ.get(PILOT_CHATS_SETTING))
+    if args.resume_empty_db:resume_empty_database(bundle,dump,chats);return
+    manifest=inspect(bundle,dump,chats)
     if args.inspect_only:
         print(json.dumps({'preflight':'pass','sourceDigest':manifest['treeSha256'],'mode':'iptech-user-services','sudoRequired':False}));return
     os.umask(0o077);BASE.mkdir(mode=0o700)
@@ -105,7 +136,7 @@ def main():
     run(sql+['-d','postgres'],env=pgenv,stdin='CREATE DATABASE libetech_ai_os;\n',quiet=True)
     for migration in sorted((BASE/'app/migrations').glob('*.sql')):
         run(sql+['-d','libetech_ai_os'],env=pgenv,stdin=migration.read_text(),quiet=True)
-    finish_install(manifest,dump)
+    finish_install(manifest,dump,chats)
 
 
 def validate_data_only_listing(listing):
@@ -121,7 +152,7 @@ def pg_environment():
     env=clean_env();env['LD_LIBRARY_PATH']=str(BASE/'pgroot/usr/lib/x86_64-linux-gnu')
     return env
 
-def finish_install(manifest,dump):
+def finish_install(manifest,dump,chats):
     units=Path('/home/iptech/.config/systemd/user')
     pgbin=BASE/'pgroot/usr/lib/postgresql/16/bin';pgenv=pg_environment()
     sql=[pgbin/'psql','-X','-q','-v','ON_ERROR_STOP=1','-h',BASE/'socket','-p','5547','-U','iptech']
@@ -130,7 +161,7 @@ def finish_install(manifest,dump):
     run([pgbin/'pg_restore','--exit-on-error','--single-transaction','--data-only','--no-owner','-h',BASE/'socket','-p','5547','-U','iptech','-d','libetech_ai_os',dump],env=pgenv,quiet=True)
     web,auth,key=(secrets.token_urlsafe(32) for _ in range(3))
     run(sql+['-d','libetech_ai_os'],env=pgenv,stdin=f"ALTER ROLE libetech_web PASSWORD '{web}';\nALTER ROLE libetech_auth PASSWORD '{auth}';\n",quiet=True)
-    exclusive(BASE/'state/bridge.json',json.dumps({'key':key,'chatScopes':{LIBEAI:[PROJECT],XECA:[]}}))
+    exclusive(BASE/'state/bridge.json',json.dumps({'key':key,'chatScopes':chat_scopes(chats)}))
     values={'LIBETECH_DEMO':'0','DATABASE_URL':f'postgresql://libetech_web:{web}@127.0.0.1:5547/libetech_ai_os','IDENTITY_DATABASE_URL':f'postgresql://libetech_auth:{auth}@127.0.0.1:5547/libetech_ai_os','LIBETECH_TENANT_ID':TENANT,'LIBETECH_ORIGIN':'http://127.0.0.1:3150','LIBETECH_LOCAL_AUTH':'1','LIBETECH_BRIDGE_CONFIG':str(BASE/'state/bridge.json'),'NODE_ENV':'production','NEXT_TELEMETRY_DISABLED':'1','LIBETECH_BUILD_DIGEST':manifest['treeSha256']}
     exclusive(BASE/'config/web.env',''.join(f'{k}={v}\n' for k,v in values.items()))
     nodeenv=clean_env();nodeenv['PATH']=str(BASE/'node/bin')+':/usr/bin:/bin'
@@ -151,13 +182,14 @@ def finish_install(manifest,dump):
     if health.get('buildDigest')!=manifest['treeSha256']:raise RuntimeError('Runtime source digest mismatch')
     plugin_state=PROFILE/'runtime/libetech-ai-os';plugin_state.mkdir(mode=0o700)
     exclusive(plugin_state/'bridge.json',json.dumps({'key':key}))
-    receipt={'installedAt':time.time(),'host':socket.gethostname(),'mode':'iptech-user-services','health':health,'chatScopes':{LIBEAI:[PROJECT],XECA:[]},'gatewayRestarted':False,'botPluginInstalled':False,'telegramVerified':False,'linuxUserIsolation':'shared-iptech; database roles remain separated'}
+    receipt={'installedAt':time.time(),'host':socket.gethostname(),'mode':'iptech-user-services','health':health,'chatScopes':chat_scopes(chats),'gatewayRestarted':False,'botPluginInstalled':False,'telegramVerified':False,'linuxUserIsolation':'shared-iptech; database roles remain separated'}
     exclusive(BASE/'runtime-receipt.json',json.dumps(receipt,indent=2));print(json.dumps({'status':'ready','version':'0.2.0','sourceDigest':manifest['treeSha256'],'botPluginInstalled':False}))
 
-def resume_empty_database(bundle,dump):
+def resume_empty_database(bundle,dump,chats):
     # Narrow recovery for the observed first attempt. Never a force reinstall.
     import re
     if socket.gethostname()!='d1-ai1' or os.getuid()!=1000:raise RuntimeError('Wrong recovery host or principal')
+    check_recipient(chats)
     if not dump.is_file() or dump.is_symlink() or stat.S_IMODE(dump.stat().st_mode)&0o077:raise RuntimeError('Expected protected regular data archive')
     prior=json.loads((BASE/'installation.json').read_text())
     if prior['sourceDigest']!='2a5bd497e07ca89dd12b5fe63e04d4974927ac43bacf5a39a93ff57ad94fac51':raise RuntimeError('Recovery is only for the recorded first attempt')
@@ -178,7 +210,7 @@ def resume_empty_database(bundle,dump):
     (BASE/'app').rename(BASE/'app-before-data-restore-fix')
     shutil.copytree(bundle,BASE/'app',symlinks=False)
     exclusive(BASE/'recovery.json',json.dumps({'previousSourceDigest':old['treeSha256'],'newSourceDigest':new['treeSha256'],'allTargetDataTablesEmpty':True,'preservedPreviousSource':True,'archiveHash':hashlib.sha256(dump.read_bytes()).hexdigest()}))
-    finish_install(new,dump)
+    finish_install(new,dump,chats)
 
 if __name__=='__main__':
     try:main()

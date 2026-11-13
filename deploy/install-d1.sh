@@ -13,6 +13,8 @@ node_source=/home/iptech/.hermes/tools/node-26.12.1-linux-x64
 [[ -x "$node_source/bin/node" && -f "$node_source/lib/node_modules/npm/bin/npm-cli.js" ]] || { echo 'Verified Node distribution is missing; stop for review.' >&2; exit 1; }
 if ss -ltnH | awk '{print $4}' | grep -Eq ':(3148|5547)$'; then echo 'A target port is occupied; stop for review.' >&2; exit 1; fi
 python3 "$bundle/deploy/verify-bundle.py" "$bundle"
+# Group IDs live on the server (LIBETECH_PILOT_CHATS, pass it through sudo); validate before creating anything.
+python3 "$bundle/deploy/provision-server.py" --preflight
 if ! command -v pg_createcluster >/dev/null; then
  apt-get update
  DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql

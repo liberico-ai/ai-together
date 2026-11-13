@@ -101,14 +101,23 @@ test('HTTP identity flow sets secure cookies and enforces authentication and CSR
  expect((await handleAuth(req('me',undefined,cookie,'GET'),'me',auth)).status).toBe(401);
 });
 
-// A live metadata read showed Dragon Forge and LibeAI are different groups.
-test('deployment chat mapping permits LibeAI and denies Dragon Forge and Xeca',async()=>{
+// Real chat IDs live in the server-side file named by LIBETECH_PILOT_CHATS (audit 2026-11-12, option c).
+test('pilot scope in the repository carries no Telegram chat IDs',()=>{
+ expect(pilotScope).not.toHaveProperty('internalChatId');
+ expect(pilotScope).not.toHaveProperty('deniedChatIds');
+ expect(JSON.stringify(pilotScope)).not.toMatch(/(?<![\w-])-\d{5,}/);
+ expect(pilotScope.tenantId).toMatch(/^[0-9a-f-]{36}$/);
+ expect(pilotScope.projectId).toMatch(/^[0-9a-f-]{36}$/);
+});
+
+// Synthetic IDs: one approved group with a project grant, one denied group, one unknown group.
+test('deployment chat mapping permits the approved group and denies the others',async()=>{
  await paired();
- expect(pilotScope.internalChatId).toBe('-5298399184');
- const scopes=Object.fromEntries([[pilotScope.internalChatId,[ids.sales]],...pilotScope.deniedChatIds.map(chat=>[chat,[]])]);
+ const approved='-10012345',denied=['-10067890'];
+ const scopes=Object.fromEntries([[approved,[ids.sales]],...denied.map(chat=>[chat,[]])]);
  await db.query(`INSERT INTO analytics.reconciliations(tenant_id,project_id,code,source_id,source_type,ingested_at,quality_score,source_sha,snapshot_hash,result) VALUES($1,$2,'TEST-014','https://github.com/example/test','github',now(),1,$3,$4,$5)`,[ids.tenant,ids.sales,demoSha,'a'.repeat(64),{checks:0,accepted:false}]);
- const data={operation:'reconciliation',context:{...context,chatId:pilotScope.internalChatId},code:'TEST-014',sourceSha:demoSha};
+ const data={operation:'reconciliation',context:{...context,chatId:approved},code:'TEST-014',sourceSha:demoSha};
  expect(await handleBridge(signed(data),db,auth,key,scopes)).toMatchObject({readOnly:true});
- for(const chatId of ['-1004338813921','-1002308580311','-99999'])
+ for(const chatId of [...denied,'-99999'])
   await expect(handleBridge(signed({...data,context:{...context,chatId}}),db,auth,key,scopes)).rejects.toMatchObject({code:'SCOPE_DENIED'});
 });

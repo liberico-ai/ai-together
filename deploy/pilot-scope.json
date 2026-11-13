@@ -1,10 +1,7 @@
 {
   "tenantId": "b63f99bf-3a85-4a1f-b74a-66b5793871ef",
   "projectId": "8f1b6aca-b20f-469a-a92b-cbde731581fc",
-  "internalChatId": "-5298399184",
-  "deniedChatIds": [
-    "-1002308580311"
-  ],
+  "chatIds": "Kept on the server, not in this repository. The installer reads the 0600 file named by LIBETECH_PILOT_CHATS: {\"internalChatId\": \"<approved group>\", \"deniedChatIds\": [\"<denied group>\"]}. See docs/reviews/AUDIT-telegram-ids-20261112.md (option c).",
   "source": {
     "host": "d1-ai1",
     "profile": "libetech",
@@ -13,5 +10,5 @@
     "observedOn": "2026-11-08",
     "method": "Authenticated Hermes direct shell; bounded home_channel read"
   },
-  "excluded": "Dragon Forge -1004338813921 is not the approved LibeAI recipient"
+  "excluded": "Dragon Forge is not the approved LibeAI recipient; its group ID is kept server-side with the others"
 }
