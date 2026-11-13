@@ -117,8 +117,9 @@ test('runtime cannot mark a message delivered',async()=>{
   // state moves are guarded by trigger (see the hardening tests); non-state columns it owns stay writable
   await expect(scoped(h.db,pm,tx=>tx.query("UPDATE outbox_messages SET last_error_code='X_CODE',version=version+1,updated_at=now()"))).resolves.toBeTruthy();
   await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET delivered_at=now()'))).rejects.toThrow(/permission denied/);
-  // acknowledgement needs a delivered row (guard trigger); the pending DM row refuses it
-  await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now()'))).rejects.toThrow(/acknowledged/i);
+  // identity may acknowledge its DM row once, in any state (the recipient can act before delivery is confirmed); a second change is refused
+  await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now()'))).resolves.toBeTruthy();
+  await expect(asIdentity(tx=>tx.query("UPDATE outbox_messages SET acknowledged_at=now()+interval '1 day',updated_at=now()"))).rejects.toThrow(/acknowledged/i);
   await expect(asIntake([ids.sales],tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now()'))).rejects.toThrow(/permission denied/);
 });
 
@@ -628,7 +629,7 @@ test('trigger functions resolve names in pinned schemas: a TEMP shadow of source
   })).rejects.toThrow(/Outbox target/);
 });
 
-test('guard trigger: delivery columns move only with delivered; terminal rows are frozen; acknowledged_at once, only when delivered',async()=>{
+test('guard trigger: delivery columns move only with delivered; terminal rows are frozen; acknowledged_at set once in any state, never changed or cleared',async()=>{
   const p=await mkRow('pending');
   await expect(run('intake',"UPDATE outbox_messages SET delivered_at=now() WHERE id=$1",p)).rejects.toThrow(/delivered/i);
   await expect(run('intake',"UPDATE outbox_messages SET telegram_message_id='5' WHERE id=$1",await mkRow('leased'))).rejects.toThrow(/delivered/i);
@@ -638,15 +639,31 @@ test('guard trigger: delivery columns move only with delivered; terminal rows ar
   await expect(run('intake',"UPDATE outbox_messages SET last_error_code='X' WHERE id=$1",dl)).rejects.toThrow(/terminal|frozen/i);
   const ab=await mkRow('dead');await run('intake',setState('abandoned'),ab);
   await expect(run('intake',"UPDATE outbox_messages SET last_error_code='X' WHERE id=$1",ab)).rejects.toThrow(/terminal|frozen/i);
-  // identity acknowledgement on a DM row
+  // identity acknowledgement on a DM row: recipient-acknowledged is its own state, separate from delivered
   const dm=(await insert(h.operator,dmVals())).rows[0].id;
   let n=0; // a different timestamp each time, so a second acknowledgement is a real change rather than a no-op
-  const ack=()=>asIdentity(tx=>tx.query("UPDATE outbox_messages SET acknowledged_at=now()+make_interval(days => $2::int),updated_at=now() WHERE id=$1",[dm,n++]));
-  await expect(ack()).rejects.toThrow(/acknowledged/i);
+  const ack=(id:string)=>asIdentity(tx=>tx.query("UPDATE outbox_messages SET acknowledged_at=now()+make_interval(days => $2::int),updated_at=now() WHERE id=$1",[id,n++]));
+  const clear=(id:string)=>asIdentity(tx=>tx.query("UPDATE outbox_messages SET acknowledged_at=NULL,updated_at=now() WHERE id=$1",[id]));
+  const ackOf=async(id:string)=>(await h.operator.query<{state:string;delivered_at:Date|null;acknowledged_at:Date|null}>(
+    'SELECT state,delivered_at,acknowledged_at FROM outbox_messages WHERE id=$1',[id])).rows[0];
+  // a pending DM may be acknowledged; it stays undelivered
+  await expect(ack(dm)).resolves.toBeTruthy();
+  const first=await ackOf(dm);
+  expect(first).toMatchObject({state:'pending',delivered_at:null});
+  expect(first.acknowledged_at).not.toBeNull();
+  await expect(ack(dm)).rejects.toThrow(/acknowledged/i);
+  await expect(clear(dm)).rejects.toThrow(/acknowledged/i);
+  // the gateway's moves keep the acknowledgement; it still cannot be changed or cleared on the delivered row
   await force(dm,'leased',1);await force(dm,'delivered');
-  await expect(ack()).resolves.toBeTruthy();
-  await expect(ack()).rejects.toThrow(/acknowledged/i);
-  await expect(asIdentity(tx=>tx.query("UPDATE outbox_messages SET acknowledged_at=NULL,updated_at=now() WHERE id=$1",[dm]))).rejects.toThrow(/acknowledged/i);
+  expect(await ackOf(dm)).toMatchObject({state:'delivered',acknowledged_at:first.acknowledged_at});
+  await expect(ack(dm)).rejects.toThrow(/acknowledged/i);
+  await expect(clear(dm)).rejects.toThrow(/acknowledged/i);
+  // a delivered DM not yet acknowledged takes exactly one acknowledgement
+  const dm2=(await insert(h.operator,dmVals())).rows[0].id;
+  await force(dm2,'leased',1);await force(dm2,'delivered');
+  await expect(ack(dm2)).resolves.toBeTruthy();
+  await expect(ack(dm2)).rejects.toThrow(/acknowledged/i);
+  await expect(clear(dm2)).rejects.toThrow(/acknowledged/i);
 });
 
 test('payload cap counts bytes, envelope constants and error codes are closed',async()=>{

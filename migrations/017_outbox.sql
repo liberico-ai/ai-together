@@ -221,7 +221,9 @@ CREATE TRIGGER outbox_messages_bind_target BEFORE INSERT ON outbox_messages FOR 
 -- libetech_runtime may only requeue dead rows (attempt_no reset to 0) or abandon dead/uncertain rows, and otherwise touches
 -- failure_owner_id, last_error_code, version and updated_at only.
 -- delivered_at and telegram_message_id move only with a move to delivered; delivered and abandoned rows are frozen except
--- acknowledged_at, updated_at and version; acknowledged_at is set once, from NULL, and only on a delivered row.
+-- acknowledged_at, updated_at and version; acknowledged_at is set once, from NULL to a value, in any state, and is never changed or
+-- cleared afterwards. Recipient-acknowledged is its own state, separate from delivered: a vote never sets delivered_at, and only
+-- libetech_identity on DM rows may set acknowledged_at (grants and RLS below).
 -- Runs with the caller's rights on every row update, so it also records current_user (the invoking role) for the state trigger below,
 -- which runs as its owner and must not take the caller's word for who it is.
 CREATE OR REPLACE FUNCTION outbox_messages_guard_state() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
@@ -269,8 +271,8 @@ BEGIN
     END IF;
   END IF;
   IF NEW.acknowledged_at IS DISTINCT FROM OLD.acknowledged_at
-     AND NOT (NEW.state = 'delivered' AND OLD.acknowledged_at IS NULL AND NEW.acknowledged_at IS NOT NULL) THEN
-    RAISE EXCEPTION 'Outbox acknowledged_at is set once, and only on a delivered row';
+     AND NOT (OLD.acknowledged_at IS NULL AND NEW.acknowledged_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'Outbox acknowledged_at is set once, from NULL, and is never changed or cleared';
   END IF;
   RETURN NEW;
 END $$;
