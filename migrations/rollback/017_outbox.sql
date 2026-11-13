@@ -9,6 +9,10 @@ DO $$ BEGIN
 END $$;
 DROP TRIGGER IF EXISTS delivery_receipts_derive_project ON delivery_receipts;
 DROP FUNCTION IF EXISTS delivery_receipts_derive_project();
+DROP TRIGGER IF EXISTS outbox_messages_bind_target ON outbox_messages;
+DROP TRIGGER IF EXISTS outbox_messages_guard_state ON outbox_messages;
+DROP FUNCTION IF EXISTS outbox_messages_bind_target();
+DROP FUNCTION IF EXISTS outbox_messages_guard_state();
 DROP TABLE IF EXISTS delivery_receipts, outbox_messages;
 DELETE FROM schema_migrations WHERE version='017';
 COMMIT;

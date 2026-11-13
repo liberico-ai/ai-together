@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS outbox_messages (
   UNIQUE(event_id), UNIQUE(tenant_id,dedupe_key), UNIQUE(id,tenant_id),
   CHECK((audience='group' AND project_id IS NOT NULL AND recipient_user_id IS NULL)
      OR (audience='dm' AND project_id IS NULL AND recipient_user_id IS NOT NULL AND source_event_id IS NULL AND candidate_id IS NULL)),
-  CHECK(state<>'delivered' OR delivered_at IS NOT NULL)
+  CHECK(state<>'delivered' OR delivered_at IS NOT NULL),
+  CHECK((audience='group' AND target_chat_id ~ '^-[1-9][0-9]*$') OR (audience='dm' AND target_chat_id ~ '^[1-9][0-9]{0,19}$'))
 );
 CREATE TABLE IF NOT EXISTS delivery_receipts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -141,6 +142,60 @@ BEGIN
 END $$;
 DROP TRIGGER IF EXISTS delivery_receipts_derive_project ON delivery_receipts;
 CREATE TRIGGER delivery_receipts_derive_project BEFORE INSERT ON delivery_receipts FOR EACH ROW EXECUTE FUNCTION delivery_receipts_derive_project();
+-- Target binding (not SECURITY DEFINER; the caller's RLS applies). project_channels grants no authority in this slice (OQ-09), so it is not read.
+-- A group row may only reply in the chat, topic and message of its own visible source event; a DM row only to the recipient's linked telegram id.
+CREATE OR REPLACE FUNCTION outbox_messages_bind_target() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE s record; tg text;
+BEGIN
+  IF NEW.audience = 'group' THEN
+    IF NEW.source_event_id IS NULL THEN RAISE EXCEPTION 'Outbox target: a group row needs a source event'; END IF;
+    SELECT e.chat_id, e.topic_id, e.message_id INTO s FROM source_events e
+      WHERE e.id = NEW.source_event_id AND e.tenant_id = NEW.tenant_id AND e.project_id = NEW.project_id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Outbox target: source event is not visible'; END IF;
+    IF NEW.target_chat_id <> s.chat_id OR NEW.target_topic_id <> s.topic_id
+       OR (NEW.reply_to_message_id IS NOT NULL AND NEW.reply_to_message_id <> s.message_id) THEN
+      RAISE EXCEPTION 'Outbox target: chat, topic or message differ from the source event';
+    END IF;
+  ELSE
+    SELECT l.telegram_id INTO tg FROM identity.telegram_links l WHERE l.user_id = NEW.recipient_user_id AND l.tenant_id = NEW.tenant_id;
+    IF tg IS NULL OR tg <> NEW.target_chat_id THEN RAISE EXCEPTION 'Outbox target: chat differs from the recipient telegram link'; END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS outbox_messages_bind_target ON outbox_messages;
+CREATE TRIGGER outbox_messages_bind_target BEFORE INSERT ON outbox_messages FOR EACH ROW EXECUTE FUNCTION outbox_messages_bind_target();
+
+-- State moves mirror outboxTransition (src/server/outbox.ts). delivered and abandoned are terminal.
+-- libetech_runtime may only requeue dead rows (attempt_no reset to 0) or abandon dead/uncertain rows, and otherwise touches
+-- failure_owner_id, last_error_code, version and updated_at only.
+CREATE OR REPLACE FUNCTION outbox_messages_guard_state() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.state IS DISTINCT FROM OLD.state THEN
+    IF NOT ((OLD.state = 'pending' AND NEW.state = 'leased')
+         OR (OLD.state = 'leased' AND NEW.state IN ('delivered','pending','dead','uncertain'))
+         OR (OLD.state = 'uncertain' AND NEW.state IN ('delivered','pending','abandoned'))
+         OR (OLD.state = 'dead' AND NEW.state IN ('pending','abandoned'))) THEN
+      RAISE EXCEPTION 'Outbox state move % to % is not allowed', OLD.state, NEW.state;
+    END IF;
+    IF current_user = 'libetech_runtime' THEN
+      IF NOT ((OLD.state = 'dead' AND NEW.state = 'pending' AND NEW.attempt_no = 0)
+           OR (OLD.state IN ('dead','uncertain') AND NEW.state = 'abandoned')) THEN
+        RAISE EXCEPTION 'Outbox state move % to % is not allowed for the runtime role', OLD.state, NEW.state;
+      END IF;
+      IF NEW.attempt_no IS DISTINCT FROM OLD.attempt_no AND NOT (NEW.state = 'pending' AND NEW.attempt_no = 0) THEN
+        RAISE EXCEPTION 'Runtime role may not change attempt_no here';
+      END IF;
+    END IF;
+  ELSIF current_user = 'libetech_runtime' THEN
+    IF NEW.attempt_no IS DISTINCT FROM OLD.attempt_no OR NEW.next_attempt_at IS DISTINCT FROM OLD.next_attempt_at THEN
+      RAISE EXCEPTION 'Runtime role may only change failure_owner_id and last_error_code while the state stays';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS outbox_messages_guard_state ON outbox_messages;
+CREATE TRIGGER outbox_messages_guard_state BEFORE UPDATE ON outbox_messages FOR EACH ROW EXECUTE FUNCTION outbox_messages_guard_state();
+
 DROP TRIGGER IF EXISTS delivery_receipts_immutable ON delivery_receipts;
 CREATE TRIGGER delivery_receipts_immutable BEFORE UPDATE OR DELETE ON delivery_receipts FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 DROP TRIGGER IF EXISTS outbox_messages_no_delete ON outbox_messages;

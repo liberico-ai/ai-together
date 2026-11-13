@@ -10,8 +10,14 @@ import {intakeScoped} from '../src/server/bridge-io';
 import {IdentityService} from '../src/server/identity';
 import {chatSales,intakePrincipalId} from './slice2-fixtures';
 
-let h:Harness;
-beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);});
+let h:Harness,srcSales:string;
+const TG='900000001'; // telegram id linked to pm (synthetic)
+beforeEach(async()=>{
+  h=await openHarness();await h.reset();await seedSlice1(h);
+  await h.operator.query('INSERT INTO identity.telegram_links(tenant_id,user_id,telegram_id) VALUES($1,$2,$3)',[ids.tenant,pm.id,TG]);
+  srcSales=(await h.operator.query<{id:string}>(`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,content_mode,trace_id,correlation_id)
+    VALUES($1,$2,'g','telegram_gateway',80,$3,'1000','t','a',now(),false,false,'excerpt',$4,$4) RETURNING id`,[ids.tenant,ids.sales,chatSales,randomUUID()])).rows[0].id;
+});
 afterEach(async()=>{await h.reset();await h.close();});
 
 const intake=(projectIds:string[],tenant:string=ids.tenant)=>({id:intakePrincipalId,tenantId:tenant,projectIds}) as never;
@@ -22,10 +28,10 @@ const asRuntime=<T>(fn:(tx:Queryable)=>Promise<T>)=>scoped(h.db,pm,fn);
 type Row=Record<string,unknown>;
 const groupVals=(over:Row={}):Row=>({
   tenant_id:ids.tenant,project_id:ids.sales,event_id:randomUUID(),event_type:'intake.received',trace_id:randomUUID(),correlation_id:randomUUID(),
-  audience:'group',target_chat_id:chatSales,template:'intake.received',dedupe_key:'k-'+randomUUID(),...over});
-const dmVals=(over:Row={}):Row=>groupVals({project_id:null,audience:'dm',recipient_user_id:pm.id,template:'account_approval.pending',...over});
+  audience:'group',target_chat_id:chatSales,source_event_id:srcSales,template:'intake.received',dedupe_key:'k-'+randomUUID(),...over});
+const dmVals=(over:Row={}):Row=>groupVals({project_id:null,audience:'dm',recipient_user_id:pm.id,target_chat_id:TG,source_event_id:null,template:'account_approval.pending',...over});
 // The identity role has no INSERT on project_id: its rows leave the column out so the default (NULL) applies.
-const identityDm=(over:Row={}):Row=>{const v=dmVals(over);delete v.project_id;return v;};
+const identityDm=(over:Row={}):Row=>{const v=dmVals(over);delete v.project_id;if(v.source_event_id===null) delete v.source_event_id;return v;};
 const insert=(tx:Queryable,v:Row)=>{
   const cols=Object.keys(v);
   return tx.query<{id:string}>(`INSERT INTO outbox_messages(${cols.join(',')}) VALUES(${cols.map((_,i)=>'$'+(i+1)).join(',')}) RETURNING id`,Object.values(v));
@@ -107,7 +113,8 @@ test('runtime cannot mark a message delivered',async()=>{
   await seedBoth();
   await expect(scoped(h.db,pm,tx=>tx.query('UPDATE outbox_messages SET delivered_at=now()'))).rejects.toThrow(/permission denied/);
   await expect(scoped(h.db,pm,tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now()'))).rejects.toThrow(/permission denied/);
-  await expect(scoped(h.db,pm,tx=>tx.query("UPDATE outbox_messages SET state='dead',last_error_code='x',version=version+1,updated_at=now()"))).resolves.toBeTruthy();
+  // state moves are guarded by trigger (see the hardening tests); non-state columns it owns stay writable
+  await expect(scoped(h.db,pm,tx=>tx.query("UPDATE outbox_messages SET last_error_code='x',version=version+1,updated_at=now()"))).resolves.toBeTruthy();
   await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET delivered_at=now()'))).rejects.toThrow(/permission denied/);
   await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now()'))).resolves.toBeTruthy();
   await expect(asIntake([ids.sales],tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now()'))).rejects.toThrow(/permission denied/);
@@ -240,4 +247,74 @@ test('the receipt INSERT policy rejects the same cases when the trigger is disab
     await expect(asIntake(both,tx=>receipt(tx,g,ids.sales,{attempt_no:6}))).resolves.toBeTruthy();
     await expect(asIntake(both,tx=>receipt(tx,d,null,{attempt_no:7}))).resolves.toBeTruthy();
   } finally { await trig('ENABLE'); }
+});
+
+// ---- hardening: outbox target binding and state moves ----
+const both=()=>[ids.sales,ids.transport];
+test('a group row must target the chat, topic and message of its own visible source event',async()=>{
+  await expect(asIntake(both(),tx=>insert(tx,groupVals({target_chat_id:'-1000000000999'})))).rejects.toThrow(/Outbox target/);
+  await expect(asIntake(both(),tx=>insert(tx,groupVals({target_topic_id:'77'})))).rejects.toThrow(/Outbox target/);
+  await expect(asIntake(both(),tx=>insert(tx,groupVals({reply_to_message_id:'999'})))).rejects.toThrow(/Outbox target/);
+  await expect(asIntake(both(),tx=>insert(tx,groupVals({source_event_id:null})))).rejects.toThrow(/Outbox target/);
+  await expect(asIntake(both(),tx=>insert(tx,groupVals({source_event_id:randomUUID()})))).rejects.toThrow();
+  await expect(asIntake(both(),tx=>insert(tx,groupVals({target_chat_id:'1000000000001'})))).rejects.toThrow();
+  await expect(asIntake(both(),tx=>insert(tx,groupVals({reply_to_message_id:'1000'})))).resolves.toBeTruthy();
+  await expect(asIntake(both(),tx=>insert(tx,groupVals()))).resolves.toBeTruthy();
+});
+
+test('a DM row must target the telegram id linked to its recipient',async()=>{
+  await expect(asIdentity(tx=>insert(tx,identityDm({target_chat_id:'900000099'})))).rejects.toThrow(/Outbox target/);
+  await expect(asIdentity(tx=>insert(tx,identityDm({target_chat_id:chatSales})))).rejects.toThrow();
+  await expect(asIdentity(tx=>insert(tx,identityDm({recipient_user_id:randomUUID()})))).rejects.toThrow();
+  await expect(asIdentity(tx=>insert(tx,identityDm()))).resolves.toBeTruthy();
+});
+
+type Path='leased'|'delivered'|'dead'|'uncertain';
+const PATHS:Record<string,string[]>={pending:[],leased:['leased'],delivered:['leased','delivered'],dead:['leased','dead'],uncertain:['leased','uncertain']};
+async function mkRow(state:keyof typeof PATHS|Path='pending'){
+  const id=(await insert(h.operator,groupVals())).rows[0].id;
+  for(const step of PATHS[state])
+    await h.operator.query('UPDATE outbox_messages SET state=$2,attempt_no=3,delivered_at=CASE WHEN $2=\'delivered\' THEN now() END WHERE id=$1',[id,step]);
+  return id;
+}
+const stateOf=async(id:string)=>(await h.operator.query<{state:string;attempt_no:number}>('SELECT state,attempt_no FROM outbox_messages WHERE id=$1',[id])).rows[0];
+const run=(who:'runtime'|'intake',sql:string,id:string)=>who==='runtime'?scoped(h.db,pm,tx=>tx.query(sql,[id])):asIntake(both(),tx=>tx.query(sql,[id]));
+const setState=(s:string,extra='')=>`UPDATE outbox_messages SET state='${s}'${extra},version=version+1,updated_at=now() WHERE id=$1`;
+
+test('runtime may only requeue dead rows with attempt_no reset or abandon dead and uncertain rows',async()=>{
+  await expect(run('runtime',setState('pending'),await mkRow('delivered'))).rejects.toThrow(/state/i);
+  await expect(run('runtime',setState('delivered',",delivered_at=now()"),await mkRow('pending'))).rejects.toThrow();
+  await expect(run('runtime',setState('pending'),await mkRow('leased'))).rejects.toThrow(/state/i);
+  await expect(run('runtime',setState('leased'),await mkRow('pending'))).rejects.toThrow();
+  await expect(run('runtime',setState('pending'),await mkRow('dead'))).rejects.toThrow(/state/i);
+  const d=await mkRow('dead');
+  await expect(run('runtime',setState('pending',',attempt_no=0'),d)).resolves.toBeTruthy();
+  expect(await stateOf(d)).toMatchObject({state:'pending',attempt_no:0});
+  await expect(run('runtime',setState('abandoned'),await mkRow('dead'))).resolves.toBeTruthy();
+  await expect(run('runtime',setState('abandoned'),await mkRow('uncertain'))).resolves.toBeTruthy();
+  await expect(run('runtime',setState('pending',',attempt_no=0'),await mkRow('uncertain'))).rejects.toThrow(/state/i);
+  // abandoned is terminal
+  const a=await mkRow('dead');await run('runtime',setState('abandoned'),a);
+  await expect(run('runtime',setState('pending',',attempt_no=0'),a)).rejects.toThrow();
+});
+
+test('runtime keeps its non-state columns to failure_owner_id, last_error_code, version and updated_at',async()=>{
+  const p=await mkRow('pending');
+  await expect(run('runtime',"UPDATE outbox_messages SET next_attempt_at=now()+interval '1 day' WHERE id=$1",p)).rejects.toThrow(/runtime/i);
+  await expect(run('runtime','UPDATE outbox_messages SET attempt_no=0 WHERE id=$1',await mkRow('leased'))).rejects.toThrow(/runtime/i);
+  await expect(run('runtime',"UPDATE outbox_messages SET last_error_code='OWNER',failure_owner_id=$2,version=version+1,updated_at=now() WHERE id=$1".replace('$2',`'${pm.id}'`),p)).resolves.toBeTruthy();
+});
+
+test('intake follows the allowed moves; delivered and abandoned are terminal',async()=>{
+  const move=(from:keyof typeof PATHS,to:string)=>mkRow(from).then(id=>run('intake',setState(to,to==='delivered'?',delivered_at=now()':''),id));
+  const ok:[string,string][]=[['pending','leased'],['leased','delivered'],['leased','pending'],['leased','dead'],['leased','uncertain'],
+    ['uncertain','delivered'],['uncertain','pending'],['uncertain','abandoned'],['dead','pending'],['dead','abandoned']];
+  for(const [f,t] of ok) await expect(move(f,t),f+'→'+t).resolves.toBeTruthy();
+  const bad:[string,string][]=[['delivered','leased'],['delivered','pending'],['pending','delivered'],['pending','dead'],['pending','abandoned'],['leased','abandoned'],['uncertain','leased'],['dead','leased']];
+  for(const [f,t] of bad) await expect(move(f,t),f+'→'+t).rejects.toThrow();
+  const a=await mkRow('dead');await run('intake',setState('abandoned'),a);
+  await expect(run('intake',setState('pending'),a)).rejects.toThrow();
+  // updates that keep the state stay allowed (identity acknowledging a DM)
+  const dm=(await insert(h.operator,dmVals())).rows[0].id;
+  await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now() WHERE id=$1',[dm]))).resolves.toBeTruthy();
 });
