@@ -21,9 +21,9 @@ describe('source host allowlist (unit)',()=>{
   });
   test('other hosts, subdomains, look-alikes, cross-type hosts and non-default ports are refused',()=>{
     const drive=['https://example.com/x','https://google.com/x','https://evil.docs.google.com/x','https://docs.google.com.evil.test/x',
-      'https://docs.google.com./x','https://github.com/a/b','https://docs.google.com:8443/x'];
+      'https://docs.google.com./x','https://github.com/a/b','https://docs.google.com:8443/x','http://docs.google.com/x'];
     const git=['https://gist.github.com/x','https://raw.githubusercontent.com/a/b','https://github.com.evil.test/a','https://www.github.com/a',
-      'https://gіthub.com/a','https://docs.google.com/document/d/abc','https://github.com:8443/a'];
+      'https://gіthub.com/a','https://docs.google.com/document/d/abc','https://github.com:8443/a','http://github.com/a'];
     for(const u of drive) expect(sourceHostProblem('drive',u),u).toMatch(/docs\.google\.com/);
     for(const u of git) expect(sourceHostProblem('git',u),u).toMatch(/github\.com/);
   });
@@ -72,8 +72,9 @@ describe('source host allowlist (service)',()=>{
         [col==='canonical_uri'?val:'https://docs.google.com/document/d/host-1/edit',col==='source_type'?val:'drive',d.record.id]);
       const e=await svc().openSource(pm,d.record.id).catch(x=>x);
       expect(e,col+'='+val).toMatchObject({code:'SOURCE_UNAVAILABLE',status:409});
-      expect(JSON.stringify(e),val).not.toContain('phish.example');
-      expect(JSON.stringify(e),val).not.toContain('host-1');
+      const said=JSON.stringify(e)+String(e.message);
+      expect(said,val).not.toContain('phish.example');
+      expect(said,val).not.toContain('host-1');
     }
   });
   test('url source refs on a revision are text references and are not limited by the allowlist',async()=>{

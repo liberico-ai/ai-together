@@ -195,7 +195,7 @@ export class DocumentService {
       const safe = checkPointer(r.canonical_uri);
       invariant(safe.ok, 'SOURCE_UNAVAILABLE', 'Nguồn hiện không mở được. Lịch sử trong sổ vẫn còn.', 409);
       invariant(!sourceHostProblem(r.source_type, safe.href), 'SOURCE_UNAVAILABLE', 'Máy chủ của nguồn này không nằm trong danh sách được phép nên không mở. Lịch sử trong sổ vẫn còn.', 409);
-      return { uri: r.canonical_uri, host: safe.host, sourceType: r.source_type, sourceState: r.source_state, title: r.title };
+      return { uri: safe.href, host: safe.host, sourceType: r.source_type, sourceState: r.source_state, title: r.title };
     });
   }
 }

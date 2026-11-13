@@ -128,7 +128,7 @@ describe('slice 1 document cases',()=>{
     await h.operator.query(`UPDATE document_records SET source_state='unavailable' WHERE id=$1`,[d.record.id]);
     const e=await svc().openSource(pm,d.record.id).catch(x=>x);
     expect(e).toMatchObject({code:'SOURCE_UNAVAILABLE',status:409});
-    expect(JSON.stringify(e)).not.toContain('docs.google.com');
+    expect(JSON.stringify(e)+String(e.message)).not.toContain('docs.google.com');
     const det=await svc().detail(pm,d.record.id);
     expect(det.revisions).toHaveLength(2);
   });

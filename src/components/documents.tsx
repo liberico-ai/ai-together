@@ -124,7 +124,7 @@ export function Documents({ projects, projectId, initial, denied, canRegister, t
       <label className="doc-field">Loại<select name="docType" defaultValue="other">{Object.entries(TYPE_NAMES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
       <label className="doc-field">Mẫu<select name="templateCode" defaultValue=""><option value="">Không dùng mẫu</option>{templates.map(t => <option key={t.code} value={t.code}>{t.code} · {t.title}</option>)}</select></label>
       <label className="doc-field">Loại nguồn<select name="sourceType" defaultValue="drive"><option value="drive">Drive</option><option value="git">Git</option><option value="vault" disabled>Vault (chưa nhận liên kết https)</option></select></label>
-      {input('canonicalUri', 'Liên kết nguồn (https)', { type: 'url' })}<p className="doc-meta">{SOURCE_HOST_HINT}</p>{input('ownerLabel', 'Chủ nội dung', { required: false, maxLength: 120 })}
+      {input('canonicalUri', 'Liên kết nguồn (https)', { type: 'url', 'aria-describedby': 'doc-source-hosts' })}<p id="doc-source-hosts" className="doc-meta">{SOURCE_HOST_HINT}</p>{input('ownerLabel', 'Chủ nội dung', { required: false, maxLength: 120 })}
       {formError && <p role="alert" className="doc-problem">{formError}</p>}
       <button type="submit" className="doc-action" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu đăng ký'}</button></form>}
     {notice && <p className="doc-notice" role="status">{notice}</p>}

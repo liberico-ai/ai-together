@@ -206,7 +206,7 @@ describe('item 7 source link hardening',()=>{
   test('openSource re-validates the stored URI and returns the host',async()=>{
     const d=await svc().register(pm,base({canonicalUri:'https://docs.google.com/d?x=1'}),key());
     expect(await svc().openSource(pm,d.record.id)).toMatchObject({uri:'https://docs.google.com/d?x=1',host:'docs.google.com',sourceType:'drive'});
-    for(const bad of ['https://docs.google.com/d?token=zzz','https://user:pw@example.com/d','https://docs.google.com/d?Sig=1']){
+    for(const bad of ['https://docs.google.com/d?token=zzz','https://user:pw@docs.google.com/d','https://docs.google.com/d?Sig=1']){
       await h.operator.query('UPDATE document_records SET canonical_uri=$1 WHERE id=$2',[bad,d.record.id]);
       expect(await codeOf(svc().openSource(pm,d.record.id)),bad).toEqual({code:'SOURCE_UNAVAILABLE',status:409});
     }
@@ -229,7 +229,7 @@ describe('round 1: fragment, path and normalised secret names',()=>{
       await h.operator.query('UPDATE document_records SET canonical_uri=$1 WHERE id=$2',[u,d.record.id]);
       const e=await svc().openSource(pm,d.record.id).catch(x=>x);
       expect(e,u).toMatchObject({code:'SOURCE_UNAVAILABLE',status:409});
-      expect(JSON.stringify(e),u).not.toContain('docs.google.com');
+      expect(JSON.stringify(e)+String(e.message),u).not.toContain('docs.google.com');
     }
   });
   test('template_version is ordered numerically (0.10.0 beats 0.9.0)',async()=>{

@@ -105,3 +105,16 @@ describe('documents HTTP',()=>{
     expect(r.headers.get('cache-control')).toBe('no-store');
   });
 });
+
+describe('OQ-25 source host allowlist over HTTP',()=>{
+  test('a host outside the list for its type is refused with 422 and nothing is written',async()=>{
+    for(const over of [{canonicalUri:'https://phish.example/login'},{sourceType:'git',canonicalUri:'https://gitlab.com/a/b'},
+      {sourceType:'vault',canonicalUri:'https://docs.google.com/document/d/v'}]){
+      const r=await call('POST','/api/documents/register',{payload:docBody(over)});
+      expect(r.status,JSON.stringify(over)).toBe(422);
+      expect((await json(r)).error.code).toBe('INVALID_INPUT');
+    }
+    expect(await count('document_records')).toBe(0);
+    expect(await count('document_commands')).toBe(0);
+  });
+});

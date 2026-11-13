@@ -81,7 +81,7 @@ describe('document registration',()=>{
     expect(JSON.stringify(e.message)).not.toContain(ids.sales);
   });
   test('malformed source pointers are rejected',async()=>{
-    for(const u of ['http://example.com/a','https://user:pw@example.com/a','not a url'])
+    for(const u of ['http://docs.google.com/a','https://user:pw@docs.google.com/a','not a url'])
       await expect(svc().register(pm,{...base(),templateCode:undefined,canonicalUri:u},'doc-key-0004')).rejects.toBeInstanceOf(ZodError);
     const d=await svc().register(pm,{...base(),templateCode:undefined,canonicalUri:'  https://docs.google.com/docs/x  '},'doc-key-0005');
     expect(d.record.canonical_uri).toBe('https://docs.google.com/docs/x');
