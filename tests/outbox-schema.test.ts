@@ -271,16 +271,32 @@ test('a DM row must target the telegram id linked to its recipient',async()=>{
   await expect(asIdentity(tx=>insert(tx,identityDm()))).resolves.toBeTruthy();
 });
 
+// Every state change needs a signal and a request id in the transaction; the database writes the state event (round 3).
+const SIG:Record<string,string>={'pending>leased':'lease','leased>delivered':'delivered','leased>pending':'failed_retryable','leased>dead':'failed_permanent','leased>uncertain':'uncertain',
+  'uncertain>delivered':'reconciled_delivered','uncertain>pending':'reconciled_not_sent','uncertain>dead':'reconciled_not_sent','uncertain>abandoned':'abandon','dead>pending':'requeue','dead>abandoned':'abandon'};
+const setSignal=(tx:Queryable,signal:string)=>tx.query("SELECT set_config('app.outbox_signal',$1,true), set_config('app.request_id',$2,true)",[signal,randomUUID()]);
+const stateOf=async(id:string)=>(await h.operator.query<{state:string;attempt_no:number;version:number}>('SELECT state,attempt_no,version FROM outbox_messages WHERE id=$1',[id])).rows[0];
+/** A legal state change made by the intake role with the right signal (setup helper). */
+async function force(id:string,to:string,attempt?:number){
+  const cur=await stateOf(id);
+  return asIntake(both(),async tx=>{
+    await setSignal(tx,SIG[cur.state+'>'+to]);
+    return tx.query("UPDATE outbox_messages SET state=$2,attempt_no=coalesce($3::int,attempt_no),delivered_at=CASE WHEN $2='delivered' THEN now() ELSE delivered_at END,version=version+1,updated_at=now() WHERE id=$1",[id,to,attempt??null]);
+  });
+}
 type Path='leased'|'delivered'|'dead'|'uncertain';
 const PATHS:Record<string,string[]>={pending:[],leased:['leased'],delivered:['leased','delivered'],dead:['leased','dead'],uncertain:['leased','uncertain']};
 async function mkRow(state:keyof typeof PATHS|Path='pending'){
   const id=(await insert(h.operator,groupVals())).rows[0].id;
-  for(const step of PATHS[state])
-    await h.operator.query('UPDATE outbox_messages SET state=$2,attempt_no=3,delivered_at=CASE WHEN $2=\'delivered\' THEN now() END WHERE id=$1',[id,step]);
+  for(const step of PATHS[state]) await force(id,step,3);
   return id;
 }
-const stateOf=async(id:string)=>(await h.operator.query<{state:string;attempt_no:number}>('SELECT state,attempt_no FROM outbox_messages WHERE id=$1',[id])).rows[0];
-const run=(who:'runtime'|'intake',sql:string,id:string)=>who==='runtime'?scoped(h.db,pm,tx=>tx.query(sql,[id])):asIntake(both(),tx=>tx.query(sql,[id]));
+const run=async(who:'runtime'|'intake',sql:string,id:string)=>{
+  const cur=(await stateOf(id)).state,m=/state='(\w+)'/.exec(sql);
+  const sig=m?(SIG[cur+'>'+m[1]]??'lease'):null;
+  const go=async(tx:Queryable)=>{if(sig) await setSignal(tx,sig);return tx.query(sql,[id]);};
+  return who==='runtime'?asRuntimePerson(go):asIntake(both(),go);
+};
 const setState=(s:string,extra='')=>`UPDATE outbox_messages SET state='${s}'${extra},version=version+1,updated_at=now() WHERE id=$1`;
 
 test('runtime may only requeue dead rows with attempt_no reset or abandon dead and uncertain rows',async()=>{
@@ -319,8 +335,7 @@ test('intake follows the allowed moves; delivered and abandoned are terminal',as
   await expect(run('intake',setState('pending'),a)).rejects.toThrow();
   // updates that keep the state stay allowed (identity acknowledging a DM)
   const dm=(await insert(h.operator,dmVals())).rows[0].id;
-  await h.operator.query("UPDATE outbox_messages SET state='leased',attempt_no=1 WHERE id=$1",[dm]);
-  await h.operator.query("UPDATE outbox_messages SET state='delivered',delivered_at=now() WHERE id=$1",[dm]);
+  await force(dm,'leased',1);await force(dm,'delivered');
   await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now() WHERE id=$1',[dm]))).resolves.toBeTruthy();
 });
 
@@ -337,11 +352,13 @@ const stateEvent=async(tx:Queryable,outboxId:string,project:string|null,over:Row
   return tx.query(`INSERT INTO outbox_state_events(${cols.join(',')}) VALUES(${cols.map((_,i)=>'$'+(i+1)).join(',')})`,Object.values(v));
 };
 
-const leaseBoth=async(...ids2:string[])=>{for(const id of ids2) await h.operator.query("UPDATE outbox_messages SET state='leased',attempt_no=1 WHERE id=$1",[id]);};
+const leaseBoth=async(...ids2:string[])=>{for(const id of ids2) await force(id,'leased',1);};
+const events=(id:string)=>h.operator.query<{from_state:string;to_state:string;signal:string;attempt_no:number;outbox_version:number;actor_kind:string;actor_id:string;project_id:string|null}>(
+  'SELECT from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,project_id FROM outbox_state_events WHERE outbox_id=$1 ORDER BY outbox_version',[id]).then(r=>r.rows);
+const DIRECT=/written only by the outbox state trigger/i;
 
 test('outbox_state_events: no context returns nothing; roles see only their rows',async()=>{
   const {g,d}=await seedBoth();await leaseBoth(g,d);
-  await stateEvent(h.operator,g,ids.sales);await stateEvent(h.operator,d,null);
   for(const role of ['libetech_intake','libetech_runtime','libetech_identity'])
     expect(await h.operator.transaction(async tx=>{await tx.query(`SET LOCAL ROLE ${role}`);return count(tx,'outbox_state_events');}),role).toBe(0);
   expect(await asIntake([ids.sales],tx=>count(tx,'outbox_state_events'))).toBe(2);
@@ -352,90 +369,109 @@ test('outbox_state_events: no context returns nothing; roles see only their rows
   expect(await scoped(h.db,outsider,tx=>count(tx,'outbox_state_events'))).toBe(0);
 });
 
-test('outbox_state_events: actor binding, derived project and role limits',async()=>{
-  const {g,d}=await seedBoth();await leaseBoth(g,d);
-  const bothP=[ids.sales,ids.transport];
-  // intake: service actor bound to the principal; project derived from the outbox row
-  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.sales))).resolves.toBeTruthy();
-  await expect(asIntake(bothP,tx=>stateEvent(tx,d,null))).resolves.toBeTruthy();
-  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.sales,{actor_kind:'user'}))).rejects.toThrow();
-  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.sales,{actor_id:randomUUID()}))).rejects.toThrow();
-  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.transport))).rejects.toThrow(/project/i);
-  await expect(asIntake(bothP,tx=>stateEvent(tx,g,null))).rejects.toThrow();
-  await expect(asIntake(bothP,tx=>stateEvent(tx,d,ids.sales))).rejects.toThrow();
-  await expect(asIntake([ids.transport],tx=>stateEvent(tx,g,ids.transport))).rejects.toThrow();
-  await expect(asIntake(bothP,tx=>stateEvent(tx,randomUUID(),null))).rejects.toThrow();
-  // runtime: human actor bound to app.person_id, project rows only; only requeue and abandon are allowed
-  const hum={actor_kind:'user',actor_id:pm.id};
+test('outbox_state_events: a state change writes exactly one event with the right fields and actor from the role',async()=>{
+  const {g,d}=await seedBoth();
+  await force(g,'leased',1);await force(d,'leased',1);
+  expect(await events(g)).toEqual([{from_state:'pending',to_state:'leased',signal:'lease',attempt_no:1,outbox_version:2,actor_kind:'intake_service',actor_id:intakePrincipalId,project_id:ids.sales}]);
+  expect(await events(d)).toEqual([{from_state:'pending',to_state:'leased',signal:'lease',attempt_no:1,outbox_version:2,actor_kind:'intake_service',actor_id:intakePrincipalId,project_id:null}]);
+  // runtime: a person requeues a dead row, the event carries the person
   const dead=await mkRow('dead');
-  const rq={...hum,from_state:'dead',to_state:'pending',signal:'requeue',attempt_no:0};
-  await h.operator.query("UPDATE outbox_messages SET state='pending',attempt_no=0 WHERE id=$1",[dead]);
-  await expect(asRuntimePerson(tx=>stateEvent(tx,dead,ids.sales,rq))).resolves.toBeTruthy();
-  await expect(asRuntimePerson(tx=>stateEvent(tx,dead,ids.sales,{...rq,actor_id:randomUUID()}))).rejects.toThrow();
-  await expect(asRuntimePerson(tx=>stateEvent(tx,dead,ids.sales,rq),null)).rejects.toThrow();
-  await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales))).rejects.toThrow();
-  await expect(asRuntimePerson(tx=>stateEvent(tx,d,null,rq))).rejects.toThrow();
+  await asRuntimePerson(async tx=>{await setSignal(tx,'requeue');return tx.query("UPDATE outbox_messages SET state='pending',attempt_no=0,version=version+1,updated_at=now() WHERE id=$1",[dead]);});
+  expect((await events(dead)).at(-1)).toMatchObject({from_state:'dead',to_state:'pending',signal:'requeue',attempt_no:0,actor_kind:'user',actor_id:pm.id,project_id:ids.sales});
+  // a failed move leaves no event and the state unchanged
+  const l=await mkRow('leased');
+  await expect(asIntake(both(),async tx=>{await setSignal(tx,'delivered');return tx.query("UPDATE outbox_messages SET state='abandoned',version=version+1 WHERE id=$1",[l]);})).rejects.toThrow();
+  expect((await stateOf(l)).state).toBe('leased');
+});
+
+test('outbox_state_events: no signal, a reused signal, a bad signal or a missing actor fail closed and leave the row unchanged',async()=>{
+  const p=await mkRow('pending');
+  const before=await stateOf(p);
+  // no signal at all
+  await expect(asIntake(both(),tx=>tx.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[p]))).rejects.toThrow(/app\.outbox_signal/);
+  // request id missing
+  await expect(asIntake(both(),async tx=>{await tx.query("SELECT set_config('app.outbox_signal','lease',true)");return tx.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[p]);})).rejects.toThrow(/app\.request_id/);
+  expect(await stateOf(p)).toEqual(before);
+  // the signal is consumed: a second state change in the same transaction needs a fresh one
+  await expect(asIntake(both(),async tx=>{
+    await setSignal(tx,'lease');
+    await tx.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[p]);
+    return tx.query("UPDATE outbox_messages SET state='uncertain',version=version+1 WHERE id=$1",[p]);
+  })).rejects.toThrow(/app\.outbox_signal/);
+  expect(await stateOf(p)).toEqual(before);
+  await asIntake(both(),async tx=>{
+    await setSignal(tx,'lease');await tx.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[p]);
+    await setSignal(tx,'uncertain');await tx.query("UPDATE outbox_messages SET state='uncertain',version=version+1 WHERE id=$1",[p]);
+  });
+  expect((await events(p)).map(e=>e.signal)).toEqual(['lease','uncertain']);
+  // a signal that does not belong to the move
+  const q=await mkRow('pending');
+  await expect(asIntake(both(),async tx=>{await setSignal(tx,'delivered');return tx.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[q]);})).rejects.toThrow(/signal/i);
+  await expect(asIntake(both(),async tx=>{await setSignal(tx,'free_text');return tx.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[q]);})).rejects.toThrow();
+  expect((await stateOf(q)).state).toBe('pending');
+  // actor id missing from the context (intake context without the principal id)
+  await expect(h.operator.transaction(async tx=>{
+    await tx.query('SET LOCAL ROLE libetech_intake');
+    await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[ids.tenant,both().join(',')]);
+    await setSignal(tx,'lease');
+    return tx.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[q]);
+  })).rejects.toThrow();
+  // runtime without a person id
+  const dead=await mkRow('dead');
+  await expect(asRuntimePerson(async tx=>{await setSignal(tx,'abandon');return tx.query("UPDATE outbox_messages SET state='abandoned',version=version+1 WHERE id=$1",[dead]);},null)).rejects.toThrow();
+  // any other role changing a state is refused (owner / operator)
+  await expect(h.operator.transaction(async tx=>{await setSignal(tx,'lease');return tx.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[q]);})).rejects.toThrow(/may not change/i);
+  expect((await stateOf(q)).state).toBe('pending');
+});
+
+test('outbox_state_events: version never decreases and every state change raises it by exactly 1',async()=>{
+  const p=await mkRow('pending');
+  const mv=(set:string,sig='lease')=>asIntake(both(),async tx=>{await setSignal(tx,sig);return tx.query(`UPDATE outbox_messages SET state='leased',attempt_no=1,${set} WHERE id=$1`,[p]);});
+  await expect(mv('version=version')).rejects.toThrow(/version/i);
+  await expect(mv('version=version+2')).rejects.toThrow(/version/i);
+  await expect(mv('version=version-1')).rejects.toThrow(/version/i);
+  expect((await stateOf(p)).state).toBe('pending');
+  await expect(mv('version=version+1')).resolves.toBeTruthy();
+  const v=(await stateOf(p)).version;
+  await expect(run('intake',"UPDATE outbox_messages SET version=version-1 WHERE id=$1",p)).rejects.toThrow(/version/i);
+  await expect(run('intake',"UPDATE outbox_messages SET version=version+2 WHERE id=$1",p)).rejects.toThrow(/version/i);
+  await expect(run('intake',"UPDATE outbox_messages SET version=version+1 WHERE id=$1",p)).resolves.toBeTruthy();
+  expect((await stateOf(p)).version).toBe(v+1);
+  // terminal rows too
+  const ab=await mkRow('dead');await run('intake',setState('abandoned'),ab);
+  await expect(run('intake',"UPDATE outbox_messages SET version=version-1 WHERE id=$1",ab)).rejects.toThrow(/version/i);
+  await expect(run('runtime',"UPDATE outbox_messages SET version=version+3 WHERE id=$1",ab)).rejects.toThrow(/version/i);
+});
+
+test('outbox_state_events: a direct INSERT of an event is refused for intake and runtime, even after version games',async()=>{
+  const bothP=both();
+  const hum={actor_kind:'user',actor_id:pm.id};
+  // abandoned row: runtime bumps the version (allowed by the guard) but still cannot add an abandon event
+  const u=await mkRow('uncertain');
+  await run('runtime',setState('abandoned'),u);
+  const ab={...hum,from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3};
+  await run('runtime',"UPDATE outbox_messages SET version=version+1 WHERE id=$1",u);
+  await expect(asRuntimePerson(tx=>stateEvent(tx,u,ids.sales,ab))).rejects.toThrow(DIRECT);
+  await expect(asIntake(bothP,tx=>stateEvent(tx,u,ids.sales,{from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3}))).rejects.toThrow(DIRECT);
+  // requeued pending row: failure_owner_id update then a direct requeue event
+  const dead=await mkRow('dead');
+  await asRuntimePerson(async tx=>{await setSignal(tx,'requeue');return tx.query("UPDATE outbox_messages SET state='pending',attempt_no=0,version=version+1 WHERE id=$1",[dead]);});
+  await run('runtime',`UPDATE outbox_messages SET failure_owner_id='${pm.id}',version=version+1 WHERE id=$1`,dead);
+  await expect(asRuntimePerson(tx=>stateEvent(tx,dead,ids.sales,{...hum,from_state:'dead',to_state:'pending',signal:'requeue',attempt_no:0}))).rejects.toThrow(DIRECT);
+  // intake: delivered / lease events on a live row
+  const l=await mkRow('leased');
+  await expect(asIntake(bothP,tx=>stateEvent(tx,l,ids.sales,{from_state:'pending',to_state:'leased',signal:'lease',attempt_no:3}))).rejects.toThrow(DIRECT);
+  // operator as owner cannot either
+  await expect(stateEvent(h.operator,l,ids.sales,{from_state:'pending',to_state:'leased',signal:'lease',attempt_no:3})).rejects.toThrow(DIRECT);
   // identity cannot insert
+  const {d}=await seedBoth();
   await expect(asIdentity(tx=>stateEvent(tx,d,null,hum))).rejects.toThrow(/permission denied/);
 });
 
-test('outbox_state_events: a forged event is refused for intake and runtime; a valid one after a real update is accepted',async()=>{
-  const bothP=[ids.sales,ids.transport];
-  const hum={actor_kind:'user',actor_id:pm.id};
-  const asRole=(who:'intake'|'runtime',id:string,over:Row)=>who==='intake'?asIntake(bothP,tx=>stateEvent(tx,id,ids.sales,over)):asRuntimePerson(tx=>stateEvent(tx,id,ids.sales,{...hum,...over}));
-  // intake: the row is really leased at attempt 1
-  const leased=await mkRow('leased');await h.operator.query('UPDATE outbox_messages SET attempt_no=1 WHERE id=$1',[leased]);
-  await expect(asRole('intake',leased,{})).resolves.toBeTruthy();                                       // valid
-  await expect(asRole('intake',leased,{to_state:'delivered',from_state:'leased',signal:'delivered'})).rejects.toThrow(/state event/i); // wrong to_state
-  await expect(asRole('intake',leased,{attempt_no:2})).rejects.toThrow(/state event/i);                 // wrong attempt_no
-  await expect(asRole('intake',leased,{from_state:'delivered'})).rejects.toThrow(/state event/i); // move not in the table
-  // runtime: a dead row requeued is the only forward move besides abandon
-  const dead=await mkRow('dead');
-  await expect(asRole('runtime',dead,{from_state:'leased',to_state:'delivered',signal:'delivered',attempt_no:3})).rejects.toThrow(/state event/i);
-  const del=await mkRow('delivered');
-  await expect(asRole('runtime',del,{from_state:'leased',to_state:'delivered',signal:'delivered',attempt_no:3})).rejects.toThrow(/state event/i);
-  await expect(asRole('runtime',dead,{from_state:'dead',to_state:'dead',signal:'requeue',attempt_no:3})).rejects.toThrow(/state event/i);
-  const unc=await mkRow('uncertain');
-  await expect(asRole('runtime',unc,{from_state:'uncertain',to_state:'dead',signal:'reconciled_not_sent',attempt_no:3})).rejects.toThrow(/state event/i);
-  await h.operator.query("UPDATE outbox_messages SET state='abandoned' WHERE id=$1",[unc]);
-  await expect(asRole('runtime',unc,{from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3})).resolves.toBeTruthy();
-  const dead2=await mkRow('dead');await h.operator.query("UPDATE outbox_messages SET state='abandoned' WHERE id=$1",[dead2]);
-  await expect(asRole('runtime',dead2,{from_state:'dead',to_state:'abandoned',signal:'abandon',attempt_no:3})).resolves.toBeTruthy();
-  expect(await count(h.operator,'outbox_state_events')).toBe(3);
-});
-
-test('outbox_state_events: one event per actual move; the signal must match the move',async()=>{
-  const bothP=[ids.sales,ids.transport];
-  const hum={actor_kind:'user',actor_id:pm.id};
-  // a second identical event for the same move is refused (same outbox_version)
+test('outbox_state_events: append-only and column-level grants',async()=>{
   const {g}=await seedBoth();await leaseBoth(g);
-  await asIntake(bothP,tx=>stateEvent(tx,g,ids.sales));
-  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.sales))).rejects.toThrow();
-  // a stale or future version is refused
-  const l2=await mkRow('leased');await h.operator.query('UPDATE outbox_messages SET attempt_no=1 WHERE id=$1',[l2]);
-  await expect(asIntake(bothP,tx=>stateEvent(tx,l2,ids.sales,{outbox_version:99}))).rejects.toThrow(/version/i);
-  // after a real runtime abandon, a second abandon event by the same person is refused
-  const u=await mkRow('uncertain');
-  await h.operator.query("UPDATE outbox_messages SET state='abandoned',version=version+1 WHERE id=$1",[u]);
-  const ab={...hum,from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3};
-  await expect(asRuntimePerson(tx=>stateEvent(tx,u,ids.sales,ab))).resolves.toBeTruthy();
-  await expect(asRuntimePerson(tx=>stateEvent(tx,u,ids.sales,ab))).rejects.toThrow();
-  // the signal must belong to the (from, to) pair, for intake too
-  const p=(await insert(h.operator,groupVals())).rows[0].id;
-  await h.operator.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[p]);
-  await expect(asIntake(bothP,tx=>stateEvent(tx,p,ids.sales,{signal:'delivered'}))).rejects.toThrow(/signal/i);
-  await expect(asIntake(bothP,tx=>stateEvent(tx,p,ids.sales,{signal:'lease'}))).resolves.toBeTruthy();
-});
-
-test('outbox_state_events: append-only, closed label sets, column-level grants',async()=>{
-  const {g}=await seedBoth();await leaseBoth(g);
-  await stateEvent(h.operator,g,ids.sales);
   await expect(h.operator.query("UPDATE outbox_state_events SET signal='lease'")).rejects.toThrow('Append-only history');
   await expect(h.operator.query('DELETE FROM outbox_state_events')).rejects.toThrow('Append-only history');
-  await expect(stateEvent(h.operator,g,ids.sales,{to_state:'sent'})).rejects.toThrow();
-  await expect(stateEvent(h.operator,g,ids.sales,{from_state:'sent'})).rejects.toThrow();
-  await expect(stateEvent(h.operator,g,ids.sales,{signal:'free_text'})).rejects.toThrow();
-  await expect(stateEvent(h.operator,g,ids.sales,{actor_kind:'bot'})).rejects.toThrow();
   for(const [c,v] of [['id','00000000-0000-4000-8000-0000000000cc'],['created_at','2020-01-01T00:00:00Z'],['updated_at','2020-01-01T00:00:00Z']] as [string,unknown][]){
     await expect(asIntake([ids.sales],tx=>stateEvent(tx,g,ids.sales,{[c]:v})),'intake '+c).rejects.toThrow(/permission denied/);
     await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales,{actor_kind:'user',actor_id:pm.id,[c]:v})),'runtime '+c).rejects.toThrow(/permission denied/);
@@ -465,8 +501,7 @@ test('guard trigger: delivery columns move only with delivered; terminal rows ar
   let n=0; // a different timestamp each time, so a second acknowledgement is a real change rather than a no-op
   const ack=()=>asIdentity(tx=>tx.query("UPDATE outbox_messages SET acknowledged_at=now()+make_interval(days => $2::int),updated_at=now() WHERE id=$1",[dm,n++]));
   await expect(ack()).rejects.toThrow(/acknowledged/i);
-  await h.operator.query('UPDATE outbox_messages SET state=\'leased\',attempt_no=1 WHERE id=$1',[dm]);
-  await h.operator.query('UPDATE outbox_messages SET state=\'delivered\',delivered_at=now() WHERE id=$1',[dm]);
+  await force(dm,'leased',1);await force(dm,'delivered');
   await expect(ack()).resolves.toBeTruthy();
   await expect(ack()).rejects.toThrow(/acknowledged/i);
   await expect(asIdentity(tx=>tx.query("UPDATE outbox_messages SET acknowledged_at=NULL,updated_at=now() WHERE id=$1",[dm]))).rejects.toThrow(/acknowledged/i);

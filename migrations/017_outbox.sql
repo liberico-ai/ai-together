@@ -223,6 +223,12 @@ CREATE TRIGGER outbox_messages_bind_target BEFORE INSERT ON outbox_messages FOR 
 -- acknowledged_at, updated_at and version; acknowledged_at is set once, from NULL, and only on a delivered row.
 CREATE OR REPLACE FUNCTION outbox_messages_guard_state() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+  -- version never decreases; a state change raises it by exactly 1; a same-state update keeps it or raises it by 1 (terminal rows too).
+  IF NEW.state IS DISTINCT FROM OLD.state THEN
+    IF NEW.version IS DISTINCT FROM OLD.version + 1 THEN RAISE EXCEPTION 'Outbox state change must raise version by exactly 1'; END IF;
+  ELSIF NEW.version < OLD.version OR NEW.version > OLD.version + 1 THEN
+    RAISE EXCEPTION 'Outbox version may only stay or rise by 1';
+  END IF;
   IF NEW.state IS DISTINCT FROM OLD.state THEN
     IF NOT ((OLD.state = 'pending' AND NEW.state = 'leased')
          OR (OLD.state = 'leased' AND NEW.state IN ('delivered','pending','dead','uncertain'))
@@ -282,6 +288,8 @@ CREATE TRIGGER outbox_state_events_derive_project BEFORE INSERT ON outbox_state_
 CREATE OR REPLACE FUNCTION outbox_state_events_validate() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE cur_state text; cur_attempt integer; cur_version integer;
 BEGIN
+  -- Only outbox_messages_record_state_event (an AFTER UPDATE trigger, depth 2 here) may write state events.
+  IF pg_catalog.pg_trigger_depth() < 2 THEN RAISE EXCEPTION 'State events are written only by the outbox state trigger'; END IF;
   SELECT o.state, o.attempt_no, o.version INTO cur_state, cur_attempt, cur_version FROM public.outbox_messages o WHERE o.id = NEW.outbox_id AND o.tenant_id = NEW.tenant_id;
   IF cur_state IS NULL THEN RAISE EXCEPTION 'State event outbox row is not visible'; END IF;
   IF NEW.to_state IS DISTINCT FROM cur_state THEN RAISE EXCEPTION 'State event to_state must equal the current outbox state'; END IF;
@@ -312,6 +320,30 @@ BEGIN
 END $$;
 DROP TRIGGER IF EXISTS outbox_state_events_validate ON outbox_state_events;
 CREATE TRIGGER outbox_state_events_validate BEFORE INSERT ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION outbox_state_events_validate();
+-- The database writes the state event: every state change inserts exactly one outbox_state_events row, from the signal and request id the
+-- caller set in this transaction (fail-closed when missing) and the actor taken from the invoking role. The signal is consumed each time.
+-- Not SECURITY DEFINER: it runs as the invoking role, so the column INSERT grants and the actor-binding policies still apply.
+CREATE OR REPLACE FUNCTION outbox_messages_record_state_event() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE sig text; req text; kind text; who uuid;
+BEGIN
+  sig := nullif(pg_catalog.current_setting('app.outbox_signal', true), '');
+  req := nullif(pg_catalog.current_setting('app.request_id', true), '');
+  IF sig IS NULL OR req IS NULL THEN RAISE EXCEPTION 'Outbox state change needs app.outbox_signal and app.request_id'; END IF;
+  IF current_user = 'libetech_runtime' THEN
+    kind := 'user'; who := nullif(pg_catalog.current_setting('app.person_id', true), '')::uuid;
+  ELSIF current_user = 'libetech_intake' THEN
+    kind := 'intake_service'; who := nullif(pg_catalog.current_setting('app.intake_principal_id', true), '')::uuid;
+  ELSE
+    RAISE EXCEPTION 'Role % may not change an outbox state', current_user;
+  END IF;
+  IF who IS NULL THEN RAISE EXCEPTION 'Outbox state change needs an actor id in the transaction context'; END IF;
+  INSERT INTO public.outbox_state_events(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,request_id,trace_id)
+    VALUES(NEW.tenant_id,NEW.project_id,NEW.id,OLD.state,NEW.state,sig,NEW.attempt_no,NEW.version,kind,who,req::uuid,NEW.trace_id);
+  PERFORM pg_catalog.set_config('app.outbox_signal', '', true);
+  RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS outbox_messages_record_state_event ON outbox_messages;
+CREATE TRIGGER outbox_messages_record_state_event AFTER UPDATE ON outbox_messages FOR EACH ROW WHEN (OLD.state IS DISTINCT FROM NEW.state) EXECUTE FUNCTION outbox_messages_record_state_event();
 DROP TRIGGER IF EXISTS outbox_state_events_immutable ON outbox_state_events;
 CREATE TRIGGER outbox_state_events_immutable BEFORE UPDATE OR DELETE ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 

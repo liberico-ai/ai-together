@@ -46,15 +46,16 @@ type Row={id:string;tenant_id:string;project_id:string|null;state:OutboxState;at
  trace_id:string;correlation_id:string;causation_id:string|null;template:string;payload:{params?:Record<string,string>};lease_token:string|null};
 const COLS='id,tenant_id,project_id,state,attempt_no,version,audience,recipient_user_id,target_chat_id,target_topic_id,reply_to_message_id,event_id,event_type,event_version,source,occurred_at,trace_id,correlation_id,causation_id,template,payload,lease_token';
 
-export type OutboxActor={kind:'intake_service'|'user';id:string};
 export type OutboxSetColumn='attempt_no'|'lease_token'|'lease_expires_at'|'delivered_at'|'telegram_message_id'|'last_error_code'|'failure_owner_id';
 export type OutboxMove={set?:Partial<Record<OutboxSetColumn,string|number|null>>;nextAttemptInSeconds?:number;leaseExpiresInSeconds?:number};
-export type OutboxCtx={actor:OutboxActor;requestId:string};
+// The actor is not passed: the database derives it from the invoking role and the transaction context (app.intake_principal_id / app.person_id).
+export type OutboxCtx={requestId:string};
 
-/** Sole writer of outbox_messages.state: validates the move with outboxTransition, updates guarded by state and version,
- * and writes exactly one outbox_state_events row in the same transaction. Typed values only; every value is a bound parameter. */
+/** Sole writer of outbox_messages.state: validates the move with outboxTransition, then sets the signal and request id for the database,
+ * which writes the one outbox_state_events row itself (AFTER UPDATE trigger). Typed values only; every value is a bound parameter. */
 export async function applyOutboxSignal(tx:Queryable,row:Pick<Row,'id'|'tenant_id'|'project_id'|'state'|'attempt_no'|'version'|'trace_id'>,signal:OutboxSignal,ctx:OutboxCtx,move:OutboxMove={}):Promise<OutboxState> {
  const next=outboxTransition(row.state,signal,row.attempt_no);
+ await tx.query("SELECT set_config('app.outbox_signal',$1,true), set_config('app.request_id',$2,true)",[signal,ctx.requestId]);
  const params:unknown[]=[row.id,row.state,next,row.version];
  const parts=['state=$3','version=version+1','updated_at=now()'];
  for(const [k,v] of Object.entries(move.set??{})) {params.push(v);parts.push(`${k}=$${params.length}`);}
@@ -62,10 +63,6 @@ export async function applyOutboxSignal(tx:Queryable,row:Pick<Row,'id'|'tenant_i
  if(move.leaseExpiresInSeconds!==undefined) {params.push(move.leaseExpiresInSeconds);parts.push(`lease_expires_at=now() + make_interval(secs => $${params.length}::double precision)`);}
  const r=await tx.query(`UPDATE outbox_messages SET ${parts.join(',')} WHERE id=$1 AND state=$2 AND version=$4 RETURNING id`,params);
  if(!r.rows.length) throw new AppError('OUTBOX_CONFLICT','Tin đã được xử lý ở nơi khác; thử lại.',409);
- const attemptAfter=typeof move.set?.attempt_no==='number'?move.set.attempt_no:row.attempt_no;
- await tx.query(
-  `INSERT INTO outbox_state_events(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,request_id,trace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-  [row.tenant_id,row.project_id,row.id,row.state,next,signal,attemptAfter,row.version+1,ctx.actor.kind,ctx.actor.id,ctx.requestId,row.trace_id]);
  return next;
 }
 
@@ -112,7 +109,7 @@ export class OutboxService {
  async pull(raw:unknown):Promise<{deliveries:Delivery[];reconcile:{outboxId:string;attemptNo:number}[]}> {
   const {limit}=pullSchema.parse(raw);
   const requestId=randomUUID();
-  const ctx:OutboxCtx={actor:{kind:'intake_service',id:this.p.id},requestId};
+  const ctx:OutboxCtx={requestId};
   const t=this.p.tenantId;
   const first=await intakeScoped(this.intakeDb,this.p,async tx=>{
    // (1) leases whose gateway went silent become uncertain: reconcile before any resend.
@@ -162,7 +159,7 @@ export class OutboxService {
  async report(raw:unknown):Promise<{accepted:number;replayed:number;rejected:{outboxId:string;attemptNo:number;code:string}[]}> {
   const {receipts}=reportSchema.parse(raw);
   const requestId=randomUUID();
-  const ctx:OutboxCtx={actor:{kind:'intake_service',id:this.p.id},requestId};
+  const ctx:OutboxCtx={requestId};
   return intakeScoped(this.intakeDb,this.p,async tx=>{
    let accepted=0,replayed=0;
    const rejected:{outboxId:string;attemptNo:number;code:string}[]=[];
