@@ -271,3 +271,43 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Quyết định 13/11/2026 (Chairman, chọn ở phiên điều phối):** «(a) Allowlist cố định». Chặn host theo `source_type`, danh sách ghi cố định trong mã đúng như phương án (a): `drive` → `docs.google.com`, `drive.google.com`; `git` → `github.com`; `vault` chưa nhận https. Đổi danh sách phải qua PR và review. Chỗ kiểm và test do builder ghi khi làm phần chặn host. Câu trả lời không nói tới việc giới hạn `github.com` theo tổ chức; nếu làm, việc đó thuộc phần danh sách cụ thể của BoM Tech.
 - **Trạng thái trước quyết định:** chưa quyết. Phải chốt trước khi đưa `/documents` và `/api/documents` ra proxy công khai (điểm dừng triển khai).
 - **Trạng thái sau quyết định:** đã có mã chặn host (`src/server/source-hosts.ts`, test `tests/source-host-allowlist.test.ts`). Host được kiểm khi đăng ký và lại ở mỗi lần `openSource`; khớp đúng tên host, không nhận tên miền con, không nhận cổng riêng. Liên kết `url` trong revision chỉ hiện dạng chữ, không mở được, nên không bị giới hạn host. Đưa `/documents` và `/api/documents` ra proxy công khai vẫn là điểm dừng triển khai.
+
+---
+
+**Bổ sung 13/11/2026 khi lập kế hoạch lát 2** (`docs/plans/slice-2-intake-outbox.md`, base `ce11242`). Bốn mục dưới đây ghi lúc lập kế hoạch khi **chưa có quyết định**. Phần không bị ảnh hưởng của lát 2 vẫn được lập kế hoạch đầy đủ.
+
+## OQ-26 — Sổ ticket của plugin priority1 tới AI OS bằng đường nào để đối soát
+
+- **Lát:** 2 (chỉ phần nạp sổ ticket thật cho ca đối soát của OQ-09 mục 2; hàm đối soát và test trên dữ liệu tổng hợp vẫn làm), 3–4 (nối ticket ↔ việc).
+- **Phía A:** `docs/SPEC-008-PM-operating-loop-20261111.md:75` — «Adapter gửi event ticket mới sang hàng chờ AI OS bằng chữ ký, nonce và idempotency key»; `:116` payload của adapter có `ticket ID`. Không dòng nào nói adapter nằm trong plugin nào và ai viết.
+- **Phía B:** `AGENTS.md:5` «The existing priority1 plugin remains independent» và quyết định OQ-09 «không sửa plugin priority1»; `AGENTS.md:13` + AR-01/E-INT-01 cấm AI OS đọc DB của nền khác (sổ ticket là SQLite của plugin đó). Đọc mã nguồn plugin priority1 ngày 13/11 (chỉ mã, không dữ liệu): plugin không có lời gọi nào sang AI OS và không có lệnh xuất sổ ticket. `docs/ADR-002-project-document-ownership.md` «Tích hợp» chỉ cho ba đường REST/queue/ETL có manifest và nói «không cutover trong ADR này».
+- **Phương án:** (a) chủ plugin priority1 thêm adapter ký HMAC gửi sự kiện ticket sang một tuyến mới dưới `/api/bridge/…` — phải sửa plugin priority1, cần Chairman nới `AGENTS.md:5`; (b) người vận hành sổ ticket xuất tệp có manifest (mã ticket, chat, message, trạng thái, thời điểm, hash tệp), AI OS nhập bằng ETL chỉ đọc qua `scripts/` — cần chốt ai xuất, định dạng và nơi đặt tệp; (c) lát 2 chỉ dừng ở hàm đối soát trên dữ liệu tổng hợp, đối soát thật làm tay ở đợt runtime bằng hai bản kê do hai bên tự xuất; (d) `bot-plugin` của repo này hỏi sổ ticket qua công cụ sẵn có của priority1 trong gateway — là kiểu tích hợp thứ tư, cần ADR (AR-10).
+- **Ai quyết:** Chairman (đụng `AGENTS.md:5` hoặc AR-10); BoM Tech cho định dạng nếu chọn (b).
+- **Trạng thái lúc lập kế hoạch:** chưa quyết. Kế hoạch lát 2 (Task 8) viết hàm thuần `reconcileLedger` và hàm đọc phía inbox, kiểm bằng fixture tổng hợp; **không** viết mã đọc SQLite, adapter, tuyến nhận hay script nhập sổ ticket.
+
+## OQ-27 — Tin từ nhóm gắn nhiều dự án thuộc dự án nào trước khi PM xác nhận
+
+- **Lát:** 2 (chỉ nhóm có từ hai dự án trong `chatScopes`; nhóm một dự án vẫn làm đủ), 3–4.
+- **Phía A:** `docs/SPEC-008-PM-operating-loop-20261111.md:294` — «Một nhóm có thể nhận nhiều sản phẩm Xeca: bot hỏi đúng sản phẩm/dịch vụ khi chưa rõ, không mặc định tất cả vào dự án đã biết»; `:76` PM xác nhận project; cấu hình `chatScopes` cho phép một nhóm nhiều dự án (`src/app/api/bridge/route.ts:12`).
+- **Phía B:** quy ước migration buộc mỗi bảng có `project_id` và RLS theo dự án (`docs/SLICE-BRIEFS.md:10`); `docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:87` buộc ghi bền **trước** khi ACK, tức trước khi có ai chọn dự án; `AGENTS.md:16` cấm cộng gộp giữa các miền báo cáo — một nhóm có thể gắn dự án thuộc hai miền. Không tài liệu nào nói SourceEvent chưa rõ dự án thì ai được thấy.
+- **Phương án:** (a) chỉ nhận tin từ nhóm gắn đúng một dự án; nhóm nhiều dự án bị từ chối cho tới khi tách cấu hình; (b) cấu hình vận hành khai một «dự án tiếp nhận mặc định» cho mỗi nhóm, PM chuyển ứng viên sang dự án khác của cùng nhóm sau; (c) lưu ở trạng thái chưa gán, chỉ người có quyền trên **mọi** dự án của nhóm mới thấy, PM gán rồi mới vào Inbox dự án — cần bảng không có `project_id` và policy riêng; (d) bot hỏi lại người báo chọn sản phẩm trước khi lưu — trái «ghi bền trước khi ACK».
+- **Ai quyết:** Chairman (phạm vi thấy dữ liệu); BoM Tech cho cấu hình nếu chọn (b).
+- **Trạng thái lúc lập kế hoạch:** chưa quyết. Kế hoạch lát 2 (Task 4) từ chối nhóm nhiều dự án bằng lỗi `INTAKE_PROJECT_AMBIGUOUS` và không lưu gì — hành vi giữ chỗ fail-closed, không phải phương án được chọn.
+
+## OQ-28 — Có lưu trích nội dung tin Telegram cho dự án chưa ánh xạ miền báo cáo không
+
+- **Lát:** 2 (chỉ việc lưu chữ của tin cho dự án chưa có dòng ánh xạ miền; con trỏ, hash, metadata vẫn lưu), 3–4.
+- **Phía A:** `AGENTS.md:16` và `docs/SPEC-008-PM-operating-loop-20261111.md:106` — IBS HI chỉ lưu con trỏ, hash, metadata việc Tech; `docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:70` cho phép lưu «tin cần thiết hoặc trích được phép».
+- **Phía B:** quyết định OQ-04 — dự án chưa có dòng ánh xạ hiện «Chưa xác nhận»; AI không ánh xạ dự án nào; lát 1 chưa có đường ghi ánh xạ (`migrations/013_project_registry.sql` không cấp INSERT). Vậy hiện mọi dự án thật đều «Chưa xác nhận», và không tài liệu nào nói tin của dự án chưa xác nhận miền thì được lưu chữ hay chỉ con trỏ.
+- **Phương án:** (a) chưa ánh xạ thì coi như IBS HI: chỉ con trỏ + hash + metadata, PM mở tin gốc trong Telegram — an toàn nhưng Inbox không có chữ cho tới khi có ánh xạ; (b) chỉ `IBS_HI` mới bị giới hạn, chưa ánh xạ vẫn lưu trích; (c) cấu hình vận hành khai theo từng nhóm có được lưu trích hay không, độc lập với nhãn miền. Kèm: ai và ở lát nào làm đường ghi dòng ánh xạ.
+- **Ai quyết:** Chairman (chính sách dữ liệu giữa các pháp nhân).
+- **Trạng thái lúc lập kế hoạch:** chưa quyết. Kế hoạch lát 2 (Task 4) lưu trích cho dự án ánh xạ `LIBERICO_BU`/`XECA`, chỉ con trỏ + hash cho `IBS_HI` và cho dự án chưa ánh xạ (giữ chỗ fail-closed); test chỉ dùng dòng ánh xạ của dự án tổng hợp.
+
+## OQ-29 — Quy tắc đủ phiếu, hạn và ghế cho phiếu đổi quyền của thành viên đã có
+
+- **Lát:** 2 (ca (b) của SPEC-007; mã vẫn làm).
+- **Phía A:** `docs/SPEC-007-telegram-account-approval.md:33` — mở rộng quyền sau kích hoạt «is blocked until the separate access-change ballot is implemented»; `:40` — «A follow-up ballot for changes to an existing member is required». Quyết định OQ-12 (c) giao làm phiếu đổi quyền ở P1.1.
+- **Phía B:** SPEC-007 chỉ định nghĩa quy tắc cho phiếu cấp tài khoản lần đầu (`:3`, `:32`: Chairman + một BoM, ghế đóng băng, hạn 48 giờ theo `migrations/009_telegram_account_approval.sql`). Không dòng nào nói phiếu đổi quyền dùng cùng quy tắc, có cần chủ dự án được thêm vào đồng ý, hay người được đổi quyền (nếu đang giữ ghế BoM) có được bỏ phiếu cho chính mình.
+- **Phương án:** (a) dùng lại nguyên quy tắc phiếu lần đầu (Chairman + ít nhất một BoM, 48 giờ), người được đổi quyền không bỏ phiếu cho mình; (b) như (a) và thêm xác nhận của PM/chủ dự án được thêm vào; (c) chỉ Chairman duyệt với thay đổi nhỏ (thêm quyền báo cáo), phiếu đủ cho thêm dự án hoặc nâng vai.
+- **Ai quyết:** Chairman.
+- **Trạng thái lúc lập kế hoạch:** chưa quyết. Kế hoạch lát 2 (Task 9) dùng lại hàm đếm phiếu hiện có, không đặt quy tắc mới, và loại ghế của chính người được đổi quyền khỏi danh sách bỏ phiếu. Cần xác nhận trước khi dùng cho người thật; đổi quy tắc sau chỉ chạm hàm đếm phiếu.
