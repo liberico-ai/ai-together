@@ -278,17 +278,18 @@ test('M4 computed source fields: locator, source_id, source_actor, correlation_i
   expect((await h.operator.query<{locator:string}>('SELECT locator FROM source_events WHERE id=$1',[r2.sourceEventId])).rows[0].locator).toBe('');
 });
 
+const rep=(s:string,n:number)=>s.repeat(Math.ceil(n/s.length)).slice(0,n);
+const r21Shapes=(n:number):Record<string,string>=>({
+  a_token_:rep('a_token_',n),
+  _secret:rep('_secret',n),
+  run:'a'.repeat(n),
+  'password=':rep('password=',n),
+  'token ':rep('token ',n),
+  'token every 10':rep('abcd_token_',n).replace(/_/g,(_m,i:number)=>i%2?'x':'_'),
+  'token every 10 plain':rep('tokenabcde',n),
+});
 test('R2-1 redactSecrets stays linear on adversarial 12 KB inputs',()=>{
-  const n=12288;
-  const shapes:Record<string,string>={
-    a_token_:'a_token_'.repeat(Math.ceil(n/8)).slice(0,n),
-    _secret:'_secret'.repeat(Math.ceil(n/7)).slice(0,n),
-    run:'a'.repeat(n),
-    'password=':'password='.repeat(Math.ceil(n/9)).slice(0,n),
-    'token ':'token '.repeat(Math.ceil(n/6)).slice(0,n),
-    'token every 10':'abcd_token_'.repeat(Math.ceil(n/11)).slice(0,n).replace(/_/g,(_m,i:number)=>i%2?'x':'_'),
-    'token every 10 plain':'tokenabcde'.repeat(Math.ceil(n/10)).slice(0,n),
-  };
+  const shapes=r21Shapes(12288);
   let total=0;
   for(const [k,v] of Object.entries(shapes)){
     const t0=performance.now();redactSecrets(v);const dt=performance.now()-t0;total+=dt;
@@ -330,4 +331,43 @@ test('R3 camelCase and no-underscore key names, long prefixes, and the earlier c
   }
   expect(redactSecrets('secretary meeting')).toBe('secretary meeting');
   expect(redactSecrets('tokens are fine')).toBe('tokens are fine');
+});
+
+test('R4 key names of any length before or after the keyword are redacted, with = and :',()=>{
+  const affixes=['a'.repeat(49),rep('my_',64),rep('Ab',128)];
+  expect(affixes.map(a=>a.length)).toEqual([49,64,128]);
+  for(const a of affixes) for(const kw of ['password','token']) for(const sep of ['=',': ']) for(const key of [a+kw,kw+'_'+a]){
+    expect(redactSecrets(`trước ${key}${sep}leakvalue sau`),key+sep).toBe(`trước ${key}${sep}[đã che] sau`);
+  }
+});
+
+test('R4 a non-secret pair never shields a later secret in the same run; hyphenated and two-word keys stay covered',()=>{
+  for(const [input,leak] of [
+    ['user=bob&password=hunter2','hunter2'],['Server=db;Database=app;User Id=u;Password=hunter2;','hunter2'],
+    ['user:bob,password:hunter2','hunter2'],['a=1=token=leak9','leak9'],
+    ['curl -H "X-API-Key: leak9" https://x.test','leak9'],['api-key=leak9','leak9'],['private-key: leak9','leak9'],
+    ['API key: leak9','leak9'],['"api key": "leak9"','leak9'],["{'Private Key': 'leak9'}",'leak9'],
+    ['x-eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abc_DEF-123','eyJhbGci'],['a.b.eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abc','eyJhbGci'],
+    ['1.postgres://admin:S3cretPw@db.example.test','S3cretPw'],
+  ] as const){
+    const r=redactSecrets('trước '+input+' sau');
+    expect(r,input).not.toContain(leak);expect(r,input).toContain('[đã che]');expect(r.startsWith('trước ')).toBe(true);
+  }
+  expect(redactSecrets('user=bob&password=hunter2')).toBe('user=bob&password=[đã che]');
+  expect(redactSecrets('see db.example.test and a.b.c')).toBe('see db.example.test and a.b.c');
+});
+
+test('R4 redactSecrets stays linear at 12 KB and 48 KB, including scheme-like runs with no ://',()=>{
+  const extra=(n:number):Record<string,string>=>({
+    'a-':rep('a-',n),'token-':rep('token-',n),'a+b.c-':rep('a+b.c-',n),'sk-':rep('sk-',n),'xoxb-':rep('xoxb-',n),
+    'ab:/':rep('ab:/',n),'a://b:':rep('a://b:',n),'eyJ-':rep('eyJ-',n),'eyJa.':rep('eyJa.',n),'a.':rep('a.',n),
+    'a=':rep('a=',n),'token=':rep('token=',n),'api ':rep('api ',n),'token="':rep('token="',n),
+  });
+  let total=0;
+  for(const n of [12288,49152]) for(const [k,v] of Object.entries({...r21Shapes(n),...extra(n)})){
+    const t0=performance.now();redactSecrets(v);const dt=performance.now()-t0;total+=dt;
+    console.info('redact timing',n,k,dt.toFixed(1),'ms');
+  }
+  console.info('redact timing total',total.toFixed(1),'ms');
+  expect(total).toBeLessThan(200);
 });

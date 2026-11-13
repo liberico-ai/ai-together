@@ -16,8 +16,27 @@ export function qualityScore(i:{forwarded:boolean;textTruncated:boolean;attachme
 const MASK='[đã che]';
 const KW='token|secret|passw(?:or)?d|pwd|api[_\\s-]?key|private[_\\s-]?key|bearer';
 const VALUE='("[^"]*"|\'[^\']*\'|\\S+)';
-// Compound key names (OPENAI_API_KEY, DB_PASSWORD, "password":) followed by an optional closing quote and : or =.
-const KEYED=new RegExp(`((?<![A-Za-z0-9_])[A-Za-z0-9_]{0,48}?(?:${KW})[A-Za-z0-9_]{0,48}["']?\\s*[:=]\\s*)${VALUE}`,'gi');
+// Tokenizer for key/value pairs. KEY matches a key name of any length (letters, digits, _ and -, optionally
+// preceded by "api " or "private ") + optional closing quote + : or =. It starts only where a name starts, so
+// each name is scanned once: linear. The name is then tested for a keyword anywhere inside it
+// (accessToken, DB_PASSWORD, X-API-Key). The value is not part of KEY: after a non-secret pair the scan resumes
+// at the value, so "user=bob&password=x" and "Server=db;Password=x" still reach the secret key.
+const KEY=/(?<![A-Za-z0-9_-])((?:(?:api|private)\s)?[A-Za-z0-9_-]+)(["']?\s*[:=]\s*)/gi;
+const KW_IN_KEY=new RegExp(`(${KW})`,'i');
+const VALUE_AT=new RegExp(VALUE,'y');
+function maskKeyedValues(text:string):string {
+ let out='',last=0;
+ KEY.lastIndex=0;
+ for(let m=KEY.exec(text);m;m=KEY.exec(text)){
+  if(!KW_IN_KEY.test(m[1])) continue;
+  VALUE_AT.lastIndex=KEY.lastIndex;
+  const v=VALUE_AT.exec(text);
+  if(!v) continue;
+  out+=text.slice(last,KEY.lastIndex)+MASK;
+  last=KEY.lastIndex=VALUE_AT.lastIndex;
+ }
+ return out+text.slice(last);
+}
 // A bare keyword followed by whitespace ("bearer abc"); prose such as "secretary meeting" or "tokens are" is untouched.
 const SPACED=new RegExp(`((?<![A-Za-z0-9_])(?:${KW})\\s+)${VALUE}`,'gi');
 const FORMATS:RegExp[]=[
@@ -25,13 +44,31 @@ const FORMATS:RegExp[]=[
  /\bsk-[A-Za-z0-9_-]{20,}/g,
  /\bAKIA[0-9A-Z]{16}\b/g,
  /\bxox[abpr]-[A-Za-z0-9-]{10,}/g,
- /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
 ];
-const USERINFO=/(\b[a-z][a-z0-9+.-]*:\/\/[^\s:\/@]+:)[^\s@\/]+(@)/gi;
+// JWT: three base64url segments whose head begins with eyJ at the start of the segment run or after '-'
+// (where \beyJ used to start). One /\beyJ…/ attempt per '-eyJ' rescanned the whole run, quadratic on 'eyJ-' runs;
+// DOTTED starts only at run starts, and a triple without a head resumes at its second segment.
+const DOTTED=/(?<![A-Za-z0-9_-])([A-Za-z0-9_-]+)\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+const JWT_HEAD=/(?:^|-)eyJ./;
+function maskJwt(text:string):string {
+ let out='',last=0;
+ DOTTED.lastIndex=0;
+ for(let m=DOTTED.exec(text);m;m=DOTTED.exec(text)){
+  const h=JWT_HEAD.exec(m[1]);
+  if(!h){DOTTED.lastIndex=m.index+m[1].length+1;continue;}
+  const start=m.index+h.index+(h[0].startsWith('-')?1:0);
+  out+=text.slice(last,start)+MASK;
+  last=m.index+m[0].length;
+ }
+ return out+text.slice(last);
+}
+// URL userinfo. The scheme run starts only where a run of scheme characters starts, so a run with no "://"
+// ('a-a-a-…') is scanned once instead of once per letter.
+const USERINFO=/((?<![a-z0-9+.-])[a-z0-9+.-]+:\/\/[^\s:\/@]+:)[^\s@\/]+(@)/gi;
 export function redactSecrets(text:string):string {
- let t=text.replace(KEYED,(_m,k:string)=>k+MASK).replace(SPACED,(_m,k:string)=>k+MASK).replace(USERINFO,(_m,a:string,b:string)=>a+MASK+b);
+ let t=maskKeyedValues(text).replace(SPACED,(_m,k:string)=>k+MASK).replace(USERINFO,(_m,a:string,b:string)=>a+MASK+b);
  for(const f of FORMATS) t=t.replace(f,MASK);
- return t;
+ return maskJwt(t);
 }
 export function cleanFileName(name:string):string {
  const last=name.split(/[\\/]/).pop()??'';
