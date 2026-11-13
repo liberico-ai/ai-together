@@ -58,11 +58,12 @@ CREATE TABLE IF NOT EXISTS outbox_state_events (
   from_state text NOT NULL CHECK(from_state IN ('pending','leased','delivered','uncertain','dead','abandoned')),
   to_state text NOT NULL CHECK(to_state IN ('pending','leased','delivered','uncertain','dead','abandoned')),
   signal text NOT NULL CHECK(signal IN ('lease','delivered','failed_retryable','failed_permanent','uncertain','lease_expired','reconciled_delivered','reconciled_not_sent','requeue','abandon')),
-  attempt_no integer NOT NULL,
+  attempt_no integer NOT NULL, outbox_version integer NOT NULL,
   actor_kind text NOT NULL CHECK(actor_kind IN ('intake_service','user')),
   actor_id uuid NOT NULL, request_id uuid NOT NULL, trace_id uuid,
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
-  FOREIGN KEY(outbox_id,tenant_id) REFERENCES outbox_messages(id,tenant_id)
+  FOREIGN KEY(outbox_id,tenant_id) REFERENCES outbox_messages(id,tenant_id),
+  UNIQUE(outbox_id,outbox_version)
 );
 
 CREATE INDEX IF NOT EXISTS idx_outbox_messages_due ON outbox_messages(tenant_id,state,next_attempt_at);
@@ -279,17 +280,29 @@ CREATE TRIGGER outbox_state_events_derive_project BEFORE INSERT ON outbox_state_
 -- A state event must describe a real, current transition: written after the UPDATE in the same transaction, so to_state and attempt_no
 -- must equal the live row. Runtime (a person) may only requeue dead rows or abandon dead/uncertain rows. Not SECURITY DEFINER: RLS applies.
 CREATE OR REPLACE FUNCTION outbox_state_events_validate() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-DECLARE cur_state text; cur_attempt integer;
+DECLARE cur_state text; cur_attempt integer; cur_version integer;
 BEGIN
-  SELECT o.state, o.attempt_no INTO cur_state, cur_attempt FROM public.outbox_messages o WHERE o.id = NEW.outbox_id AND o.tenant_id = NEW.tenant_id;
+  SELECT o.state, o.attempt_no, o.version INTO cur_state, cur_attempt, cur_version FROM public.outbox_messages o WHERE o.id = NEW.outbox_id AND o.tenant_id = NEW.tenant_id;
   IF cur_state IS NULL THEN RAISE EXCEPTION 'State event outbox row is not visible'; END IF;
   IF NEW.to_state IS DISTINCT FROM cur_state THEN RAISE EXCEPTION 'State event to_state must equal the current outbox state'; END IF;
+  IF NEW.outbox_version IS DISTINCT FROM cur_version THEN RAISE EXCEPTION 'State event outbox_version must equal the current outbox version'; END IF;
   IF NEW.attempt_no IS DISTINCT FROM cur_attempt THEN RAISE EXCEPTION 'State event attempt_no must equal the current outbox attempt_no'; END IF;
   IF NOT ((NEW.from_state = 'pending' AND NEW.to_state = 'leased')
        OR (NEW.from_state = 'leased' AND NEW.to_state IN ('delivered','pending','dead','uncertain'))
        OR (NEW.from_state = 'uncertain' AND NEW.to_state IN ('delivered','pending','dead','abandoned'))
        OR (NEW.from_state = 'dead' AND NEW.to_state IN ('pending','abandoned'))) THEN
     RAISE EXCEPTION 'State event move % to % is not an allowed move', NEW.from_state, NEW.to_state;
+  END IF;
+  IF NOT ((NEW.signal = 'lease' AND NEW.from_state = 'pending' AND NEW.to_state = 'leased')
+       OR (NEW.signal = 'delivered' AND NEW.from_state = 'leased' AND NEW.to_state = 'delivered')
+       OR (NEW.signal = 'failed_retryable' AND NEW.from_state = 'leased' AND NEW.to_state IN ('pending','dead'))
+       OR (NEW.signal = 'failed_permanent' AND NEW.from_state = 'leased' AND NEW.to_state = 'dead')
+       OR (NEW.signal IN ('uncertain','lease_expired') AND NEW.from_state = 'leased' AND NEW.to_state = 'uncertain')
+       OR (NEW.signal = 'reconciled_delivered' AND NEW.from_state = 'uncertain' AND NEW.to_state = 'delivered')
+       OR (NEW.signal = 'reconciled_not_sent' AND NEW.from_state = 'uncertain' AND NEW.to_state IN ('pending','dead'))
+       OR (NEW.signal = 'requeue' AND NEW.from_state = 'dead' AND NEW.to_state = 'pending')
+       OR (NEW.signal = 'abandon' AND NEW.from_state IN ('dead','uncertain') AND NEW.to_state = 'abandoned')) THEN
+    RAISE EXCEPTION 'State event signal % does not belong to the move % to %', NEW.signal, NEW.from_state, NEW.to_state;
   END IF;
   IF current_user = 'libetech_runtime' AND NOT ((NEW.signal = 'requeue' AND NEW.from_state = 'dead' AND NEW.to_state = 'pending')
        OR (NEW.signal = 'abandon' AND NEW.from_state IN ('dead','uncertain') AND NEW.to_state = 'abandoned')) THEN
@@ -310,7 +323,7 @@ CREATE TRIGGER outbox_messages_no_delete BEFORE DELETE ON outbox_messages FOR EA
 GRANT USAGE ON SCHEMA public TO libetech_intake, libetech_runtime, libetech_identity;
 GRANT SELECT ON outbox_messages, delivery_receipts, outbox_state_events TO libetech_intake, libetech_runtime, libetech_identity;
 REVOKE INSERT ON outbox_state_events FROM libetech_intake, libetech_runtime, libetech_identity;
-GRANT INSERT(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,actor_kind,actor_id,request_id,trace_id) ON outbox_state_events TO libetech_intake, libetech_runtime;
+GRANT INSERT(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,request_id,trace_id) ON outbox_state_events TO libetech_intake, libetech_runtime;
 -- Column-level INSERT (pattern 013/014/016): defaults own id, created_at/updated_at, ingested_at, state, attempt_no, next_attempt_at, lease_*,
 -- delivered_at, telegram_message_id, acknowledged_at, last_error_code, failure_owner_id and version.
 REVOKE INSERT ON outbox_messages, delivery_receipts FROM libetech_intake, libetech_runtime, libetech_identity;

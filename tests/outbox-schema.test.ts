@@ -329,8 +329,9 @@ const asRuntimePerson=<T>(fn:(tx:Queryable)=>Promise<T>,person:string|null=pm.id
   if(person) await tx.query("SELECT set_config('app.person_id',$1,true)",[person]);
   return fn(tx);
 });
-const stateEvent=(tx:Queryable,outboxId:string,project:string|null,over:Row={})=>{
-  const v:Row={tenant_id:ids.tenant,project_id:project,outbox_id:outboxId,from_state:'pending',to_state:'leased',signal:'lease',attempt_no:1,
+const stateEvent=async(tx:Queryable,outboxId:string,project:string|null,over:Row={})=>{
+  const live=(await tx.query<{version:number}>('SELECT version FROM outbox_messages WHERE id=$1',[outboxId])).rows[0]?.version??1;
+  const v:Row={outbox_version:live,tenant_id:ids.tenant,project_id:project,outbox_id:outboxId,from_state:'pending',to_state:'leased',signal:'lease',attempt_no:1,
     actor_kind:'intake_service',actor_id:intakePrincipalId,request_id:randomUUID(),trace_id:randomUUID(),...over};
   const cols=Object.keys(v);
   return tx.query(`INSERT INTO outbox_state_events(${cols.join(',')}) VALUES(${cols.map((_,i)=>'$'+(i+1)).join(',')})`,Object.values(v));
@@ -401,6 +402,29 @@ test('outbox_state_events: a forged event is refused for intake and runtime; a v
   const dead2=await mkRow('dead');await h.operator.query("UPDATE outbox_messages SET state='abandoned' WHERE id=$1",[dead2]);
   await expect(asRole('runtime',dead2,{from_state:'dead',to_state:'abandoned',signal:'abandon',attempt_no:3})).resolves.toBeTruthy();
   expect(await count(h.operator,'outbox_state_events')).toBe(3);
+});
+
+test('outbox_state_events: one event per actual move; the signal must match the move',async()=>{
+  const bothP=[ids.sales,ids.transport];
+  const hum={actor_kind:'user',actor_id:pm.id};
+  // a second identical event for the same move is refused (same outbox_version)
+  const {g}=await seedBoth();await leaseBoth(g);
+  await asIntake(bothP,tx=>stateEvent(tx,g,ids.sales));
+  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.sales))).rejects.toThrow();
+  // a stale or future version is refused
+  const l2=await mkRow('leased');await h.operator.query('UPDATE outbox_messages SET attempt_no=1 WHERE id=$1',[l2]);
+  await expect(asIntake(bothP,tx=>stateEvent(tx,l2,ids.sales,{outbox_version:99}))).rejects.toThrow(/version/i);
+  // after a real runtime abandon, a second abandon event by the same person is refused
+  const u=await mkRow('uncertain');
+  await h.operator.query("UPDATE outbox_messages SET state='abandoned',version=version+1 WHERE id=$1",[u]);
+  const ab={...hum,from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3};
+  await expect(asRuntimePerson(tx=>stateEvent(tx,u,ids.sales,ab))).resolves.toBeTruthy();
+  await expect(asRuntimePerson(tx=>stateEvent(tx,u,ids.sales,ab))).rejects.toThrow();
+  // the signal must belong to the (from, to) pair, for intake too
+  const p=(await insert(h.operator,groupVals())).rows[0].id;
+  await h.operator.query("UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1 WHERE id=$1",[p]);
+  await expect(asIntake(bothP,tx=>stateEvent(tx,p,ids.sales,{signal:'delivered'}))).rejects.toThrow(/signal/i);
+  await expect(asIntake(bothP,tx=>stateEvent(tx,p,ids.sales,{signal:'lease'}))).resolves.toBeTruthy();
 });
 
 test('outbox_state_events: append-only, closed label sets, column-level grants',async()=>{

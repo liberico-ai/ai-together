@@ -64,8 +64,8 @@ export async function applyOutboxSignal(tx:Queryable,row:Pick<Row,'id'|'tenant_i
  if(!r.rows.length) throw new AppError('OUTBOX_CONFLICT','Tin đã được xử lý ở nơi khác; thử lại.',409);
  const attemptAfter=typeof move.set?.attempt_no==='number'?move.set.attempt_no:row.attempt_no;
  await tx.query(
-  `INSERT INTO outbox_state_events(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,actor_kind,actor_id,request_id,trace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-  [row.tenant_id,row.project_id,row.id,row.state,next,signal,attemptAfter,ctx.actor.kind,ctx.actor.id,ctx.requestId,row.trace_id]);
+  `INSERT INTO outbox_state_events(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,request_id,trace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+  [row.tenant_id,row.project_id,row.id,row.state,next,signal,attemptAfter,row.version+1,ctx.actor.kind,ctx.actor.id,ctx.requestId,row.trace_id]);
  return next;
 }
 
