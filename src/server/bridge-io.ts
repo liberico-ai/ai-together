@@ -4,9 +4,9 @@ import type {BridgeConfig} from './bridge-config';
 import {verifySigned} from './bridge-auth';
 import {AppError,invariant} from './errors';
 import {IntakeService,type EnqueueReceipt} from './intake';
-import {OutboxService,enqueueReceipt} from './outbox';
+import {OutboxService} from './outbox';
 
-export type IntakePrincipal={id:string;tenantId:string;projectIds:string[]};
+export {intakeScoped,type IntakePrincipal} from './intake-scope';
 export type IoDeps={intakeDb:Database;identity:IdentityService;config:BridgeConfig;tenantId:string;enqueueReceipt?:EnqueueReceipt};
 export const IO_PATHS=['/api/bridge/intake/events','/api/bridge/outbox/pull','/api/bridge/outbox/receipts'] as const;
 const MAX_BYTES:Record<(typeof IO_PATHS)[number],number>={'/api/bridge/intake/events':16384,'/api/bridge/outbox/pull':1024,'/api/bridge/outbox/receipts':4096};
@@ -19,20 +19,11 @@ export async function handleBridgeIo(request:Request,parts:string[],deps:IoDeps)
  const raw=await verifySigned(request,{key:deps.config.intake.key,path:route,maxBytes:MAX_BYTES[route],identity:deps.identity,throttleBucket:'bridge-intake',throttleLimit:600});
  if(route==='/api/bridge/intake/events') {
   const i=deps.config.intake;
-  return new IntakeService(deps.intakeDb,deps.tenantId,i.principalId,deps.config.chatScopes,i.chats,deps.enqueueReceipt??enqueueReceipt).ingest(JSON.parse(raw));
+  return new IntakeService(deps.intakeDb,deps.tenantId,i.principalId,deps.config.chatScopes,i.chats,deps.enqueueReceipt).ingest(JSON.parse(raw));
  }
  // Pull scope is the union of the projects of the configured intake chats; empty fails closed in intakeScoped.
  const i=deps.config.intake;
  const projectIds=[...new Set(i.chats.flatMap(c=>deps.config.chatScopes[c]??[]))];
  const outbox=new OutboxService(deps.intakeDb,deps.identity,{id:i.principalId,tenantId:deps.tenantId,projectIds});
  return route==='/api/bridge/outbox/pull'?outbox.pull(JSON.parse(raw)):outbox.report(JSON.parse(raw));
-}
-
-export async function intakeScoped<T>(db:Database,p:IntakePrincipal,fn:(tx:Queryable)=>Promise<T>):Promise<T> {
- if(!p?.id||!p.tenantId||!p.projectIds.length) throw new AppError('UNAUTHENTICATED','Cần phạm vi dự án.',401);
- return db.transaction(async tx=>{
-  await tx.query('SET LOCAL ROLE libetech_intake');
-  await tx.query("SELECT set_config('app.tenant_id', $1, true), set_config('app.project_ids', $2, true), set_config('app.intake_principal_id', $3, true)",[p.tenantId,p.projectIds.join(','),p.id]);
-  return fn(tx);
- });
 }

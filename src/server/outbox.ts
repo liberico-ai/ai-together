@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import type {Database,Queryable} from './db';
 import type {IdentityService} from './identity';
-import {intakeScoped,type IntakePrincipal} from './bridge-io';
+import {intakeScoped,type IntakePrincipal} from './intake-scope';
 import {AppError} from './errors';
 
 // Outbox (E-INT-06): rows are written in the caller's own transaction; the Telegram gateway pulls, sends and reports receipts.
@@ -46,15 +46,26 @@ type Row={id:string;tenant_id:string;project_id:string|null;state:OutboxState;at
  trace_id:string;correlation_id:string;causation_id:string|null;template:string;payload:{params?:Record<string,string>};lease_token:string|null};
 const COLS='id,tenant_id,project_id,state,attempt_no,version,audience,recipient_user_id,target_chat_id,target_topic_id,reply_to_message_id,event_id,event_type,event_version,source,occurred_at,trace_id,correlation_id,causation_id,template,payload,lease_token';
 
-/** Sole writer of outbox_messages.state: validates the move with outboxTransition, then updates guarded by state and version. */
-export async function applyOutboxSignal(tx:Queryable,row:Pick<Row,'id'|'state'|'attempt_no'|'version'>,signal:OutboxSignal,set:Record<string,unknown>={},rawSet:Record<string,string>={}):Promise<OutboxState> {
+export type OutboxActor={kind:'intake_service'|'user';id:string};
+export type OutboxSetColumn='attempt_no'|'lease_token'|'lease_expires_at'|'delivered_at'|'telegram_message_id'|'last_error_code'|'failure_owner_id';
+export type OutboxMove={set?:Partial<Record<OutboxSetColumn,string|number|null>>;nextAttemptInSeconds?:number;leaseExpiresInSeconds?:number};
+export type OutboxCtx={actor:OutboxActor;requestId:string};
+
+/** Sole writer of outbox_messages.state: validates the move with outboxTransition, updates guarded by state and version,
+ * and writes exactly one outbox_state_events row in the same transaction. Typed values only; every value is a bound parameter. */
+export async function applyOutboxSignal(tx:Queryable,row:Pick<Row,'id'|'tenant_id'|'project_id'|'state'|'attempt_no'|'version'|'trace_id'>,signal:OutboxSignal,ctx:OutboxCtx,move:OutboxMove={}):Promise<OutboxState> {
  const next=outboxTransition(row.state,signal,row.attempt_no);
  const params:unknown[]=[row.id,row.state,next,row.version];
  const parts=['state=$3','version=version+1','updated_at=now()'];
- for(const [k,v] of Object.entries(set)) {params.push(v);parts.push(`${k}=$${params.length}`);}
- for(const [k,v] of Object.entries(rawSet)) parts.push(`${k}=${v}`);
+ for(const [k,v] of Object.entries(move.set??{})) {params.push(v);parts.push(`${k}=$${params.length}`);}
+ if(move.nextAttemptInSeconds!==undefined) {params.push(move.nextAttemptInSeconds);parts.push(`next_attempt_at=now() + make_interval(secs => $${params.length}::double precision)`);}
+ if(move.leaseExpiresInSeconds!==undefined) {params.push(move.leaseExpiresInSeconds);parts.push(`lease_expires_at=now() + make_interval(secs => $${params.length}::double precision)`);}
  const r=await tx.query(`UPDATE outbox_messages SET ${parts.join(',')} WHERE id=$1 AND state=$2 AND version=$4 RETURNING id`,params);
  if(!r.rows.length) throw new AppError('OUTBOX_CONFLICT','Tin đã được xử lý ở nơi khác; thử lại.',409);
+ const attemptAfter=typeof move.set?.attempt_no==='number'?move.set.attempt_no:row.attempt_no;
+ await tx.query(
+  `INSERT INTO outbox_state_events(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,actor_kind,actor_id,request_id,trace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+  [row.tenant_id,row.project_id,row.id,row.state,next,signal,attemptAfter,ctx.actor.kind,ctx.actor.id,ctx.requestId,row.trace_id]);
  return next;
 }
 
@@ -80,12 +91,12 @@ const pullSchema=z.object({limit:z.number().int().min(1).max(10)}).strict();
 const receiptSchema=z.object({
  outboxId:z.string().uuid(),attemptNo:z.number().int().min(1),leaseToken:z.string().uuid(),phase:z.enum(['send','reconcile']),
  outcome:z.enum(['delivered','failed_retryable','failed_permanent','uncertain','not_sent']),
- telegramMessageId:z.string().regex(/^[0-9]{1,20}$/).optional(),errorCode:z.string().min(1).max(64).optional(),reportedAt:z.string().datetime({offset:true}),
+ telegramMessageId:z.string().regex(/^[0-9]{1,20}$/).optional(),errorCode:z.string().regex(/^[A-Z0-9_]{1,64}$/).optional(),reportedAt:z.string().datetime({offset:true}),
 }).strict().refine(r=>r.phase==='send'?r.outcome!=='not_sent':(r.outcome==='delivered'||r.outcome==='not_sent'),{message:'Outcome does not match phase.'});
 const reportSchema=z.object({receipts:z.array(receiptSchema).min(1).max(10)}).strict();
 
 const iso=(v:string|Date)=>new Date(v).toISOString();
-const envelopeOf=(r:Row):Envelope=>({event_id:r.event_id,event_type:r.event_type,version:'v1',source:'libetech-ai-os',timestamp:iso(r.occurred_at),tenant_id:r.tenant_id,
+const envelopeOf=(r:Row):Envelope=>({event_id:r.event_id,event_type:r.event_type,version:r.event_version as 'v1',source:r.source as 'libetech-ai-os',timestamp:iso(r.occurred_at),tenant_id:r.tenant_id,
  trace_id:r.trace_id,correlation_id:r.correlation_id,causation_id:r.causation_id,payload:{template:r.template,params:r.payload?.params??{}}});
 
 export class OutboxService {
@@ -101,20 +112,30 @@ export class OutboxService {
  async pull(raw:unknown):Promise<{deliveries:Delivery[];reconcile:{outboxId:string;attemptNo:number}[]}> {
   const {limit}=pullSchema.parse(raw);
   const requestId=randomUUID();
+  const ctx:OutboxCtx={actor:{kind:'intake_service',id:this.p.id},requestId};
   const t=this.p.tenantId;
   const first=await intakeScoped(this.intakeDb,this.p,async tx=>{
    // (1) leases whose gateway went silent become uncertain: reconcile before any resend.
    const expired=(await tx.query<Row>(`SELECT ${COLS} FROM outbox_messages WHERE tenant_id=$1 AND state='leased' AND lease_expires_at<now() ORDER BY created_at FOR UPDATE SKIP LOCKED`,[t])).rows;
    for(const r of expired) {
-    await applyOutboxSignal(tx,r,'lease_expired');
+    await applyOutboxSignal(tx,r,'lease_expired',ctx);
     await this.audit(tx,r,'outbox.uncertain',requestId,{attemptNo:r.attempt_no,reason:'lease_expired'});
    }
    // (2) lease a batch; concurrent pulls skip rows another pull holds.
    const due=(await tx.query<Row>(`SELECT ${COLS} FROM outbox_messages WHERE tenant_id=$1 AND state='pending' AND next_attempt_at<=now() ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED`,[t,limit])).rows;
    const leased:{row:Row;attemptNo:number;leaseToken:string}[]=[];
    for(const r of due) {
-    const leaseToken=randomUUID(),attemptNo=r.attempt_no+1;
-    await applyOutboxSignal(tx,r,'lease',{attempt_no:attemptNo,lease_token:leaseToken},{lease_expires_at:`now() + make_interval(secs => ${LEASE_SECONDS})`});
+    const leaseToken=randomUUID();
+    if(r.attempt_no>=MAX_ATTEMPTS) {
+     // A reconciled "not sent" at the cap cannot go uncertain -> dead (017 guard), so it ends here: lease, then dead; never returned.
+     await applyOutboxSignal(tx,r,'lease',ctx,{set:{lease_token:leaseToken},leaseExpiresInSeconds:LEASE_SECONDS});
+     await this.audit(tx,r,'outbox.leased',requestId,{attemptNo:r.attempt_no});
+     await applyOutboxSignal(tx,{...r,state:'leased',version:r.version+1},'failed_permanent',ctx,{set:{last_error_code:'MAX_ATTEMPTS_EXHAUSTED',lease_token:null,lease_expires_at:null}});
+     await this.audit(tx,r,'outbox.dead',requestId,{attemptNo:r.attempt_no,errorCode:'MAX_ATTEMPTS_EXHAUSTED'});
+     continue;
+    }
+    const attemptNo=r.attempt_no+1;
+    await applyOutboxSignal(tx,r,'lease',ctx,{set:{attempt_no:attemptNo,lease_token:leaseToken},leaseExpiresInSeconds:LEASE_SECONDS});
     await this.audit(tx,r,'outbox.leased',requestId,{attemptNo});
     leased.push({row:{...r,state:'leased',attempt_no:attemptNo,version:r.version+1},attemptNo,leaseToken});
    }
@@ -134,7 +155,7 @@ export class OutboxService {
    if(gone.length) {
     await intakeScoped(this.intakeDb,this.p,async tx=>{
      for(const l of gone) {
-      await applyOutboxSignal(tx,l.row,'failed_permanent',{last_error_code:'RECIPIENT_UNLINKED',lease_token:null,lease_expires_at:null});
+      await applyOutboxSignal(tx,l.row,'failed_permanent',ctx,{set:{last_error_code:'RECIPIENT_UNLINKED',lease_token:null,lease_expires_at:null}});
       await this.audit(tx,l.row,'outbox.dead',requestId,{attemptNo:l.attemptNo,errorCode:'RECIPIENT_UNLINKED'});
      }
     });
@@ -149,6 +170,7 @@ export class OutboxService {
  async report(raw:unknown):Promise<{accepted:number;replayed:number;rejected:{outboxId:string;attemptNo:number;code:string}[]}> {
   const {receipts}=reportSchema.parse(raw);
   const requestId=randomUUID();
+  const ctx:OutboxCtx={actor:{kind:'intake_service',id:this.p.id},requestId};
   return intakeScoped(this.intakeDb,this.p,async tx=>{
    let accepted=0,replayed=0;
    const rejected:{outboxId:string;attemptNo:number;code:string}[]=[];
@@ -171,18 +193,19 @@ export class OutboxService {
     const validSend=r.phase==='send'&&row.state==='leased'&&row.lease_token===r.leaseToken&&row.attempt_no===r.attemptNo;
     const validReconcile=r.phase==='reconcile'&&row.state==='uncertain'&&row.attempt_no===r.attemptNo;
     if(!validSend&&!validReconcile) throw new AppError('LEASE_INVALID','Biên nhận không khớp lượt gửi hiện tại.',409);
-    const clear:Record<string,unknown>=r.phase==='send'?{lease_token:null,lease_expires_at:null}:{};
+    const clear=r.phase==='send'?{lease_token:null,lease_expires_at:null}:{};
     let next:OutboxState;
     if(r.outcome==='delivered') {
-     next=await applyOutboxSignal(tx,row,r.phase==='send'?'delivered':'reconciled_delivered',{...clear,delivered_at:r.reportedAt,telegram_message_id:r.telegramMessageId??null});
+     next=await applyOutboxSignal(tx,row,r.phase==='send'?'delivered':'reconciled_delivered',ctx,{set:{...clear,delivered_at:r.reportedAt,telegram_message_id:r.telegramMessageId??null}});
     } else if(r.outcome==='failed_retryable') {
-     next=await applyOutboxSignal(tx,row,'failed_retryable',{...clear,last_error_code:r.errorCode??null},{next_attempt_at:`now() + make_interval(secs => ${backoffSeconds(row.attempt_no)})`});
+     next=await applyOutboxSignal(tx,row,'failed_retryable',ctx,{set:{...clear,last_error_code:r.errorCode??null},nextAttemptInSeconds:backoffSeconds(row.attempt_no)});
     } else if(r.outcome==='failed_permanent') {
-     next=await applyOutboxSignal(tx,row,'failed_permanent',{...clear,last_error_code:r.errorCode??null});
+     next=await applyOutboxSignal(tx,row,'failed_permanent',ctx,{set:{...clear,last_error_code:r.errorCode??null}});
     } else if(r.outcome==='uncertain') {
-     next=await applyOutboxSignal(tx,row,'uncertain',{...clear,last_error_code:r.errorCode??null});
+     next=await applyOutboxSignal(tx,row,'uncertain',ctx,{set:{...clear,last_error_code:r.errorCode??null}});
     } else {
-     next=await applyOutboxSignal(tx,row,'reconciled_not_sent',{},{next_attempt_at:'now()'});
+     // not sent: back to pending with backoff; at the attempt cap the next pull ends it as dead (see pull).
+     next=await applyOutboxSignal(tx,row,'reconciled_not_sent',ctx,{nextAttemptInSeconds:backoffSeconds(row.attempt_no)});
     }
     await this.audit(tx,row,'outbox.'+(next==='pending'?'retry_scheduled':next),requestId,{attemptNo:r.attemptNo,phase:r.phase,outcome:r.outcome});
     accepted++;

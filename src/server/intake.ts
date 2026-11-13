@@ -2,7 +2,8 @@ import {createHash,randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import type {Database,Queryable} from './db';
 import type {ChatScopes} from './bridge-config';
-import {intakeScoped} from './bridge-io';
+import {intakeScoped} from './intake-scope';
+import {enqueueReceipt as realEnqueueReceipt} from './outbox';
 import {AppError} from './errors';
 import {attachmentVerdict,cleanFileName,eventKey,qualityScore,redactSecrets,threadKey} from './intake-rules';
 import type {AttachmentState,IntakeAck,IntakeEventInput} from './types';
@@ -36,7 +37,7 @@ const refOf=(id:string)=>'IN-'+id.slice(0,8).toUpperCase();
 
 export class IntakeService {
  constructor(private db:Database,private tenantId:string,private principalId:string,private chatScopes:ChatScopes,private intakeChats:string[],
-  private enqueueReceipt:EnqueueReceipt=async()=>'none') {}
+  private enqueueReceipt:EnqueueReceipt=realEnqueueReceipt) {}
 
  async ingest(raw:unknown):Promise<IntakeAck> {
   const e=intakeEventSchema.parse(raw),c=e.context;

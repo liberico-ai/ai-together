@@ -110,6 +110,8 @@ test('a timeout after send becomes uncertain and is reconciled before any resend
   await outbox().report({receipts:[rcpt(d2,{outcome:'uncertain',telegramMessageId:undefined})]});
   await outbox().report({receipts:[rcpt(d2,{phase:'reconcile',outcome:'not_sent',telegramMessageId:undefined})]});
   expect((await one(d2.outboxId)).state).toBe('pending');
+  expect((await outbox().pull({limit:5})).deliveries).toEqual([]); // backoff applies
+  await due(d2.outboxId);
   const again=await pullOne();
   expect(again).toMatchObject({outboxId:d2.outboxId,attemptNo:2});
   expect(again.leaseToken).not.toBe(d2.leaseToken);
@@ -240,4 +242,83 @@ test('routes: outbox/pull and outbox/receipts work through handleBridgeIo with t
   // events route now queues through the real enqueueReceipt
   await handleBridgeIo(signedRequest('/api/bridge/intake/events',ev({})),['intake','events'],deps);
   expect(await n('outbox_messages')).toBe(2);
+});
+
+// ---- Gate-2 fix B ----
+const stateEvents=()=>rows<{from_state:string;to_state:string;signal:string;attempt_no:number;actor_kind:string;actor_id:string;project_id:string|null}>('SELECT from_state,to_state,signal,attempt_no,actor_kind,actor_id,project_id FROM outbox_state_events ORDER BY created_at,id');
+const outboxIntakeEvents=()=>n("intake_events WHERE entity_type='outbox_message'");
+const linkPm=(tg:string)=>h.operator.query('INSERT INTO identity.telegram_links(tenant_id,user_id,telegram_id) VALUES($1,$2,$3)',[ids.tenant,pm.id,tg]);
+const mkDm=(key:string,tg:string)=>identity.scope(tx=>enqueueDm(tx,{tenantId:ids.tenant,recipientUserId:pm.id,telegramId:tg,template:'account_approval.pending',dedupeKey:key,params:{},traceId:randomUUID(),correlationId:randomUUID(),causationId:null}));
+
+test('FB-1 a DM lease then unlinked kill writes 2 state events and no intake_events row',async()=>{
+  await linkPm('900000042');await mkDm('dm-a','900000042');
+  await h.operator.query('DELETE FROM identity.telegram_links WHERE user_id=$1',[pm.id]);
+  expect((await outbox().pull({limit:5})).deliveries).toEqual([]);
+  const ev2=await stateEvents();
+  expect(ev2.map(e=>`${e.from_state}>${e.to_state}:${e.signal}`)).toEqual(['pending>leased:lease','leased>dead:failed_permanent']);
+  expect(ev2.every(e=>e.project_id===null&&e.actor_kind==='intake_service'&&e.actor_id===intakePrincipalId)).toBe(true);
+  expect(await outboxIntakeEvents()).toBe(0);
+});
+
+test('FB-1 a group lease then delivered writes 2 state events and the matching intake_events rows',async()=>{
+  await intake().ingest(ev({}));
+  const d=await pullOne();
+  await outbox().report({receipts:[rcpt(d)]});
+  const e2=await stateEvents();
+  expect(e2.map(e=>`${e.from_state}>${e.to_state}:${e.signal}:${e.attempt_no}`)).toEqual(['pending>leased:lease:1','leased>delivered:delivered:1']);
+  expect(e2.every(e=>e.project_id===ids.sales)).toBe(true);
+  expect((await rows<{kind:string}>("SELECT kind FROM intake_events WHERE entity_type='outbox_message'")).map(r=>r.kind).sort()).toEqual(['outbox.delivered','outbox.leased']);
+});
+
+test('FB-1 a rejected receipt leaves no state event and no intake_events row; relinked DM and bad reconcile receipts',async()=>{
+  await intake().ingest(ev({}));
+  const d=await pullOne();
+  const se=(await stateEvents()).length,ie=await outboxIntakeEvents();
+  const r1=await outbox().report({receipts:[rcpt({...d,leaseToken:randomUUID()}),rcpt(d,{phase:'reconcile',outcome:'delivered'}),rcpt({...d,attemptNo:2},{phase:'reconcile',outcome:'delivered'})]});
+  expect(r1).toMatchObject({accepted:0,rejected:[{code:'LEASE_INVALID'},{code:'LEASE_INVALID'},{code:'LEASE_INVALID'}]});
+  expect((await stateEvents()).length).toBe(se);expect(await outboxIntakeEvents()).toBe(ie);
+  expect(await n('delivery_receipts')).toBe(0);expect((await one(d.outboxId)).state).toBe('leased');
+  // a DM whose recipient relinked to a different telegram id
+  await linkPm('900000042');await mkDm('dm-b','900000042');
+  await h.operator.query('DELETE FROM identity.telegram_links WHERE user_id=$1',[pm.id]);await linkPm('900000099');
+  const p=await outbox().pull({limit:5});
+  expect(p.deliveries.filter(x=>x.audience==='dm')).toEqual([]);
+  expect(await rows("SELECT state,last_error_code FROM outbox_messages WHERE dedupe_key='dm-b'")).toEqual([{state:'dead',last_error_code:'RECIPIENT_UNLINKED'}]);
+});
+
+test('FB-3 not_sent loop stops at the attempt cap and applies backoff',async()=>{
+  await intake().ingest(ev({}));
+  let id='';
+  for(let a=1;a<=MAX_ATTEMPTS;a++){
+    const d=await pullOne();id=d.outboxId;expect(d.attemptNo).toBe(a);
+    await outbox().report({receipts:[rcpt(d,{outcome:'uncertain',telegramMessageId:undefined})]});
+    await outbox().report({receipts:[rcpt(d,{phase:'reconcile',outcome:'not_sent',telegramMessageId:undefined})]});
+    const row=await one(id);
+    expect(row.state).toBe('pending');
+    const wait=(await rows<{s:number}>('SELECT extract(epoch FROM (next_attempt_at-now()))::float s FROM outbox_messages WHERE id=$1',[id]))[0].s;
+    expect(wait).toBeGreaterThan(backoffSeconds(a)-5);expect(wait).toBeLessThanOrEqual(backoffSeconds(a)+1);
+    expect((await outbox().pull({limit:5})).deliveries).toEqual([]);
+    await due(id);
+  }
+  expect((await outbox().pull({limit:5})).deliveries).toEqual([]);
+  expect(await one(id)).toMatchObject({state:'dead',last_error_code:'MAX_ATTEMPTS_EXHAUSTED',attempt_no:MAX_ATTEMPTS});
+});
+
+test('FB-4 a malformed errorCode fails the whole request as a schema error',async()=>{
+  await intake().ingest(ev({}));await intake().ingest(ev({}));
+  const [a,b]=(await outbox().pull({limit:5})).deliveries;
+  await expect(outbox().report({receipts:[rcpt(a),rcpt(b,{outcome:'failed_permanent',errorCode:'bad code; DROP',telegramMessageId:undefined})]})).rejects.toThrow();
+  expect((await one(a.outboxId)).state).toBe('leased');
+});
+
+test('FB-5 the envelope carries version and source from the row',async()=>{
+  await intake().ingest(ev({}));
+  const row=(await rows<{event_version:string;source:string}>('SELECT event_version,source FROM outbox_messages'))[0];
+  const d=await pullOne();
+  expect(d.envelope.version).toBe(row.event_version);expect(d.envelope.source).toBe(row.source);
+});
+
+test('FB-7 a spooled event with a failed file queues attachment_failed, never recovered',async()=>{
+  await intake().ingest(ev({spooled:true,attachment:{state:'failed',reasonCode:'download_failed'}}));
+  expect(await rows<{template:string}>('SELECT template FROM outbox_messages')).toEqual([{template:'intake.attachment_failed'}]);
 });
