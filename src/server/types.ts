@@ -33,3 +33,11 @@ export type DocumentRevision={id:string;document_id:string;revision_no:number;ba
 export type RegistryEvent={id:string;entity_type:string;entity_id:string;actor_id:string;kind:string;payload:Record<string,unknown>;created_at:string};
 export type DocumentDetail={record:DocumentRecord;revisions:DocumentRevision[];events:RegistryEvent[]};
 export type DocumentIndexRow={document_id:string;project_id:string;ref_code:string;doc_type:DocType;title:string;owner_label:string;source_type:SourceType;latest_revision_no:number|null;approved_revision_no:number|null;hash_verification:'self_declared'|'verified'|null;source_state:SourceState;freeze_state:'SOURCE_NOT_FROZEN';missing_count:number;review_due_at:string|null;record_updated_at:string;projected_at:string;z1_version:number|null;stale:boolean};
+export type AttachmentState='stored'|'failed'|'too_large'|'unsupported_type';
+export type IntakeAttachmentInput=
+  |{state:'stored';locator:string;sha256:string;mimeType:string;sizeBytes:number;fileName?:string}
+  |{state:'failed';reasonCode:string;mimeType?:string;sizeBytes?:number;fileName?:string};
+export type IntakeEventInput={context:{telegramId:string;chatId:string;chatType:'group'|'supergroup';profile:'libetech';messageId:string;topicId?:string;replyToMessageId?:string;mediaGroupId?:string};
+  observedAt:string;editedAt?:string;addressed:boolean;spooled:boolean;forwarded:boolean;actorLabel?:string;
+  text:string;textTruncated:boolean;contentHash:string;traceId:string;attachment?:IntakeAttachmentInput};
+export type IntakeAck={sourceEventId:string;revisionNo:number;candidateRef:string|null;replayed:boolean;persisted:true;receipt:'queued'|'withheld'|'none';reason?:string};

@@ -1,10 +1,11 @@
 import {createHmac,randomBytes} from 'node:crypto';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {ids} from '../src/server/identities';
 import {sameBuProject} from './slice1-fixtures';
 
 import type {BridgeConfig} from '../src/server/bridge-config';
-type IntakeEventInput=any; // thay ở Task 3/4
+import type {IntakeEventInput} from '../src/server/types';
+export type EventOverride=Partial<Omit<IntakeEventInput,'context'>>&{context?:Partial<IntakeEventInput['context']>};
 
 export const chatSales='-1000000000001';
 export const chatTransport='-1000000000002';
@@ -31,8 +32,14 @@ export function signedRequest(path:string,body:unknown,opts:{key?:string;timesta
 }
 
 let seq=0;
-export function messageEvent(over:Partial<IntakeEventInput>={}):IntakeEventInput{
+export function messageEvent(over:EventOverride={}):IntakeEventInput{
   seq+=1;
-  const text=over.text??`Tin mẫu số ${seq}`;
-  return {chatId:chatSales,messageId:String(seq),text,contentHash:createHash('sha256').update(text).digest('hex'),...over};
+  const {context,...rest}=over;
+  const text=rest.text??`Tin mẫu số ${seq}`;
+  return {
+    context:{telegramId:'900000001',chatId:chatSales,chatType:'supergroup',profile:'libetech',messageId:String(seq),...context},
+    observedAt:new Date(1760000000000+seq*1000).toISOString(),addressed:true,spooled:false,forwarded:false,
+    text,textTruncated:false,contentHash:createHash('sha256').update(text).digest('hex'),traceId:randomUUID(),
+    ...rest,
+  };
 }

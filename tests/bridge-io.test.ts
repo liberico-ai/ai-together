@@ -2,6 +2,7 @@ import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {readFileSync,readdirSync,statSync} from 'node:fs';
 import path from 'node:path';
 import {randomBytes} from 'node:crypto';
+import {ZodError} from 'zod';
 import {openHarness,type Harness} from './slice1-db';
 import {bridgeConfig,botKey,intakeKey,chatSales,signedRequest} from './slice2-fixtures';
 import {IdentityService} from '../src/server/identity';
@@ -22,7 +23,9 @@ test('(1) wrong key, stale timestamp and a reused nonce are rejected on every in
     await expect(call(signedRequest(p,body(p),{key:randomBytes(48).toString('base64url')}))).rejects.toMatchObject({code:'BRIDGE_AUTH_DENIED'});
     await expect(call(signedRequest(p,body(p),{timestamp:String(Date.now()-120000)}))).rejects.toMatchObject({code:'BRIDGE_AUTH_DENIED'});
     const nonce=randomBytes(24).toString('base64url');
-    await expect(call(signedRequest(p,body(p),{nonce}))).rejects.toMatchObject({code:'NOT_IMPLEMENTED'});
+    const first=expect(call(signedRequest(p,body(p),{nonce}))).rejects;
+    // The events route now validates its body (a ZodError for {}); the outbox routes stay stubs until Task 6.
+    if(p.endsWith('intake/events')) await first.toBeInstanceOf(ZodError); else await first.toMatchObject({code:'NOT_IMPLEMENTED'});
     await expect(call(signedRequest(p,body(p),{nonce}))).rejects.toMatchObject({code:'BRIDGE_REPLAY'});
   }
 });

@@ -3,9 +3,10 @@ import type {IdentityService} from './identity';
 import type {BridgeConfig} from './bridge-config';
 import {verifySigned} from './bridge-auth';
 import {AppError,invariant} from './errors';
+import {IntakeService,type EnqueueReceipt} from './intake';
 
 export type IntakePrincipal={id:string;tenantId:string;projectIds:string[]};
-export type IoDeps={intakeDb:Database;identity:IdentityService;config:BridgeConfig;tenantId:string};
+export type IoDeps={intakeDb:Database;identity:IdentityService;config:BridgeConfig;tenantId:string;enqueueReceipt?:EnqueueReceipt};
 export const IO_PATHS=['/api/bridge/intake/events','/api/bridge/outbox/pull','/api/bridge/outbox/receipts'] as const;
 const MAX_BYTES:Record<(typeof IO_PATHS)[number],number>={'/api/bridge/intake/events':16384,'/api/bridge/outbox/pull':1024,'/api/bridge/outbox/receipts':4096};
 
@@ -14,8 +15,12 @@ export async function handleBridgeIo(request:Request,parts:string[],deps:IoDeps)
  const route=IO_PATHS.find(p=>p===path);
  if(!route) throw new AppError('NOT_FOUND','Không tìm thấy.',404);
  invariant(deps.config.intake,'INTAKE_UNCONFIGURED','Tiếp nhận chưa được cấu hình.',503);
- await verifySigned(request,{key:deps.config.intake.key,path:route,maxBytes:MAX_BYTES[route],identity:deps.identity,throttleBucket:'bridge-intake',throttleLimit:600});
- // Tasks 4 and 6 replace this with the real handlers.
+ const raw=await verifySigned(request,{key:deps.config.intake.key,path:route,maxBytes:MAX_BYTES[route],identity:deps.identity,throttleBucket:'bridge-intake',throttleLimit:600});
+ if(route==='/api/bridge/intake/events') {
+  const i=deps.config.intake;
+  return new IntakeService(deps.intakeDb,deps.tenantId,i.principalId,deps.config.chatScopes,i.chats,deps.enqueueReceipt).ingest(JSON.parse(raw));
+ }
+ // Task 6 replaces the outbox routes.
  throw new AppError('NOT_IMPLEMENTED','Chưa triển khai.',501);
 }
 
