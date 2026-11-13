@@ -8,21 +8,21 @@ CREATE TABLE IF NOT EXISTS outbox_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL, project_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-  event_id uuid NOT NULL, event_type text NOT NULL, event_version text NOT NULL DEFAULT 'v1',
-  source text NOT NULL DEFAULT 'libetech-ai-os',
+  event_id uuid NOT NULL, event_type text NOT NULL, event_version text NOT NULL DEFAULT 'v1' CHECK(event_version = 'v1'),
+  source text NOT NULL DEFAULT 'libetech-ai-os' CHECK(source = 'libetech-ai-os'),
   trace_id uuid NOT NULL, correlation_id uuid NOT NULL, causation_id uuid,
   occurred_at timestamptz NOT NULL DEFAULT now(),
   audience text NOT NULL CHECK(audience IN ('group','dm')),
   target_chat_id text NOT NULL, target_topic_id text NOT NULL DEFAULT '', reply_to_message_id text,
   recipient_user_id uuid,
   template text NOT NULL CHECK(template IN ('intake.received','intake.recovered','intake.attachment_failed','account_approval.pending')),
-  payload jsonb NOT NULL DEFAULT '{}' CHECK(length(payload::text)<=2048),
+  payload jsonb NOT NULL DEFAULT '{}' CHECK(octet_length(payload::text)<=2048),
   dedupe_key text NOT NULL,
   state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','leased','delivered','uncertain','dead','abandoned')),
   attempt_no integer NOT NULL DEFAULT 0, next_attempt_at timestamptz NOT NULL DEFAULT now(),
   lease_token uuid, lease_expires_at timestamptz,
   delivered_at timestamptz, telegram_message_id text, acknowledged_at timestamptz,
-  last_error_code text, failure_owner_id uuid,
+  last_error_code text CHECK(last_error_code IS NULL OR last_error_code ~ '^[A-Z0-9_]{1,64}$'), failure_owner_id uuid,
   source_event_id uuid, candidate_id uuid,
   version integer NOT NULL DEFAULT 1,
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
@@ -42,12 +42,27 @@ CREATE TABLE IF NOT EXISTS delivery_receipts (
   outbox_id uuid NOT NULL, attempt_no integer NOT NULL CHECK(attempt_no>0),
   phase text NOT NULL CHECK(phase IN ('send','reconcile')),
   outcome text NOT NULL CHECK(outcome IN ('delivered','failed_retryable','failed_permanent','uncertain','not_sent')),
-  telegram_message_id text, error_code text, reported_at timestamptz NOT NULL,
+  telegram_message_id text, error_code text CHECK(error_code IS NULL OR error_code ~ '^[A-Z0-9_]{1,64}$'), reported_at timestamptz NOT NULL,
   source_id text NOT NULL, source_type text NOT NULL CHECK(source_type='telegram_gateway'),
   ingested_at timestamptz NOT NULL DEFAULT now(), quality_score smallint NOT NULL CHECK(quality_score BETWEEN 0 AND 100),
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
   FOREIGN KEY(outbox_id,tenant_id) REFERENCES outbox_messages(id,tenant_id),
   UNIQUE(outbox_id,attempt_no,phase)
+);
+-- Append-only history of every outbox state change, group and DM alike (intake_events needs a project; DM rows have none).
+CREATE TABLE IF NOT EXISTS outbox_state_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL, project_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+  outbox_id uuid NOT NULL,
+  from_state text NOT NULL CHECK(from_state IN ('pending','leased','delivered','uncertain','dead','abandoned')),
+  to_state text NOT NULL CHECK(to_state IN ('pending','leased','delivered','uncertain','dead','abandoned')),
+  signal text NOT NULL CHECK(signal IN ('lease','delivered','failed_retryable','failed_permanent','uncertain','lease_expired','reconciled_delivered','reconciled_not_sent','requeue','abandon')),
+  attempt_no integer NOT NULL,
+  actor_kind text NOT NULL CHECK(actor_kind IN ('intake_service','user')),
+  actor_id uuid NOT NULL, request_id uuid NOT NULL, trace_id uuid,
+  FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
+  FOREIGN KEY(outbox_id,tenant_id) REFERENCES outbox_messages(id,tenant_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_outbox_messages_due ON outbox_messages(tenant_id,state,next_attempt_at);
@@ -62,6 +77,11 @@ CREATE INDEX IF NOT EXISTS idx_delivery_receipts_scope_created ON delivery_recei
 CREATE INDEX IF NOT EXISTS idx_delivery_receipts_created ON delivery_receipts(created_at);
 CREATE INDEX IF NOT EXISTS idx_delivery_receipts_project_fk ON delivery_receipts(project_id,tenant_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_receipts_outbox_fk ON delivery_receipts(outbox_id,tenant_id);
+CREATE INDEX IF NOT EXISTS idx_outbox_state_events_outbox_created ON outbox_state_events(outbox_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_state_events_scope_created ON outbox_state_events(tenant_id,project_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_outbox_state_events_created ON outbox_state_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_state_events_project_fk ON outbox_state_events(project_id,tenant_id);
+CREATE INDEX IF NOT EXISTS idx_outbox_state_events_outbox_fk ON outbox_state_events(outbox_id,tenant_id);
 
 ALTER TABLE outbox_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE outbox_messages FORCE ROW LEVEL SECURITY;
@@ -130,12 +150,42 @@ DROP POLICY IF EXISTS identity_select ON delivery_receipts;
 CREATE POLICY identity_select ON delivery_receipts FOR SELECT TO libetech_identity
   USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid AND project_id IS NULL);
 
+-- outbox_state_events: intake writes as the intake service principal, runtime as the signed-in person (project rows only).
+ALTER TABLE outbox_state_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE outbox_state_events FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS intake_select ON outbox_state_events;
+CREATE POLICY intake_select ON outbox_state_events FOR SELECT TO libetech_intake
+  USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND (project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]) OR project_id IS NULL));
+DROP POLICY IF EXISTS intake_insert ON outbox_state_events;
+CREATE POLICY intake_insert ON outbox_state_events FOR INSERT TO libetech_intake
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND actor_kind = 'intake_service' AND actor_id = nullif(current_setting('app.intake_principal_id',true),'')::uuid
+    AND ((project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+        AND EXISTS (SELECT 1 FROM outbox_messages o WHERE o.id = outbox_id AND o.tenant_id = outbox_state_events.tenant_id AND o.project_id = outbox_state_events.project_id))
+      OR (project_id IS NULL
+        AND EXISTS (SELECT 1 FROM outbox_messages o WHERE o.id = outbox_id AND o.tenant_id = outbox_state_events.tenant_id AND o.project_id IS NULL AND o.audience='dm'))));
+DROP POLICY IF EXISTS runtime_select ON outbox_state_events;
+CREATE POLICY runtime_select ON outbox_state_events FOR SELECT TO libetech_runtime
+  USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]));
+DROP POLICY IF EXISTS runtime_insert ON outbox_state_events;
+CREATE POLICY runtime_insert ON outbox_state_events FOR INSERT TO libetech_runtime
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND actor_kind = 'user' AND actor_id = nullif(current_setting('app.person_id',true),'')::uuid
+    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+    AND EXISTS (SELECT 1 FROM outbox_messages o WHERE o.id = outbox_id AND o.tenant_id = outbox_state_events.tenant_id AND o.project_id = outbox_state_events.project_id));
+DROP POLICY IF EXISTS identity_select ON outbox_state_events;
+CREATE POLICY identity_select ON outbox_state_events FOR SELECT TO libetech_identity
+  USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid AND project_id IS NULL);
+
 -- A receipt's project is derived from its outbox row, not trusted from the caller. Not SECURITY DEFINER: RLS on outbox_messages
 -- applies to the inserting role, so an invisible outbox row raises. A NULL derived project cannot reach the DM branch of the policy.
-CREATE OR REPLACE FUNCTION delivery_receipts_derive_project() RETURNS trigger LANGUAGE plpgsql AS $$
+-- Every trigger function pins search_path and schema-qualifies its tables so a TEMP shadow table cannot take their place.
+CREATE OR REPLACE FUNCTION delivery_receipts_derive_project() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE found boolean; derived uuid;
 BEGIN
-  SELECT true, o.project_id INTO found, derived FROM outbox_messages o WHERE o.id = NEW.outbox_id AND o.tenant_id = NEW.tenant_id;
+  SELECT true, o.project_id INTO found, derived FROM public.outbox_messages o WHERE o.id = NEW.outbox_id AND o.tenant_id = NEW.tenant_id;
   IF found IS NOT TRUE THEN RAISE EXCEPTION 'Receipt outbox row is not visible'; END IF;
   IF NEW.project_id IS DISTINCT FROM derived THEN RAISE EXCEPTION 'Receipt project must equal the outbox row project'; END IF;
   RETURN NEW;
@@ -144,12 +194,12 @@ DROP TRIGGER IF EXISTS delivery_receipts_derive_project ON delivery_receipts;
 CREATE TRIGGER delivery_receipts_derive_project BEFORE INSERT ON delivery_receipts FOR EACH ROW EXECUTE FUNCTION delivery_receipts_derive_project();
 -- Target binding (not SECURITY DEFINER; the caller's RLS applies). project_channels grants no authority in this slice (OQ-09), so it is not read.
 -- A group row may only reply in the chat, topic and message of its own visible source event; a DM row only to the recipient's linked telegram id.
-CREATE OR REPLACE FUNCTION outbox_messages_bind_target() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION outbox_messages_bind_target() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE s record; tg text;
 BEGIN
   IF NEW.audience = 'group' THEN
     IF NEW.source_event_id IS NULL THEN RAISE EXCEPTION 'Outbox target: a group row needs a source event'; END IF;
-    SELECT e.chat_id, e.topic_id, e.message_id INTO s FROM source_events e
+    SELECT e.chat_id, e.topic_id, e.message_id INTO s FROM public.source_events e
       WHERE e.id = NEW.source_event_id AND e.tenant_id = NEW.tenant_id AND e.project_id = NEW.project_id;
     IF NOT FOUND THEN RAISE EXCEPTION 'Outbox target: source event is not visible'; END IF;
     IF NEW.target_chat_id <> s.chat_id OR NEW.target_topic_id <> s.topic_id
@@ -168,7 +218,9 @@ CREATE TRIGGER outbox_messages_bind_target BEFORE INSERT ON outbox_messages FOR 
 -- State moves mirror outboxTransition (src/server/outbox.ts). delivered and abandoned are terminal.
 -- libetech_runtime may only requeue dead rows (attempt_no reset to 0) or abandon dead/uncertain rows, and otherwise touches
 -- failure_owner_id, last_error_code, version and updated_at only.
-CREATE OR REPLACE FUNCTION outbox_messages_guard_state() RETURNS trigger LANGUAGE plpgsql AS $$
+-- delivered_at and telegram_message_id move only with a move to delivered; delivered and abandoned rows are frozen except
+-- acknowledged_at, updated_at and version; acknowledged_at is set once, from NULL, and only on a delivered row.
+CREATE OR REPLACE FUNCTION outbox_messages_guard_state() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
   IF NEW.state IS DISTINCT FROM OLD.state THEN
     IF NOT ((OLD.state = 'pending' AND NEW.state = 'leased')
@@ -186,15 +238,46 @@ BEGIN
         RAISE EXCEPTION 'Runtime role may not change attempt_no here';
       END IF;
     END IF;
-  ELSIF current_user = 'libetech_runtime' THEN
-    IF NEW.attempt_no IS DISTINCT FROM OLD.attempt_no OR NEW.next_attempt_at IS DISTINCT FROM OLD.next_attempt_at THEN
+    IF NEW.state <> 'delivered' AND (NEW.delivered_at IS DISTINCT FROM OLD.delivered_at OR NEW.telegram_message_id IS DISTINCT FROM OLD.telegram_message_id) THEN
+      RAISE EXCEPTION 'Outbox delivered_at and telegram_message_id change only on a move to delivered';
+    END IF;
+  ELSE
+    IF OLD.state IN ('delivered','abandoned') AND (
+         NEW.attempt_no IS DISTINCT FROM OLD.attempt_no OR NEW.next_attempt_at IS DISTINCT FROM OLD.next_attempt_at
+      OR NEW.lease_token IS DISTINCT FROM OLD.lease_token OR NEW.lease_expires_at IS DISTINCT FROM OLD.lease_expires_at
+      OR NEW.delivered_at IS DISTINCT FROM OLD.delivered_at OR NEW.telegram_message_id IS DISTINCT FROM OLD.telegram_message_id
+      OR NEW.last_error_code IS DISTINCT FROM OLD.last_error_code OR NEW.failure_owner_id IS DISTINCT FROM OLD.failure_owner_id) THEN
+      RAISE EXCEPTION 'Outbox terminal row (%) is frozen', OLD.state;
+    END IF;
+    IF NEW.delivered_at IS DISTINCT FROM OLD.delivered_at OR NEW.telegram_message_id IS DISTINCT FROM OLD.telegram_message_id THEN
+      RAISE EXCEPTION 'Outbox delivered_at and telegram_message_id change only on a move to delivered';
+    END IF;
+    IF current_user = 'libetech_runtime'
+       AND (NEW.attempt_no IS DISTINCT FROM OLD.attempt_no OR NEW.next_attempt_at IS DISTINCT FROM OLD.next_attempt_at) THEN
       RAISE EXCEPTION 'Runtime role may only change failure_owner_id and last_error_code while the state stays';
     END IF;
+  END IF;
+  IF NEW.acknowledged_at IS DISTINCT FROM OLD.acknowledged_at
+     AND NOT (NEW.state = 'delivered' AND OLD.acknowledged_at IS NULL AND NEW.acknowledged_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'Outbox acknowledged_at is set once, and only on a delivered row';
   END IF;
   RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS outbox_messages_guard_state ON outbox_messages;
 CREATE TRIGGER outbox_messages_guard_state BEFORE UPDATE ON outbox_messages FOR EACH ROW EXECUTE FUNCTION outbox_messages_guard_state();
+
+CREATE OR REPLACE FUNCTION outbox_state_events_derive_project() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE found boolean; derived uuid;
+BEGIN
+  SELECT true, o.project_id INTO found, derived FROM public.outbox_messages o WHERE o.id = NEW.outbox_id AND o.tenant_id = NEW.tenant_id;
+  IF found IS NOT TRUE THEN RAISE EXCEPTION 'State event outbox row is not visible'; END IF;
+  IF NEW.project_id IS DISTINCT FROM derived THEN RAISE EXCEPTION 'State event project must equal the outbox row project'; END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS outbox_state_events_derive_project ON outbox_state_events;
+CREATE TRIGGER outbox_state_events_derive_project BEFORE INSERT ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION outbox_state_events_derive_project();
+DROP TRIGGER IF EXISTS outbox_state_events_immutable ON outbox_state_events;
+CREATE TRIGGER outbox_state_events_immutable BEFORE UPDATE OR DELETE ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 
 DROP TRIGGER IF EXISTS delivery_receipts_immutable ON delivery_receipts;
 CREATE TRIGGER delivery_receipts_immutable BEFORE UPDATE OR DELETE ON delivery_receipts FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
@@ -202,7 +285,9 @@ DROP TRIGGER IF EXISTS outbox_messages_no_delete ON outbox_messages;
 CREATE TRIGGER outbox_messages_no_delete BEFORE DELETE ON outbox_messages FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 
 GRANT USAGE ON SCHEMA public TO libetech_intake, libetech_runtime, libetech_identity;
-GRANT SELECT ON outbox_messages, delivery_receipts TO libetech_intake, libetech_runtime, libetech_identity;
+GRANT SELECT ON outbox_messages, delivery_receipts, outbox_state_events TO libetech_intake, libetech_runtime, libetech_identity;
+REVOKE INSERT ON outbox_state_events FROM libetech_intake, libetech_runtime, libetech_identity;
+GRANT INSERT(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,actor_kind,actor_id,request_id,trace_id) ON outbox_state_events TO libetech_intake, libetech_runtime;
 -- Column-level INSERT (pattern 013/014/016): defaults own id, created_at/updated_at, ingested_at, state, attempt_no, next_attempt_at, lease_*,
 -- delivered_at, telegram_message_id, acknowledged_at, last_error_code, failure_owner_id and version.
 REVOKE INSERT ON outbox_messages, delivery_receipts FROM libetech_intake, libetech_runtime, libetech_identity;

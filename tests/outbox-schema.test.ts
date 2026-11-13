@@ -114,9 +114,10 @@ test('runtime cannot mark a message delivered',async()=>{
   await expect(scoped(h.db,pm,tx=>tx.query('UPDATE outbox_messages SET delivered_at=now()'))).rejects.toThrow(/permission denied/);
   await expect(scoped(h.db,pm,tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now()'))).rejects.toThrow(/permission denied/);
   // state moves are guarded by trigger (see the hardening tests); non-state columns it owns stay writable
-  await expect(scoped(h.db,pm,tx=>tx.query("UPDATE outbox_messages SET last_error_code='x',version=version+1,updated_at=now()"))).resolves.toBeTruthy();
+  await expect(scoped(h.db,pm,tx=>tx.query("UPDATE outbox_messages SET last_error_code='X_CODE',version=version+1,updated_at=now()"))).resolves.toBeTruthy();
   await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET delivered_at=now()'))).rejects.toThrow(/permission denied/);
-  await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now()'))).resolves.toBeTruthy();
+  // acknowledgement needs a delivered row (guard trigger); the pending DM row refuses it
+  await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now()'))).rejects.toThrow(/acknowledged/i);
   await expect(asIntake([ids.sales],tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now()'))).rejects.toThrow(/permission denied/);
 });
 
@@ -204,6 +205,7 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
     await h.exec(rb);
     expect(await reg('public.outbox_messages')).toBeNull();
     expect(await reg('public.delivery_receipts')).toBeNull();
+    expect(await reg('public.outbox_state_events')).toBeNull();
     expect((await h.operator.query("SELECT 1 FROM schema_migrations WHERE version='017'")).rows).toHaveLength(0);
   } finally {
     await h.exec('ROLLBACK').catch(()=>{});
@@ -316,5 +318,119 @@ test('intake follows the allowed moves; delivered and abandoned are terminal',as
   await expect(run('intake',setState('pending'),a)).rejects.toThrow();
   // updates that keep the state stay allowed (identity acknowledging a DM)
   const dm=(await insert(h.operator,dmVals())).rows[0].id;
+  await h.operator.query("UPDATE outbox_messages SET state='leased',attempt_no=1 WHERE id=$1",[dm]);
+  await h.operator.query("UPDATE outbox_messages SET state='delivered',delivered_at=now() WHERE id=$1",[dm]);
   await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now() WHERE id=$1',[dm]))).resolves.toBeTruthy();
+});
+
+// ---- gate-2 fix A ----
+const asRuntimePerson=<T>(fn:(tx:Queryable)=>Promise<T>,person:string|null=pm.id)=>scoped(h.db,pm,async tx=>{
+  if(person) await tx.query("SELECT set_config('app.person_id',$1,true)",[person]);
+  return fn(tx);
+});
+const stateEvent=(tx:Queryable,outboxId:string,project:string|null,over:Row={})=>{
+  const v:Row={tenant_id:ids.tenant,project_id:project,outbox_id:outboxId,from_state:'pending',to_state:'leased',signal:'lease',attempt_no:1,
+    actor_kind:'intake_service',actor_id:intakePrincipalId,request_id:randomUUID(),trace_id:randomUUID(),...over};
+  const cols=Object.keys(v);
+  return tx.query(`INSERT INTO outbox_state_events(${cols.join(',')}) VALUES(${cols.map((_,i)=>'$'+(i+1)).join(',')})`,Object.values(v));
+};
+
+test('outbox_state_events: no context returns nothing; roles see only their rows',async()=>{
+  const {g,d}=await seedBoth();
+  await stateEvent(h.operator,g,ids.sales);await stateEvent(h.operator,d,null);
+  for(const role of ['libetech_intake','libetech_runtime','libetech_identity'])
+    expect(await h.operator.transaction(async tx=>{await tx.query(`SET LOCAL ROLE ${role}`);return count(tx,'outbox_state_events');}),role).toBe(0);
+  expect(await asIntake([ids.sales],tx=>count(tx,'outbox_state_events'))).toBe(2);
+  expect(await asIntake([ids.transport],tx=>count(tx,'outbox_state_events'))).toBe(1);
+  expect(await asRuntime(tx=>count(tx,'outbox_state_events'))).toBe(1);
+  expect(await asIdentity(tx=>count(tx,'outbox_state_events'))).toBe(1);
+  expect(await scoped(h.db,viewer,tx=>count(tx,'outbox_state_events'))).toBe(0);
+  expect(await scoped(h.db,outsider,tx=>count(tx,'outbox_state_events'))).toBe(0);
+});
+
+test('outbox_state_events: actor binding, derived project and role limits',async()=>{
+  const {g,d}=await seedBoth();
+  const bothP=[ids.sales,ids.transport];
+  // intake: service actor bound to the principal; project derived from the outbox row
+  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.sales))).resolves.toBeTruthy();
+  await expect(asIntake(bothP,tx=>stateEvent(tx,d,null))).resolves.toBeTruthy();
+  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.sales,{actor_kind:'user'}))).rejects.toThrow();
+  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.sales,{actor_id:randomUUID()}))).rejects.toThrow();
+  await expect(asIntake(bothP,tx=>stateEvent(tx,g,ids.transport))).rejects.toThrow(/project/i);
+  await expect(asIntake(bothP,tx=>stateEvent(tx,g,null))).rejects.toThrow();
+  await expect(asIntake(bothP,tx=>stateEvent(tx,d,ids.sales))).rejects.toThrow();
+  await expect(asIntake([ids.transport],tx=>stateEvent(tx,g,ids.transport))).rejects.toThrow();
+  await expect(asIntake(bothP,tx=>stateEvent(tx,randomUUID(),null))).rejects.toThrow();
+  // runtime: human actor bound to app.person_id, project rows only
+  const hum={actor_kind:'user',actor_id:pm.id};
+  await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales,hum))).resolves.toBeTruthy();
+  await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales,{...hum,actor_id:randomUUID()}))).rejects.toThrow();
+  await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales,hum),null)).rejects.toThrow();
+  await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales))).rejects.toThrow();
+  await expect(asRuntimePerson(tx=>stateEvent(tx,d,null,hum))).rejects.toThrow();
+  // identity cannot insert
+  await expect(asIdentity(tx=>stateEvent(tx,d,null,hum))).rejects.toThrow(/permission denied/);
+});
+
+test('outbox_state_events: append-only, closed label sets, column-level grants',async()=>{
+  const {g}=await seedBoth();
+  await stateEvent(h.operator,g,ids.sales);
+  await expect(h.operator.query("UPDATE outbox_state_events SET signal='lease'")).rejects.toThrow('Append-only history');
+  await expect(h.operator.query('DELETE FROM outbox_state_events')).rejects.toThrow('Append-only history');
+  await expect(stateEvent(h.operator,g,ids.sales,{to_state:'sent'})).rejects.toThrow();
+  await expect(stateEvent(h.operator,g,ids.sales,{from_state:'sent'})).rejects.toThrow();
+  await expect(stateEvent(h.operator,g,ids.sales,{signal:'free_text'})).rejects.toThrow();
+  await expect(stateEvent(h.operator,g,ids.sales,{actor_kind:'bot'})).rejects.toThrow();
+  for(const [c,v] of [['id','00000000-0000-4000-8000-0000000000cc'],['created_at','2020-01-01T00:00:00Z'],['updated_at','2020-01-01T00:00:00Z']] as [string,unknown][]){
+    await expect(asIntake([ids.sales],tx=>stateEvent(tx,g,ids.sales,{[c]:v})),'intake '+c).rejects.toThrow(/permission denied/);
+    await expect(asRuntimePerson(tx=>stateEvent(tx,g,ids.sales,{actor_kind:'user',actor_id:pm.id,[c]:v})),'runtime '+c).rejects.toThrow(/permission denied/);
+  }
+});
+
+test('trigger functions resolve names in pinned schemas: a TEMP shadow of source_events cannot forge a target',async()=>{
+  const forged='-1000000000999';
+  await expect(asIntake(both(),async tx=>{
+    await tx.query(`CREATE TEMP TABLE source_events AS SELECT id,tenant_id,project_id,'${forged}'::text AS chat_id,topic_id,message_id FROM public.source_events`);
+    return insert(tx,groupVals({target_chat_id:forged}));
+  })).rejects.toThrow(/Outbox target/);
+});
+
+test('guard trigger: delivery columns move only with delivered; terminal rows are frozen; acknowledged_at once, only when delivered',async()=>{
+  const p=await mkRow('pending');
+  await expect(run('intake',"UPDATE outbox_messages SET delivered_at=now() WHERE id=$1",p)).rejects.toThrow(/delivered/i);
+  await expect(run('intake',"UPDATE outbox_messages SET telegram_message_id='5' WHERE id=$1",await mkRow('leased'))).rejects.toThrow(/delivered/i);
+  const dl=await mkRow('delivered');
+  await expect(run('intake','UPDATE outbox_messages SET attempt_no=9 WHERE id=$1',dl)).rejects.toThrow(/terminal|frozen/i);
+  await expect(run('intake',"UPDATE outbox_messages SET delivered_at=now()-interval '1 day' WHERE id=$1",dl)).rejects.toThrow(/terminal|frozen|delivered/i);
+  await expect(run('intake',"UPDATE outbox_messages SET last_error_code='X' WHERE id=$1",dl)).rejects.toThrow(/terminal|frozen/i);
+  const ab=await mkRow('dead');await run('intake',setState('abandoned'),ab);
+  await expect(run('intake',"UPDATE outbox_messages SET last_error_code='X' WHERE id=$1",ab)).rejects.toThrow(/terminal|frozen/i);
+  // identity acknowledgement on a DM row
+  const dm=(await insert(h.operator,dmVals())).rows[0].id;
+  let n=0; // a different timestamp each time, so a second acknowledgement is a real change rather than a no-op
+  const ack=()=>asIdentity(tx=>tx.query("UPDATE outbox_messages SET acknowledged_at=now()+make_interval(days => $2::int),updated_at=now() WHERE id=$1",[dm,n++]));
+  await expect(ack()).rejects.toThrow(/acknowledged/i);
+  await h.operator.query('UPDATE outbox_messages SET state=\'leased\',attempt_no=1 WHERE id=$1',[dm]);
+  await h.operator.query('UPDATE outbox_messages SET state=\'delivered\',delivered_at=now() WHERE id=$1',[dm]);
+  await expect(ack()).resolves.toBeTruthy();
+  await expect(ack()).rejects.toThrow(/acknowledged/i);
+  await expect(asIdentity(tx=>tx.query("UPDATE outbox_messages SET acknowledged_at=NULL,updated_at=now() WHERE id=$1",[dm]))).rejects.toThrow(/acknowledged/i);
+});
+
+test('payload cap counts bytes, envelope constants and error codes are closed',async()=>{
+  const o=h.operator;
+  const wide=JSON.stringify({a:'é'.repeat(1100)});
+  expect(wide.length).toBeLessThan(2048);expect(Buffer.byteLength(wide)).toBeGreaterThan(2048);
+  await expect(insert(o,groupVals({payload:wide}))).rejects.toThrow();
+  await expect(insert(o,groupVals({payload:JSON.stringify({a:'é'.repeat(500)})}))).resolves.toBeTruthy();
+  await expect(insert(o,groupVals({event_version:'v2'}))).rejects.toThrow();
+  await expect(insert(o,groupVals({source:'other'}))).rejects.toThrow();
+  await expect(asIntake(both(),tx=>insert(tx,groupVals({event_version:'v1',source:'libetech-ai-os'})))).resolves.toBeTruthy();
+  const id=await mkRow('leased');
+  for(const bad of ['bad code','lower_case','X'.repeat(65),''])
+    await expect(o.query('UPDATE outbox_messages SET last_error_code=$2 WHERE id=$1',[id,bad]),JSON.stringify(bad)).rejects.toThrow();
+  await expect(o.query("UPDATE outbox_messages SET last_error_code='NET_TIMEOUT_1' WHERE id=$1",[id])).resolves.toBeTruthy();
+  const {g}=await seedBoth();
+  await expect(receipt(o,g,ids.sales,{attempt_no:2,error_code:'free text'})).rejects.toThrow();
+  await expect(receipt(o,g,ids.sales,{attempt_no:2,error_code:'RECIPIENT_UNLINKED'})).resolves.toBeTruthy();
 });
