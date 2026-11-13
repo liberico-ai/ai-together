@@ -1,4 +1,3 @@
-import {createHmac,timingSafeEqual} from 'node:crypto';
 import { APP_VERSION } from './version';
 import {z} from 'zod';
 import {IdentityService} from './identity';
@@ -13,19 +12,13 @@ const schema=z.discriminatedUnion('operation',[
  z.object({operation:z.literal('account_approval_pending'),context}).strict(),
  z.object({operation:z.literal('account_approval_vote'),context,approvalId:z.uuid(),choice:approvalChoice}).strict(),
 ]);
-export type ChatScopes=Record<string,string[]>;
-export const signingText=(timestamp:string,nonce:string,raw:string)=>`${timestamp}\n${nonce}\nPOST\n/api/bridge\n${raw}`;
+export type {ChatScopes} from './bridge-config';
+import type {ChatScopes} from './bridge-config';
+import {signingText,verifySigned} from './bridge-auth';
+export {signingText};
 export async function handleBridge(request:Request,db:Database,identity:IdentityService,key:string,chatScopes:ChatScopes) {
- invariant(key.length>=43,'BRIDGE_UNCONFIGURED','Cầu nối chưa được cấu hình.',503);
- const raw=await request.text(); invariant(Buffer.byteLength(raw)<=4096,'PAYLOAD_TOO_LARGE','Yêu cầu quá lớn.',413);
- const timestamp=request.headers.get('x-libetech-timestamp')??'',nonce=request.headers.get('x-libetech-nonce')??'',signature=request.headers.get('x-libetech-signature')??'';
- invariant(/^\d{13}$/.test(timestamp)&&Math.abs(Date.now()-Number(timestamp))<60000&&/^[A-Za-z0-9_-]{20,80}$/.test(nonce)&&/^[a-f0-9]{64}$/.test(signature),'BRIDGE_AUTH_DENIED','Không xác thực được cầu nối.',401);
- const expected=createHmac('sha256',key).update(signingText(timestamp,nonce,raw)).digest();
- invariant(timingSafeEqual(expected,Buffer.from(signature,'hex')),'BRIDGE_AUTH_DENIED','Không xác thực được cầu nối.',401);
+ const raw=await verifySigned(request,{key,path:'/api/bridge',maxBytes:4096,identity,throttleBucket:'bridge-global',throttleLimit:120});
  const data=schema.parse(JSON.parse(raw));
- const used=await identity.scope(async tx=>(await tx.query(`INSERT INTO identity.bridge_nonces(tenant_id,nonce,expires_at) VALUES($1,$2,now()+interval '2 minutes') ON CONFLICT(tenant_id,nonce) DO NOTHING RETURNING id`,[identity.tenantId,nonce])).rows.length);
- invariant(used,'BRIDGE_REPLAY','Yêu cầu cầu nối đã được sử dụng.',409);
- await identity.throttle('bridge-global',120,60);
  const c=data.context;
  if(data.operation==='pair') return identity.pair(data.code,c.telegramId,c.chatId,c.chatType);
  if(data.operation==='account_approval_pending') return new AccountApprovalService(identity)

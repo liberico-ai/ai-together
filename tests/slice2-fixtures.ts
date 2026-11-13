@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {ids} from '../src/server/identities';
 import {sameBuProject} from './slice1-fixtures';
 
-type BridgeConfig=any; // thay ở Task 3/4
+import type {BridgeConfig} from '../src/server/bridge-config';
 type IntakeEventInput=any; // thay ở Task 3/4
 
 export const chatSales='-1000000000001';
