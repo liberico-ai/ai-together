@@ -2,7 +2,17 @@
 -- receipts are immutable and reported by the Telegram gateway. Rows carry template names, ids and a small payload, never chat message bodies.
 -- project_id is nullable by design: DM rows for account approval belong to the tenant, not to a project (audience='dm').
 -- Roles libetech_intake, libetech_runtime and libetech_identity already exist (002, 003, 016). No data rows are inserted here except schema_migrations.
+-- libetech_outbox_audit (NOLOGIN, granted to no role) is the only role that may insert outbox_state_events; it acts only through the
+-- SECURITY DEFINER state trigger it owns. Roles are cluster-wide, so the rollback keeps it (OQ-20).
 BEGIN;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='libetech_outbox_audit') THEN
+    CREATE ROLE libetech_outbox_audit NOLOGIN NOSUPERUSER NOBYPASSRLS;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='libetech_outbox_audit' AND (rolcanlogin OR rolsuper OR rolbypassrls)) THEN
+    RAISE EXCEPTION 'libetech_outbox_audit must be NOLOGIN, NOSUPERUSER and NOBYPASSRLS';
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS outbox_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -151,34 +161,25 @@ DROP POLICY IF EXISTS identity_select ON delivery_receipts;
 CREATE POLICY identity_select ON delivery_receipts FOR SELECT TO libetech_identity
   USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid AND project_id IS NULL);
 
--- outbox_state_events: intake writes as the intake service principal, runtime as the signed-in person (project rows only).
+-- outbox_state_events: intake, runtime and identity read their rows; only libetech_outbox_audit inserts (through the state trigger),
+-- inside the tenant and project scope of the transaction. No app role holds INSERT on this table (grants at the end).
 ALTER TABLE outbox_state_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE outbox_state_events FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS intake_select ON outbox_state_events;
 CREATE POLICY intake_select ON outbox_state_events FOR SELECT TO libetech_intake
   USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
     AND (project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]) OR project_id IS NULL));
-DROP POLICY IF EXISTS intake_insert ON outbox_state_events;
-CREATE POLICY intake_insert ON outbox_state_events FOR INSERT TO libetech_intake
-  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
-    AND actor_kind = 'intake_service' AND actor_id = nullif(current_setting('app.intake_principal_id',true),'')::uuid
-    AND ((project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
-        AND EXISTS (SELECT 1 FROM outbox_messages o WHERE o.id = outbox_id AND o.tenant_id = outbox_state_events.tenant_id AND o.project_id = outbox_state_events.project_id))
-      OR (project_id IS NULL
-        AND EXISTS (SELECT 1 FROM outbox_messages o WHERE o.id = outbox_id AND o.tenant_id = outbox_state_events.tenant_id AND o.project_id IS NULL AND o.audience='dm'))));
 DROP POLICY IF EXISTS runtime_select ON outbox_state_events;
 CREATE POLICY runtime_select ON outbox_state_events FOR SELECT TO libetech_runtime
   USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
     AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]));
-DROP POLICY IF EXISTS runtime_insert ON outbox_state_events;
-CREATE POLICY runtime_insert ON outbox_state_events FOR INSERT TO libetech_runtime
-  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
-    AND actor_kind = 'user' AND actor_id = nullif(current_setting('app.person_id',true),'')::uuid
-    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
-    AND EXISTS (SELECT 1 FROM outbox_messages o WHERE o.id = outbox_id AND o.tenant_id = outbox_state_events.tenant_id AND o.project_id = outbox_state_events.project_id));
 DROP POLICY IF EXISTS identity_select ON outbox_state_events;
 CREATE POLICY identity_select ON outbox_state_events FOR SELECT TO libetech_identity
   USING (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid AND project_id IS NULL);
+DROP POLICY IF EXISTS audit_insert ON outbox_state_events;
+CREATE POLICY audit_insert ON outbox_state_events FOR INSERT TO libetech_outbox_audit
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND (project_id IS NULL OR project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])));
 
 -- A receipt's project is derived from its outbox row, not trusted from the caller. Not SECURITY DEFINER: RLS on outbox_messages
 -- applies to the inserting role, so an invisible outbox row raises. A NULL derived project cannot reach the DM branch of the policy.
@@ -221,8 +222,11 @@ CREATE TRIGGER outbox_messages_bind_target BEFORE INSERT ON outbox_messages FOR 
 -- failure_owner_id, last_error_code, version and updated_at only.
 -- delivered_at and telegram_message_id move only with a move to delivered; delivered and abandoned rows are frozen except
 -- acknowledged_at, updated_at and version; acknowledged_at is set once, from NULL, and only on a delivered row.
+-- Runs with the caller's rights on every row update, so it also records current_user (the invoking role) for the state trigger below,
+-- which runs as its owner and must not take the caller's word for who it is.
 CREATE OR REPLACE FUNCTION outbox_messages_guard_state() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+  PERFORM pg_catalog.set_config('app.outbox_invoker', current_user::text, true);
   -- version never decreases; a state change raises it by exactly 1; a same-state update keeps it or raises it by 1 (terminal rows too).
   IF NEW.state IS DISTINCT FROM OLD.state THEN
     IF NEW.version IS DISTINCT FROM OLD.version + 1 THEN RAISE EXCEPTION 'Outbox state change must raise version by exactly 1'; END IF;
@@ -273,28 +277,13 @@ END $$;
 DROP TRIGGER IF EXISTS outbox_messages_guard_state ON outbox_messages;
 CREATE TRIGGER outbox_messages_guard_state BEFORE UPDATE ON outbox_messages FOR EACH ROW EXECUTE FUNCTION outbox_messages_guard_state();
 
-CREATE OR REPLACE FUNCTION outbox_state_events_derive_project() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-DECLARE found boolean; derived uuid;
-BEGIN
-  SELECT true, o.project_id INTO found, derived FROM public.outbox_messages o WHERE o.id = NEW.outbox_id AND o.tenant_id = NEW.tenant_id;
-  IF found IS NOT TRUE THEN RAISE EXCEPTION 'State event outbox row is not visible'; END IF;
-  IF NEW.project_id IS DISTINCT FROM derived THEN RAISE EXCEPTION 'State event project must equal the outbox row project'; END IF;
-  RETURN NEW;
-END $$;
-DROP TRIGGER IF EXISTS outbox_state_events_derive_project ON outbox_state_events;
-CREATE TRIGGER outbox_state_events_derive_project BEFORE INSERT ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION outbox_state_events_derive_project();
--- A state event must describe a real, current transition: written after the UPDATE in the same transaction, so to_state and attempt_no
--- must equal the live row. Runtime (a person) may only requeue dead rows or abandon dead/uncertain rows. Not SECURITY DEFINER: RLS applies.
+-- Proof by privilege: only libetech_outbox_audit holds INSERT on outbox_state_events, and the only code that runs as it is the state
+-- trigger below, which builds every column of the row from OLD/NEW of the outbox row it fires on. The row therefore needs no lookup of
+-- the live outbox row (tenant, project, to_state, attempt_no and version are NEW's). This check keeps the closed signal/move table and the
+-- runtime limit. Not SECURITY DEFINER: as an invoker trigger it sees the inserting role as current_user.
 CREATE OR REPLACE FUNCTION outbox_state_events_validate() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-DECLARE cur_state text; cur_attempt integer; cur_version integer;
 BEGIN
-  -- Only outbox_messages_record_state_event (an AFTER UPDATE trigger, depth 2 here) may write state events.
-  IF pg_catalog.pg_trigger_depth() < 2 THEN RAISE EXCEPTION 'State events are written only by the outbox state trigger'; END IF;
-  SELECT o.state, o.attempt_no, o.version INTO cur_state, cur_attempt, cur_version FROM public.outbox_messages o WHERE o.id = NEW.outbox_id AND o.tenant_id = NEW.tenant_id;
-  IF cur_state IS NULL THEN RAISE EXCEPTION 'State event outbox row is not visible'; END IF;
-  IF NEW.to_state IS DISTINCT FROM cur_state THEN RAISE EXCEPTION 'State event to_state must equal the current outbox state'; END IF;
-  IF NEW.outbox_version IS DISTINCT FROM cur_version THEN RAISE EXCEPTION 'State event outbox_version must equal the current outbox version'; END IF;
-  IF NEW.attempt_no IS DISTINCT FROM cur_attempt THEN RAISE EXCEPTION 'State event attempt_no must equal the current outbox attempt_no'; END IF;
+  IF current_user <> 'libetech_outbox_audit' THEN RAISE EXCEPTION 'State events are written only by the outbox state trigger'; END IF;
   IF NOT ((NEW.from_state = 'pending' AND NEW.to_state = 'leased')
        OR (NEW.from_state = 'leased' AND NEW.to_state IN ('delivered','pending','dead','uncertain'))
        OR (NEW.from_state = 'uncertain' AND NEW.to_state IN ('delivered','pending','dead','abandoned'))
@@ -312,7 +301,8 @@ BEGIN
        OR (NEW.signal = 'abandon' AND NEW.from_state IN ('dead','uncertain') AND NEW.to_state = 'abandoned')) THEN
     RAISE EXCEPTION 'State event signal % does not belong to the move % to %', NEW.signal, NEW.from_state, NEW.to_state;
   END IF;
-  IF current_user = 'libetech_runtime' AND NOT ((NEW.signal = 'requeue' AND NEW.from_state = 'dead' AND NEW.to_state = 'pending')
+  -- a person (runtime) may only requeue dead rows or abandon dead/uncertain rows; actor_kind is set by the state trigger from the invoking role
+  IF NEW.actor_kind = 'user' AND NOT ((NEW.signal = 'requeue' AND NEW.from_state = 'dead' AND NEW.to_state = 'pending')
        OR (NEW.signal = 'abandon' AND NEW.from_state IN ('dead','uncertain') AND NEW.to_state = 'abandoned')) THEN
     RAISE EXCEPTION 'State event signal % is not allowed for the runtime role', NEW.signal;
   END IF;
@@ -321,29 +311,39 @@ END $$;
 DROP TRIGGER IF EXISTS outbox_state_events_validate ON outbox_state_events;
 CREATE TRIGGER outbox_state_events_validate BEFORE INSERT ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION outbox_state_events_validate();
 -- The database writes the state event: every state change inserts exactly one outbox_state_events row, from the signal and request id the
--- caller set in this transaction (fail-closed when missing) and the actor taken from the invoking role. The signal is consumed each time.
--- Not SECURITY DEFINER: it runs as the invoking role, so the column INSERT grants and the actor-binding policies still apply.
-CREATE OR REPLACE FUNCTION outbox_messages_record_state_event() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
-DECLARE sig text; req text; kind text; who uuid;
+-- caller set in this transaction (fail-closed when missing) and the actor of the invoking role. The signal is consumed each time.
+-- SECURITY DEFINER, owned by libetech_outbox_audit: the INSERT runs with that role's privilege, which no app role holds. It is a trigger
+-- function (not callable directly) and EXECUTE is revoked from PUBLIC, so no app role can attach it to a table of its own.
+-- Inside, current_user is the owner. The invoking role is the 'role' setting (changed only by SET ROLE, and only to a role the session
+-- belongs to; a security-definer function cannot change it), and must equal the current_user that the guard trigger recorded with the
+-- caller's rights for this update. Any other role, or a disagreement, raises.
+CREATE OR REPLACE FUNCTION public.outbox_messages_record_state_event() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE sig text; req text; invoker text; recorded text; kind text; who uuid;
 BEGIN
   sig := nullif(pg_catalog.current_setting('app.outbox_signal', true), '');
   req := nullif(pg_catalog.current_setting('app.request_id', true), '');
   IF sig IS NULL OR req IS NULL THEN RAISE EXCEPTION 'Outbox state change needs app.outbox_signal and app.request_id'; END IF;
-  IF current_user = 'libetech_runtime' THEN
+  invoker := pg_catalog.current_setting('role');
+  recorded := nullif(pg_catalog.current_setting('app.outbox_invoker', true), '');
+  IF invoker = 'libetech_runtime' THEN
     kind := 'user'; who := nullif(pg_catalog.current_setting('app.person_id', true), '')::uuid;
-  ELSIF current_user = 'libetech_intake' THEN
+  ELSIF invoker = 'libetech_intake' THEN
     kind := 'intake_service'; who := nullif(pg_catalog.current_setting('app.intake_principal_id', true), '')::uuid;
   ELSE
-    RAISE EXCEPTION 'Role % may not change an outbox state', current_user;
+    RAISE EXCEPTION 'Role % may not change an outbox state', coalesce(recorded, invoker);
   END IF;
+  IF recorded IS DISTINCT FROM invoker THEN RAISE EXCEPTION 'Outbox state change: the invoking role could not be established'; END IF;
   IF who IS NULL THEN RAISE EXCEPTION 'Outbox state change needs an actor id in the transaction context'; END IF;
   INSERT INTO public.outbox_state_events(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,request_id,trace_id)
     VALUES(NEW.tenant_id,NEW.project_id,NEW.id,OLD.state,NEW.state,sig,NEW.attempt_no,NEW.version,kind,who,req::uuid,NEW.trace_id);
   PERFORM pg_catalog.set_config('app.outbox_signal', '', true);
   RETURN NULL;
 END $$;
+ALTER FUNCTION public.outbox_messages_record_state_event() OWNER TO libetech_outbox_audit;
+REVOKE ALL ON FUNCTION public.outbox_messages_record_state_event() FROM PUBLIC;
 DROP TRIGGER IF EXISTS outbox_messages_record_state_event ON outbox_messages;
-CREATE TRIGGER outbox_messages_record_state_event AFTER UPDATE ON outbox_messages FOR EACH ROW WHEN (OLD.state IS DISTINCT FROM NEW.state) EXECUTE FUNCTION outbox_messages_record_state_event();
+CREATE TRIGGER outbox_messages_record_state_event AFTER UPDATE ON outbox_messages FOR EACH ROW WHEN (OLD.state IS DISTINCT FROM NEW.state) EXECUTE FUNCTION public.outbox_messages_record_state_event();
 DROP TRIGGER IF EXISTS outbox_state_events_immutable ON outbox_state_events;
 CREATE TRIGGER outbox_state_events_immutable BEFORE UPDATE OR DELETE ON outbox_state_events FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 
@@ -352,10 +352,14 @@ CREATE TRIGGER delivery_receipts_immutable BEFORE UPDATE OR DELETE ON delivery_r
 DROP TRIGGER IF EXISTS outbox_messages_no_delete ON outbox_messages;
 CREATE TRIGGER outbox_messages_no_delete BEFORE DELETE ON outbox_messages FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 
-GRANT USAGE ON SCHEMA public TO libetech_intake, libetech_runtime, libetech_identity;
+GRANT USAGE ON SCHEMA public TO libetech_intake, libetech_runtime, libetech_identity, libetech_outbox_audit;
 GRANT SELECT ON outbox_messages, delivery_receipts, outbox_state_events TO libetech_intake, libetech_runtime, libetech_identity;
-REVOKE INSERT ON outbox_state_events FROM libetech_intake, libetech_runtime, libetech_identity;
-GRANT INSERT(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,request_id,trace_id) ON outbox_state_events TO libetech_intake, libetech_runtime;
+-- State events: no app role and not PUBLIC may insert, at table or column level. Only the state trigger inserts, as libetech_outbox_audit,
+-- which holds nothing else here (no SELECT, no UPDATE, no other table).
+REVOKE INSERT ON outbox_state_events FROM PUBLIC, libetech_intake, libetech_runtime, libetech_identity;
+REVOKE INSERT(id,tenant_id,project_id,created_at,updated_at,outbox_id,from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,request_id,trace_id)
+  ON outbox_state_events FROM PUBLIC, libetech_intake, libetech_runtime, libetech_identity;
+GRANT INSERT(tenant_id,project_id,outbox_id,from_state,to_state,signal,attempt_no,outbox_version,actor_kind,actor_id,request_id,trace_id) ON outbox_state_events TO libetech_outbox_audit;
 -- Column-level INSERT (pattern 013/014/016): defaults own id, created_at/updated_at, ingested_at, state, attempt_no, next_attempt_at, lease_*,
 -- delivered_at, telegram_message_id, acknowledged_at, last_error_code, failure_owner_id and version.
 REVOKE INSERT ON outbox_messages, delivery_receipts FROM libetech_intake, libetech_runtime, libetech_identity;

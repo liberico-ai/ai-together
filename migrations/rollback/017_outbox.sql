@@ -1,6 +1,6 @@
 -- Rollback of 017 only. Throwaway test copy use; never run against production data without Chairman approval.
 -- Order: roll back 018, then 017, then 016. Refuses to run while identity.account_approvals.kind (018) exists; no CASCADE.
--- Roles are cluster-wide objects and are kept.
+-- Roles are cluster-wide objects and are kept, libetech_outbox_audit included (OQ-20); only its grant on schema public is revoked.
 BEGIN;
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='identity' AND table_name='account_approvals' AND column_name='kind') THEN
@@ -14,11 +14,17 @@ DROP TRIGGER IF EXISTS outbox_messages_guard_state ON outbox_messages;
 DROP FUNCTION IF EXISTS outbox_messages_bind_target();
 DROP FUNCTION IF EXISTS outbox_messages_guard_state();
 DROP TRIGGER IF EXISTS outbox_messages_record_state_event ON outbox_messages;
-DROP FUNCTION IF EXISTS outbox_messages_record_state_event();
+DROP FUNCTION IF EXISTS public.outbox_messages_record_state_event();
 DROP TRIGGER IF EXISTS outbox_state_events_validate ON outbox_state_events;
 DROP FUNCTION IF EXISTS outbox_state_events_validate();
+-- created by an earlier draft of 017 on test copies; the current 017 no longer has it
 DROP TRIGGER IF EXISTS outbox_state_events_derive_project ON outbox_state_events;
 DROP FUNCTION IF EXISTS outbox_state_events_derive_project();
 DROP TABLE IF EXISTS outbox_state_events, delivery_receipts, outbox_messages;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='libetech_outbox_audit') THEN
+    REVOKE USAGE ON SCHEMA public FROM libetech_outbox_audit;
+  END IF;
+END $$;
 DELETE FROM schema_migrations WHERE version='017';
 COMMIT;

@@ -8,6 +8,7 @@ import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
 import {intakeScoped} from '../src/server/bridge-io';
 import {IdentityService} from '../src/server/identity';
+import {applyOutboxSignal,type OutboxState} from '../src/server/outbox';
 import {chatSales,intakePrincipalId} from './slice2-fixtures';
 
 let h:Harness,srcSales:string;
@@ -194,7 +195,11 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
   const rb=await readFile(dir('migrations/rollback/017_outbox.sql'),'utf8');
   const fw=await readFile(dir('migrations/017_outbox.sql'),'utf8');
   expect(rb.replace(/--.*$/gm,'')).not.toMatch(/CASCADE/i);
+  // roles are cluster-wide (OQ-20): the rollback keeps libetech_outbox_audit
+  expect(rb.replace(/--.*$/gm,'')).not.toMatch(/DROP\s+ROLE/i);
   const reg=async(t:string)=>(await h.operator.query<{r:string|null}>('SELECT to_regclass($1)::text r',[t])).rows[0].r;
+  const proc=async(f:string)=>(await h.operator.query<{r:string|null}>('SELECT to_regprocedure($1)::text r',[f])).rows[0].r;
+  const schemaAcl=async()=>(await h.operator.query<{a:string}>("SELECT coalesce(nspacl::text,'') a FROM pg_namespace WHERE nspname='public'")).rows[0].a;
   try {
     // Task 9 (migration 018) adds this column; it is faked here only to exercise the guard.
     await h.exec('ALTER TABLE identity.account_approvals ADD COLUMN IF NOT EXISTS kind text');
@@ -206,6 +211,10 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
     expect(await reg('public.outbox_messages')).toBeNull();
     expect(await reg('public.delivery_receipts')).toBeNull();
     expect(await reg('public.outbox_state_events')).toBeNull();
+    expect(await proc('public.outbox_messages_record_state_event()')).toBeNull();
+    expect(await proc('public.outbox_state_events_validate()')).toBeNull();
+    expect((await h.operator.query("SELECT 1 FROM pg_roles WHERE rolname='libetech_outbox_audit'")).rows).toHaveLength(1);
+    expect(await schemaAcl()).not.toContain('libetech_outbox_audit=');
     expect((await h.operator.query("SELECT 1 FROM schema_migrations WHERE version='017'")).rows).toHaveLength(0);
   } finally {
     await h.exec('ROLLBACK').catch(()=>{});
@@ -214,6 +223,7 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
   }
   expect(await reg('public.outbox_messages')).toBe('outbox_messages');
   await h.exec(fw); // forward twice in a row
+  expect(await schemaAcl()).toContain('libetech_outbox_audit=');
 });
 
 test('a receipt project is derived from its outbox row, never trusted from the caller',async()=>{
@@ -443,29 +453,161 @@ test('outbox_state_events: version never decreases and every state change raises
   await expect(run('runtime',"UPDATE outbox_messages SET version=version+3 WHERE id=$1",ab)).rejects.toThrow(/version/i);
 });
 
-test('outbox_state_events: a direct INSERT of an event is refused for intake and runtime, even after version games',async()=>{
+test('outbox_state_events: a direct INSERT of an event is refused for intake, runtime and identity by privilege, even after version games',async()=>{
   const bothP=both();
   const hum={actor_kind:'user',actor_id:pm.id};
+  const DENIED=/permission denied/;
   // abandoned row: runtime bumps the version (allowed by the guard) but still cannot add an abandon event
   const u=await mkRow('uncertain');
   await run('runtime',setState('abandoned'),u);
   const ab={...hum,from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3};
   await run('runtime',"UPDATE outbox_messages SET version=version+1 WHERE id=$1",u);
-  await expect(asRuntimePerson(tx=>stateEvent(tx,u,ids.sales,ab))).rejects.toThrow(DIRECT);
-  await expect(asIntake(bothP,tx=>stateEvent(tx,u,ids.sales,{from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3}))).rejects.toThrow(DIRECT);
+  await expect(asRuntimePerson(tx=>stateEvent(tx,u,ids.sales,ab))).rejects.toThrow(DENIED);
+  await expect(asIntake(bothP,tx=>stateEvent(tx,u,ids.sales,{from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3}))).rejects.toThrow(DENIED);
   // requeued pending row: failure_owner_id update then a direct requeue event
   const dead=await mkRow('dead');
   await asRuntimePerson(async tx=>{await setSignal(tx,'requeue');return tx.query("UPDATE outbox_messages SET state='pending',attempt_no=0,version=version+1 WHERE id=$1",[dead]);});
   await run('runtime',`UPDATE outbox_messages SET failure_owner_id='${pm.id}',version=version+1 WHERE id=$1`,dead);
-  await expect(asRuntimePerson(tx=>stateEvent(tx,dead,ids.sales,{...hum,from_state:'dead',to_state:'pending',signal:'requeue',attempt_no:0}))).rejects.toThrow(DIRECT);
+  await expect(asRuntimePerson(tx=>stateEvent(tx,dead,ids.sales,{...hum,from_state:'dead',to_state:'pending',signal:'requeue',attempt_no:0}))).rejects.toThrow(DENIED);
   // intake: delivered / lease events on a live row
   const l=await mkRow('leased');
-  await expect(asIntake(bothP,tx=>stateEvent(tx,l,ids.sales,{from_state:'pending',to_state:'leased',signal:'lease',attempt_no:3}))).rejects.toThrow(DIRECT);
-  // operator as owner cannot either
+  await expect(asIntake(bothP,tx=>stateEvent(tx,l,ids.sales,{from_state:'pending',to_state:'leased',signal:'lease',attempt_no:3}))).rejects.toThrow(DENIED);
+  // operator as owner holds the privilege, but the validator gate admits only libetech_outbox_audit
   await expect(stateEvent(h.operator,l,ids.sales,{from_state:'pending',to_state:'leased',signal:'lease',attempt_no:3})).rejects.toThrow(DIRECT);
   // identity cannot insert
   const {d}=await seedBoth();
-  await expect(asIdentity(tx=>stateEvent(tx,d,null,hum))).rejects.toThrow(/permission denied/);
+  await expect(asIdentity(tx=>stateEvent(tx,d,null,hum))).rejects.toThrow(DENIED);
+  await expect(asIdentity(tx=>stateEvent(tx,d,null))).rejects.toThrow(DENIED);
+});
+
+// ---- gate-2 round 4: proof by privilege, not by trigger depth ----
+const AUDIT='libetech_outbox_audit';
+const APP_ROLES=['libetech_intake','libetech_runtime','libetech_identity'];
+const asIntakeBoth=<T>(fn:(tx:Queryable)=>Promise<T>)=>asIntake(both(),fn);
+type EventFull={from_state:string;to_state:string;signal:string;actor_kind:string;actor_id:string;request_id:string};
+const eventsFull=(id:string)=>h.operator.query<EventFull>('SELECT from_state,to_state,signal,actor_kind,actor_id,request_id FROM outbox_state_events WHERE outbox_id=$1 ORDER BY outbox_version',[id]).then(r=>r.rows);
+const rowOf=async(id:string)=>(await h.operator.query<{id:string;tenant_id:string;project_id:string|null;state:OutboxState;attempt_no:number;version:number;trace_id:string}>(
+  'SELECT id,tenant_id,project_id,state,attempt_no,version,trace_id FROM outbox_messages WHERE id=$1',[id])).rows[0];
+
+test('outbox_state_events: only libetech_outbox_audit may insert; it is NOLOGIN with no members and owns the SECURITY DEFINER state trigger',async()=>{
+  const o=h.operator;
+  for(const r of [...APP_ROLES,'public']){
+    const p=(await o.query<{t:boolean;c:boolean}>("SELECT has_table_privilege($1,'public.outbox_state_events','INSERT') t,has_any_column_privilege($1,'public.outbox_state_events','INSERT') c",[r])).rows[0];
+    expect(p,r+' INSERT on outbox_state_events').toEqual({t:false,c:false});
+  }
+  const a=(await o.query<Record<string,boolean>>(`SELECT has_any_column_privilege($1,'public.outbox_state_events','INSERT') ins,
+    has_table_privilege($1,'public.outbox_state_events','INSERT') ins_table,
+    has_any_column_privilege($1,'public.outbox_state_events','SELECT') sel,has_any_column_privilege($1,'public.outbox_state_events','UPDATE') upd,
+    has_table_privilege($1,'public.outbox_state_events','DELETE') del,has_any_column_privilege($1,'public.outbox_messages','SELECT') msg_sel,
+    has_any_column_privilege($1,'public.outbox_messages','UPDATE') msg_upd`,[AUDIT])).rows[0];
+  expect(a,'audit role privileges').toEqual({ins:true,ins_table:false,sel:false,upd:false,del:false,msg_sel:false,msg_upd:false});
+  const role=(await o.query<{login:boolean;sup:boolean;bypass:boolean;members:number;member_of:number}>(
+    `SELECT r.rolcanlogin login,r.rolsuper sup,r.rolbypassrls bypass,
+       (SELECT count(*)::int FROM pg_auth_members m WHERE m.roleid=r.oid) members,
+       (SELECT count(*)::int FROM pg_auth_members m WHERE m.member=r.oid) member_of
+     FROM pg_roles r WHERE r.rolname=$1`,[AUDIT])).rows;
+  expect(role,'audit role attributes').toEqual([{login:false,sup:false,bypass:false,members:0,member_of:0}]);
+  const fn=(await o.query<{definer:boolean;owner:string;config:string[]|null}>(
+    "SELECT p.prosecdef definer,pg_get_userbyid(p.proowner)::text owner,p.proconfig config FROM pg_proc p WHERE p.oid=to_regprocedure('public.outbox_messages_record_state_event()')")).rows;
+  expect(fn,'state trigger function').toEqual([{definer:true,owner:AUDIT,config:['search_path=pg_catalog, public, pg_temp']}]);
+  for(const r of [...APP_ROLES,'public'])
+    expect((await o.query<{x:boolean}>("SELECT has_function_privilege($1,'public.outbox_messages_record_state_event()','EXECUTE') x",[r])).rows[0].x,r+' EXECUTE').toBe(false);
+  // it is the only SECURITY DEFINER function among the outbox trigger functions
+  const definers=(await o.query<{f:string}>(`SELECT p.proname::text f FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND p.prosecdef AND (p.proname LIKE 'outbox%' OR p.proname LIKE 'delivery_receipts%') ORDER BY 1`)).rows.map(r=>r.f);
+  expect(definers).toEqual(['outbox_messages_record_state_event']);
+  // its search_path names public after pg_catalog: no app role and not the audit role may create objects there to shadow a name
+  for(const r of [...APP_ROLES,AUDIT,'public'])
+    expect((await o.query<{x:boolean}>("SELECT has_schema_privilege($1,'public','CREATE') x",[r])).rows[0].x,r+' CREATE on public').toBe(false);
+  // native: the real runtime login (non-superuser) cannot become the audit role
+  if(h.native) await expect(h.db.transaction(tx=>tx.query(`SET LOCAL ROLE ${AUDIT}`))).rejects.toThrow(/permission denied/);
+});
+
+/** The trigger-depth bypass: a pg_temp plpgsql trigger on a temp table inserts a well-formed event. Returns the step that threw. */
+async function forgeViaTempTrigger(as:<T>(fn:(tx:Queryable)=>Promise<T>)=>Promise<T>,ev:Row):Promise<{step:string;error:string|null}>{
+  const cols=Object.keys(ev);
+  const lit=(v:unknown)=>v===null?'NULL':`'${String(v).replace(/'/g,"''")}'`;
+  const body=`BEGIN INSERT INTO public.outbox_state_events(${cols.join(',')}) VALUES(${cols.map(c=>lit(ev[c])).join(',')}); RETURN NULL; END`;
+  let step='table';
+  try {
+    await as(async tx=>{
+      step='table';await tx.query('CREATE TEMP TABLE forge_box(x int) ON COMMIT DROP');
+      step='function';await tx.query(`CREATE OR REPLACE FUNCTION pg_temp.forge_event() RETURNS trigger LANGUAGE plpgsql AS $f$ ${body} $f$`);
+      step='trigger';await tx.query('CREATE TRIGGER forge_box_event AFTER INSERT ON pg_temp.forge_box FOR EACH ROW EXECUTE FUNCTION pg_temp.forge_event()');
+      step='fire';await tx.query('INSERT INTO pg_temp.forge_box VALUES(1)');
+      step='committed';
+    });
+    return {step,error:null};
+  } catch(e) { return {step,error:(e as Error).message}; }
+}
+
+test('outbox_state_events: a pg_temp trigger cannot forge an event for runtime (privilege, not trigger depth)',async()=>{
+  // a real abandon, then a same-state version bump, so an abandon event at the new version would pass every row check
+  const u=await mkRow('uncertain');
+  await run('runtime',setState('abandoned'),u);
+  await run('runtime','UPDATE outbox_messages SET version=version+1 WHERE id=$1',u);
+  const su=await stateOf(u),beforeU=(await events(u)).length;
+  const r=await forgeViaTempTrigger(asRuntimePerson,{tenant_id:ids.tenant,project_id:ids.sales,outbox_id:u,from_state:'uncertain',to_state:'abandoned',signal:'abandon',
+    attempt_no:su.attempt_no,outbox_version:su.version,actor_kind:'user',actor_id:pm.id,request_id:randomUUID(),trace_id:randomUUID()});
+  expect(r.step,`runtime forgery stopped at step "${r.step}": ${r.error}`).toBe('fire');
+  expect(r.error).toMatch(/permission denied/);
+  expect(await events(u)).toHaveLength(beforeU);
+  expect((await events(u)).filter(e=>e.outbox_version===su.version)).toEqual([]);
+});
+
+test('outbox_state_events: a pg_temp trigger cannot forge an event for intake (privilege, not trigger depth)',async()=>{
+  // the same on a row intake abandoned itself
+  const a=await mkRow('dead');
+  await run('intake',setState('abandoned'),a);
+  await run('intake','UPDATE outbox_messages SET version=version+1 WHERE id=$1',a);
+  const sa=await stateOf(a),beforeA=(await events(a)).length;
+  const ri=await forgeViaTempTrigger(asIntakeBoth,{tenant_id:ids.tenant,project_id:ids.sales,outbox_id:a,from_state:'dead',to_state:'abandoned',signal:'abandon',
+    attempt_no:sa.attempt_no,outbox_version:sa.version,actor_kind:'intake_service',actor_id:intakePrincipalId,request_id:randomUUID(),trace_id:randomUUID()});
+  expect(ri.step,`intake forgery stopped at step "${ri.step}": ${ri.error}`).toBe('fire');
+  expect(ri.error).toMatch(/permission denied/);
+  expect(await events(a)).toHaveLength(beforeA);
+  expect((await events(a)).filter(e=>e.outbox_version===sa.version)).toEqual([]);
+});
+
+test('outbox_state_events: the state trigger function cannot be attached to a temp table or called directly',async()=>{
+  const attach=(as:<T>(fn:(tx:Queryable)=>Promise<T>)=>Promise<T>)=>as(async tx=>{
+    await tx.query('CREATE TEMP TABLE attach_box(x int) ON COMMIT DROP');
+    return tx.query('CREATE TRIGGER attach_box_event AFTER UPDATE ON pg_temp.attach_box FOR EACH ROW EXECUTE FUNCTION public.outbox_messages_record_state_event()');
+  });
+  await expect(attach(asRuntimePerson),'runtime attach').rejects.toThrow(/permission denied/);
+  await expect(attach(asIntakeBoth),'intake attach').rejects.toThrow(/permission denied/);
+  await expect(asRuntimePerson(tx=>tx.query('SELECT public.outbox_messages_record_state_event()')),'runtime call').rejects.toThrow();
+  await expect(asIntakeBoth(tx=>tx.query('SELECT public.outbox_messages_record_state_event()')),'intake call').rejects.toThrow();
+});
+
+test('a runtime abandon and an intake lease each write exactly one event with the actor of the invoking role',async()=>{
+  // intake lease through the service writer
+  const p=await mkRow('pending'),rowP=await rowOf(p),reqI=randomUUID();
+  await asIntakeBoth(tx=>applyOutboxSignal(tx,rowP,'lease',{requestId:reqI},{set:{attempt_no:1,lease_token:randomUUID()},leaseExpiresInSeconds:60}));
+  expect(await eventsFull(p)).toEqual([{from_state:'pending',to_state:'leased',signal:'lease',actor_kind:'intake_service',actor_id:intakePrincipalId,request_id:reqI}]);
+  // runtime abandon through the service writer
+  const d=await mkRow('dead'),rowD=await rowOf(d),reqR=randomUUID(),n=(await eventsFull(d)).length;
+  await asRuntimePerson(tx=>applyOutboxSignal(tx,rowD,'abandon',{requestId:reqR}));
+  const evD=await eventsFull(d);
+  expect(evD).toHaveLength(n+1);
+  expect(evD.at(-1)).toEqual({from_state:'dead',to_state:'abandoned',signal:'abandon',actor_kind:'user',actor_id:pm.id,request_id:reqR});
+  // a stash set before the update is overwritten by the guard: intake stays intake
+  const q=await mkRow('pending'),rowQ=await rowOf(q);
+  await asIntakeBoth(async tx=>{
+    await tx.query("SELECT set_config('app.outbox_invoker','libetech_runtime',true),set_config('app.person_id',$1,true)",[pm.id]);
+    return applyOutboxSignal(tx,rowQ,'lease',{requestId:randomUUID()},{set:{attempt_no:1}});
+  });
+  expect((await eventsFull(q)).map(e=>[e.actor_kind,e.actor_id])).toEqual([['intake_service',intakePrincipalId]]);
+  // a stash forged after the guard and before the AFTER trigger (data-modifying CTE) disagrees with the role: refused, nothing written
+  const c=await mkRow('pending');
+  await expect(asIntakeBoth(async tx=>{
+    await tx.query(`CREATE OR REPLACE FUNCTION pg_temp.forge_invoker() RETURNS text LANGUAGE plpgsql AS $f$ BEGIN
+      PERFORM set_config('app.outbox_invoker','libetech_runtime',true); PERFORM set_config('app.person_id','${pm.id}',true); RETURN 'x'; END $f$`);
+    await setSignal(tx,'lease');
+    return tx.query("WITH u AS (UPDATE outbox_messages SET state='leased',attempt_no=1,version=version+1,updated_at=now() WHERE id=$1 RETURNING id) SELECT pg_temp.forge_invoker() FROM u",[c]);
+  })).rejects.toThrow(/invoking role/i);
+  expect((await stateOf(c)).state).toBe('pending');
+  expect(await eventsFull(c)).toEqual([]);
 });
 
 test('outbox_state_events: append-only and column-level grants',async()=>{
