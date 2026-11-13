@@ -33,7 +33,7 @@ export type EnqueueReceipt=(tx:Queryable,i:{tenantId:string;projectId:string;sou
 const DENIED=()=>new AppError('SCOPE_DENIED','Không có quyền tiếp nhận từ nhóm này.',403);
 const LOCATOR=/^gw:\/\/libetech\/attachments\/([a-f0-9]{64})$/;
 const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
-const refOf=(id:string)=>'IN-'+id.slice(0,8).toUpperCase();
+export const refOf=(id:string)=>'IN-'+id.slice(0,8).toUpperCase();
 
 export class IntakeService {
  constructor(private db:Database,private tenantId:string,private principalId:string,private chatScopes:ChatScopes,private intakeChats:string[],

@@ -1,4 +1,5 @@
 import type {AttachmentState} from './types';
+import {AppError} from './errors';
 // Pure rules for Telegram intake. No I/O.
 export const eventKey=(chatId:string,messageId:string)=>`telegram:${chatId}:${messageId}`;
 export function threadKey(i:{messageId:string;mediaGroupId?:string;parentThreadKey?:string}):string {
@@ -88,4 +89,19 @@ export function attachmentVerdict(a:{mimeType:string;sizeBytes:number}):'stored'
  if(!ALLOWED_MIME.has(a.mimeType.trim().toLowerCase())) return 'unsupported_type';
  if(a.sizeBytes>MAX_ATTACHMENT_BYTES) return 'too_large';
  return 'stored';
+}
+
+export type CandidateState='new'|'needs_info'|'confirmed'|'duplicate'|'dismissed';
+export type CandidateAction='confirm'|'need_info'|'mark_duplicate'|'dismiss'|'reopen'|'link_ticket';
+const CANDIDATE_MOVES:Record<CandidateState,Partial<Record<CandidateAction,CandidateState>>>={
+ new:{confirm:'confirmed',need_info:'needs_info',mark_duplicate:'duplicate',dismiss:'dismissed'},
+ needs_info:{confirm:'confirmed',mark_duplicate:'duplicate',dismiss:'dismissed',reopen:'new'},
+ confirmed:{reopen:'new'},duplicate:{reopen:'new'},dismissed:{reopen:'new'},
+};
+/** Sole decision of what a PM action does to a candidate (E-INT-05). link_ticket keeps the state. No action creates, assigns, closes or accepts work. */
+export function candidateTransition(state:CandidateState,action:CandidateAction):CandidateState {
+ if(action==='link_ticket') return state;
+ const next=CANDIDATE_MOVES[state]?.[action];
+ if(!next) throw new AppError('CANDIDATE_TRANSITION_INVALID','Không thực hiện được thao tác này ở trạng thái hiện tại.',409);
+ return next;
 }
