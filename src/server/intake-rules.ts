@@ -17,7 +17,7 @@ const MASK='[đã che]';
 const KW='token|secret|passw(?:or)?d|pwd|api[_\\s-]?key|private[_\\s-]?key|bearer';
 const VALUE='("[^"]*"|\'[^\']*\'|\\S+)';
 // Compound key names (OPENAI_API_KEY, DB_PASSWORD, "password":) followed by an optional closing quote and : or =.
-const KEYED=new RegExp(`((?<![A-Za-z0-9])(?:[A-Za-z0-9]{1,32}_){0,4}(?:${KW})[A-Za-z0-9_]{0,32}["']?\\s*[:=]\\s*)${VALUE}`,'gi');
+const KEYED=new RegExp(`((?<![A-Za-z0-9_])[A-Za-z0-9_]{0,48}?(?:${KW})[A-Za-z0-9_]{0,48}["']?\\s*[:=]\\s*)${VALUE}`,'gi');
 // A bare keyword followed by whitespace ("bearer abc"); prose such as "secretary meeting" or "tokens are" is untouched.
 const SPACED=new RegExp(`((?<![A-Za-z0-9_])(?:${KW})\\s+)${VALUE}`,'gi');
 const FORMATS:RegExp[]=[

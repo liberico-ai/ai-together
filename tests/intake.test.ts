@@ -286,6 +286,8 @@ test('R2-1 redactSecrets stays linear on adversarial 12 KB inputs',()=>{
     run:'a'.repeat(n),
     'password=':'password='.repeat(Math.ceil(n/9)).slice(0,n),
     'token ':'token '.repeat(Math.ceil(n/6)).slice(0,n),
+    'token every 10':'abcd_token_'.repeat(Math.ceil(n/11)).slice(0,n).replace(/_/g,(_m,i:number)=>i%2?'x':'_'),
+    'token every 10 plain':'tokenabcde'.repeat(Math.ceil(n/10)).slice(0,n),
   };
   let total=0;
   for(const [k,v] of Object.entries(shapes)){
@@ -318,4 +320,14 @@ test('R2-3 ingest writes run as libetech_intake: current_user is the role and an
   expect(who).toBe('libetech_intake');
   expect(denied).toMatch(/permission denied/);
   expect(await count('source_event_revisions')).toBe(1);
+});
+
+test('R3 camelCase and no-underscore key names, long prefixes, and the earlier cases stay covered',()=>{
+  for(const [input,leak] of [['accessToken=XYZ','XYZ'],['{"clientSecret": "XYZ"}','XYZ'],['DBPASSWORD=hunter2','hunter2'],['apiKey: XYZ','XYZ'],
+    ['PASSWORD_'+'a'.repeat(40)+'=xleak','xleak'],['OPENAI_API_KEY=sk-live-XYZ','XYZ'],['"api_key": "XYZ"','XYZ']] as const){
+    const r=redactSecrets(input);
+    expect(r,input).not.toContain(leak);expect(r,input).toContain('[đã che]');
+  }
+  expect(redactSecrets('secretary meeting')).toBe('secretary meeting');
+  expect(redactSecrets('tokens are fine')).toBe('tokens are fine');
 });
