@@ -24,7 +24,7 @@ async function call(method:string,route:string,o:{cookie?:string|null;payload?:u
 }
 const json=async(r:Response)=>r.json() as Promise<any>;
 const docBody=(over:Record<string,unknown>={})=>({projectId:ids.sales,refCode:'DOC-HTTP-1',docType:'design',title:'Tài liệu HTTP tổng hợp',templateCode:'T3',sourceType:'drive',
-  canonicalUri:'https://example.com/docs/http-1',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:['a']},sourceLinks:[],...over});
+  canonicalUri:'https://docs.google.com/docs/http-1',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:['a']},sourceLinks:[],...over});
 const revBody={expectedVersion:1,basedOnRevisionId:null,sourceRevision:null,sourceHash:null,sourceModifiedAt:null,
   changes:{summary:'Tóm tắt thay đổi tổng hợp',present:['Mục A'],missing:['x']},sourceRefs:[]};
 const count=async(t:string)=>(await h.operator.query<{n:number}>(`SELECT count(*)::int n FROM ${t}`)).rows[0].n;
@@ -47,7 +47,7 @@ describe('documents HTTP',()=>{
     expect(exp.status).toBe(200); expect(await exp.text()).toContain('DOC-HTTP-1');
     const det=await call('GET','/api/documents/'+id,{cookie}); expect(det.status).toBe(200);
     const src=await call('GET',`/api/documents/${id}/source`,{cookie});
-    expect(src.status).toBe(200); expect((await json(src)).data.uri).toBe('https://example.com/docs/http-1');
+    expect(src.status).toBe(200); expect((await json(src)).data.uri).toBe('https://docs.google.com/docs/http-1');
     expect((await call('GET','/api/documents',{cookie})).status).toBe(422);
     expect((await call('GET','/api/documents/export',{cookie})).status).toBe(422);
     expect((await call('GET','/api/documents/search?q=x',{cookie})).status).toBe(422);
@@ -84,7 +84,7 @@ describe('documents HTTP',()=>{
     const id=made.data.record.id as string;
     expect((await call('GET','/api/documents?projectId='+ids.transport,{cookie:login('bot')})).status).toBe(403);
     expect((await call('GET','/api/documents/'+id,{cookie:login('bot')})).status).toBe(403);
-    expect((await call('POST','/api/documents/register',{cookie:login('customer'),payload:docBody({projectId:ids.transport,canonicalUri:'https://example.com/docs/v'})})).status).toBe(403);
+    expect((await call('POST','/api/documents/register',{cookie:login('customer'),payload:docBody({projectId:ids.transport,canonicalUri:'https://docs.google.com/docs/v'})})).status).toBe(403);
     const foreign=await call('GET','/api/documents/'+id,{cookie:login('customer')});
     expect(foreign.status).toBe(404);
     const fb=await json(foreign); const text=JSON.stringify(fb);
@@ -103,5 +103,18 @@ describe('documents HTTP',()=>{
     expect(r.headers.get('content-type')).toBe('text/csv; charset=utf-8');
     expect(r.headers.get('content-disposition')).toBe('attachment; filename="tai-lieu.csv"');
     expect(r.headers.get('cache-control')).toBe('no-store');
+  });
+});
+
+describe('OQ-25 source host allowlist over HTTP',()=>{
+  test('a host outside the list for its type is refused with 422 and nothing is written',async()=>{
+    for(const over of [{canonicalUri:'https://phish.example/login'},{sourceType:'git',canonicalUri:'https://gitlab.com/a/b'},
+      {sourceType:'vault',canonicalUri:'https://docs.google.com/document/d/v'}]){
+      const r=await call('POST','/api/documents/register',{payload:docBody(over)});
+      expect(r.status,JSON.stringify(over)).toBe(422);
+      expect((await json(r)).error.code).toBe('INVALID_INPUT');
+    }
+    expect(await count('document_records')).toBe(0);
+    expect(await count('document_commands')).toBe(0);
   });
 });

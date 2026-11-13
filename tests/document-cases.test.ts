@@ -118,7 +118,7 @@ describe('slice 1 document cases',()=>{
   test('openSource re-checks scope on every call and never leaks across projects',async()=>{
     const {d}=await lbrc();
     const opened=await svc().openSource(pm,d.record.id);
-    expect(opened).toEqual({uri:lbrc014.canonicalUri,host:'example.com',sourceType:'drive',sourceState:expect.any(String),title:lbrc014.title});
+    expect(opened).toEqual({uri:lbrc014.canonicalUri,host:'docs.google.com',sourceType:'drive',sourceState:expect.any(String),title:lbrc014.title});
     for(const who of [viewer,outsider]){
       const e=await svc().openSource(who,d.record.id).catch(x=>x);
       expect(e).toMatchObject({code:'SCOPE_DENIED',status:404});
@@ -128,7 +128,7 @@ describe('slice 1 document cases',()=>{
     await h.operator.query(`UPDATE document_records SET source_state='unavailable' WHERE id=$1`,[d.record.id]);
     const e=await svc().openSource(pm,d.record.id).catch(x=>x);
     expect(e).toMatchObject({code:'SOURCE_UNAVAILABLE',status:409});
-    expect(JSON.stringify(e)).not.toContain('example.com');
+    expect(JSON.stringify(e)+String(e.message)).not.toContain('docs.google.com');
     const det=await svc().detail(pm,d.record.id);
     expect(det.revisions).toHaveLength(2);
   });

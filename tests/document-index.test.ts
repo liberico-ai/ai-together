@@ -15,7 +15,7 @@ afterEach(async()=>{await h.reset();await h.close();});
 
 const svc=()=>new DocumentService(h.db);
 const base=(over:Record<string,unknown>={})=>({projectId:ids.sales,refCode:'DOC-IDX-1',docType:'design',title:'Tài liệu chỉ mục tổng hợp',templateCode:'T3',sourceType:'drive',
-  canonicalUri:'https://example.com/docs/idx-1',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:['a']},sourceLinks:[],...over});
+  canonicalUri:'https://docs.google.com/docs/idx-1',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:['a']},sourceLinks:[],...over});
 const propose=(doc:string,over:Record<string,unknown>={},key='idx-rev-0001')=>svc().proposeRevision(pm,doc,{expectedVersion:1,basedOnRevisionId:null,sourceRevision:null,sourceHash:null,sourceModifiedAt:null,
   changes:{summary:'Tóm tắt thay đổi tổng hợp',present:['Mục A'],missing:['x','y']},sourceRefs:[],...over},key);
 async function fixture(){
@@ -23,7 +23,7 @@ async function fixture(){
   const a=await svc().register(pm,base(),'idx-doc-0001');
   const r1=(await propose(a.record.id)).record.latest_revision_id!;
   const a2=await propose(a.record.id,{expectedVersion:2,basedOnRevisionId:r1},'idx-rev-0002');
-  const b=await svc().register(pm,base({refCode:'DOC-IDX-2',canonicalUri:'https://example.com/docs/idx-2',title:'Tài liệu chưa có bản'}),'idx-doc-0002');
+  const b=await svc().register(pm,base({refCode:'DOC-IDX-2',canonicalUri:'https://docs.google.com/docs/idx-2',title:'Tài liệu chưa có bản'}),'idx-doc-0002');
   return {a:a2,b};
 }
 const rows=async(where='')=>(await h.operator.query<Record<string,any>>(`SELECT * FROM analytics.document_index ${where} ORDER BY ref_code`)).rows;
@@ -104,7 +104,7 @@ describe.skipIf(!native)('document index on the web login',()=>{
 });
 
 describe('document index reads (DOC-10, R-02)',()=>{
-  const reg=async(refCode:string,title:string,over:Record<string,unknown>={})=>(await svc().register(pm,base({refCode,title,canonicalUri:'https://example.com/docs/'+(refCode||'x')+Math.random().toString(36).slice(2),...over}),'k-'+Math.random().toString(36).slice(2,12))).record;
+  const reg=async(refCode:string,title:string,over:Record<string,unknown>={})=>(await svc().register(pm,base({refCode,title,canonicalUri:'https://docs.google.com/docs/'+(refCode||'x')+Math.random().toString(36).slice(2),...over}),'k-'+Math.random().toString(36).slice(2,12))).record;
   const codeOf=async(p:Promise<unknown>)=>p.then(()=>null,(e:{code?:string;status?:number;message?:string})=>e);
   const GENERIC='Không tìm thấy tài liệu trong phạm vi được cấp.';
   async function seedRead(){

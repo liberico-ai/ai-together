@@ -212,3 +212,11 @@ describe('document detail', () => {
     expect(m).toMatch(/<a [^>]*href="\/documents\/11111111-1111-4111-8111-111111111111"[^>]*>Xem chi tiết</);
   });
 });
+
+describe('document detail url refs (OQ-25)', () => {
+  it('a url source ref is shown as text, never as a link, so the host allowlist does not need to cover it', () => {
+    const m = view({ record: rec(), events: [], revisions: [revision(1, { source_refs: [{ kind: 'url', label: 'Đặc tả', value: 'https://phish.example/spec' }] })] });
+    expect(m).toContain('https://phish.example/spec');
+    expect(m).not.toMatch(/href="https:\/\/phish\.example/);
+  });
+});

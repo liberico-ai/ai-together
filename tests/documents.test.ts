@@ -12,7 +12,7 @@ beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);}
 afterEach(async()=>{await h.reset();await h.close();});
 
 const base=()=>({projectId:ids.sales,refCode:'DOC-DEMO-1',docType:'design',title:'Tài liệu tổng hợp số một',templateCode:'T3',sourceType:'drive',
-  canonicalUri:'https://example.com/docs/demo-1',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:[]},sourceLinks:[]});
+  canonicalUri:'https://docs.google.com/docs/demo-1',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:[]},sourceLinks:[]});
 const count=async(t:string)=>(await h.operator.query<{n:number}>(`SELECT count(*)::int n FROM ${t}`)).rows[0].n;
 const svc=()=>new DocumentService(h.db);
 const codeOf=async(p:Promise<unknown>)=>p.then(()=>null,(e:{code?:string;status?:number})=>({code:e.code,status:e.status}));
@@ -50,13 +50,13 @@ describe('document registration',()=>{
   test('same key for a different document in the same project is IDEMPOTENCY_CONFLICT',async()=>{
     await templates();
     await svc().register(pm,base(),'doc-key-0001');
-    expect(await codeOf(svc().register(pm,{...base(),canonicalUri:'https://example.com/docs/other'},'doc-key-0001'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
+    expect(await codeOf(svc().register(pm,{...base(),canonicalUri:'https://docs.google.com/docs/other'},'doc-key-0001'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
     expect(await count('document_records')).toBe(1);
   });
   test('same key reused to register in another project is IDEMPOTENCY_CONFLICT and creates nothing there',async()=>{
     await templates();
     await svc().register(pm,base(),'doc-key-0001');
-    expect(await codeOf(svc().register(pm,{...base(),projectId:ids.transport,canonicalUri:'https://example.com/docs/transport-1'},'doc-key-0001'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
+    expect(await codeOf(svc().register(pm,{...base(),projectId:ids.transport,canonicalUri:'https://docs.google.com/docs/transport-1'},'doc-key-0001'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
     expect(await count(`document_records WHERE project_id='${ids.transport}'`)).toBe(0);
     expect(await count('document_records')).toBe(1);
   });
@@ -81,10 +81,10 @@ describe('document registration',()=>{
     expect(JSON.stringify(e.message)).not.toContain(ids.sales);
   });
   test('malformed source pointers are rejected',async()=>{
-    for(const u of ['http://example.com/a','https://user:pw@example.com/a','not a url'])
+    for(const u of ['http://docs.google.com/a','https://user:pw@docs.google.com/a','not a url'])
       await expect(svc().register(pm,{...base(),templateCode:undefined,canonicalUri:u},'doc-key-0004')).rejects.toBeInstanceOf(ZodError);
-    const d=await svc().register(pm,{...base(),templateCode:undefined,canonicalUri:'  https://example.com/docs/x  '},'doc-key-0005');
-    expect(d.record.canonical_uri).toBe('https://example.com/docs/x');
+    const d=await svc().register(pm,{...base(),templateCode:undefined,canonicalUri:'  https://docs.google.com/docs/x  '},'doc-key-0005');
+    expect(d.record.canonical_uri).toBe('https://docs.google.com/docs/x');
   });
   test('identity, approval and snapshot fields in the body are rejected',async()=>{
     for(const extra of [{tenantId:ids.tenant},{actorId:pm.id},{approvedRevisionId:pm.id},{classification:'secret'},{snapshotRef:'x'}])
@@ -136,24 +136,24 @@ describe('document tables',()=>{
   const rec=(project:string,tenant:string,uri:string)=>scoped(h.db,pm,tx=>tx.query(
     "INSERT INTO document_records(tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by) VALUES($1,$2,'design','Tiêu đề thử nghiệm','drive',$3,$4)",[tenant,project,uri,pm.id]));
   test('runtime cannot insert for another project or tenant',async()=>{
-    await expect(rec(ids.sales,ids.otherTenant,'https://example.com/t1')).rejects.toThrow();
+    await expect(rec(ids.sales,ids.otherTenant,'https://docs.google.com/t1')).rejects.toThrow();
     await expect(scoped(h.db,outsider,tx=>tx.query(
-      "INSERT INTO document_records(tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by) VALUES($1,$2,'design','Tiêu đề thử nghiệm','drive','https://example.com/t2',$3)",[ids.tenant,ids.sales,outsider.id]))).rejects.toThrow();
+      "INSERT INTO document_records(tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by) VALUES($1,$2,'design','Tiêu đề thử nghiệm','drive','https://docs.google.com/t2',$3)",[ids.tenant,ids.sales,outsider.id]))).rejects.toThrow();
     await expect(scoped(h.db,member,tx=>tx.query(
-      "INSERT INTO document_records(tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by) VALUES($1,$2,'design','Tiêu đề thử nghiệm','drive','https://example.com/t3',$3)",[ids.tenant,ids.transport,member.id]))).rejects.toThrow();
+      "INSERT INTO document_records(tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by) VALUES($1,$2,'design','Tiêu đề thử nghiệm','drive','https://docs.google.com/t3',$3)",[ids.tenant,ids.transport,member.id]))).rejects.toThrow();
     await expect(scoped(h.db,pm,tx=>tx.query(
       "INSERT INTO document_templates(tenant_id,code,template_version,doc_type,title,path,content_hash) VALUES($1,'TX','1','other','x','p',$2)",[ids.tenant,'a'.repeat(64)]))).rejects.toThrow();
-    await expect(rec(ids.sales,ids.tenant,'https://example.com/t4')).resolves.toBeTruthy();
+    await expect(rec(ids.sales,ids.tenant,'https://docs.google.com/t4')).resolves.toBeTruthy();
     const revision=(p:typeof pm,project:string,tenant:string)=>scoped(h.db,p,async tx=>{
       const id=(await tx.query<{id:string}>("SELECT id FROM document_records LIMIT 1")).rows[0].id;
-      return tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://example.com/u','drive',$4)",[tenant,project,id,p.id]);
+      return tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://docs.google.com/u','drive',$4)",[tenant,project,id,p.id]);
     });
     await expect(revision(pm,ids.sales,ids.otherTenant)).rejects.toThrow();
   });
   test('runtime cannot set the approved pointer, a verified hash or a snapshot',async()=>{
     const d=await (async()=>{await templates();return svc().register(pm,base(),'doc-key-0001');})();
     const ins=(extra:string,val:unknown)=>scoped(h.db,pm,tx=>tx.query(
-      `INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by,${extra}) VALUES($1,$2,$3,1,'https://example.com/u','drive',$4,$5)`,
+      `INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by,${extra}) VALUES($1,$2,$3,1,'https://docs.google.com/u','drive',$4,$5)`,
       [ids.tenant,ids.sales,d.record.id,pm.id,val]));
     await expect(ins('hash_verification','verified')).rejects.toThrow();
     await expect(ins('snapshot_ref','x')).rejects.toThrow();
@@ -169,15 +169,15 @@ describe('document tables',()=>{
   test('runtime cannot claim a source state or a source check time',async()=>{
     for(const [col,val] of [['source_state','fresh'],['source_checked_at','2026-01-01T00:00:00Z']])
       await expect(scoped(h.db,pm,tx=>tx.query(
-        `INSERT INTO document_records(tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by,${col}) VALUES($1,$2,'design','Tiêu đề thử nghiệm','drive','https://example.com/s1',$3,$4)`,
+        `INSERT INTO document_records(tenant_id,project_id,doc_type,title,source_type,canonical_uri,registered_by,${col}) VALUES($1,$2,'design','Tiêu đề thử nghiệm','drive','https://docs.google.com/s1',$3,$4)`,
         [ids.tenant,ids.sales,pm.id,val]))).rejects.toThrow();
     expect(await count('document_records')).toBe(0);
   });
   test('a pointer cannot reference a revision of another record',async()=>{
     await templates();
     const a=await svc().register(pm,base(),'doc-key-0001');
-    const b=await svc().register(pm,{...base(),canonicalUri:'https://example.com/docs/b'},'doc-key-0002');
-    await scoped(h.db,pm,tx=>tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://example.com/u','drive',$4)",[ids.tenant,ids.sales,a.record.id,pm.id]));
+    const b=await svc().register(pm,{...base(),canonicalUri:'https://docs.google.com/docs/b'},'doc-key-0002');
+    await scoped(h.db,pm,tx=>tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://docs.google.com/u','drive',$4)",[ids.tenant,ids.sales,a.record.id,pm.id]));
     const rev=(await h.operator.query<{id:string}>('SELECT id FROM document_revisions')).rows[0].id;
     await expect(scoped(h.db,pm,tx=>tx.query('UPDATE document_records SET latest_revision_id=$1 WHERE id=$2',[rev,b.record.id]))).rejects.toThrow();
   });
@@ -205,7 +205,7 @@ describe('document tables',()=>{
 describe('document revision proposals',()=>{
   const propose=(doc:string,over:Record<string,unknown>={},key='rev-key-0001',p=pm)=>svc().proposeRevision(p,doc,{expectedVersion:1,basedOnRevisionId:null,sourceRevision:null,sourceHash:null,sourceModifiedAt:null,
     changes:{summary:'Tóm tắt thay đổi tổng hợp',present:['Mục A'],missing:[]},sourceRefs:[],...over},key);
-  const reg=async(uri='https://example.com/docs/demo-1',key='doc-key-0001')=>{await templates();return svc().register(pm,{...base(),canonicalUri:uri},key);};
+  const reg=async(uri='https://docs.google.com/docs/demo-1',key='doc-key-0001')=>{await templates();return svc().register(pm,{...base(),canonicalUri:uri},key);};
   const snap=async(id:string)=>({rev:await count('document_revisions'),ev:await count("registry_events WHERE kind='revision_proposed'"),
     v:(await h.operator.query<{version:number}>('SELECT version FROM document_records WHERE id=$1',[id])).rows[0].version});
   const two=async()=>{
@@ -250,7 +250,7 @@ describe('document revision proposals',()=>{
     expect(again).toEqual(r2d);expect(again.record.latest_revision_id).toBe(r2);
     expect(await count('document_revisions')).toBe(2);
     expect(await codeOf(propose(d.record.id,{expectedVersion:2,basedOnRevisionId:r1,sourceHash:'a'.repeat(64),changes:{summary:'Tóm tắt khác hẳn',present:[],missing:[]}},'rev-key-0002'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
-    const o=await svc().register(pm,{...base(),templateCode:undefined,canonicalUri:'https://example.com/docs/other'},'doc-key-0009');
+    const o=await svc().register(pm,{...base(),templateCode:undefined,canonicalUri:'https://docs.google.com/docs/other'},'doc-key-0009');
     expect(await codeOf(propose(o.record.id,{},'rev-key-0002'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
     expect((await svc().detail(pm,o.record.id)).record.version).toBe(1);
     expect(await count('document_revisions')).toBe(2);
@@ -258,7 +258,7 @@ describe('document revision proposals',()=>{
   test('same key reused for a revision in another project is IDEMPOTENCY_CONFLICT',async()=>{
     await templates();
     await svc().register(pm,base(),'shared-key-01');
-    const o=await svc().register(pm,{...base(),projectId:ids.transport,templateCode:undefined,canonicalUri:'https://example.com/docs/transport-1'},'doc-key-0009');
+    const o=await svc().register(pm,{...base(),projectId:ids.transport,templateCode:undefined,canonicalUri:'https://docs.google.com/docs/transport-1'},'doc-key-0009');
     const before=await snap(o.record.id);
     expect(await codeOf(propose(o.record.id,{},'shared-key-01'))).toEqual({code:'IDEMPOTENCY_CONFLICT',status:409});
     expect(await snap(o.record.id)).toEqual(before);
@@ -266,7 +266,7 @@ describe('document revision proposals',()=>{
   });
   test('the approved pointer cannot point at another document\'s revision',async()=>{
     const {d,r1}=await two();
-    const o=await svc().register(pm,{...base(),templateCode:undefined,canonicalUri:'https://example.com/docs/other'},'doc-key-0009');
+    const o=await svc().register(pm,{...base(),templateCode:undefined,canonicalUri:'https://docs.google.com/docs/other'},'doc-key-0009');
     const ob=(await propose(o.record.id,{},'rev-key-0009')).record.latest_revision_id!;
     await expect(h.operator.query('UPDATE document_records SET approved_revision_id=$1 WHERE id=$2',[ob,d.record.id])).rejects.toThrow();
     await expect(h.operator.query('UPDATE document_records SET approved_revision_id=$1 WHERE id=$2',[r1,d.record.id])).resolves.toBeTruthy();
@@ -281,7 +281,7 @@ describe('document revision proposals',()=>{
     for(const bad of [{sourceHash:'xyz'},{sourceRefs:[{kind:'git_sha',label:'a',value:'abc'}]},{sourceRefs:[{kind:'url',label:'a',value:'http://example.com/x'}]},
       {sourceRefs:[{kind:'url',label:'a',value:'https://u:p@example.com/x'}]},{changes:{summary:'ngắn',present:[],missing:[]}}])
       await expect(propose(d.record.id,bad,'rev-key-0006')).rejects.toBeInstanceOf(ZodError);
-    await expect(propose(d.record.id,{sourceRefs:[{kind:'git_sha',label:'commit',value:'b'.repeat(40)},{kind:'url',label:'trang',value:'https://example.com/x'}]},'rev-key-0007')).resolves.toBeTruthy();
+    await expect(propose(d.record.id,{sourceRefs:[{kind:'git_sha',label:'commit',value:'b'.repeat(40)},{kind:'url',label:'trang',value:'https://docs.google.com/x'}]},'rev-key-0007')).resolves.toBeTruthy();
     expect(await count('document_revisions')).toBe(1);
   });
 });

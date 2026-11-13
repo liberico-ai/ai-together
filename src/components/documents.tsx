@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import type { DocumentIndexRow, SourceState } from '@/server/types';
 import type { DocumentIndexPage } from '@/server/document-index';
+import { SOURCE_HOST_HINT } from '../server/source-hosts';
 import { api } from './api';
 import { TYPE_NAMES, SOURCE_STATE_VIEW, approvedLabel, draftLabel, hashLabel, freshnessLabel, pendingProjectionCopy, formatTime, pageState, noResultsCopy, emptyProjectionCopy, registerNotice, safeHttpsHost, type PageState } from './documents-view';
 
@@ -122,8 +123,8 @@ export function Documents({ projects, projectId, initial, denied, canRegister, t
       {input('title', 'Tiêu đề', { minLength: 5, maxLength: 200 })}{input('refCode', 'Mã tham chiếu (có thể để trống)', { required: false, pattern: '[A-Z0-9][A-Z0-9-]{1,39}' })}
       <label className="doc-field">Loại<select name="docType" defaultValue="other">{Object.entries(TYPE_NAMES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
       <label className="doc-field">Mẫu<select name="templateCode" defaultValue=""><option value="">Không dùng mẫu</option>{templates.map(t => <option key={t.code} value={t.code}>{t.code} · {t.title}</option>)}</select></label>
-      <label className="doc-field">Loại nguồn<select name="sourceType" defaultValue="drive"><option value="drive">Drive</option><option value="git">Git</option><option value="vault">Vault</option></select></label>
-      {input('canonicalUri', 'Liên kết nguồn (https)', { type: 'url' })}{input('ownerLabel', 'Chủ nội dung', { required: false, maxLength: 120 })}
+      <label className="doc-field">Loại nguồn<select name="sourceType" defaultValue="drive"><option value="drive">Drive</option><option value="git">Git</option><option value="vault" disabled>Vault (chưa nhận liên kết https)</option></select></label>
+      {input('canonicalUri', 'Liên kết nguồn (https)', { type: 'url', 'aria-describedby': 'doc-source-hosts' })}<p id="doc-source-hosts" className="doc-meta">{SOURCE_HOST_HINT}</p>{input('ownerLabel', 'Chủ nội dung', { required: false, maxLength: 120 })}
       {formError && <p role="alert" className="doc-problem">{formError}</p>}
       <button type="submit" className="doc-action" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu đăng ký'}</button></form>}
     {notice && <p className="doc-notice" role="status">{notice}</p>}

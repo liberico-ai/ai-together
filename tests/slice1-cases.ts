@@ -1,13 +1,13 @@
 // Synthetic case data only. Values copied from repo documents; no outside source is called.
 // XECA006 and XECA005 below are synthetic — chờ tin gốc: not the real source records; a green test is not an acceptance.
 export const xeca006={refCode:'XECA006',docType:'design',templateCode:'T3',title:'Nâng package theo npm audit',sourceType:'drive',
-  canonicalUri:'https://example.com/synthetic/xeca006-change-brief',
+  canonicalUri:'https://docs.google.com/synthetic/xeca006-change-brief',
   metadata:{missingFields:['repo/phạm vi package','báo cáo trước–sau','commit/lockfile','ảnh hưởng tương thích','acceptance','rollback','bản thực thử']},
   sourceLinks:[{kind:'z2_source_ref',value:'Đầu việc Tech!A42:H42'}],ownerLabel:'',reviewDueAt:null};
-export const xeca005={refCode:'XECA005',docType:'design',title:'Nâng cấp Fastify, JWT',canonicalUri:'https://example.com/synthetic/xeca005-change-brief',
+export const xeca005={refCode:'XECA005',docType:'design',title:'Nâng cấp Fastify, JWT',canonicalUri:'https://docs.google.com/synthetic/xeca005-change-brief',
   sourceType:'drive',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:[]},sourceLinks:[{kind:'z2_source_ref',value:'Đầu việc Tech!A34:H34'}]};
 export const lbrc014={refCode:'LBRC014',docType:'verification',templateCode:'T5',title:'LBRC014 — hồ sơ kiểm chứng và bằng chứng',
-  canonicalUri:'https://example.com/synthetic/lbrc014-evidence',sourceType:'drive',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:[]},sourceLinks:[]};
+  canonicalUri:'https://docs.google.com/synthetic/lbrc014-evidence',sourceType:'drive',ownerLabel:'',reviewDueAt:null,metadata:{missingFields:[]},sourceLinks:[]};
 export const SHA_FUNC='8d05141576bcd4db8e7ab9f1a6b7a0dd9bd360ab';
 export const SHA_ANDROID='5b38598de8bca1b258be7ee4b7086a993810478a';
 export const SHA_IOS='751327b853b50ed7b06f87c747198a4a731b0ac6';
