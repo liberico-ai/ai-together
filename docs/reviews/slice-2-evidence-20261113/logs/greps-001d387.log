@@ -1,0 +1,49 @@
+## g1
+scripts/setup-local-verification.ts:18: const bridge={key:randomBytes(32).toString('base64url'),chatScopes:{'<mã-nhóm-đã-che>':['8f1b6aca-b20f-469a-a92b-cbde731581fc']}};
+scripts/spec003-native-verify.ts:78:await bridge({...recon,context:{...recon.context,chatId:'<mã-nhóm-đã-che>'}},403);
+tests/account-approval-dm.test.ts:164: await expect(ballot.vote(chair.telegram,'-1000000000001','group',approvalId,'agree')).rejects.toMatchObject({code:'PRIVATE_CHAT_REQUIRED'});
+tests/bridge-io.test.ts:62:  expect(()=>parseBridgeConfig({...ok,intake:{key:intakeKey,principalId:ids.tenant,chats:['-1000000000099']}})).toThrow();
+tests/bridge-io.test.ts:77:  const ok={key:botKey,chatScopes:{[chatSales]:[ids.sales],'-1000000000002':[ids.transport]}};
+tests/bridge-io.test.ts:83:  expect(()=>parseBridgeConfig({...ok,intake:{...intake,excerptChats:['-1000000000002']}})).toThrow('Intake excerpt chats must be a subset of intake chats.');
+tests/bridge-io.test.ts:84:  expect(()=>parseBridgeConfig({...ok,intake:{...intake,excerptChats:[chatSales,'-1000000000099']}})).toThrow('Intake excerpt chats must be a subset of intake chats.');
+tests/bridge-limits.test.ts:68:      ['excerpt-outside.json',JSON.stringify({...bridgeConfig,intake:{...bridgeConfig.intake,excerptChats:['-1000000000004']}})],['same-key.json',JSON.stringify({...bridgeConfig,intake:{...bridgeConfig.intake,key:bridgeConfig.key}})],['missing.json',null]];
+tests/inbox-http.test.ts:136:      expect(await withConfig(JSON.stringify({...bridgeConfig,intake:{...bridgeConfig.intake!,excerptChats:['-1000000000099']}}),currentExcerptChats)).toEqual([]);
+tests/inbox-ui.test.tsx:15:  projectLabel: 'Dự án Thử', sourceRef: 'telegram:-1000000000001:42', receivedAt: '2026-11-13T01:00:00.000Z', classification: null, state: 'new', missingFields: [], duplicateCandidates: [],
+tests/inbox-ui.test.tsx:213:      sources={[{ chatId: '-1000000000001', topicId: '', state: 'not-configured', coverageStart: null, coverageGaps: [], label: 'Chưa xác minh khả năng nhận tin' }]} failures={[]} denied canAct={false} />);
+tests/inbox-ui.test.tsx:215:    for (const leak of ['Dự án Ngoài Quyền', 'IN-1111', '>7<', '7 /', '-1000000000001', 'Cổng thanh toán']) expect(denied).not.toContain(leak);
+tests/inbox-ui.test.tsx:219:    const rows: SourceAvailabilityRow[] = [{ chatId: '-1000000000001', topicId: '', state: 'not-configured', coverageStart: null, coverageGaps: [], label: 'Chưa xác minh khả năng nhận tin' },
+tests/inbox-ui.test.tsx:220:      { chatId: '-1000000000002', topicId: '7', state: 'partially-received', coverageStart: '2026-11-13T01:00:00.000Z', coverageGaps: [{ from: '2026-11-13T02:00:00.000Z', to: '2026-11-13T03:00:00.000Z' }], label: 'Nhận từ mốc ghi đầu tiên; không có lịch sử trước mốc này' }];
+tests/inbox-ui.test.tsx:226:    expect(m).not.toContain('-1000000000001');
+tests/inbox-ui.test.tsx:271:    const m = render(card({ contentMode: 'pointer_only', excerpt: 'NỘI DUNG KHÔNG ĐƯỢC HIỆN', sourceRef: 'telegram:-1000000000001:99' }));
+tests/inbox-ui.test.tsx:273:    expect(m).toContain('telegram:-1000000000001:99');
+tests/inbox-ui.test.tsx:282:    const m = render(card({ contentMode: 'hidden', excerpt: 'NỘI DUNG ĐANG ẨN', sourceRef: 'telegram:-1000000000001:77' }));
+tests/inbox-ui.test.tsx:285:    expect(m).toContain('telegram:-1000000000001:77');
+tests/inbox-ui.test.tsx:336:    const src: SourceAvailabilityRow[] = [{ chatId: '-1000000000002', topicId: '', state: 'partially-received', coverageStart: '2026-11-13T01:00:00.000Z', coverageGaps: [], label: 'x' }];
+tests/outbox-schema.test.ts:283:  await expect(asIntake(both(),tx=>insert(tx,groupVals({target_chat_id:'-1000000000999'})))).rejects.toThrow(/Outbox target/);
+tests/outbox-schema.test.ts:658:  const forged='-1000000000999';
+tests/project-registry.test.ts:122:  const chan={expectedVersion:1,chatId:'-1009990002',topicId:'',mode:'command_reply',policyVersion:'p1.0'};
+tests/project-registry.test.ts:144:const telegram='555000111',bridgeKey=secret(),chat='-1009990001';
+tests/project-registry.test.ts:214:  const chanBody=(over:Record<string,unknown>={})=>({expectedVersion:1,chatId:'-1009990010',topicId:'',mode:'command_reply',policyVersion:'p1.0',...over});
+tests/project-registry.test.ts:266:      both=Promise.allSettled([s.proposeChannel(pm,ids.sales,chanBody({chatId:'-1009990011'}),key()),s.proposeChannel(pm,ids.sales,chanBody({chatId:'-1009990012'}),key())]);
+tests/slice2-fixtures.ts:11:export const chatSales='-1000000000001';
+tests/slice2-fixtures.ts:12:export const chatTransport='-1000000000002';
+tests/slice2-fixtures.ts:13:export const chatMulti='-1000000000003';
+tests/slice2-fixtures.ts:14:export const chatUnknown='-1000000000009';
+tests/slice2-fixtures.ts:15:export const chatNotIntake='-1000000000004';
+tests/test_bot_bridge.py:118:GROUP='-1000000000001'
+tests/test_bot_bridge.py:755:        other='-1000000000002'
+tests/test_bot_bridge.py:1055:        other='-1000000000002'
+tests/test_bot_bridge.py:1373:                self.assertIsNone(hook(event=tg_event(secret,source=dict(message_id='642',chat_id='-1000000000999'))))
+## g2
+## g3
+## g4
+deploy/install-user.py:165:    values={'LIBETECH_DEMO':'0','DATABASE_URL':f'<redacted-url>
+deploy/provision-server.py:40:values={'LIBETECH_DEMO':'0','DATABASE_URL':f'<redacted-url>
+docs/plans/slice-1-doc-ownership.md:111:- [ ] `assertIsolated rejects non-loopback host, wrong port and unexpected database name` — ba URL `<redacted-url> `…@127.0.0.1:5432/slice1_verify`, `…@127.0.0.1:55471/libetech` đều ném; `…@127.0.0.1:55471/slice1_verify_17` không ném; web khác pathname ném.
+docs/reviews/slice-1-evidence-20261112/tier1-security-review.md:48:  - No connection string with credentials was added (0 hits). Test URLs carry a username only (`<redacted-url>
+tests/intake.test.ts:50:  const u=redactSecrets('mở <redacted-url>
+tests/intake.test.ts:51:  expect(u).not.toContain('S3cretPw');expect(u).toContain('<redacted-url>
+tests/intake.test.ts:498:    ['1.<redacted-url>
+tests/slice1-harness.test.ts:8:  for(const url of ['<redacted-url>
+tests/slice1-harness.test.ts:10:  expect(()=>assertIsolated('<redacted-url>
+tests/slice1-harness.test.ts:11:  expect(()=>assertIsolated('<redacted-url>

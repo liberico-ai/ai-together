@@ -4,17 +4,17 @@
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | **Chưa đạt cổng Codex.** Mã có, test/typecheck/build xanh ở mã `6038014` (nhánh `slice-2-intake-outbox`, PR nháp [liberico-ai/ai-together#10](https://github.com/liberico-ai/ai-together/pull/10)). Vòng sửa thứ ba đã sửa cả bốn finding của Codex vòng 3. **Codex vòng 4 — vòng cuối — vẫn ra CHANGES_REQUIRED với 1 P1 mới.** Theo quyết định của Chairman ngày 14/11/2026 («chưa đạt thì dừng hẳn và trình lại»), lát dừng ở đây, không có vòng 5, finding chưa sửa | Mục «Bằng chứng kiểm», «Review hai tầng» |
+| **Đã có mã** | **Đạt cổng Codex ở vòng 5** (PASS, không finding) tại mã `001d387`, nhánh `slice-2-intake-outbox`, PR [liberico-ai/ai-together#10](https://github.com/liberico-ai/ai-together/pull/10) vào `libetech-ai-os`, chưa merge. Test, typecheck, build xanh ở `001d387`. Đường tới đây: bốn vòng sửa theo Codex (vòng 3 và vòng 4 do Chairman và người dùng duyệt riêng). `liberico-reality-checker` (Opus, 14/11/2026) kiểm bản nháp biên nhận này: bằng chứng ở mức mã **đủ** cho «đã có mã» (tự chạy pytest, mười tệp PGlite, typecheck, và một phép đột biến cho thấy test plugin bắt được lỗi P0 cũ); kết luận lần đầu là NEEDS WORK chỉ vì chữ trong biên nhận — hai mục chặn (câu cũ nói reality-checker chưa chạy; PR khi đó chưa có hai commit sửa) và mười một mục không chặn, đều đã sửa trong bản này; kiểm lại: **READY cho mức «đã có mã»**, 0 mục chặn. Mức này chỉ nói mã khớp test trên dữ liệu tổng hợp; ba mức dưới đều **chưa** | Mục «Bằng chứng kiểm», «Review hai tầng» |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1; migration 016–018 chưa áp lên DB thật nào; plugin chưa cài; gateway chưa khởi động lại | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Chưa gửi tin thật vào nhóm hay DM; mọi dữ liệu là tổng hợp | — |
 | Đã nghiệm thu | **Chưa.** OQ-09 mục (1) chưa chứng minh; SPEC-007 ca (c) UAT chưa chạy; chưa có chữ ký nghiệm thu | — |
 
-**Finding còn mở — Codex vòng 4** ([codex-round-4.md](reviews/slice-2-evidence-20261113/codex-round-4.md)), **chưa sửa, chờ Chairman:**
-- (P1) `src/server/intake.ts:51`: tiếp nhận đếm số phần tử trong `chatScopes[chatId]` chứ không đếm số dự án khác nhau. Nếu người vận hành lỡ khai trùng một mã dự án cho một nhóm (`[A, A]`; `parseBridgeConfig` nhận), tin của nhóm đó bị từ chối `INTAKE_PROJECT_AMBIGUOUS` (409) dù nhóm chỉ thuộc một dự án; plugin chuyển tin sang dead-letter. Phiên lát 2 đã đối chiếu mã: finding đúng. Không tin nào bị xoá (tin nằm trong dead-letter), nhưng không vào Inbox cho tới khi sửa cấu hình và nhập lại.
-- Hướng sửa để Chairman quyết (chưa làm): bỏ trùng trước khi đếm ở `intake.ts:48`, hoặc để `parseBridgeConfig` từ chối danh sách có mã trùng (tuyến trả 503, plugin giữ tin trong spool). Cỡ: một đến hai dòng mã và một đến hai test. Sửa xong muốn «đạt cổng» thì cần thêm một lượt Codex, tức một quyết định mới.
+**Finding của Codex vòng 4** ([codex-round-4.md](reviews/slice-2-evidence-20261113/codex-round-4.md)) **đã sửa** ở `f6f4ead` và `001d387`, sau khi người dùng duyệt «Fix + one Codex run» ngày 14/11/2026:
+- (P1) `src/server/intake.ts:51` đếm số phần tử cấu hình thay vì số dự án khác nhau → «một dự án» nay là một mã dự án khác nhau: `parseBridgeConfig` đưa mã về chữ thường và bỏ trùng, `IntakeService` tự đếm số mã khác nhau. `[A, A]` được nhận; `[A, A, B]` vẫn bị từ chối (OQ-27 (a) không đổi).
+- **Codex vòng 5** ([codex-round-5.md](reviews/slice-2-evidence-20261113/codex-round-5.md)): «VERDICT: PASS», không finding. Codex ghi rõ đây là kết luận review mã, không phải xác nhận triển khai hay nghiệm thu.
 
 **Bốn finding của Codex vòng 3** ([codex-round-3.md](reviews/slice-2-evidence-20261113/codex-round-3.md), phân tích ở [codex-round-3-analysis.md](reviews/slice-2-evidence-20261113/codex-round-3-analysis.md)) **đã sửa ở vòng sửa thứ ba**, theo lớp lỗi:
-- (P0) plugin, 401 khi phát lại xoá mọi tin đang chờ → sửa ở `9643b7f` và `82d30c6`: không đường nào của plugin xoá tin tiếp nhận. 401, redirect và lỗi cấu hình cục bộ dừng phát lại và giữ nguyên các dòng.
+- (P0) plugin, 401 khi phát lại xoá mọi tin đang chờ → sửa ở `9643b7f` và `82d30c6`: không đường nào của plugin xoá tin tiếp nhận, trừ lớp `disabled` nêu ở khoảng trống 21. 401, redirect và lỗi cấu hình cục bộ dừng phát lại và giữ nguyên các dòng.
 - (P0 theo Codex, planner xếp P1) plugin, khoá spool bận (`SPOOL_BUSY`) làm mất tin → cùng hai commit: tin sang tệp dead-letter.
 - (P1) `intake.ts`, bản sửa lưu chữ cho tin đã ghi chỉ con trỏ → `1054222`, theo quyết định OQ-30 (b) của Chairman: chế độ nội dung thuộc về từng bản sửa.
 - (P1) `intake.ts`, bản sửa tới trước tin gốc làm Inbox hiện bản cũ → `9643b7f`: xếp theo `edited_at`, không còn đọc `observed_at` của sự kiện.
@@ -40,6 +40,7 @@ Vì OQ-09 mục (1) chưa có bằng chứng, theo brief lát chỉ đạt mức
   - PR: «Push + PR nháp ngay (Recommended)» — «Có bản sao ngoài máy và team xem được. PR để nháp, biên nhận ghi «chưa đạt cổng Codex», quét bí mật trước khi push vì repo đang công khai. Không merge, không đụng main.»
   - **OQ-30** — «(b) Xét lại từng bản sửa» — «Chế độ ghi theo từng bản sửa với cấu hình hiện tại, có thể nới. Phải sửa schema 016 (chưa phát hành) và mọi chỗ đọc.»
   - **OQ-30 kèm** — «Ẩn ngay, thiết kế xoá sau (Recommended)» — «Giữ trong bảng bất biến nhưng Inbox ẩn theo cấu hình hiện tại. Thủ tục xoá hoặc che có người duyệt thiết kế ở lát sau.»
+- **Sau Codex vòng 4** (dừng và trình lại theo lời Chairman): người dùng duyệt trong phiên lát 2 ngày 14/11/2026 «Fix + one Codex run» — sửa finding P1 và chạy thêm đúng một lượt Codex (vòng 5).
 - Phán quyết S1–S15 của phiên lát 2 (không phải quyết định của Chairman): `docs/plans/slice-2-intake-outbox.md`, mục «Phán quyết của phiên lát 2» (tóm tắt ở cuối biên nhận). R3-1…R3-9 (luật của plugin ở vòng sửa thứ ba) nằm trong [controller-rulings.md](reviews/slice-2-evidence-20261113/controller-rulings.md).
 - **Công thức `quality_score`** (S3, hợp đồng dữ liệu của lát; chưa khai trong `AGENTS.md` vì sửa `AGENTS.md` là điểm dừng): `source_events` = 100 − 40 nếu là tin chuyển tiếp − 20 nếu chữ bị cắt − 20 nếu tệp không lưu được, tối thiểu 0 (`src/server/intake-rules.ts:10-16`); `delivery_receipts` = 100 cho biên nhận `send`, 60 cho `reconcile` (`src/server/outbox.ts:180`).
 - Không sửa `AGENTS.md`/`CLAUDE.md` (R10). Bốn dòng `AGENTS.md` ở gói quyết định §5 chờ OQ-09 mục (1).
@@ -59,9 +60,26 @@ Vì OQ-09 mục (1) chưa có bằng chứng, theo brief lát chỉ đạt mức
 | 8 Kích hoạt ProjectChannel | **Không làm** (điểm dừng); test khẳng định `chatScopes` vẫn là nguồn hiệu lực | `tests/intake.test.ts` |
 | 9 Khoá riêng, trần | Khoá `intake.key` tách khoá bot; trần thân (đề xuất): sự kiện 16384 B, kéo outbox 1024 B, biên nhận 4096 B. Khai `Content-Length` quá trần thì từ chối trước khi đọc; không khai thì đọc theo luồng, quá trần dừng ngay (`request-body.ts`, vòng sửa Codex 2); tệp 20 MiB và danh sách loại tệp là **đề xuất**, chưa là chính sách | `bridge-io.ts:12`, `intake-rules.ts:108-114` |
 | Đối soát hai kho (OQ-09 mục 2) | Nối tin với ticket bằng khoá sự kiện chung; chỉ đọc, không sinh ứng viên, không đổi trạng thái ticket; lệch được liệt kê, không tự sửa — trên sổ tổng hợp | `src/server/ledger-reconcile.ts` |
-| Plugin | Hook tiếp nhận (chỉ bật khi `intake.json` có `"hookEnabled": true`), allowlist nhóm, spool có dead-letter cho dòng đầu hỏng, con trỏ tệp, adapter giao outbox với `send` giả. Từ vòng sửa thứ ba: không đường nào xoá tin tiếp nhận — tin nằm ở backend, spool hoặc tệp dead-letter (trần 64 MiB); 401, redirect và lỗi cấu hình giữ nguyên hàng chờ. `VERSION`/`plugin.yaml` **không đổi số bản** (S7) dù mã đổi | `bot-plugin/__init__.py`, `bot-plugin/plugin.yaml` |
+| Plugin | Hook tiếp nhận (chỉ bật khi `intake.json` có `"hookEnabled": true`), allowlist nhóm, spool có dead-letter cho dòng đầu hỏng, con trỏ tệp, adapter giao outbox với `send` giả. Từ vòng sửa thứ ba: không đường nào xoá tin tiếp nhận — tin nằm ở backend, spool hoặc tệp dead-letter (trần 64 MiB); 401, redirect và lỗi cấu hình giữ nguyên hàng chờ. Ngoại lệ còn lại là lớp `disabled` (khoảng trống 21). `VERSION`/`plugin.yaml` **không đổi số bản** (S7) dù mã đổi | `bot-plugin/__init__.py`, `bot-plugin/plugin.yaml` |
 
 Migration 016–018 có tệp lùi ở `migrations/rollback/`; 018 lùi từ chối khi còn dòng `access_change`. Ba migration chưa phát hành nên được sửa tại chỗ trong lát; tiến → lùi → tiến chạy trên PGlite và PostgreSQL thật.
+
+## Bằng chứng kiểm — mã ở `001d387` (mã Codex vòng 5 đọc)
+
+`scout` chạy đủ tám lệnh ngày 14/11/2026 tại `001d387`, cùng máy, PostgreSQL 16.15 loopback chỉ có dữ liệu tổng hợp. Log có hậu tố `-001d387`; `manifest.json` ghi ở khoá `rerunAfterFixRound4`.
+
+| Lệnh | Kết quả | Log |
+|---|---|---|
+| `npx vitest run tests/migrations-rollback.test.ts` (native, chạy trước) | 1 tệp · 3 test đạt | `migrations-rollback-001d387.log` |
+| `npx vitest run --reporter=verbose` (native) | 41 tệp · **506 test đạt · 0 bỏ qua** | `vitest-native-001d387.log` |
+| `npm run test` (PGlite) | 36 tệp đạt + 5 bỏ qua · 485 test đạt + 21 bỏ qua (ca chỉ chạy native) | `vitest-pglite-001d387.log` |
+| `npx vitest run --coverage` | statements 95.1 · branches 86.79 · functions 96.69 · lines 96.19; ngưỡng 60 đạt. Số này đo trên lượt PGlite, chỉ cho các tệp TypeScript phía máy chủ trong danh sách `include` của `vitest.config.ts`; plugin Python **không** có số coverage | `coverage-001d387.log` |
+| `npm run typecheck` | exit 0 | `typecheck-001d387.log` |
+| `rm -rf .next && npm run build` | exit 0; có `/inbox`, `/api/inbox/[[...path]]`, `/api/bridge/[...path]` | `build-001d387.log` |
+| `python3 -m pytest tests/test_bot_bridge.py -q` | 66 đạt · 69 subtest đạt | `pytest-001d387.log` |
+| Quét | Mã nhóm: chỉ mã tổng hợp, cộng hai script có từ trước (đã che). `priority1`: 0. Mẫu chuỗi kết nối: chỉ fixture, mẫu deploy và tài liệu như trước. Trong log đã lưu: 0 | `greps-001d387.log` |
+
+Ghi chú để tái lập: tệp log không tự ghi SHA; SHA và mã thoát của từng lệnh nằm trong `manifest.json`. Trong worktree này `npm run typecheck` chỉ sạch sau khi xoá các bản sao `.next/types/* 2.ts` do iCloud tạo (không thuộc repo); trên bản checkout mới không có các tệp đó. Bản ghi rút gọn của Codex vòng 4 và vòng 5 (đầu phiên, các lệnh Codex tự chạy, kết luận, số token; đã che đường dẫn) nằm ở `codex-round-4-transcript.log` và `codex-round-5-transcript.log`. Brief ghi «bảy ca hiện có» của SPEC-007; tệp `tests/onboarding-feedback.test.ts` ở merge base có 9 test, biên nhận dùng số đếm được.
 
 ## Bằng chứng kiểm — mã ở `6038014` (sau vòng sửa thứ ba và OQ-30)
 
@@ -112,7 +130,7 @@ Phiên điều phối giao cho `scout` (agent chỉ đọc mã) chạy ngày 14/
 | `python3 -m pytest tests/test_bot_bridge.py -q` | 55 đạt · 27 subtest đạt | `pytest-2eb9437.log` |
 | Quét: mã nhóm `-100…`, `priority1`, chuỗi kết nối có mật khẩu | Chỉ có mã tổng hợp, cộng hai script có từ trước (mã đã che trong log). `priority1`: 0. Chuỗi kết nối có mật khẩu: 0 trong mọi log | `greps-2eb9437.log` |
 
-Xanh ở đây nghĩa là mã khớp với test hiện có. Hai test plugin đang khẳng định đúng hai hành vi mà Codex vòng 3 xếp P0 (`tests/test_bot_bridge.py:599-604` và `:1052-1072`).
+Xanh ở đây nghĩa là mã khớp với test có lúc đó. Tại `2eb9437`, hai test plugin từng khẳng định đúng hai hành vi mà Codex vòng 3 xếp P0; cả hai đã được viết lại ở vòng sửa thứ ba.
 
 ## Ca kiểm → test tự động
 
@@ -132,7 +150,7 @@ Xanh ở đây nghĩa là mã khớp với test hiện có. Hai test plugin đan
 | XI-01, XI-07 | không có test | Ca thật trên runtime, tính ở mức «đã dùng thật» |
 | SLO thử | `intake-slo` (native) | Số đo trên dữ liệu tổng hợp, không phải cam kết |
 
-**Số đo SLO thử** (một lần chạy native, 200 sự kiện tổng hợp): `{"slo_probe":{"events":200,"persist_ms_p50":3.1,"persist_ms_p95":3.7,"persist_to_receipt_queued_ms_p95":4,"persist_to_delivered_simulated_ms_p95":706.2,"projection":"not_measured: no intake projection in slice 2","overdue_listed_after_s":600}}` (PostgreSQL 16.15, máy cục bộ, head `2eb9437`). Lần chạy ở `8f181af`: p50 3.2 ms, p95 3.6 ms, xếp biên nhận p95 3.9 ms, «delivered» giả lập p95 962.4 ms. Lần chạy ở `6038014`: p50 2.8 ms, p95 3.3 ms, xếp biên nhận p95 3.6 ms, «delivered» giả lập p95 669 ms. Số «delivered» gồm cả thời gian chờ gom lượt kéo giả lập, **không** phải độ trễ giao thật; «projection» không đo được vì lát này không có bản chiếu intake (S4).
+**Số đo SLO thử** (một lần chạy native, 200 sự kiện tổng hợp): `{"slo_probe":{"events":200,"persist_ms_p50":3.1,"persist_ms_p95":3.7,"persist_to_receipt_queued_ms_p95":4,"persist_to_delivered_simulated_ms_p95":706.2,"projection":"not_measured: no intake projection in slice 2","overdue_listed_after_s":600}}` (PostgreSQL 16.15, máy cục bộ, head `2eb9437`). Lần chạy ở `8f181af`: p50 3.2 ms, p95 3.6 ms, xếp biên nhận p95 3.9 ms, «delivered» giả lập p95 962.4 ms. Lần chạy ở `6038014`: p50 2.8 ms, p95 3.3 ms, xếp biên nhận p95 3.6 ms, «delivered» giả lập p95 669 ms. Lần chạy ở `001d387`: p50 3 ms, p95 3.9 ms, xếp biên nhận p95 4.2 ms, «delivered» giả lập p95 779.2 ms. Số «delivered» gồm cả thời gian chờ gom lượt kéo giả lập, **không** phải độ trễ giao thật; «projection» không đo được vì lát này không có bản chiếu intake (S4).
 
 ## Review hai tầng
 
@@ -141,7 +159,7 @@ Toàn văn ở [REVIEW-slice-2-20261113.md](reviews/REVIEW-slice-2-20261113.md) 
 - **Tầng 1.**
   - Bốn cổng review theo task. Ba reviewer toàn nhánh, mã, CSDL và bảo mật, đều ra «READY WITH FIXES», 0 Critical. Đợt sửa ở `2898def`, re-review hẹp sạch.
   - Kiểm tay giao diện tìm ra sáu lỗi UI-1…UI-6; cả sáu đã sửa.
-  - `liberico-reality-checker` **chưa chạy**. Lệnh lát gọi nó trước khi biên nhận ghi «đạt»; biên nhận này ghi «chưa đạt cổng Codex».
+  - `liberico-reality-checker` chạy ngày 14/11/2026, sau Codex vòng 5 và trước khi biên nhận ghi «đạt» ([báo cáo](reviews/slice-2-evidence-20261113/reality-check.md)). Lần đầu: NEEDS WORK, chỉ ở chữ của biên nhận (2 mục chặn, 11 mục không chặn); mã không cần sửa. Kiểm lại sau khi sửa chữ và push hai commit sửa lên PR: **READY cho mức «đã có mã»**, 0 mục chặn. Reality-checker xác nhận Codex vòng 5 chạy đúng trên `001d387` (lệnh `git rev-parse HEAD` do chính Codex chạy, trong bản ghi vòng 5). Kết luận này không nói gì về merge, triển khai, dùng thật hay nghiệm thu.
 - **Tầng 2 Codex.**
   - Vòng 1 (`2898def`): 3 P1 + 1 P2, sửa ở `2e37f17`.
   - Vòng 2 (`2e37f17`): 2 P1, sửa ở `2eb9437`. Đây là vòng sửa thứ hai, vòng cuối được phép.
@@ -149,14 +167,18 @@ Toàn văn ở [REVIEW-slice-2-20261113.md](reviews/REVIEW-slice-2-20261113.md) 
 - **Sau cổng: quyết định OQ-27/28/29 (`8f181af`).**
   - Review task (`liberico-code-reviewer`): spec ❌ ở hai câu thông báo trên `/team` (I-1, I-2), sửa ở vòng 1, re-review: cả hai đã xử lý, không lỗi mới. 0 Critical.
   - I-3 (Important, hoãn sang OQ-30): cờ theo nhóm làm đường lỗi của finding Codex vòng 3 thứ ba xảy ra chỉ bằng một thay đổi cấu hình. Không sửa vì chưa có phép vòng sửa; ghi thành luật vận hành ở OQ-28/OQ-30 và khoảng trống 6.
-  - Codex **chưa** review `8f181af`. Nếu Chairman cho vòng sửa thứ ba, Codex vòng 4 sẽ thấy cả commit này.
+  - Lúc đó Codex chưa review `8f181af`; Codex vòng 4 (mã `6038014`) và vòng 5 đã review cả commit này.
 - **Vòng sửa thứ ba và OQ-30 (`9643b7f`, `1054222`, `82d30c6`, test `6038014`).**
   - Review task của vòng sửa: spec ✅, 1 Important (redirect và lỗi cục bộ bất ngờ đưa cả hàng chờ sang dead-letter) + 1 Medium từ review bảo mật tự động (tệp dead-letter không có trần). Hai vòng sửa, re-review: cả năm mục đã xử lý, không Critical/Important mới.
   - Review task của OQ-30 (`liberico-database-reviewer`): spec ✅, 0 Critical, 0 Important, 5 Minor (khoảng trống 22–24).
-- **Codex vòng 4 (mã `6038014`, vòng cuối): CHANGES_REQUIRED, 1 P1 mới** (`intake.ts:51`, xem đầu biên nhận). Codex xác nhận bốn finding vòng 3 đã được xử lý trong mã. Lượt chạy đầu của vòng 4 không review được vì đầu vào vượt giới hạn 1 048 576 ký tự của Codex CLI; lượt chạy lại bỏ thư mục bằng chứng (log và biên bản, không có mã) khỏi diff gửi kèm, Codex vẫn đọc được thư mục đó trong repo.
-- **Kết luận cổng:** **chưa đạt.** Còn 1 P1 chưa xử lý. Theo quyết định của Chairman, dừng hẳn và trình lại; không có vòng 5. Không merge; PR #10 giữ ở trạng thái nháp.
+- **Codex vòng 4 (mã `6038014`; lúc đó là vòng cuối được duyệt): CHANGES_REQUIRED, 1 P1 mới** (`intake.ts:51`, xem đầu biên nhận). Codex xác nhận bốn finding vòng 3 đã được xử lý trong mã. Lượt chạy đầu của vòng 4 không review được vì đầu vào vượt giới hạn 1 048 576 ký tự của Codex CLI; lượt chạy lại bỏ thư mục bằng chứng (log và biên bản, không có mã) khỏi diff gửi kèm, Codex vẫn đọc được thư mục đó trong repo.
+- **Sửa finding vòng 4 (`f6f4ead`, `001d387`).** Review task: spec ✅, 0 Critical, 0 Important, 2 Minor. Một Minor cùng lớp với finding (cùng một uuid viết hai kiểu chữ vẫn bị coi là hai dự án) được sửa luôn ở `001d387`; re-review: đã xử lý, không lỗi mới.
+- **Codex vòng 5 (mã `001d387`): PASS, không finding.**
+- **Kết luận cổng:** **đạt ở vòng 5.** Không còn finding P0/P1 của Codex chưa xử lý. PR chưa merge; merge là điểm dừng chờ Chairman.
 
 ## Giao diện (kiểm tay, không phải nghiệm thu)
+
+Kiểm ở các commit `121d35a`, `2898def` và `2e37f17`. **Chưa kiểm tay lại** sau `8f181af` (đổi câu trên `/team` và `/approvals`), `1054222` (trạng thái «ẩn» trên Inbox) và các commit sửa sau đó; các thay đổi đó chỉ có test tự động.
 
 Phiên điều phối tự kiểm tay trên trình duyệt, ở chế độ máy chủ. Dữ liệu là CSDL thử `slice2_ui` chỉ có dữ liệu tổng hợp, trên PostgreSQL loopback, với ba tài khoản tổng hợp: điều phối, kỹ sư và chỉ xem. Kiểm ở hai khổ 1280×800 và 360×740. Bảng đầy đủ nằm ở [UI-HANDOFF-2-inbox.md](UI-HANDOFF-2-inbox.md), mục «Kiểm tay». Đây là kiểm của bên làm, không phải UAT hay nghiệm thu.
 
@@ -211,8 +233,9 @@ Phiên điều phối tự kiểm tay trên trình duyệt, ở chế độ máy
 17. Sự kiện `outbox.taken` chưa ghi người giữ trước khi một quản lý khác nhận lại tin. Người giữ trước vẫn tra được qua chuỗi `intake_events` và version, nhưng không nằm ngay trong payload. Đây là Minor, để lát sau.
 18. Hai helper test `outboxClock` và `versionAhead` (`tests/slice2-fixtures.ts`) ghi ở chế độ `session_replication_role='replica'` bằng login vận hành. Mục đích là lùi giờ lease và dựng ca giả mạo, vì guard 017 nay khoá các cột đó với mọi role, kể cả superuser. Chúng chỉ dùng trong test. Ở dữ liệu thật, muốn đổi các cột này phải đi qua một bước chuyển trạng thái, không sửa tay bằng SQL.
 19. **Cắt thân yêu cầu quá trần** (vòng sửa Codex 2): helper hủy luồng ngay khi vượt trần. Trên máy chủ Next.js thật, việc hủy này có thể đóng kết nối trước khi câu trả lời 413 tới máy khách, nên máy khách gửi quá trần có thể chỉ thấy kết nối bị ngắt. Test dùng đối tượng `Request` trong cùng tiến trình, chưa chạy với máy chủ đang chạy. Plugin không bao giờ gửi quá trần, vì `fit_event` đã cắt trước.
-20. **Bốn finding Codex vòng 3 đã sửa** ở vòng sửa thứ ba (xem đầu biên nhận). Hai phán quyết L240 và L241 bị thay bởi R3-1…R3-9.
+20. **Bốn finding Codex vòng 3 đã sửa** ở vòng sửa thứ ba (xem đầu biên nhận). Hai phán quyết `L240` và `L241` trong [controller-rulings.md](reviews/slice-2-evidence-20261113/controller-rulings.md) (số dòng của sổ theo dõi, không phải của biên nhận này) bị thay bởi R3-1…R3-9.
 21. **Plugin sau vòng sửa thứ ba — phần còn lại, có giới hạn và có log:**
+    - **Ngoại lệ của luật «không xoá tin»: lớp `disabled`.** Nếu tệp khoá tiếp nhận của gateway bị gỡ hoặc sai quyền giữa lúc hook đọc cấu hình và lúc gửi, tin mới **không** được giữ ở đâu, chỉ có log mã cố định (R3-5 giữ nguyên hành vi cũ; test khẳng định đúng như vậy). Khi tệp khoá thiếu ngay từ đầu, hook không coi tin là tiếp nhận. Cửa sổ này hẹp, nhưng là một đường mất tin có thật.
     - Tệp dead-letter chưa có công cụ nạp lại; người vận hành đọc tệp và nhập lại. Bản ghi chỉ-con-trỏ (khi hook lỗi trước lúc dựng được sự kiện) không phát lại được.
     - Kênh bị từ chối mãi (401 do lệch đồng hồ hoặc lệch khoá, redirect, lỗi cấu hình): hàng chờ được giữ nguyên, spool đầy ở 1000 dòng, tin mới sang dead-letter tới trần 64 MiB. Sau đó tin mới **mất**, có log `INTAKE_LOST DEAD_FULL`. Đây là chỗ mất duy nhất còn lại; người vận hành phải theo dõi các mã `INTAKE_AUTH_DENIED`, `INTAKE_DEAD_FULL`, `INTAKE_LOST`.
     - Khi tệp dead-letter đầy, một dòng spool cần chuyển sang dead-letter sẽ chặn việc phát lại cho tới khi người vận hành dời tệp.
@@ -263,9 +286,11 @@ Số do harness báo cho từng agent khi nó kết thúc, gồm cả token đ�
 | Vòng sửa thứ ba | Builder Opus 175 383 (hai lượt nối lại harness báo 212 145 và 221 782, không rõ cộng dồn nên không cộng) · review task Opus 231 762 · re-review Opus 162 565 | 569 710 |
 | OQ-30 (b) | Builder Opus 196 117 (lượt nối lại 201 973, không cộng) · review task Opus 229 939 | 426 056 |
 | Kiểm cuối ở `6038014` | `scout` (Sonnet) | 82 082 |
-| **Cộng phía Claude (đo được)** | Không gồm phiên điều phối, review cổng 2 và các lượt nối lại chưa chắc | **9 279 700** |
+| Sửa finding vòng 4 | Builder Sonnet 90 546 (lượt nối lại harness báo 102 969, không cộng) · review task Sonnet 141 515 · re-review Sonnet 140 960 · kiểm cuối `scout` Sonnet 84 552 (một lượt `scout` bị dừng giữa chừng, không có số) | 457 573 |
+| Kiểm thực tế | `liberico-reality-checker` (Opus) 250 221; lượt kiểm lại harness báo 278 568, không rõ cộng dồn nên không cộng | 250 221 |
+| **Cộng phía Claude (đo được)** | Không gồm phiên điều phối, review cổng 2 và các lượt nối lại chưa chắc | **9 987 494** |
 
-| Codex (`codex exec --sandbox read-only`) | Vòng 1 385 310 · vòng 2 410 533 · vòng 3 413 452 · vòng 4 482 363 (lượt đầu bị từ chối vì quá dài, không tính) | 1 691 658 |
+| Codex (`codex exec --sandbox read-only`) | Vòng 1 385 310 · vòng 2 410 533 · vòng 3 413 452 · vòng 4 482 363 (lượt đầu bị từ chối vì quá dài, không tính) · vòng 5 439 028 | 2 130 686 |
 
 Planner ước vòng sửa thứ ba 300–450 nghìn token phía Claude; số đo được là 1 077 848, gồm cả việc OQ-30 (b) mà ước tính chưa tính tới.
 
@@ -321,3 +346,4 @@ Các mục chính:
   - Codex vòng 1 và vòng 2: nhận mọi finding. Vòng 2 sửa luôn hai lỗi cùng loại mà Codex chưa nêu: thân yêu cầu web đọc không giới hạn, và câu trả lời 2xx không phải JSON bị coi là lỗi cuối.
 - **Dừng sau Codex vòng 3.** Theo lệnh lát, không làm vòng sửa thứ ba, không push, không mở PR cho tới khi Chairman quyết. Tài liệu chỉ commit trên nhánh cục bộ. Thứ tự lệnh lát đặt quy tắc dừng trước bước giao PR, và push lên repo công khai khó gỡ hơn.
 - **Sau quyết định của Chairman ngày 14/11/2026.** Push nhánh và mở PR nháp trước vòng sửa thứ ba. Commit trước khi review ở vòng này, để reviewer đọc một commit cố định trong khi builder khác đang sửa cây làm việc; bản sửa của plugin và việc OQ-30 chạy song song vì tệp và bộ test tách rời. Hai chỗ này lệch S12 và lệch «builder chạy lần lượt», đã ghi trong sổ.
+- **Sau Codex vòng 4.** Dừng và trình lại theo lời Chairman; người dùng duyệt «Fix + one Codex run». R4-1: «một dự án» là một mã dự án khác nhau, mã khai trùng được chuẩn hoá chứ không bị từ chối. R4-2: mã dự án trong cấu hình đưa về chữ thường. Lượt kiểm đang chạy bị dừng để sửa R4-2 rồi chạy lại từ đầu.
