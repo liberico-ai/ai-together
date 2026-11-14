@@ -608,3 +608,15 @@ test('OQ-27 a duplicated id next to a second project is still ambiguous',async()
   await expect(svcWith(dup).ingest(ev({context:{chatId:chatSales}}))).rejects.toMatchObject({code:'INTAKE_PROJECT_AMBIGUOUS',status:409});
   await allZero();
 });
+
+test('OQ-27 the same project id in two letter cases is one project and is taken in',async()=>{
+  // a synthetic project whose id has hex letters, so upper and lower case really differ
+  const A='abcdef01-0000-4000-8000-0000000000ab';
+  expect(A.toUpperCase()).not.toBe(A);
+  await h.operator.query('INSERT INTO projects(id,tenant_id,name,bu) VALUES($1,$2,$3,$4)',[A,ids.tenant,'Dự án chữ hoa mẫu','BU Bán hàng mẫu']);
+  const both={...bridgeConfig.chatScopes,[chatSales]:[A,A.toUpperCase()]};
+  expect((await svcWith(both).ingest(ev({context:{chatId:chatSales,messageId:'7001'}}))).persisted).toBe(true);
+  const upper={...bridgeConfig.chatScopes,[chatSales]:[A.toUpperCase()]};
+  expect((await svcWith(upper).ingest(ev({context:{chatId:chatSales,messageId:'7002'}}))).persisted).toBe(true);
+  expect((await h.operator.query<{project_id:string}>('SELECT project_id FROM source_events')).rows).toEqual([{project_id:A},{project_id:A}]);
+});

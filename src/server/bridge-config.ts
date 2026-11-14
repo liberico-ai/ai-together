@@ -17,8 +17,8 @@ export function parseBridgeConfig(raw:unknown):BridgeConfig {
   if(!c.intake.chats.every(x=>allowed.has(x))) throw new Error('Intake chats must be a subset of chatScopes.');
   if(!(c.intake.excerptChats??[]).every(x=>c.intake!.chats.includes(x))) throw new Error('Intake excerpt chats must be a subset of intake chats.');
  }
- // A project id listed twice for one group is operator noise: keep the first of each, in order (OQ-27 counts distinct projects).
- return {...c,chatScopes:Object.fromEntries(Object.entries(c.chatScopes).map(([k,v])=>[k,[...new Set(v)]]))};
+ // A project id listed twice for one group is operator noise: lowercase (canonical uuid form), keep the first of each, in order (OQ-27 counts distinct projects).
+ return {...c,chatScopes:Object.fromEntries(Object.entries(c.chatScopes).map(([k,v])=>[k,[...new Set(v.map(x=>x.toLowerCase()))]]))};
 }
 export async function loadBridgeConfig():Promise<BridgeConfig|null> {
  const file=process.env.LIBETECH_BRIDGE_CONFIG;

@@ -68,6 +68,11 @@ test('config keeps one copy of a project id listed twice for a group',()=>{
   expect(cfg([ids.sales,ids.sales])).toEqual([ids.sales]);
   expect(cfg([ids.sales,ids.transport,ids.sales])).toEqual([ids.sales,ids.transport]);
 });
+test('config stores project ids in lowercase and keeps one copy',()=>{
+  const cfg=(l:string[])=>parseBridgeConfig({key:botKey,chatScopes:{[chatSales]:l}}).chatScopes[chatSales];
+  const A='abcdef01-0000-4000-8000-0000000000ab';
+  expect(cfg([A.toUpperCase(),A])).toEqual([A]);
+});
 test('config rejects excerpt chats outside intake.chats; no excerptChats means none',()=>{
   const ok={key:botKey,chatScopes:{[chatSales]:[ids.sales],'-1000000000002':[ids.transport]}};
   const intake={key:intakeKey,principalId:ids.tenant,chats:[chatSales]};
