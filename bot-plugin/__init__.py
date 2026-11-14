@@ -182,21 +182,27 @@ def call_backend(home, payload, *, path="/api/bridge", key_file="bridge.json", t
         return result["data"]
 
 def _failure_kind(error):
-    """How the intake path treats one failed POST.
+    """How the intake path treats one failed POST. No class deletes the message (Codex round 3, rulings R3-1..R3-5).
     network:  no answer (status 0, OSError, HTTPException). Kept in order and retried; never counted.
     answered: the backend answered 404, 408, 429 or 5xx, or answered without confirming storage (INTAKE_RESPONSE_INVALID,
               classed by that code, whatever its status). Retried, counted against SPOOL_MAX_ATTEMPTS and SPOOL_MAX_AGE.
+    channel:  the backend refused the channel (401: bad signature, clock drift, key not yet rotated on both sides). It says
+              nothing about the message: the drain stops at that line, keeps it and every later line in order, counts
+              nothing; a live message is spooled behind them. INTAKE_AUTH_DENIED is logged each time.
     disabled: this gateway's intake key file is missing or unsafe. Nothing new is spooled; what is spooled stays.
-    final:    anything else, including 401 and 403. Retrying cannot help: the message is dropped with its code."""
+    refused:  anything else, including 403, 409, 413 and 422. Retrying cannot help: the message moves to the dead-letter
+              file with the server's code as reason, not retried and not deleted."""
     if isinstance(error, BackendError):
         if str(error) == INTAKE_RESPONSE_INVALID:
             return "answered"
         if error.status == 0:
             return "network"
-        return "answered" if error.status >= 500 or error.status in (404, 408, 429) else "final"
+        if error.status == 401:
+            return "channel"
+        return "answered" if error.status >= 500 or error.status in (404, 408, 429) else "refused"
     if isinstance(error, ValueError):
-        return "disabled" if str(error) in ("BRIDGE_NOT_CONFIGURED", "BRIDGE_CONFIG_PERMISSIONS") else "final"
-    return "network" if isinstance(error, (OSError, http.client.HTTPException)) else "final"
+        return "disabled" if str(error) in ("BRIDGE_NOT_CONFIGURED", "BRIDGE_CONFIG_PERMISSIONS") else "refused"
+    return "network" if isinstance(error, (OSError, http.client.HTTPException)) else "refused"
 
 def safe_error(error):
     code = str(error) if isinstance(error, ValueError) else "BRIDGE_UNAVAILABLE"
@@ -435,7 +441,7 @@ def _write_atomic(path, data):
 @contextmanager
 def _locked(path):
     """Exclusive spool lock, never waited on for long: the hook runs in the gateway's dispatch path. Still held by
-    another process after SPOOL_LOCK_SECONDS: SPOOL_BUSY (the caller's message is then lost: a known limit)."""
+    another process after SPOOL_LOCK_SECONDS: SPOOL_BUSY (submit_event then dead-letters the caller's message, unlocked)."""
     descriptor = _open_private(path, os.O_RDWR | os.O_CREAT)
     try:
         deadline = time.monotonic() + SPOOL_LOCK_SECONDS
@@ -513,6 +519,10 @@ def store_attachment(home, raw, download):
 def _line(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
+def _dead_line(entry, reason):
+    """One dead-letter line: the spool entry {"firstSpooledAt", "attempts", "event"} plus "deadAt" and "reason"."""
+    return _line(dict(entry, deadAt=_now(), reason=reason))
+
 def _spool_entry(line):
     """(entry, first spooled time) of one spool line, or None when the line is not one."""
     try:
@@ -531,6 +541,8 @@ class Spool:
     Lines that can never be delivered move to intake-dead.jsonl (owner-only) with a reason, never silently."""
     def __init__(self, home):
         self.home = home
+        # Set by drain: True when it stopped with a line it did not settle (or never got to walk the spool).
+        self.blocked = True
 
     def _paths(self):
         folder = _runtime_dir(self.home)
@@ -552,15 +564,18 @@ class Spool:
         No answer (network) or no usable key: stop, keep the line and its order, count nothing.
         Answered 404/408/429/5xx or INTAKE_RESPONSE_INVALID: count one attempt; at SPOOL_MAX_ATTEMPTS, or when spooled
         longer than SPOOL_MAX_AGE, the line moves to the dead-letter file (INTAKE_DEAD_LETTER) and the drain continues;
-        otherwise it stays at the head with its new count. Any other refusal (401, 403, 422...): dropped with its code,
-        the drain continues. Sending twice after a crash is harmless: the backend keys events by chat and message id."""
+        otherwise it stays at the head with its new count. Channel refused (401): stop, keep the line and its order, count
+        nothing, log INTAKE_AUTH_DENIED. Message refused (403, 409, 413, 422...): dead-lettered with its code, the drain
+        continues. Sending twice after a crash is harmless: the backend keys events by chat and message id.
+        A SPOOL_BUSY from the commit propagates; submit_event handles it (nothing consumed is lost: replay is keyed)."""
         path, lock, dead_path = self._paths()
         lines = _read_lines(path)
         now = datetime.now(timezone.utc)
         sent = calls = start = index = 0
         dead, head = [], []
+        self.blocked = True
         def bury(value, reason):
-            dead.append(_line(dict(value, deadAt=_now(), reason=reason)))
+            dead.append(_dead_line(value, reason))
             LOG.warning("libetech intake spool: %s %s", "INTAKE_DEAD_LETTER", reason)
         try:
             while index < len(lines):
@@ -580,8 +595,11 @@ class Spool:
                     kind = _failure_kind(error)
                     if kind in ("network", "disabled"):
                         break
-                    if kind == "final":
-                        LOG.warning("libetech intake spool dropped one event: %s", safe_error(error)["error"])
+                    if kind == "channel":
+                        LOG.warning("libetech intake spool: %s", "INTAKE_AUTH_DENIED")
+                        break
+                    if kind == "refused":
+                        bury(entry, safe_error(error)["error"])
                     else:
                         entry["attempts"] += 1
                         if entry["attempts"] >= SPOOL_MAX_ATTEMPTS:
@@ -596,9 +614,30 @@ class Spool:
                 if index - start >= 50:
                     self._commit(path, lock, dead_path, lines[start:index], [], dead)
                     start, dead = index, []
+            else:
+                self.blocked = False
         finally:
             self._commit(path, lock, dead_path, lines[start:index], head, dead)
         return sent
+
+    def bury(self, payload, *, attempts, reason):
+        """Append one message the spool could not take, or the backend refused, to the dead-letter file, WITHOUT the
+        spool lock (R3-1): one os.write of the whole line on an O_APPEND descriptor, so it never interleaves with another
+        writer's line. A short write or any error: INTAKE_LOST is logged (a disk failure); nothing is raised."""
+        try:
+            data = (_dead_line({"firstSpooledAt": _now(), "attempts": attempts, "event": payload}, reason) + "\n").encode()
+            descriptor = _open_private(self._paths()[2], os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+            try:
+                if os.write(descriptor, data) != len(data):
+                    raise OSError("DEAD_LETTER_SHORT_WRITE")
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        except Exception:  # the cause may carry a path; only the fixed code and the reason code are logged
+            LOG.warning("libetech intake: %s %s", "INTAKE_LOST", reason)
+            return {"ok": False, "lost": True, "reason": reason}
+        LOG.warning("libetech intake: %s %s", "INTAKE_DEAD_LETTER", reason)
+        return {"ok": False, "deadLettered": True, "reason": reason}
 
     @staticmethod
     def _commit(path, lock, dead_path, consumed, head, dead):
@@ -623,10 +662,13 @@ def _stored_ack(data):
 def submit_event(home, payload, spool, *, timeout=5, replays=None):
     """Post one fitted event on the intake key. Spooled events go first (at most `replays` of them), so the backend
     never sees a newer message before an older one; while any remain, the new message is spooled behind them.
+    No message is ever deleted: it ends in the backend (a valid IntakeAck), the spool, or the dead-letter file; if even the
+    dead-letter write fails, INTAKE_LOST is logged. Never raises.
     No answer: spooled. Answered 404/408/429/5xx: spooled with that answer counted. An answer that does not confirm
     storage (a 2xx without the IntakeAck, not JSON, or too large): INTAKE_RESPONSE_INVALID, spooled and counted the same.
-    401, 403 and other refusals: dropped, the code returned. Intake key file missing or unsafe: nothing is spooled.
-    A full spool raises SPOOL_FULL."""
+    401 (channel refused): spooled uncounted, INTAKE_AUTH_DENIED logged. 403, 422 and other refusals: dead-lettered with
+    the code. The spool cannot take it (SPOOL_BUSY, SPOOL_FULL, ...): dead-lettered with that reason.
+    Intake key file missing or unsafe: nothing is spooled, the code returned (unchanged)."""
     def post(event):
         # status: the answer's own where call_backend reports it, else 0 (not known here). It is never used to class
         # this failure: _failure_kind classes INTAKE_RESPONSE_INVALID by its code.
@@ -647,19 +689,37 @@ def submit_event(home, payload, spool, *, timeout=5, replays=None):
             LOG.warning("libetech intake: %s", INTAKE_RESPONSE_INVALID)
             raise BackendError(INTAKE_RESPONSE_INVALID, status)
         return data
-    if spool.pending():
-        spool.drain(post, limit=replays)
+    def keep(attempts):
+        try:
+            spool.put(payload, attempts=attempts)
+        except Exception as error:
+            return spool.bury(payload, attempts=attempts, reason=safe_error(error)["error"])
+        return {"ok": False, "spooled": True}
+    try:
         if spool.pending():
-            spool.put(payload)
-            return {"ok": False, "spooled": True}
+            try:
+                spool.drain(post, limit=replays)
+                behind = spool.pending()
+            except Exception as error:
+                # SPOOL_BUSY (or a disk error) while the drain commits (R3-2): what it sent stays in the spool and is
+                # replayed under its key; the new message goes first only if the drain walked the whole spool.
+                LOG.warning("libetech intake spool: %s", safe_error(error)["error"])
+                behind = spool.blocked
+            if behind:
+                return keep(0)
+    except Exception as error:
+        return spool.bury(payload, attempts=0, reason=safe_error(error)["error"])
     try:
         return {"ok": True, "data": post(payload)}
     except Exception as error:
         kind = _failure_kind(error)
-        if kind not in ("network", "answered"):
+        if kind == "disabled":
             return {"ok": False, "error": safe_error(error)["error"]}
-        spool.put(payload, attempts=1 if kind == "answered" else 0)
-        return {"ok": False, "spooled": True}
+        if kind == "refused":
+            return spool.bury(payload, attempts=0, reason=safe_error(error)["error"])
+        if kind == "channel":
+            LOG.warning("libetech intake: %s", "INTAKE_AUTH_DENIED")
+        return keep(1 if kind == "answered" else 0)
 
 def _intake_config(home):
     """Runtime intake.json, read on every hook call so an operator can switch intake off without a restart.
@@ -709,10 +769,11 @@ def intake_hook(profile_home, /, *args, **kwargs):
             payload["attachment"] = store_attachment(profile_home, raw, getattr(event, "download_attachment", None))
         result = submit_event(profile_home, fit_event(payload), Spool(profile_home),
                               timeout=HOOK_TIMEOUT, replays=HOOK_REPLAYS)
+        # A dead-lettered or lost message was already logged by Spool.bury with its fixed code.
         if result.get("spooled"):
             LOG.warning("libetech intake: %s", "INTAKE_SPOOLED")
-        elif not result.get("ok"):
-            LOG.warning("libetech intake: %s", result.get("error", "BRIDGE_UNAVAILABLE"))
+        elif not result.get("ok") and "error" in result:
+            LOG.warning("libetech intake: %s", result["error"])
     except Exception as error:
         LOG.warning("libetech intake: %s", safe_error(error)["error"])
     return None

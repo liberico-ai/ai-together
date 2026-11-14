@@ -368,6 +368,21 @@ test('the newest revision is chosen by edited_at',async()=>{
   expect(d.revisions.map(r=>r.revisionNo)).toEqual([2,3,1]);
 });
 
+test('an edit arriving before its original: the Inbox card and detail().revisions[0] both show the edit',async()=>{
+  const first=messageEvent({addressed:false,text:'bản gốc'});
+  const at=(ms:number)=>new Date(new Date(first.observedAt).getTime()+ms).toISOString();
+  const edit=messageEvent({addressed:false,text:'bản sửa',editedAt:at(60000),observedAt:at(300000),context:{messageId:first.context.messageId}});
+  await intake([chatSales]).ingest(edit);
+  await intake([chatSales]).ingest({...first,observedAt:at(360000)});
+  expect(await n('source_event_revisions')).toBe(2);
+  const items=(await inbox().list(pm,{projectId:ids.sales})).items;
+  expect(items).toHaveLength(1);
+  expect(items[0]).toMatchObject({contentMode:'excerpt',excerpt:'bản sửa'});
+  const d=await inbox().detail(pm,items[0].candidateId);
+  expect(d.revisions[0]).toMatchObject({revisionNo:1,excerpt:items[0].excerpt});
+  expect(d.revisions.map(r=>r.revisionNo)).toEqual([1,2]);
+});
+
 test('duplicate suggestions are hints: same newest content, same project, nothing merged',async()=>{
   const a=await ingest({text:'cùng một nội dung'}),b=await ingest({text:'cùng một nội dung'}),c=await ingest({text:'nội dung khác'});
   await ingest({context:{chatId:chatTransport},text:'cùng một nội dung'});

@@ -270,6 +270,41 @@ test('an edit that arrives before the original, and edits out of order, are all 
   expect(latest.revision_no).toBe(1);
 });
 
+// Codex round 3, finding 4: «latest» is by edited_at whatever arrived first, never by the event's first observed_at.
+const latestOf=async()=>(await h.operator.query<{revision_no:number;edited_at:Date|null;content_hash:string}>(
+  `SELECT r.revision_no,r.edited_at,r.content_hash FROM source_event_revisions r JOIN source_events e ON e.id=r.source_event_id ORDER BY ${LATEST_REVISION_ORDER} LIMIT 1`)).rows[0];
+test('an edit observed after its own edit time that arrives before the original stays the latest revision',async()=>{
+  const T=(n:number)=>new Date(1760000000000+n*60000).toISOString();
+  const base=ev({});
+  await svc().ingest({...base,editedAt:T(2),observedAt:T(5),contentHash:hex('2')});
+  await svc().ingest({...base,observedAt:T(6),contentHash:hex('0')});
+  await svc().ingest({...base,editedAt:T(1),observedAt:T(7),contentHash:hex('1')});
+  expect(await count('source_event_revisions')).toBe(3);
+  const latest=await latestOf();
+  expect(latest.content_hash).toBe(hex('2'));
+  expect(new Date(latest.edited_at!).toISOString()).toBe(T(2));
+});
+
+test('in normal order an edit outranks an original observed later than the edit time (two clocks)',async()=>{
+  const T=(n:number)=>new Date(1760000000000+n*1000).toISOString();
+  const base=ev({});
+  await svc().ingest({...base,observedAt:T(5),contentHash:hex('0')});
+  await svc().ingest({...base,editedAt:T(3),observedAt:T(6),contentHash:hex('1')});
+  const latest=await latestOf();
+  expect(latest.content_hash).toBe(hex('1'));
+  expect(latest.revision_no).toBe(2);
+});
+
+test('two revisions without edited_at: the higher revision_no is the latest',async()=>{
+  const base=ev({});
+  await svc().ingest({...base,contentHash:hex('0')});
+  await svc().ingest({...base,contentHash:hex('5'),attachment:stored('5')});
+  expect(await count('source_event_revisions')).toBe(2);
+  const latest=await latestOf();
+  expect(latest.edited_at).toBeNull();
+  expect(latest.revision_no).toBe(2);
+});
+
 test('replaying a message after its group moved to another project is SOURCE_EVENT_CONFLICT',async()=>{
   const e=ev({});
   await svc().ingest(e);

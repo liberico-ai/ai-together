@@ -24,8 +24,10 @@ export const intakeEventSchema:z.ZodType<IntakeEventInput>=z.object({
  text:z.string().max(4096),textTruncated:z.boolean(),contentHash:hex64,traceId:z.string().uuid(),attachment:attachmentSchema.optional(),
 }).strict();
 
-/** Latest revision of a SourceEvent (Task 7 reuses this). Aliases: r = source_event_revisions, e = source_events. */
-export const LATEST_REVISION_ORDER='coalesce(r.edited_at, e.observed_at) DESC, r.revision_no DESC';
+/** Latest revision of a SourceEvent (Task 7 reuses this). Alias: r = source_event_revisions (callers may also join e = source_events).
+ * A revision with an edit time outranks one without; edits compare on Telegram's edited_at only; revisions without one fall
+ * back to arrival order. Never e.observed_at: it is the first arrival's time, which may be an edit's (Codex round 3, finding 4). */
+export const LATEST_REVISION_ORDER='r.edited_at DESC NULLS LAST, r.revision_no DESC';
 
 type ReceiptTemplate='intake.received'|'intake.recovered'|'intake.attachment_failed';
 export type EnqueueReceipt=(tx:Queryable,i:{tenantId:string;projectId:string;sourceEventId:string;candidateId:string|null;chatId:string;topicId:string;replyToMessageId:string;template:ReceiptTemplate;params:Record<string,string>;traceId:string;correlationId:string})=>Promise<'queued'|'none'>;

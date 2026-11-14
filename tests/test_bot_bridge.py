@@ -460,10 +460,11 @@ class IntakeAdapterTests(unittest.TestCase):
             self.assertEqual([payload['context']['messageId'] for payload in sent],['51','52'])
             self.assertTrue(all(payload['spooled'] is True for payload in sent))
             self.assertEqual(path.read_text(),'')
-            # A refusal about the message itself is not spooled: retrying could never succeed.
+            # A refusal about the message itself is not spooled (retrying could never succeed) but kept in the dead-letter file.
             with patch.object(bridge,'call_backend',side_effect=bridge.BackendError('SCOPE_DENIED',403)):
-                self.assertEqual(bridge.submit_event(home,event('50','tin ngoài phạm vi'),spool),{'ok':False,'error':'SCOPE_DENIED'})
+                self.assertEqual(bridge.submit_event(home,event('50','tin ngoài phạm vi'),spool),{'ok':False,'deadLettered':True,'reason':'SCOPE_DENIED'})
             self.assertEqual(path.read_text(),'')
+            self.assertEqual([(line['reason'],line['event']['context']['messageId']) for line in dead_lines(home)],[('SCOPE_DENIED','50')])
             # A 5xx is spooled; the next live submit replays the spool first, then sends the new message.
             with patch.object(bridge,'call_backend',side_effect=bridge.BackendError('INTAKE_UNCONFIGURED',503)):
                 self.assertEqual(bridge.submit_event(home,event('53','tin ba'),spool),{'ok':False,'spooled':True})
@@ -486,13 +487,17 @@ class IntakeAdapterTests(unittest.TestCase):
             (line,)=spool_lines(home)
             self.assertEqual((set(line),line['attempts']),({'firstSpooledAt','attempts','event'},0))
             self.assertRegex(line['firstSpooledAt'],ISO)
-            # A full spool refuses loudly; nothing is dropped silently.
+            # A full spool refuses loudly; the message it cannot take goes to the dead-letter file, never lost.
             line=json.dumps({'firstSpooledAt':bridge._now(),'attempts':0,'event':event('57','tin bảy')},ensure_ascii=False)
             path.write_text((line+'\n')*1000)
             with self.assertRaisesRegex(ValueError,'^SPOOL_FULL$'):spool.put(event('58','tin tám'))
-            with patch.object(bridge,'call_backend',side_effect=urllib.error.URLError('down')):
-                with self.assertRaisesRegex(ValueError,'^SPOOL_FULL$'):bridge.submit_event(home,event('59','tin chín'),spool)
+            with patch.object(bridge,'call_backend',side_effect=urllib.error.URLError('down')),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                self.assertEqual(bridge.submit_event(home,event('59','tin chín'),spool),{'ok':False,'deadLettered':True,'reason':'SPOOL_FULL'})
             self.assertEqual(len(path.read_text().splitlines()),1000)
+            self.assertEqual([(line['reason'],line['attempts'],line['event']['context']['messageId'],line['event']['text']) for line in dead_lines(home)][1:],
+                             [('SPOOL_FULL',0,'59','tin chín')])
+            self.assertEqual(set(dead_lines(home)[1]),{'firstSpooledAt','attempts','event','deadAt','reason'})
+            self.assertIn(f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_DEAD_LETTER SPOOL_FULL',logs.output)
 
     def test_spool_and_journal_keep_unicode_line_separators_inside_one_line(self):
         # JSON leaves U+2028, U+2029 and U+0085 unescaped; splitting on them would cut one event into two broken lines.
@@ -583,29 +588,114 @@ class IntakeAdapterTests(unittest.TestCase):
         self.assertTrue(cut['textTruncated']);self.assertNotIn('\x00',cut['text'])
         self.assertLessEqual(len(encoded(cut)),bridge.MAX_EVENT_BYTES)
 
-    def test_retry_classes_401_and_403_drop_and_408_429_404_5xx_spool(self):
+    def test_retry_classes_401_keeps_403_422_dead_letter_and_408_429_404_5xx_spool(self):
         with profile_home() as home:
             spool=bridge.Spool(home)
             path=home/'runtime/libetech-ai-os/intake-spool.jsonl'
-            for code,status in [('BRIDGE_AUTH_DENIED',401),('UNAUTHENTICATED',401),('SCOPE_DENIED',403),('INVALID_INPUT',422)]:
-                with patch.object(bridge,'call_backend',side_effect=bridge.BackendError(code,status)):
-                    self.assertEqual(bridge.submit_event(home,fitted(81),spool),{'ok':False,'error':code})
+            # The channel refused (401): the live message is spooled uncounted, behind nothing, with a fixed code.
+            for code in ('BRIDGE_AUTH_DENIED','UNAUTHENTICATED'):
+                path.unlink(missing_ok=True)
+                with patch.object(bridge,'call_backend',side_effect=bridge.BackendError(code,401)),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                    self.assertEqual(bridge.submit_event(home,fitted(81),spool),{'ok':False,'spooled':True})
+                self.assertEqual([(line['event']['context']['messageId'],line['attempts']) for line in spool_lines(home)],[('81',0)])
+                self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_AUTH_DENIED'])
+            self.assertEqual(dead_lines(home),[])
+            # The message refused (403, 409, 413, 422, 418): dead-lettered with the server's code, not retried, not spooled.
+            path.unlink()
+            for number,(code,status) in enumerate([('SCOPE_DENIED',403),('CONFLICT',409),('TOO_LARGE',413),('INVALID_INPUT',422),('TEAPOT',418)],start=86):
+                with patch.object(bridge,'call_backend',side_effect=bridge.BackendError(code,status)) as backend:
+                    self.assertEqual(bridge.submit_event(home,fitted(number),spool),{'ok':False,'deadLettered':True,'reason':code})
+                self.assertEqual(backend.call_count,1)
                 self.assertEqual(spool.pending(),0)
+            self.assertEqual([(line['reason'],line['event']['context']['messageId'],line['attempts']) for line in dead_lines(home)],
+                             [('SCOPE_DENIED','86',0),('CONFLICT','87',0),('TOO_LARGE','88',0),('INVALID_INPUT','89',0),('TEAPOT','90',0)])
             for status in (408,429,404,500,503):
                 path.unlink(missing_ok=True)
                 with patch.object(bridge,'call_backend',side_effect=bridge.BackendError('RATE_LIMITED',status)):
                     self.assertEqual(bridge.submit_event(home,fitted(82),spool),{'ok':False,'spooled':True},status)
                 self.assertEqual([line['attempts'] for line in spool_lines(home)],[1],status)
-            # A spooled line refused with 401 is dropped with its code, not retried and not dead-lettered.
-            path.unlink();spool.put(fitted(83));spool.put(fitted(84))
+            # A drain refused with 401 stops at the head: every line stays, in order, uncounted, after ONE request.
+            path.unlink();spool.put(fitted(83));spool.put(fitted(84));spool.put(fitted(85))
+            refused=Mock(side_effect=bridge.BackendError('BRIDGE_AUTH_DENIED',401))
             with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
-                self.assertEqual(spool.drain(raising(bridge.BackendError('BRIDGE_AUTH_DENIED',401))),0)
-            self.assertEqual((spool_lines(home),dead_lines(home)),([],[]))
-            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake spool dropped one event: BRIDGE_AUTH_DENIED']*2)
-            # A missing intake key is not a reason to spool the message.
+                self.assertEqual(spool.drain(refused),0)
+            self.assertEqual(refused.call_count,1)
+            self.assertEqual([(line['event']['context']['messageId'],line['attempts']) for line in spool_lines(home)],[('83',0),('84',0),('85',0)])
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake spool: INTAKE_AUTH_DENIED'])
+            # Through submit_event: one request in all; the new message is spooled behind the backlog.
+            with patch.object(bridge,'call_backend',side_effect=bridge.BackendError('BRIDGE_AUTH_DENIED',401)) as backend,self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                self.assertEqual(bridge.submit_event(home,fitted(91),spool),{'ok':False,'spooled':True})
+            self.assertEqual(backend.call_count,1)
+            self.assertEqual([(line['event']['context']['messageId'],line['attempts']) for line in spool_lines(home)],[('83',0),('84',0),('85',0),('91',0)])
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake spool: INTAKE_AUTH_DENIED'])
+            # A spooled line refused for itself (403, 422) is dead-lettered with its code and the drain goes on.
+            path.unlink();spool.put(fitted(92));spool.put(fitted(93));spool.put(fitted(94))
+            sent=[]
+            def answer(payload):
+                number=payload['context']['messageId']
+                if number=='92':raise bridge.BackendError('SCOPE_DENIED',403)
+                if number=='93':raise bridge.BackendError('INVALID_INPUT',422)
+                sent.append(number)
+            with self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                self.assertEqual(spool.drain(answer),1)
+            self.assertEqual((sent,spool_lines(home)),(['94'],[]))
+            self.assertEqual([(line['reason'],line['event']['context']['messageId']) for line in dead_lines(home)][-2:],[('SCOPE_DENIED','92'),('INVALID_INPUT','93')])
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake spool: INTAKE_DEAD_LETTER SCOPE_DENIED',
+                                          f'WARNING:{bridge.LOG.name}:libetech intake spool: INTAKE_DEAD_LETTER INVALID_INPUT'])
+            # A missing intake key is not a reason to spool the message (the disabled class, unchanged).
+            before=len(dead_lines(home))
             os.unlink(home/'runtime/libetech-ai-os/intake.json')
-            self.assertEqual(bridge.submit_event(home,fitted(85),spool),{'ok':False,'error':'BRIDGE_NOT_CONFIGURED'})
-            self.assertEqual(spool.pending(),0)
+            self.assertEqual(bridge.submit_event(home,fitted(95),spool),{'ok':False,'error':'BRIDGE_NOT_CONFIGURED'})
+            self.assertEqual((spool.pending(),len(dead_lines(home))),(0,before))
+
+    def test_after_a_401_clears_the_whole_backlog_replays_in_order_with_spooled_flag(self):
+        with profile_home() as home:
+            spool=bridge.Spool(home)
+            with patch.object(bridge,'call_backend',side_effect=bridge.BackendError('BRIDGE_AUTH_DENIED',401)),self.assertLogs(bridge.LOG.name,level='DEBUG'):
+                for number in range(510,514):
+                    self.assertEqual(bridge.submit_event(home,fitted(number),spool),{'ok':False,'spooled':True})
+            self.assertEqual([line['event']['context']['messageId'] for line in spool_lines(home)],['510','511','512','513'])
+            posted=[]
+            def live(_home,payload,**kwargs):
+                posted.append((payload['context']['messageId'],payload['spooled']));return dict(ACK)
+            with patch.object(bridge,'call_backend',side_effect=live):
+                self.assertEqual(bridge.submit_event(home,fitted(514),spool),{'ok':True,'data':ACK})
+            self.assertEqual(posted,[('510',True),('511',True),('512',True),('513',True),('514',False)])
+            self.assertEqual((spool_lines(home),dead_lines(home)),([],[]))
+
+    def test_every_failure_class_leaves_the_message_in_exactly_one_place_on_both_paths(self):
+        cases=[('success',None),
+               ('network',urllib.error.URLError('down')),('network',bridge.BackendError('BRIDGE_UNAVAILABLE',0)),('network',TimeoutError()),
+               ('answered',bridge.BackendError('NOT_FOUND',404)),('answered',bridge.BackendError('TIMEOUT',408)),
+               ('answered',bridge.BackendError('RATE_LIMITED',429)),('answered',bridge.BackendError('INTERNAL_ERROR',500)),
+               ('answered',bridge.BackendError(bridge.INTAKE_RESPONSE_INVALID,200)),
+               ('channel',bridge.BackendError('BRIDGE_AUTH_DENIED',401)),
+               ('refused',bridge.BackendError('SCOPE_DENIED',403)),('refused',bridge.BackendError('CONFLICT',409)),
+               ('refused',bridge.BackendError('TOO_LARGE',413)),('refused',bridge.BackendError('INVALID_INPUT',422)),
+               ('refused',ValueError('BRIDGE_REDIRECT_DENIED')),('refused',RuntimeError('unexpected')),
+               ('disabled',ValueError('BRIDGE_NOT_CONFIGURED'))]
+        expected={'success':'backend','network':'spool','answered':'spool','channel':'spool','refused':'dead','disabled':None}
+        for kind,error in cases:
+            for route in ('live','drain'):
+                with self.subTest(kind=kind,error=repr(error),route=route),profile_home() as home:
+                    spool=bridge.Spool(home);accepted=[]
+                    def backend(_home,payload,**kwargs):
+                        if error is not None:raise error
+                        accepted.append(payload['context']['messageId']);return dict(ACK)
+                    with patch.object(bridge,'call_backend',side_effect=backend),patch.object(bridge.LOG,'warning'):
+                        if route=='live':
+                            bridge.submit_event(home,fitted(520),spool)
+                        else:
+                            spool.put(fitted(520))
+                            spool.drain(lambda payload:accepted.append(payload['context']['messageId']) if error is None else (_ for _ in ()).throw(error))
+                    places={'backend':accepted.count('520'),
+                            'spool':[line['event']['context']['messageId'] for line in spool_lines(home)].count('520'),
+                            'dead':[line['event']['context']['messageId'] for line in dead_lines(home)].count('520')}
+                    # The disabled class (no usable intake key) keeps what is spooled and spools nothing new (R3-5).
+                    want=expected[kind] if not (kind=='disabled' and route=='drain') else 'spool'
+                    self.assertEqual(places,{place:int(place==want) for place in places})
+        # and each case is the class it stands for
+        self.assertEqual([bridge._failure_kind(error) for kind,error in cases[1:]],[kind for kind,_ in cases[1:]])
 
     def test_templates_render_verbatim_and_unknown_is_refused(self):
         params={'ref':'IN-0A1B2C3D','observedAt':'2026-11-14T01:02:03.000Z'}
@@ -1049,7 +1139,7 @@ class IntakeAdapterTests(unittest.TestCase):
                 bridge.call_backend(home,{'limit':1},path=bridge.PULL_PATH,key_file='intake.json')
             self.assertEqual(opener.requests,[2,5])
 
-    def test_a_busy_spool_lock_is_given_up_quickly_with_spool_busy(self):
+    def test_a_busy_spool_lock_is_given_up_quickly_and_the_message_is_dead_lettered_with_spool_busy(self):
         self.assertEqual(bridge.SPOOL_LOCK_SECONDS,1.0)
         with profile_home(**HOOK_ON) as home:
             hook=hook_of(home)
@@ -1062,16 +1152,78 @@ class IntakeAdapterTests(unittest.TestCase):
                 self.assertLess(time.monotonic()-started,2)
                 with patch.object(bridge,'call_backend',side_effect=urllib.error.URLError('down')),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
                     started=time.monotonic()
-                    self.assertIsNone(hook(event=tg_event(source=dict(message_id='96'))))
+                    self.assertIsNone(hook(event=tg_event('tin khi khoá bận',source=dict(message_id='96'))))
                     elapsed=time.monotonic()-started
                 self.assertTrue(0.5<elapsed<2,elapsed)
-                self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: SPOOL_BUSY'])
+                self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_DEAD_LETTER SPOOL_BUSY'])
+                # Written while the lock is still held: the dead-letter append never takes the spool lock.
+                (dead,)=dead_lines(home)
+                self.assertEqual((dead['reason'],dead['attempts'],dead['event']['context']['messageId'],dead['event']['text']),('SPOOL_BUSY',0,'96','tin khi khoá bận'))
+                self.assertEqual(stat.S_IMODE((home/'runtime/libetech-ai-os/intake-dead.jsonl').stat().st_mode),0o600)
             finally:
                 os.close(descriptor)
-            # The message was lost (a documented limit); the lock is usable again once released.
+            # Nothing was lost; the lock is usable again once released.
             self.assertEqual(spool.pending(),0)
             spool.put(fitted(97))
             self.assertEqual(spool.pending(),1)
+
+    def test_a_busy_lock_while_the_drain_commits_does_not_lose_the_new_message(self):
+        with profile_home() as home:
+            spool=bridge.Spool(home)
+            spool.put(fitted(530));spool.put(fitted(531))
+            posted=[]
+            def live(_home,payload,**kwargs):
+                posted.append((payload['context']['messageId'],payload['spooled']));return dict(ACK)
+            descriptor=os.open(home/'runtime/libetech-ai-os/intake-spool.lock',os.O_RDWR|os.O_CREAT,0o600)
+            try:
+                fcntl.flock(descriptor,fcntl.LOCK_EX)
+                with patch.object(bridge,'call_backend',side_effect=live),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                    # The backlog was all sent, so the new message is posted live after it, in order.
+                    self.assertEqual(bridge.submit_event(home,fitted(532),spool),{'ok':True,'data':ACK})
+                self.assertEqual(posted,[('530',True),('531',True),('532',False)])
+                self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake spool: SPOOL_BUSY'])
+                # The sent lines stay (the commit could not run); replay is keyed, so sending them again is harmless.
+                self.assertEqual([line['event']['context']['messageId'] for line in spool_lines(home)],['530','531'])
+            finally:
+                os.close(descriptor)
+            # A backlog longer than the replay bound: the new message cannot go first, nor into the spool -> dead-letter.
+            for number in range(533,540):spool.put(fitted(number))
+            posted.clear()
+            descriptor=os.open(home/'runtime/libetech-ai-os/intake-spool.lock',os.O_RDWR|os.O_CREAT,0o600)
+            try:
+                fcntl.flock(descriptor,fcntl.LOCK_EX)
+                with patch.object(bridge,'call_backend',side_effect=live),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                    self.assertEqual(bridge.submit_event(home,fitted(540),spool,replays=5),{'ok':False,'deadLettered':True,'reason':'SPOOL_BUSY'})
+                self.assertEqual([number for number,_ in posted],['530','531','533','534','535'])
+                self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake spool: SPOOL_BUSY',
+                                              f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_DEAD_LETTER SPOOL_BUSY'])
+            finally:
+                os.close(descriptor)
+            self.assertEqual([(line['reason'],line['event']['context']['messageId']) for line in dead_lines(home)],[('SPOOL_BUSY','540')])
+            self.assertEqual(len(spool_lines(home)),9)
+
+    def test_a_failed_dead_letter_append_logs_intake_lost_and_never_raises_into_the_gateway(self):
+        with profile_home(**HOOK_ON) as home:
+            hook=hook_of(home)
+            runtime=home/'runtime/libetech-ai-os'
+            line=json.dumps({'firstSpooledAt':bridge._now(),'attempts':0,'event':fitted(549)},ensure_ascii=False)
+            (runtime/'intake-spool.jsonl').write_text((line+'\n')*1000);os.chmod(runtime/'intake-spool.jsonl',0o600)
+            # (1) a short write counts as failure: one os.write call, not a loop that completes it.
+            real_write=os.write;writes=[]
+            def short(fd,data):
+                writes.append(len(data));return real_write(fd,bytes(data)[:len(data)//2])
+            with patch.object(bridge,'call_backend',side_effect=urllib.error.URLError('down')),patch.object(bridge.os,'write',side_effect=short),\
+                 self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                self.assertIsNone(hook(event=tg_event(source=dict(message_id='550'))))
+            self.assertEqual(len(writes),1)
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_LOST SPOOL_FULL'])
+            # (2) a dead-letter file others can read is refused: INTAKE_LOST, and still no exception.
+            (runtime/'intake-dead.jsonl').write_text('');os.chmod(runtime/'intake-dead.jsonl',0o644)
+            with patch.object(bridge,'call_backend',side_effect=urllib.error.URLError('down')),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                self.assertIsNone(hook(event=tg_event(source=dict(message_id='551'))))
+                self.assertEqual(bridge.submit_event(home,fitted(552),bridge.Spool(home)),{'ok':False,'lost':True,'reason':'SPOOL_FULL'})
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_LOST SPOOL_FULL']*2)
+            self.assertEqual((runtime/'intake-dead.jsonl').read_text(),'')
 
     def test_an_existing_attachment_folder_must_be_owner_only_and_a_racing_create_is_fine(self):
         data=b'%PDF-1.4 synthetic test file'
@@ -1238,14 +1390,15 @@ class IntakeAnswerTests(unittest.TestCase):
                 result=bridge.submit_event(home,fitted(481),spool)
             self.assertEqual(result,{'ok':True,'data':json.loads(STORED)['data']})
             self.assertEqual((spool_lines(home),dead_lines(home)),([],[]))
-            # a non-2xx answer keeps its class: 503 spooled and counted, 403 dropped with its code
+            # a non-2xx answer keeps its class: 503 spooled and counted, 403 dead-lettered with its code
             with intake_answer(503,b'{"data":null,"error":{"code":"INTAKE_UNCONFIGURED","message":"x"}}'),self.assertNoLogs(bridge.LOG.name,level='DEBUG'):
                 self.assertEqual(bridge.submit_event(home,fitted(482),spool),{'ok':False,'spooled':True})
             self.assertEqual([line['attempts'] for line in spool_lines(home)],[1])
             spool_path=home/'runtime/libetech-ai-os/intake-spool.jsonl';spool_path.unlink()
             with intake_answer(403,b'{"data":null,"error":{"code":"SCOPE_DENIED","message":"x"}}'):
-                self.assertEqual(bridge.submit_event(home,fitted(483),spool),{'ok':False,'error':'SCOPE_DENIED'})
+                self.assertEqual(bridge.submit_event(home,fitted(483),spool),{'ok':False,'deadLettered':True,'reason':'SCOPE_DENIED'})
             self.assertEqual(spool_lines(home),[])
+            self.assertEqual([(line['reason'],line['event']['context']['messageId']) for line in dead_lines(home)],[('SCOPE_DENIED','483')])
 
     def test_read_and_outbox_paths_answer_these_2xx_bodies_as_before_and_never_classify_them(self):
         # The intake check lives in submit_event's post; call_backend and the read, pull and receipt paths are unchanged.
