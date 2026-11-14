@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { invariant } from './errors';
 import { digest, IdentityService, secret } from './identity';
 import type { Queryable } from './db';
 import type { Principal, ProjectGrant } from './types';
-import {approvalReady,verifiedApprovalSeats} from './account-approval';
+import {approvalReady,notifyVoters,verifiedApprovalSeats} from './account-approval';
+import {widensAccess} from './access-grants';
 
 const grantsSchema=z.array(z.object({
   projectId:z.uuid(),role:z.enum(['manager','engineer','technical','business','viewer']),
@@ -15,6 +17,7 @@ const commandSchema=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('invite'),username:z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9._-]{2,63}$/),
     name:z.string().trim().min(2).max(100),grants:grantsSchema,reason}).strict(),
   z.object({kind:z.literal('access'),...edit,grants:grantsSchema}).strict(),
+  z.object({kind:z.literal('propose_access_change'),...edit,grants:grantsSchema}).strict(),
   z.object({kind:z.enum(['reissue','cancel','disable','enable','revoke_sessions','unlink_github']),...edit}).strict(),
   z.object({kind:z.literal('verify_github'),...edit,githubId:z.string().regex(/^[1-9][0-9]{0,19}$/),
     sourceId:z.url({protocol:/^https$/}).max(800).refine(value=>{
@@ -29,16 +32,17 @@ const reviewRegistration=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('issue_approved_registration'),requestId:z.uuid(),reason}).strict(),
  z.object({kind:z.literal('reject_registration'),requestId:z.uuid(),reason}).strict(),
 ]);
-function reducesAccess(before:ProjectGrant[],after:ProjectGrant[]) {
- return after.every(next=>{
-  const prior=before.find(grant=>grant.projectId===next.projectId);
-  return prior&&(next.role===prior.role||next.role==='viewer')
-   &&next.reportPermissions.every(permission=>prior.reportPermissions.includes(permission));
- });
+/** Grants compared as a set: entries ordered by projectId, report permissions ordered within each entry. */
+function sameGrants(a:ProjectGrant[],b:ProjectGrant[]) {
+ const norm=(grants:ProjectGrant[])=>JSON.stringify([...grants]
+  .map(grant=>({projectId:grant.projectId,role:grant.role,reportPermissions:[...grant.reportPermissions].sort()}))
+  .sort((x,y)=>x.projectId<y.projectId?-1:x.projectId>y.projectId?1:0));
+ return norm(a)===norm(b);
 }
 
 export class AccountService {
-  constructor(private identity:IdentityService) {}
+  // notify is replaceable only so tests can fail a proposal right after its DMs are queued; production uses notifyVoters.
+  constructor(private identity:IdentityService,private notify:typeof notifyVoters=notifyVoters) {}
 
   private async operator(tx:Queryable,p:Principal) {
     invariant(p.tenantId===this.identity.tenantId && p.role!=='bot' && p.id===this.identity.adminId,
@@ -106,6 +110,7 @@ export class AccountService {
       }
       if(cmd.kind==='approve_registration') {
         this.validate(cmd.grants,scope);
+        const traceId=randomUUID();
         const seats=await verifiedApprovalSeats(tx,this.identity);
         await tx.query(`UPDATE identity.account_approvals SET state='expired',updated_at=now()
           WHERE registration_id=$1 AND state IN ('pending','approved') AND expires_at<=now()`,[req.id]);
@@ -119,15 +124,17 @@ export class AccountService {
         for(const seat of seats) await tx.query(`INSERT INTO identity.account_approval_voters
           (approval_id,tenant_id,seat,user_id) VALUES($1,$2,$3,$4)`,
           [proposal.id,p.tenantId,seat.seat,seat.user_id]);
+        // SPEC-007 (a): one DM per frozen voter, in this same transaction.
+        await this.notify(tx,this.identity,proposal.id,seats,traceId);
         await tx.query(`INSERT INTO identity.events(tenant_id,actor_id,kind,detail)
           VALUES($1,$2,'account_approval_proposed',$3)`,[p.tenantId,p.id,
-          JSON.stringify({requestId:req.id,approvalId:proposal.id,grants:cmd.grants,reason:cmd.reason})]);
+          JSON.stringify({requestId:req.id,approvalId:proposal.id,grants:cmd.grants,reason:cmd.reason,traceId})]);
         return {pendingTelegramApproval:true,approvalId:proposal.id,agreed:0,required:'chairman+1bom'};
       }
       const approvalId=(await tx.query<{id:string}>(`SELECT id FROM identity.account_approvals
         WHERE registration_id=$1 AND state='approved' ORDER BY created_at DESC LIMIT 1`,[req.id])).rows[0]?.id;
       invariant(approvalId,'APPROVAL_NOT_READY','Chưa có đủ xác nhận của anh và một thành viên BoM.',409);
-      const approval=await approvalReady(tx,this.identity,approvalId);
+      const approval=await approvalReady(tx,this.identity,approvalId,'registration');
       const approvedGrants=grantsSchema.parse((await tx.query<{grants:ProjectGrant[]}>(
         'SELECT grants FROM identity.account_approvals WHERE id=$1',[approval.id])).rows[0].grants);
       this.validate(approvedGrants,scope);
@@ -183,13 +190,26 @@ export class AccountService {
       const before=await this.identity.grants(tx,user.id);
       this.validate(before,scope);
       invariant(user.version===cmd.expectedVersion,'VERSION_CONFLICT','Tài khoản đã thay đổi. Tải lại trước khi lưu.',409);
+      if(cmd.kind==='propose_access_change') return this.proposeAccessChange(tx,p,scope,user,before,cmd.grants,cmd.reason);
       const nextVersion=user.version+1;
+      let accessApprovalId:string|undefined;
       if(cmd.kind==='access') {
         invariant(user.activated,'TELEGRAM_APPROVAL_REQUIRED',
           'Tài khoản chờ kích hoạt cần trình lại phạm vi qua Chairman và một thành viên BoM.',409);
         this.validate(cmd.grants,scope);
-        invariant(reducesAccess(before,cmd.grants),'TELEGRAM_APPROVAL_REQUIRED',
-          'Mở rộng quyền cần phiếu duyệt Telegram mới.',409);
+        // Reducing access needs no ballot. Widening it needs an approved access-change ballot for this account, frozen at this
+        // account version, whose grants are exactly these grants.
+        if(widensAccess(before,cmd.grants)) {
+          const ballot=(await tx.query<{id:string;grants:ProjectGrant[];subject_account_version:number;previous_grants:ProjectGrant[]}>(`SELECT id,grants,subject_account_version,previous_grants
+            FROM identity.account_approvals WHERE kind='access_change' AND subject_user_id=$1 AND state='approved' AND expires_at>now()
+            ORDER BY created_at DESC LIMIT 1`,[user.id])).rows[0];
+          invariant(ballot&&ballot.subject_account_version===user.version&&sameGrants(grantsSchema.parse(ballot.grants),cmd.grants)
+            &&sameGrants(grantsSchema.parse(ballot.previous_grants),before),
+            'TELEGRAM_APPROVAL_REQUIRED','Mở rộng quyền cần phiếu duyệt Telegram mới.',409);
+          const approval=await approvalReady(tx,this.identity,ballot.id,'access_change');
+          await tx.query(`UPDATE identity.account_approvals SET state='issued',updated_at=now() WHERE id=$1`,[approval.id]);
+          accessApprovalId=approval.id;
+        }
         await this.setGrants(tx,user.id,cmd.grants);
       }
       if(cmd.kind==='disable'||cmd.kind==='access'||cmd.kind==='revoke_sessions'){
@@ -221,10 +241,38 @@ export class AccountService {
       const invitation=cmd.kind==='reissue'?await this.issue(tx,p,user.id,nextVersion,approved.account_approval_id):undefined;
       await this.audit(tx,p,user.id,'account_'+cmd.kind,{
         reason:cmd.reason,previousVersion:user.version,version:nextVersion,previousActive:user.active,active,
-        ...(cmd.kind==='access'?{before,after:cmd.grants}:{}),
+        ...(cmd.kind==='access'?{before,after:cmd.grants,...(accessApprovalId?{approvalId:accessApprovalId}:{})}:{}),
         ...(cmd.kind==='verify_github'?{githubId:cmd.githubId,sourceId:cmd.sourceId}:{}),
       });
       return {user:updated,invitation};
     });
+  }
+
+  /** SPEC-007 (b): freeze the account's current grants and version in a ballot that one BoM voter can approve (OQ-29). Memberships and the account
+   * version stay as they are; `access` applies the grants later, only with this approved ballot. */
+  private async proposeAccessChange(tx:Queryable,p:Principal,scope:Set<string>,user:Account,before:ProjectGrant[],grants:ProjectGrant[],reason:string) {
+    invariant(user.active&&user.activated,'ACCOUNT_INACTIVE','Cần tài khoản đang hoạt động.',409);
+    this.validate(grants,scope);
+    invariant(widensAccess(before,grants),'ACCESS_CHANGE_NOT_NEEDED','Thay đổi chỉ giảm quyền; áp trực tiếp, không cần phiếu.',409);
+    // Ballots past their deadline, or frozen at an older account version, can never apply: close them before checking for an open one.
+    const expired=(await tx.query<{id:string}>(`UPDATE identity.account_approvals SET state='expired',updated_at=now()
+      WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved')
+        AND (expires_at<=now() OR subject_account_version<>$2) RETURNING id`,[user.id,user.version])).rows.map(row=>row.id);
+    const open=(await tx.query<{id:string}>(`SELECT id FROM identity.account_approvals
+      WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved')`,[user.id])).rows[0];
+    invariant(!open,'APPROVAL_PENDING','Đã có phiếu duyệt còn hiệu lực.',409);
+    const traceId=randomUUID();
+    const seats=await verifiedApprovalSeats(tx,this.identity,user.id);
+    const proposal=(await tx.query<{id:string}>(`INSERT INTO identity.account_approvals
+      (tenant_id,kind,subject_user_id,subject_account_version,previous_grants,proposer_id,grants,reason)
+      VALUES($1,'access_change',$2,$3,$4,$5,$6,$7) RETURNING id`,[p.tenantId,user.id,user.version,
+      JSON.stringify(before),p.id,JSON.stringify(grants),reason])).rows[0];
+    for(const seat of seats) await tx.query(`INSERT INTO identity.account_approval_voters
+      (approval_id,tenant_id,seat,user_id) VALUES($1,$2,$3,$4)`,[proposal.id,p.tenantId,seat.seat,seat.user_id]);
+    await this.notify(tx,this.identity,proposal.id,seats,traceId);
+    await this.audit(tx,p,user.id,'access_change_proposed',
+      {approvalId:proposal.id,accountVersion:user.version,before,after:grants,reason,traceId,...(expired.length?{expiredApprovalIds:expired}:{})});
+    // Same {user,invitation} shape as every other command; the account itself is unchanged.
+    return {user,invitation:undefined,pendingTelegramApproval:true,approvalId:proposal.id,agreed:0,required:'1bom'};
   }
 }

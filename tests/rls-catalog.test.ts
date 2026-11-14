@@ -9,17 +9,23 @@ beforeAll(async()=>{h=await openHarness();});
 afterAll(async()=>{await h.close();});
 
 const tables=async()=>{
-  const files=(await readdir(dir)).filter(f=>/^\d+.*\.sql$/.test(f)&&Number(f.match(/^\d+/)![0])>=13&&Number(f.match(/^\d+/)![0])<=15).sort();
+  const files=(await readdir(dir)).filter(f=>/^\d+.*\.sql$/.test(f)&&Number(f.match(/^\d+/)![0])>=13).sort();
   const out:string[]=[];
-  for(const f of files) for(const m of (await readFile(path.join(dir,f),'utf8')).matchAll(/CREATE TABLE IF NOT EXISTS\s+([\w.]+)/g)) out.push(m[1]);
+  for(const f of files) {
+    const sql=await readFile(path.join(dir,f),'utf8');
+    for(const m of sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+([\w.]+)/g)) out.push(m[1]);
+    // an expand-only migration (018) widens an older table: that table must still carry FORCE RLS and complete policies
+    for(const m of sql.matchAll(/TABLE\s+([\w.]+)\s+ADD COLUMN IF NOT EXISTS/g)) if(!out.includes(m[1])) out.push(m[1]);
+  }
   return out;
 };
 const bare=(t:string)=>t.split('.').pop()!;
 const schemaOf=(t:string)=>t.includes('.')?t.split('.')[0]:'public';
 
-test('migrations 013-015 create tables, and every one has FORCE RLS plus USING and WITH CHECK from the catalog',async()=>{
+test('migrations from 013 create tables, and every one has FORCE RLS plus USING and WITH CHECK from the catalog',async()=>{
   const list=await tables();
   expect(list.length).toBeGreaterThanOrEqual(8);
+  expect(list).toContain('identity.account_approvals');
   for(const t of list){
     const cls=(await h.operator.query<{s:boolean;f:boolean}>(
       'SELECT c.relrowsecurity s,c.relforcerowsecurity f FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2',[schemaOf(t),bare(t)])).rows;

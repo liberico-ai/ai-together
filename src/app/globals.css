@@ -108,3 +108,35 @@ html,body{max-width:100%;overflow-x:clip}
 .doc-wrap{overflow-wrap:anywhere;word-break:break-word}
 .doc-refs{margin:4px 0 0}
 @media(max-width:700px){.doc-pointers{flex-direction:column}.doc-pointer{flex-basis:auto}.doc-section{padding:12px}.doc-cols{flex-direction:column}.doc-cols>div{flex-basis:auto}}
+
+/* Inbox (.inbox-*) — reuses .doc-* for page, buttons, fields and states */
+.inbox-section{margin:16px 0;padding:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);min-width:0}
+.inbox-section h2{margin:0 0 8px;font-size:16px}
+.inbox-plain{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.inbox-plain li{overflow-wrap:anywhere;min-width:0}
+.inbox-source{display:flex;flex-direction:column;gap:4px}
+.inbox-card{display:flex;flex-direction:column;gap:12px;padding:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);min-width:0}
+.inbox-head{display:flex;flex-direction:column;gap:8px}
+.inbox-badges{display:flex;flex-wrap:wrap;gap:8px;margin:0}
+.inbox-badge{display:inline-block;padding:4px 8px;border:1px solid var(--line);border-radius:8px;background:#eef1ee;color:#4f5c55;font-size:12px;font-weight:600}
+.inbox-text,.inbox-pointer{margin:0;overflow-wrap:anywhere}
+.inbox-pointer{padding:12px;border:1px dashed var(--line);border-radius:var(--radius);background:var(--bg)}
+.inbox-life{display:grid;grid-template-columns:1fr;gap:8px;margin:0}
+.inbox-life div{min-width:0}
+.inbox-life dt{font-size:12px;color:#5d6b64}
+.inbox-life dd{margin:0;overflow-wrap:anywhere}
+.inbox-variant{padding:12px;border:1px solid var(--line);border-radius:var(--radius);min-width:0}
+.inbox-variant h4,.inbox-detail h4{margin:0 0 8px;font-size:14px}
+.inbox-textarea{min-height:88px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius);font:inherit;color:var(--ink);max-width:100%;width:100%}
+.inbox-textarea:focus-visible,.inbox-summary:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.inbox-actions,.inbox-choices{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.inbox-choice-row{display:flex;flex-direction:column;gap:8px;align-items:stretch;width:100%}
+.inbox-secondary{background:var(--white);color:var(--navy);border:1px solid var(--navy)}
+.inbox-readonly{margin:0}
+.inbox-more{border-top:1px solid var(--line);padding-top:8px}
+.inbox-summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font-weight:600}
+.inbox-hash{font-size:12px;color:#5d6b64}
+.inbox-detail{padding:8px 0;min-width:0}
+@media(max-width:700px){.inbox-section,.inbox-card{padding:12px}.inbox-actions .doc-action,.inbox-choices .doc-action{width:100%}.inbox-actions,.inbox-choices{align-items:stretch}.inbox-textarea{width:100%}}
+@media(min-width:700px){.inbox-choice-row{flex-direction:row;flex-wrap:wrap;align-items:center}.inbox-choice-row .doc-action{width:auto}.inbox-life{grid-template-columns:repeat(2,minmax(0,1fr))}.inbox-head{flex-direction:row;justify-content:space-between;align-items:center}}
+@media(min-width:950px){.inbox-life{grid-template-columns:repeat(4,minmax(0,1fr))}}

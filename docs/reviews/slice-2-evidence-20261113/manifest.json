@@ -1,0 +1,349 @@
+{
+  "slice": 2,
+  "branch": "slice-2-intake-outbox",
+  "codeHead": "2eb94375fb0e857561110a011b6395ba39f20072",
+  "base": "ce11242bf6f476fe4c653730eca083c0b7c81315",
+  "observedAt": "2026-11-14+07:00",
+  "runner": "scout agent (read-only on source), local machine",
+  "nativeDatabase": "PostgreSQL 16.15, Docker container libetech-slice1-pg on loopback only, synthetic data",
+  "redaction": "worktree/home/scratchpad paths replaced; connection strings replaced by <redacted-url>; two real-looking group ids from pre-existing scripts replaced by <mã-nhóm-đã-che>",
+  "commands": [
+    {
+      "name": "migrations-rollback",
+      "command": "set -a; . $SLICE2_ENV_FILE; set +a; npx vitest run tests/migrations-rollback.test.ts",
+      "exit": 0,
+      "files": "1 passed (1)",
+      "tests": "3 passed (3)",
+      "log": "logs/migrations-rollback-2eb9437.log"
+    },
+    {
+      "name": "vitest-native",
+      "command": "set -a; . $SLICE2_ENV_FILE; set +a; npx vitest run --reporter=verbose",
+      "exit": 0,
+      "files": "41 passed (41)",
+      "tests": "472 passed (472)",
+      "log": "logs/vitest-native-2eb9437.log"
+    },
+    {
+      "name": "vitest-pglite",
+      "command": "npx vitest run --reporter=verbose",
+      "exit": 0,
+      "files": "36 passed | 5 skipped (41)",
+      "tests": "451 passed | 21 skipped (472)",
+      "log": "logs/vitest-pglite-2eb9437.log",
+      "note": "21 skipped are native-only cases"
+    },
+    {
+      "name": "coverage",
+      "command": "npx vitest run --coverage",
+      "exit": 0,
+      "totals": {
+        "statements": 94.99,
+        "branches": 86.55,
+        "functions": 96.55,
+        "lines": 96.13
+      },
+      "thresholds": 60,
+      "log": "logs/coverage-2eb9437.log"
+    },
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "exit": 0,
+      "log": "logs/typecheck-2eb9437.log"
+    },
+    {
+      "name": "build",
+      "command": "rm -rf .next && npm run build",
+      "exit": 0,
+      "routes": [
+        "/inbox",
+        "/api/inbox/[[...path]]",
+        "/api/bridge/[...path]"
+      ],
+      "log": "logs/build-2eb9437.log"
+    },
+    {
+      "name": "pytest-bridge",
+      "command": "python3 -m pytest tests/test_bot_bridge.py -q",
+      "exit": 0,
+      "tests": "55 passed, 27 subtests passed",
+      "log": "logs/pytest-2eb9437.log"
+    },
+    {
+      "name": "greps",
+      "command": "git grep chat ids / priority1 / credentialed connection strings; git status",
+      "exit": 0,
+      "log": "logs/greps-2eb9437.log",
+      "note": "synthetic ids plus two known pre-existing scripts; priority1 0; connection strings in logs 0"
+    }
+  ],
+  "sloProbe": {
+    "events": 200,
+    "persist_ms_p50": 3.1,
+    "persist_ms_p95": 3.7,
+    "persist_to_receipt_queued_ms_p95": 4,
+    "persist_to_delivered_simulated_ms_p95": 706.2,
+    "projection": "not_measured: no intake projection in slice 2",
+    "overdue_listed_after_s": 600
+  },
+  "codexGate": "not converged: round 3 at 2eb9437 has 2 P0 + 2 P1 open after two fix rounds; awaiting Chairman",
+  "rerunAfterOqDecisions": {
+    "codeHead": "8f181af011bb96d72313dfb1c616e28c5028c0ac",
+    "observedAt": "2026-11-14+07:00",
+    "why": "Chairman decisions OQ-27, OQ-28, OQ-29 applied after the Codex gate stopped; Codex has not reviewed this commit",
+    "runner": "scout agent (read-only on source), local machine",
+    "nativeDatabase": "PostgreSQL 16.15, Docker container libetech-slice1-pg on loopback only, synthetic data",
+    "redaction": "worktree/home/scratchpad paths replaced; connection strings replaced by <redacted-url>; two real-looking group ids from pre-existing scripts replaced by <mã-nhóm-đã-che>",
+    "commands": [
+      {
+        "name": "migrations-rollback",
+        "command": "set -a; . $SLICE2_ENV_FILE; set +a; npx vitest run tests/migrations-rollback.test.ts",
+        "exit": 0,
+        "files": "1 passed (1)",
+        "tests": "3 passed (3)",
+        "log": "logs/migrations-rollback-8f181af.log"
+      },
+      {
+        "name": "vitest-native",
+        "command": "set -a; . $SLICE2_ENV_FILE; set +a; npx vitest run --reporter=verbose",
+        "exit": 0,
+        "files": "41 passed (41)",
+        "tests": "479 passed (479)",
+        "log": "logs/vitest-native-8f181af.log"
+      },
+      {
+        "name": "vitest-pglite",
+        "command": "npx vitest run --reporter=verbose",
+        "exit": 0,
+        "files": "36 passed | 5 skipped (41)",
+        "tests": "458 passed | 21 skipped (479)",
+        "log": "logs/vitest-pglite-8f181af.log",
+        "note": "21 skipped are native-only cases"
+      },
+      {
+        "name": "coverage",
+        "command": "npx vitest run --coverage",
+        "exit": 0,
+        "log": "logs/coverage-8f181af.log",
+        "totals": {
+          "statements": 95.04,
+          "branches": 86.76,
+          "functions": 96.63,
+          "lines": 96.16
+        },
+        "thresholds": "60 passed"
+      },
+      {
+        "name": "typecheck",
+        "command": "npm run typecheck",
+        "exit": 0,
+        "log": "logs/typecheck-8f181af.log"
+      },
+      {
+        "name": "build",
+        "command": "rm -rf .next && npm run build",
+        "exit": 0,
+        "routes": [
+          "/inbox",
+          "/api/inbox/[[...path]]",
+          "/api/bridge/[...path]"
+        ],
+        "log": "logs/build-8f181af.log"
+      },
+      {
+        "name": "pytest-bridge",
+        "command": "python3 -m pytest tests/test_bot_bridge.py -q",
+        "exit": 0,
+        "tests": "55 passed, 27 subtests passed",
+        "log": "logs/pytest-8f181af.log"
+      },
+      {
+        "name": "greps",
+        "command": "git grep chat ids / priority1 / credentialed connection strings; git status",
+        "exit": 0,
+        "log": "logs/greps-8f181af.log",
+        "note": "synthetic ids plus two known pre-existing scripts; priority1 0; connection strings in logs 0"
+      }
+    ],
+    "sloProbe": {
+      "events": 200,
+      "persist_ms_p50": 3.2,
+      "persist_ms_p95": 3.6,
+      "persist_to_receipt_queued_ms_p95": 3.9,
+      "persist_to_delivered_simulated_ms_p95": 962.4
+    }
+  },
+  "rerunAfterFixRound3": {
+    "codeHead": "6038014fa0d13fdb810c1f817fef2d90d20ee9b3",
+    "observedAt": "2026-11-14+07:00",
+    "why": "Codex fix round 3 (plugin class rule, revision order) and the OQ-30 (b) change; this is the head Codex round 4 reviewed",
+    "runner": "scout agent (read-only on source), local machine",
+    "nativeDatabase": "PostgreSQL 16.15, Docker container libetech-slice1-pg on loopback only, synthetic data",
+    "redaction": "worktree/home/scratchpad paths replaced; connection strings replaced by <redacted-url>; two real-looking group ids from pre-existing scripts replaced by <mã-nhóm-đã-che>",
+    "commands": [
+      {
+        "name": "migrations-rollback",
+        "command": "set -a; . $SLICE2_ENV_FILE; set +a; npx vitest run tests/migrations-rollback.test.ts",
+        "exit": 0,
+        "files": "1 passed (1)",
+        "tests": "3 passed (3)",
+        "log": "logs/migrations-rollback-6038014.log"
+      },
+      {
+        "name": "vitest-native",
+        "command": "set -a; . $SLICE2_ENV_FILE; set +a; npx vitest run --reporter=verbose",
+        "exit": 0,
+        "files": "41 passed (41)",
+        "tests": "500 passed (500)",
+        "log": "logs/vitest-native-6038014.log"
+      },
+      {
+        "name": "vitest-pglite",
+        "command": "npx vitest run --reporter=verbose",
+        "exit": 0,
+        "files": "36 passed | 5 skipped (41)",
+        "tests": "479 passed | 21 skipped (500)",
+        "log": "logs/vitest-pglite-6038014.log",
+        "note": "21 skipped are native-only cases"
+      },
+      {
+        "name": "coverage",
+        "command": "npx vitest run --coverage",
+        "exit": 0,
+        "log": "logs/coverage-6038014.log",
+        "totals": {
+          "statements": 95.09,
+          "branches": 86.79,
+          "functions": 96.67,
+          "lines": 96.19
+        },
+        "thresholds": "60 passed"
+      },
+      {
+        "name": "typecheck",
+        "command": "npm run typecheck",
+        "exit": 0,
+        "log": "logs/typecheck-6038014.log"
+      },
+      {
+        "name": "build",
+        "command": "rm -rf .next && npm run build",
+        "exit": 0,
+        "routes": [
+          "/inbox",
+          "/api/inbox/[[...path]]",
+          "/api/bridge/[...path]"
+        ],
+        "log": "logs/build-6038014.log"
+      },
+      {
+        "name": "pytest-bridge",
+        "command": "python3 -m pytest tests/test_bot_bridge.py -q",
+        "exit": 0,
+        "log": "logs/pytest-6038014.log",
+        "result": "66 passed, 69 subtests passed"
+      },
+      {
+        "name": "greps",
+        "command": "git grep chat ids / priority1 / credentialed connection strings; git status",
+        "exit": 0,
+        "log": "logs/greps-6038014.log",
+        "note": "synthetic ids plus two known pre-existing scripts; priority1 0; connection strings in logs 0"
+      }
+    ],
+    "sloProbe": {
+      "events": 200,
+      "persist_ms_p50": 2.8,
+      "persist_ms_p95": 3.3,
+      "persist_to_receipt_queued_ms_p95": 3.6,
+      "persist_to_delivered_simulated_ms_p95": 669
+    }
+  },
+  "rerunAfterFixRound4": {
+    "codeHead": "001d3873a71739147610ee4c4b4d1bebdc964728",
+    "observedAt": "2026-11-14+07:00",
+    "why": "fix of the Codex round-4 finding (distinct, lowercase project ids); this is the head Codex round 5 reviewed",
+    "runner": "scout agent (read-only on source), local machine",
+    "nativeDatabase": "PostgreSQL 16.15, Docker container libetech-slice1-pg on loopback only, synthetic data",
+    "redaction": "worktree/home/scratchpad paths replaced; connection strings replaced by <redacted-url>; two real-looking group ids from pre-existing scripts replaced by <mã-nhóm-đã-che>",
+    "commands": [
+      {
+        "name": "migrations-rollback",
+        "command": "set -a; . $SLICE2_ENV_FILE; set +a; npx vitest run tests/migrations-rollback.test.ts",
+        "exit": 0,
+        "files": "1 passed (1)",
+        "tests": "3 passed (3)",
+        "log": "logs/migrations-rollback-001d387.log"
+      },
+      {
+        "name": "vitest-native",
+        "command": "set -a; . $SLICE2_ENV_FILE; set +a; npx vitest run --reporter=verbose",
+        "exit": 0,
+        "files": "41 passed (41)",
+        "tests": "506 passed (506)",
+        "log": "logs/vitest-native-001d387.log"
+      },
+      {
+        "name": "vitest-pglite",
+        "command": "npx vitest run --reporter=verbose",
+        "exit": 0,
+        "files": "36 passed | 5 skipped (41)",
+        "tests": "485 passed | 21 skipped (506)",
+        "log": "logs/vitest-pglite-001d387.log",
+        "note": "21 skipped are native-only cases"
+      },
+      {
+        "name": "coverage",
+        "command": "npx vitest run --coverage",
+        "exit": 0,
+        "log": "logs/coverage-001d387.log",
+        "totals": {
+          "statements": 95.1,
+          "branches": 86.79,
+          "functions": 96.69,
+          "lines": 96.19
+        },
+        "thresholds": "60 passed"
+      },
+      {
+        "name": "typecheck",
+        "command": "npm run typecheck",
+        "exit": 0,
+        "log": "logs/typecheck-001d387.log"
+      },
+      {
+        "name": "build",
+        "command": "rm -rf .next && npm run build",
+        "exit": 0,
+        "routes": [
+          "/inbox",
+          "/api/inbox/[[...path]]",
+          "/api/bridge/[...path]"
+        ],
+        "log": "logs/build-001d387.log"
+      },
+      {
+        "name": "pytest-bridge",
+        "command": "python3 -m pytest tests/test_bot_bridge.py -q",
+        "exit": 0,
+        "log": "logs/pytest-001d387.log",
+        "result": "66 passed, 69 subtests passed"
+      },
+      {
+        "name": "greps",
+        "command": "git grep chat ids / priority1 / credentialed connection strings; git status",
+        "exit": 0,
+        "log": "logs/greps-001d387.log",
+        "note": "synthetic ids plus two known pre-existing scripts; priority1 0; connection strings in logs 0"
+      }
+    ],
+    "sloProbe": {
+      "events": 200,
+      "persist_ms_p50": 3,
+      "persist_ms_p95": 3.9,
+      "persist_to_receipt_queued_ms_p95": 4.2,
+      "persist_to_delivered_simulated_ms_p95": 779.2
+    }
+  }
+}

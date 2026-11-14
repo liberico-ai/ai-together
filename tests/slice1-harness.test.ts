@@ -1,3 +1,5 @@
+import {readdir,readFile} from 'node:fs/promises';
+import path from 'node:path';
 import {describe,expect,test} from 'vitest';
 import {assertIsolated,native,openHarness} from './slice1-db';
 import {seedSlice1} from './slice1-fixtures';
@@ -29,5 +31,20 @@ describe.skipIf(!native)('native',()=>{
       const rows=await h.db.transaction(async tx=>{await tx.query('SET LOCAL ROLE libetech_runtime');return (await tx.query('SELECT * FROM work_items')).rows;});
       expect(rows).toHaveLength(0);
     } finally { await h.reset(); await h.close(); }
+  });
+});
+
+describe.skipIf(!native)('native reset',()=>{
+  test('reset leaves no row in any table created from 016',async()=>{
+    const dir=path.join(process.cwd(),'migrations');
+    const files=(await readdir(dir)).filter(f=>/^\d+.*\.sql$/.test(f)&&Number(f.match(/^\d+/)![0])>=16).sort();
+    const tables:string[]=[];
+    for(const f of files) for(const m of (await readFile(path.join(dir,f),'utf8')).matchAll(/CREATE TABLE IF NOT EXISTS\s+([\w.]+)/g)) tables.push(m[1]);
+    const h=await openHarness();
+    try {
+      await seedSlice1(h);
+      await h.reset();
+      for(const t of tables) expect((await h.operator.query<{n:number}>(`SELECT count(*)::int n FROM ${t}`)).rows[0].n,t).toBe(0);
+    } finally { await h.close(); }
   });
 });

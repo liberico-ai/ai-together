@@ -26,3 +26,5 @@ venv/
 data/
 # Claude Code agent worktrees (local only)
 .claude/worktrees/
+# Agent workflow notes, briefs and review logs (local only; the repository is public). Security review M7.
+.superpowers/

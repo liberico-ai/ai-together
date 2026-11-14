@@ -38,7 +38,8 @@ export async function openHarness():Promise<Harness>{
     return {operator,db,native:true,
       exec:async sql=>{await operator.query(sql);},
       reset:async()=>{
-        await operator.query('TRUNCATE projects, identity.users, identity.memberships, identity.telegram_links, analytics.reconciliations, analytics.tech_source_imports CASCADE');
+        // identity.throttle has no FK to users, so it is named here: registration tests must not hit the hourly cap across native runs
+        await operator.query('TRUNCATE projects, identity.users, identity.memberships, identity.telegram_links, identity.throttle, analytics.reconciliations, analytics.tech_source_imports CASCADE');
         if((await operator.query<{t:string|null}>("SELECT to_regclass('public.document_templates')::text AS t")).rows[0].t)
           await operator.query('TRUNCATE document_templates CASCADE');
       },
