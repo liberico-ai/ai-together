@@ -21,12 +21,13 @@ Theo chỉ đạo mới nhất ngày 11/11, [SPEC-009](SPEC-009-PM-BA-DOCUMENTS-
 
 **Trạng thái P1.1 ngày 14/11/2026:** **có mã nhưng chưa đạt cổng Codex.**
 
-- Nhánh `slice-2-intake-outbox`, mã ở `2eb9437`. Biên nhận: [DELIVERY-011](DELIVERY-011-intake-outbox-20261113.md). Review: [REVIEW-slice-2](reviews/REVIEW-slice-2-20261113.md).
-- Test, typecheck và build xanh: native 472/0 bỏ qua, PGlite 451/21 bỏ qua, pytest 55.
+- Nhánh `slice-2-intake-outbox`, mã ở `8f181af` (quyết định OQ-27/28/29 áp sau khi cổng Codex dừng; Codex chưa review commit này). Biên nhận: [DELIVERY-011](DELIVERY-011-intake-outbox-20261113.md). Review: [REVIEW-slice-2](reviews/REVIEW-slice-2-20261113.md).
+- Test, typecheck và build xanh ở `8f181af`: native 479/0 bỏ qua, PGlite 458/21 bỏ qua, pytest 55.
 - Codex vòng 3 còn 2 P0 + 2 P1 sau hai vòng sửa. Planner đã phân tích; chờ Chairman quyết vòng sửa thứ ba.
 - Chưa push, chưa có PR. Chưa triển khai, chưa dùng thật, chưa nghiệm thu. Migration 016–018 chưa áp lên DB thật.
 - ProjectChannel chưa kích hoạt, vì OQ-09 mục (1) chưa chứng minh.
-- Chờ Chairman: OQ-26…30, S5, DOC-16.
+- OQ-26…29 Chairman đã quyết ngày 14/11/2026 (`docs/OPEN-QUESTIONS.md`); mã đã theo OQ-27, OQ-28 (cờ lưu trích theo nhóm) và OQ-29 (phiếu đổi quyền đủ khi một BoM đồng ý).
+- Chờ Chairman: OQ-30, S5, DOC-16, và xác nhận các cách hiểu kèm OQ-28/OQ-29.
 
 Ca Xeca: **XECA006/STT41** nâng package theo npm audit, hạn 21/11, Quân phụ trách và Thắng phối hợp theo Sheet đọc 11/11. Giữ riêng XECA005/TK-XECA-202611-001; repo/audit report/bản thực thử cần bổ sung. Ca LBRC014 dùng hồ sơ cập nhật §12 ngày 09/11, gồm báo cáo iOS và tám ảnh của Phương; còn mối nối build và nghiệm thu nghiệp vụ. Không yêu cầu lại phần đã có, không mở lại hoặc đổi trạng thái nguồn.
 

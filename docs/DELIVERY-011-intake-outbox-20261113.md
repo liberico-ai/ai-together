@@ -4,7 +4,7 @@
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | **Chưa đạt cổng Codex.** Mã có, test/typecheck/build xanh ở head `2eb9437` (nhánh `slice-2-intake-outbox`). Cổng Codex chưa hội tụ sau hai vòng sửa: vòng 3 còn **2 P0 + 2 P1** mở; planner phân tích một lần, xác nhận cả bốn hợp lệ. Theo lệnh lát, dừng và chờ Chairman quyết vòng sửa thứ ba. **Chưa mở PR**, chưa push | Mục «Bằng chứng kiểm», «Review hai tầng» |
+| **Đã có mã** | **Chưa đạt cổng Codex.** Mã có, test/typecheck/build xanh ở head `8f181af` (nhánh `slice-2-intake-outbox`); `8f181af` áp quyết định OQ-27/28/29 của Chairman sau khi cổng dừng, đã qua review task nhưng **Codex chưa review commit này**. Cổng Codex chưa hội tụ sau hai vòng sửa: vòng 3 còn **2 P0 + 2 P1** mở; planner phân tích một lần, xác nhận cả bốn hợp lệ. Theo lệnh lát, dừng và chờ Chairman quyết vòng sửa thứ ba. **Chưa mở PR**, chưa push | Mục «Bằng chứng kiểm», «Review hai tầng» |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1; migration 016–018 chưa áp lên DB thật nào; plugin chưa cài; gateway chưa khởi động lại | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Chưa gửi tin thật vào nhóm hay DM; mọi dữ liệu là tổng hợp | — |
 | Đã nghiệm thu | **Chưa.** OQ-09 mục (1) chưa chứng minh; SPEC-007 ca (c) UAT chưa chạy; chưa có chữ ký nghiệm thu | — |
@@ -22,12 +22,16 @@ Vì OQ-09 mục (1) chưa có bằng chứng, theo brief lát chỉ đạt mức
 - Chairman 13/11/2026, nguyên văn: «Mở lát 2» (phiên điều phối chuyển lời).
 - Brief: `docs/SLICE-BRIEFS.md:87-152`. Kế hoạch: `docs/plans/slice-2-intake-outbox.md` (Task 1–13), do `planner` lập.
 - Quyết định đã áp (brief «Phụ thuộc»): OQ-02, OQ-08 (b), OQ-09, OQ-10 (b)+(c), OQ-11 (a), OQ-12 (c), OQ-13 (c), OQ-20.
-- **OQ mới khi lập kế hoạch, chờ Chairman** (`docs/OPEN-QUESTIONS.md`); mã chạy theo hành vi giữ chỗ:
-  - **OQ-26** đường đưa sổ ticket của priority1 tới AI OS — chưa có mã nạp sổ thật; hàm đối soát chỉ chạy trên dữ liệu tổng hợp.
-  - **OQ-27** nhóm gắn nhiều dự án — từ chối `INTAKE_PROJECT_AMBIGUOUS`, không lưu.
-  - **OQ-28** lưu trích nội dung cho dự án chưa ánh xạ miền — không lưu, chỉ con trỏ + hash. `IBS_HI` luôn chỉ con trỏ; `LIBERICO_BU`/`XECA` lưu trích đã che bí mật.
-  - **OQ-29** quy tắc phiếu đổi quyền — dùng lại nguyên quy tắc phiếu cấp tài khoản lần đầu; phải xác nhận trước khi dùng cho người thật.
-- Phán quyết S1–S12 của phiên điều phối: `docs/plans/slice-2-intake-outbox.md:638-653` (tóm tắt ở cuối biên nhận).
+- **OQ mới khi lập kế hoạch — Chairman đã quyết ngày 14/11/2026**, chọn qua hộp chọn ở phiên điều phối (`docs/OPEN-QUESTIONS.md`, nguyên văn ở từng mục):
+  - **OQ-26** — «(c) Chỉ đối soát tổng hợp (Recommended)». Không có mã nạp sổ ticket thật; hàm đối soát chỉ chạy trên dữ liệu tổng hợp. Đối soát thật làm tay ở đợt runtime bằng hai bản kê hai bên tự xuất (điểm dừng).
+  - **OQ-27** — «(a) Chỉ nhóm một dự án (Recommended)». Nhóm gắn từ hai dự án bị từ chối `INTAKE_PROJECT_AMBIGUOUS`, không lưu gì. Nay là hành vi theo quyết định, không còn giữ chỗ.
+  - **OQ-28** — «(c) Khai theo từng nhóm». Cờ `intake.excerptChats` trong cấu hình vận hành quyết định nhóm nào được lưu trích; nhãn miền `LIBERICO_BU`/`XECA` không còn quyết định gì. Giá trị cờ cho nhóm thật là điểm dừng triển khai.
+  - **OQ-29** — Chairman tự gõ «1 thành viên BOM». Phiếu đổi quyền đủ khi một BoM đã đóng băng đồng ý, không cần phiếu Chairman. Phiếu cấp tài khoản lần đầu vẫn Chairman + một BoM.
+- **Cách hiểu chờ Chairman xác nhận** (không phải lời Chairman; đều theo hướng chặt):
+  - OQ-28, của phiên điều phối: (1) nhóm không khai cờ chỉ giữ con trỏ + hash; (2) dự án ánh xạ `IBS_HI` luôn chỉ giữ con trỏ + hash, kể cả khi nhóm có cờ.
+  - OQ-29, của phiên điều phối: (1) người được đổi quyền không bỏ phiếu cho chính mình; (2) hạn 48 giờ như phiếu lần đầu; (3) một BoM từ chối mà còn BoM khác chưa bỏ phiếu thì phiếu vẫn chờ, mọi BoM đã đóng băng từ chối thì phiếu đóng.
+  - OQ-29, của phiên lát 2 (S13): phiếu đồng ý của Chairman không được tính; phiếu từ chối của Chairman đóng phiếu.
+- Phán quyết S1–S14 của phiên lát 2 (không phải quyết định của Chairman): `docs/plans/slice-2-intake-outbox.md`, mục «Phán quyết của phiên lát 2» (tóm tắt ở cuối biên nhận).
 - **Công thức `quality_score`** (S3, hợp đồng dữ liệu của lát; chưa khai trong `AGENTS.md` vì sửa `AGENTS.md` là điểm dừng): `source_events` = 100 − 40 nếu là tin chuyển tiếp − 20 nếu chữ bị cắt − 20 nếu tệp không lưu được, tối thiểu 0 (`src/server/intake-rules.ts:10-16`); `delivery_receipts` = 100 cho biên nhận `send`, 60 cho `reconcile` (`src/server/outbox.ts:180`).
 - Không sửa `AGENTS.md`/`CLAUDE.md` (R10). Bốn dòng `AGENTS.md` ở gói quyết định §5 chờ OQ-09 mục (1).
 
@@ -42,13 +46,30 @@ Vì OQ-09 mục (1) chưa có bằng chứng, theo brief lát chỉ đạt mức
 | 5 Outbox | `outbox_messages`, `delivery_receipts` (bất biến), `outbox_state_events` (DB tự ghi qua trigger SECURITY DEFINER do role NOLOGIN `libetech_outbox_audit` sở hữu). Ghi cùng transaction với thay đổi nghiệp vụ (E-INT-06); envelope E-INT-02; hết hạn lease → `uncertain`, đối soát trước khi gửi lại; lỗi quyền → `dead`, không thử vô hạn; gateway kéo và báo biên nhận qua cầu nối đã ký | `migrations/017_outbox.sql`, `src/server/outbox.ts` |
 | 5 Năm trạng thái | received (spool ở gateway) · persisted (`source_events`) · projected (**luôn rỗng**, S4) · delivered (biên nhận `send`) · recipient-acknowledged (chỉ DM phiếu duyệt) — tách riêng, không suy ra nhau | như trên |
 | 6 Principal tiếp nhận + Inbox | Khoá và login riêng `libetech_intake_svc` (S1); chỉ ghi sự kiện nguồn, ứng viên, biên nhận; không tạo/gán/chốt việc. Màn `/inbox`: chọn loại (sự cố / yêu cầu / tài liệu), hỏi bổ sung, đánh dấu trùng, bỏ qua, mở lại; danh sách dự án chỉ gồm dự án được phép | `src/server/inbox.ts`, `inbox-http.ts`, `src/app/inbox/`, `src/app/api/inbox/[[...path]]` |
-| 7 SPEC-007 (a)(b) | (a) phiếu mới → DM cho người bỏ phiếu qua outbox, có biên nhận giao, thẻ Yes/No dùng `/duyet` sẵn có; (b) phiếu đổi quyền cho thành viên đã có (018): mở rộng quyền đi qua phiếu, chỉ giảm quyền lưu thẳng. (c) UAT thật: **chưa chạy** | `migrations/018_access_change_approval.sql`, `src/server/account-approval.ts`, `accounts.ts`, `access-grants.ts`, `src/components/approvals.tsx`, `team-accounts.tsx` |
+| 7 SPEC-007 (a)(b) | (a) phiếu mới → DM cho người bỏ phiếu qua outbox, có biên nhận giao, thẻ Yes/No dùng `/duyet` sẵn có; (b) phiếu đổi quyền cho thành viên đã có (018): mở rộng quyền đi qua phiếu, đủ khi một BoM đã đóng băng đồng ý (OQ-29, `8f181af`); chỉ giảm quyền lưu thẳng. (c) UAT thật: **chưa chạy** | `migrations/018_access_change_approval.sql`, `src/server/account-approval.ts`, `accounts.ts`, `access-grants.ts`, `src/components/approvals.tsx`, `team-accounts.tsx` |
 | 8 Kích hoạt ProjectChannel | **Không làm** (điểm dừng); test khẳng định `chatScopes` vẫn là nguồn hiệu lực | `tests/intake.test.ts` |
 | 9 Khoá riêng, trần | Khoá `intake.key` tách khoá bot; trần thân (đề xuất): sự kiện 16384 B, kéo outbox 1024 B, biên nhận 4096 B. Khai `Content-Length` quá trần thì từ chối trước khi đọc; không khai thì đọc theo luồng, quá trần dừng ngay (`request-body.ts`, vòng sửa Codex 2); tệp 20 MiB và danh sách loại tệp là **đề xuất**, chưa là chính sách | `bridge-io.ts:12`, `intake-rules.ts:108-114` |
 | Đối soát hai kho (OQ-09 mục 2) | Nối tin với ticket bằng khoá sự kiện chung; chỉ đọc, không sinh ứng viên, không đổi trạng thái ticket; lệch được liệt kê, không tự sửa — trên sổ tổng hợp | `src/server/ledger-reconcile.ts` |
 | Plugin | Hook tiếp nhận (chỉ bật khi `intake.json` có `"hookEnabled": true`), allowlist nhóm, spool có dead-letter cho dòng đầu hỏng, con trỏ tệp, adapter giao outbox với `send` giả. `VERSION`/`plugin.yaml` **không đổi số bản** (S7) dù mã đổi | `bot-plugin/__init__.py`, `bot-plugin/plugin.yaml` |
 
 Migration 016–018 có tệp lùi ở `migrations/rollback/`; 018 lùi từ chối khi còn dòng `access_change`. Ba migration chưa phát hành nên được sửa tại chỗ trong lát; tiến → lùi → tiến chạy trên PGlite và PostgreSQL thật.
+
+## Bằng chứng kiểm — head `8f181af` (sau quyết định OQ-27/28/29)
+
+`scout` chạy lại đủ tám lệnh ngày 14/11/2026 tại `8f181af`, cùng máy, cùng PostgreSQL 16.15 loopback chỉ có dữ liệu tổng hợp. Log đã che như bộ `2eb9437`, nằm cùng thư mục với hậu tố `-8f181af`; `manifest.json` ghi ở khoá `rerunAfterOqDecisions`.
+
+| Lệnh | Kết quả | Log |
+|---|---|---|
+| `npx vitest run tests/migrations-rollback.test.ts` (native, chạy trước) | 1 tệp · 3 test đạt | `migrations-rollback-8f181af.log` |
+| `npx vitest run --reporter=verbose` (native) | 41 tệp · **479 test đạt · 0 bỏ qua** | `vitest-native-8f181af.log` |
+| `npm run test` (PGlite) | 36 tệp đạt + 5 bỏ qua · 458 test đạt + 21 bỏ qua (ca chỉ chạy native) | `vitest-pglite-8f181af.log` |
+| `npx vitest run --coverage` | statements 95.04 · branches 86.76 · functions 96.63 · lines 96.16; ngưỡng 60 đạt | `coverage-8f181af.log` |
+| `npm run typecheck` | exit 0 | `typecheck-8f181af.log` |
+| `rm -rf .next && npm run build` | exit 0; có `/inbox`, `/api/inbox/[[...path]]`, `/api/bridge/[...path]` | `build-8f181af.log` |
+| `python3 -m pytest tests/test_bot_bridge.py -q` | 55 đạt · 27 subtest đạt | `pytest-8f181af.log` |
+| Quét | Mã nhóm: chỉ mã tổng hợp, cộng hai script có từ trước (đã che). `priority1`: 0. Mẫu chuỗi kết nối trong tệp được theo dõi: cùng 11 dòng như ở `2eb9437` (fixture `redactSecrets`, harness lát 1, mẫu deploy, hai tài liệu), không dòng mới. Trong log đã lưu: 0 | `greps-8f181af.log` |
+
+Bảy test mới hoặc đổi theo quyết định: bốn ca OQ-28 ở `intake` («a flagged group with an unmapped project stores the excerpt», «an unflagged group keeps pointer and hash only even for a XECA project», «an IBS HI project keeps pointer and hash only even in a flagged group», «a flag in the request body is never honoured»), cờ trong cấu hình (`bridge-limits`, `bridge-io`), và các ca phiếu đổi quyền ở `access-change` («… applies once one BoM agrees», «Chairman agreement alone does not approve …», «one BoM rejection keeps it pending …», «a registration ballot still needs Chairman and one BoM»). RED của bốn ca OQ-28 chỉ là lỗi dựng đối tượng do đổi chữ ký hàm, không phải đỏ theo hành vi (review task ghi Minor).
 
 ## Bằng chứng kiểm — head `2eb9437`
 
@@ -85,7 +106,7 @@ Xanh ở đây nghĩa là mã khớp với test hiện có. Hai test plugin đan
 | XI-01, XI-07 | không có test | Ca thật trên runtime, tính ở mức «đã dùng thật» |
 | SLO thử | `intake-slo` (native) | Số đo trên dữ liệu tổng hợp, không phải cam kết |
 
-**Số đo SLO thử** (một lần chạy native, 200 sự kiện tổng hợp): `{"slo_probe":{"events":200,"persist_ms_p50":3.1,"persist_ms_p95":3.7,"persist_to_receipt_queued_ms_p95":4,"persist_to_delivered_simulated_ms_p95":706.2,"projection":"not_measured: no intake projection in slice 2","overdue_listed_after_s":600}}` (PostgreSQL 16.15, máy cục bộ, head `2eb9437`). Số «delivered» gồm cả thời gian chờ gom lượt kéo giả lập, **không** phải độ trễ giao thật; «projection» không đo được vì lát này không có bản chiếu intake (S4).
+**Số đo SLO thử** (một lần chạy native, 200 sự kiện tổng hợp): `{"slo_probe":{"events":200,"persist_ms_p50":3.1,"persist_ms_p95":3.7,"persist_to_receipt_queued_ms_p95":4,"persist_to_delivered_simulated_ms_p95":706.2,"projection":"not_measured: no intake projection in slice 2","overdue_listed_after_s":600}}` (PostgreSQL 16.15, máy cục bộ, head `2eb9437`). Lần chạy ở `8f181af`: p50 3.2 ms, p95 3.6 ms, xếp biên nhận p95 3.9 ms, «delivered» giả lập p95 962.4 ms. Số «delivered» gồm cả thời gian chờ gom lượt kéo giả lập, **không** phải độ trễ giao thật; «projection» không đo được vì lát này không có bản chiếu intake (S4).
 
 ## Review hai tầng
 
@@ -99,6 +120,10 @@ Toàn văn ở [REVIEW-slice-2-20261113.md](reviews/REVIEW-slice-2-20261113.md) 
   - Vòng 1 (`2898def`): 3 P1 + 1 P2, sửa ở `2e37f17`.
   - Vòng 2 (`2e37f17`): 2 P1, sửa ở `2eb9437`. Đây là vòng sửa thứ hai, vòng cuối được phép.
   - Vòng 3 (`2eb9437`): xác nhận hai sửa vòng 2 đúng, nhưng có **2 P0 + 2 P1 mới**, đều ở mã mà các vòng trước không chạm. `planner` phân tích một lần: cả bốn hợp lệ. Planner xếp lại mức P1 · P0 · P1 · P1, và khuyến nghị Chairman cho một vòng sửa thứ ba theo lớp lỗi. Ở plugin, vòng đó áp một luật: «không đường nào xoá tin tiếp nhận; tin phải nằm ở backend, spool hoặc dead-letter». Tiếp theo là Codex vòng 4, vòng cuối. Sau đó P1 trở xuống ghi thành khoảng trống; P0 mới quay lại Chairman.
+- **Sau cổng: quyết định OQ-27/28/29 (`8f181af`).**
+  - Review task (`liberico-code-reviewer`): spec ❌ ở hai câu thông báo trên `/team` (I-1, I-2), sửa ở vòng 1, re-review: cả hai đã xử lý, không lỗi mới. 0 Critical.
+  - I-3 (Important, hoãn sang OQ-30): cờ theo nhóm làm đường lỗi của finding Codex vòng 3 thứ ba xảy ra chỉ bằng một thay đổi cấu hình. Không sửa vì chưa có phép vòng sửa; ghi thành luật vận hành ở OQ-28/OQ-30 và khoảng trống 6.
+  - Codex **chưa** review `8f181af`. Nếu Chairman cho vòng sửa thứ ba, Codex vòng 4 sẽ thấy cả commit này.
 - **Kết luận cổng:** **chưa đạt.** Còn 2 P0 + 2 P1 chưa xử lý. Không merge.
 
 ## Giao diện (kiểm tay, không phải nghiệm thu)
@@ -127,11 +152,11 @@ Phiên điều phối tự kiểm tay trên trình duyệt, ở chế độ máy
 2. PM-01 «chờ tin gốc»; XI-01, XI-07 là ca runtime; SPEC-007 ca (c) UAT chưa chạy.
 3. **Chưa gửi tin thật, chưa cài plugin, chưa khởi động lại gateway.** `send` thật và lịch kéo outbox chưa nối; plugin chỉ được thử với `send` giả. Spool chỉ xả khi có tin mới (tối đa 5 dòng mỗi tin, chưa có lịch). Khi khoá spool bận (`SPOOL_BUSY`) tin đó mất, chỉ còn log mã cố định.
 4. **Số bản plugin không đổi** (S7): mã plugin đổi nhiều nhưng `VERSION = "0.3.0"` và `plugin.yaml` `version: "0.2.1"` giữ nguyên; đặt số bản thuộc đợt cài plugin.
-5. **`redactSecrets` là phòng thủ chiều sâu**, chỉ có tác dụng ở dự án lưu trích (Liberico BU/Xeca đã ánh xạ). Kiểm soát chính là chỉ giữ con trỏ cho dự án chưa ánh xạ và `IBS_HI` (OQ-28) cùng quy tắc không gửi bí mật vào chat. Giới hạn đã biết:
+5. **`redactSecrets` là phòng thủ chiều sâu**, chỉ có tác dụng ở nhóm có cờ lưu trích. Kiểm soát chính là cờ theo nhóm (OQ-28 (c)): nhóm không cờ và dự án `IBS_HI` chỉ giữ con trỏ; cùng với quy tắc không gửi bí mật vào chat. Giới hạn đã biết:
    - còn sót: chữ tiếng Việt dạng tổ hợp NFD («mật khẩu»), `pw:`, «OTP 482913», khoá nhiều từ (`password key: x`, `token := x`, `'token' => 'x'`), JSON có escape, thân khoá PGP;
    - che quá tay câu thường («mật khẩu là gì?», «the secret is out»).
    - Đề xuất: chuẩn hoá NFC trước khi bật lưu trích cho dự án thật.
-6. Chưa có đường ghi `project_domain_mappings` ⇒ mọi dự án thật hiện ở «Chưa xác nhận» ⇒ chỉ giữ con trỏ.
+6. Chưa có đường ghi `project_domain_mappings` ⇒ mọi dự án thật hiện ở «Chưa xác nhận». Sau quyết định OQ-28 (c), việc lưu trích theo cờ của nhóm, nên điều này không còn chặn lưu trích. Hệ quả cần biết: luật «`IBS_HI` luôn chỉ con trỏ» chỉ có tác dụng khi dự án đã có dòng ánh xạ `IBS_HI`. Cho tới khi có đường ghi ánh xạ, ở dữ liệu thật luật đó chưa chặn được gì và chỉ cờ của nhóm quyết định. Khi khai cờ cho nhóm thật (điểm dừng triển khai), không được khai cho nhóm nào của IBS HI. Cũng không khai cờ cho nhóm đã có sự kiện `pointer_only` cho tới khi OQ-30 được quyết: bản sửa của tin cũ sẽ được lưu chữ (finding P1 thứ ba của Codex vòng 3, chưa sửa), và nay chỉ một thay đổi cấu hình là đủ gây ra.
 7. **Migration 018 trên `identity.account_approvals` đã có dữ liệu thật** chỉ an toàn sau danh sách 8 bước trước khi áp trong [review CSDL](reviews/slice-2-evidence-20261113/tier1-database-review.md). Bước 4 trong đó: không login nào với tới hơn một role ứng dụng — `assertRestrictedLogin` (`src/server/db.ts`) từ chối kết nối như vậy. Hai lưu ý thêm:
    - Khi đã có một phiếu `access_change`, 018 chỉ sửa tiến được (tệp lùi từ chối).
    - `ALTER FUNCTION … OWNER TO libetech_outbox_audit` ở 017 cần login migration có quyền superuser hoặc là thành viên role đích.
@@ -187,17 +212,18 @@ Số do harness báo cho từng agent khi nó kết thúc, gồm cả token đ�
 | Vòng sửa Codex 2 | Builder Opus | 269 209 |
 | Kiểm cuối | `scout` (Sonnet), tám lệnh kiểm ở `2eb9437` | 89 799 |
 | Phân tích sau vòng 3 | `planner` (Fable) | 162 977 |
-| **Cộng phía Claude (đo được)** | Không gồm phiên điều phối, review cổng 2 và các lượt nối lại chưa chắc | **7 616 993** |
+| Quyết định OQ-27/28/29 | Builder Sonnet 149 398 · review task Opus 230 712 · re-review Sonnet 126 274 · kiểm lại `scout` Sonnet 78 475. Lượt nối lại builder harness báo 152 782, không rõ cộng dồn hay không nên không cộng | 584 859 |
+| **Cộng phía Claude (đo được)** | Không gồm phiên điều phối, review cổng 2 và các lượt nối lại chưa chắc | **8 201 852** |
 
 | Codex (`codex exec --sandbox read-only`) | Vòng 1 385 310 · vòng 2 410 533 · vòng 3 413 452 | 1 209 295 |
 
 Nếu Chairman cho vòng sửa thứ ba: planner ước 300–450 nghìn token phía Claude, cộng một lượt Codex khoảng 410 nghìn. Đây là ước tính, chưa đo.
 
-## Phán quyết của phiên điều phối (Chairman xem lại được)
+## Phán quyết của phiên lát 2 (không phải quyết định của Chairman)
 
-Phiên điều phối tự quyết những chỗ kế hoạch và SPEC chưa nói, để lát không phải dừng. Không phán quyết nào thay quyết định của Chairman. Chairman có thể lật lại từng mục; mỗi dòng gốc đều ghi giá trị phải trả nếu sai.
+Phiên lát 2 tự quyết những chỗ kế hoạch và SPEC chưa nói, để lát không phải dừng. Không phán quyết nào thay quyết định của Chairman. Chairman có thể lật lại từng mục; mỗi dòng gốc đều ghi giá trị phải trả nếu sai.
 
-- S1–S12 nằm ở [kế hoạch](plans/slice-2-intake-outbox.md), mục «Phán quyết của phiên điều phối».
+- S1–S14 nằm ở [kế hoạch](plans/slice-2-intake-outbox.md), mục «Phán quyết của phiên lát 2». S13 (phiếu của Chairman trên phiếu đổi quyền) và S14 (hình dạng cờ lưu trích) thêm ngày 14/11/2026, sau quyết định OQ-28 và OQ-29.
 - Toàn bộ dòng `Ruling` trong sổ theo dõi được chép nguyên văn (tiếng Anh) vào [controller-rulings.md](reviews/slice-2-evidence-20261113/controller-rulings.md).
 
 Các mục chính:

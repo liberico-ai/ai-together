@@ -121,7 +121,7 @@ export const chatUnknown='-1000000000009';    // không có trong chatScopes
 export const chatNotIntake='-1000000000004';  // có trong chatScopes, không có trong intake.chats
 export const botKey:string; export const intakeKey:string;   // sinh ngẫu nhiên lúc nạp module, ≥ 43 ký tự, khác nhau
 export const intakePrincipalId='22000000-0000-4000-8000-000000000001';
-export const bridgeConfig:BridgeConfig;       // {key:botKey, chatScopes, intake:{key:intakeKey, principalId, chats:[chatSales,chatTransport,chatMulti]}}
+export const bridgeConfig:BridgeConfig;       // {key:botKey, chatScopes, intake:{key:intakeKey, principalId, chats:[chatSales,chatTransport,chatMulti]}}  — không khai `excerptChats` (sửa 14/11/2026: mặc định không nhóm nào lưu trích; ca cần lưu trích tự dựng cấu hình có cờ)
 export function signedRequest(path:string,body:unknown,opts?:{key?:string;timestamp?:string;nonce?:string;signPath?:string}):Request;
 export function messageEvent(over?:Partial<IntakeEventInput>):IntakeEventInput; // tin thường ở chatSales, messageId tăng dần, contentHash tính từ text
 ```
@@ -186,8 +186,8 @@ export function messageEvent(over?:Partial<IntakeEventInput>):IntakeEventInput; 
 export const signingText=(timestamp:string,nonce:string,raw:string,path='/api/bridge')=>string;
 export async function verifySigned(request:Request,o:{key:string;path:string;maxBytes:number;identity:IdentityService;throttleBucket:string;throttleLimit:number}):Promise<string>; // trả raw đã xác thực
 // src/server/bridge-config.ts
-export type BridgeConfig={key:string;chatScopes:ChatScopes;intake?:{key:string;principalId:string;chats:string[]}};
-export function parseBridgeConfig(raw:unknown):BridgeConfig;       // strict; intake.key ≥ 43 ký tự và !== key; intake.chats ⊆ khoá của chatScopes
+export type BridgeConfig={key:string;chatScopes:ChatScopes;intake?:{key:string;principalId:string;chats:string[];excerptChats?:string[]}};
+export function parseBridgeConfig(raw:unknown):BridgeConfig;       // strict; intake.key ≥ 43 ký tự và !== key; intake.chats ⊆ khoá của chatScopes; intake.excerptChats ⊆ intake.chats (OQ-28 (c), sửa 14/11/2026)
 export async function loadBridgeConfig():Promise<BridgeConfig|null>; // đọc tệp LIBETECH_BRIDGE_CONFIG; null khi biến rỗng
 // src/server/bridge-io.ts
 export type IntakePrincipal={id:string;tenantId:string;projectIds:string[]};
@@ -206,6 +206,7 @@ export async function intakeScoped<T>(db:Database,p:IntakePrincipal,fn:(tx:Query
 - [ ] **`the bot key cannot sign intake routes and the intake key cannot sign /api/bridge`** — `signedRequest(path,body,{key:botKey})` → 401; `handleBridge` với yêu cầu ký bằng `intakeKey` → `BRIDGE_AUTH_DENIED`.
 - [ ] **`(7) every intake endpoint lives under /api/bridge/ and answers 401 without a valid signature`** — mọi phần tử `IO_PATHS` bắt đầu bằng `/api/bridge/`; tệp `src/app/api/bridge/[...path]/route.ts` tồn tại và không có tệp `route.ts` nào khác trong `src/app/api` nhập `bridge-io`; yêu cầu không header chữ ký → 401; đường lạ `/api/bridge/intake/unknown` → 404 và không đọc thân. Chú thích trong test: proxy thật chặn `^~ /api/bridge/` là kiểm runtime (`DEPLOY-003-team-access.md:103-104`).
 - [ ] **`config rejects an intake key equal to the bot key and intake chats outside chatScopes`** — `parseBridgeConfig` ném cho hai trường hợp; cấu hình cũ không có `intake` vẫn hợp lệ.
+- [ ] (sửa 14/11/2026, OQ-28 (c)) **`config rejects excerpt chats outside intake.chats; no excerptChats means none`** — `excerptChats` có nhóm không thuộc `intake.chats` → ném (tuyến trả 503 như cấu hình hỏng); thiếu `excerptChats` → hợp lệ, không nhóm nào được lưu trích.
 - [ ] **`oversized bodies are refused before parsing`** — thân 16 385 byte tới `intake/events` → `PAYLOAD_TOO_LARGE`; 4 097 byte tới `outbox/receipts` → `PAYLOAD_TOO_LARGE`.
 - [ ] `tests/identity.test.ts` giữ xanh nguyên văn (ca `:71`, `:114`).
 
@@ -213,7 +214,7 @@ export async function intakeScoped<T>(db:Database,p:IntakePrincipal,fn:(tx:Query
 
 **Con trỏ:** brief `:109-110`, `:137` (1)(7) · OQ-10 (b) · `SPEC-009…:143`, `:145` · `SPEC-008…:116`.
 
-### Task 4: `IntakeService.ingest` — SourceEvent, revision, tệp, ứng viên — **review riêng** · **dừng tại OQ-27** (nhóm nhiều dự án) và **OQ-28** (lưu trích nội dung)
+### Task 4: `IntakeService.ingest` — SourceEvent, revision, tệp, ứng viên — **review riêng** · OQ-27 và OQ-28 đã quyết 14/11/2026 (xem `docs/OPEN-QUESTIONS.md`)
 
 **Tệp:** tạo `src/server/intake.ts`, `src/server/intake-rules.ts`, `tests/intake.test.ts`, `tests/intake-concurrency.test.ts`; sửa `src/server/bridge-io.ts` (nối tuyến `intake/events`), `src/server/types.ts` (thêm kiểu), `tests/slice2-fixtures.ts` (thay kiểu tạm).
 
@@ -234,12 +235,12 @@ export type IntakeEventInput={context:{telegramId:string;chatId:string;chatType:
   text:string;textTruncated:boolean;contentHash:string;traceId:string;
   attachment?:{state:'stored';locator:string;sha256:string;mimeType:string;sizeBytes:number;fileName?:string}|{state:'failed';reasonCode:string;mimeType?:string;sizeBytes?:number;fileName?:string}};
 export type IntakeAck={sourceEventId:string;revisionNo:number;candidateRef:string|null;replayed:boolean;persisted:true;receipt:'queued'|'withheld'|'none';reason?:string};
-export class IntakeService{constructor(db:Database,tenantId:string,principalId:string,chatScopes:ChatScopes,intakeChats:string[]);
+export class IntakeService{constructor(db:Database,tenantId:string,principalId:string,chatScopes:ChatScopes,intake:{chats:string[];excerptChats?:string[]});  // sửa 14/11/2026: nhận cả cờ lưu trích theo nhóm
   ingest(raw:unknown):Promise<IntakeAck>;}
 ```
-- Kiểm quyền (trước mọi câu SQL có nội dung): `chatType` nhóm và `chatId` bắt đầu bằng `-`; `chatId ∈ intakeChats` **và** `chatScopes[chatId]` có đúng **một** dự án. Không thoả → `SCOPE_DENIED` 403, không lưu gì. `chatScopes[chatId]` có từ hai dự án → `INTAKE_PROJECT_AMBIGUOUS` 409, không lưu gì (**OQ-27**: hành vi giữ chỗ fail-closed, không phải phương án được chọn).
+- Kiểm quyền (trước mọi câu SQL có nội dung): `chatType` nhóm và `chatId` bắt đầu bằng `-`; `chatId ∈ intakeChats` **và** `chatScopes[chatId]` có đúng **một** dự án. Không thoả → `SCOPE_DENIED` 403, không lưu gì. `chatScopes[chatId]` có từ hai dự án → `INTAKE_PROJECT_AMBIGUOUS` 409, không lưu gì (**OQ-27**: quyết định của Chairman 14/11/2026, phương án (a) «Chỉ nhóm một dự án»).
 - `locator` của tin: `https://t.me/c/<chatId bỏ tiền tố -100>/<messageId>` khi `chatId` bắt đầu bằng `-100`, ngược lại rỗng. `locator` của tệp phải khớp `^gw://libetech/attachments/[a-f0-9]{64}$` và đoạn cuối bằng `sha256` → lệch thì `ATTACHMENT_HASH_MISMATCH` 422.
-- `content_mode`: đọc dòng mới nhất của `project_domain_mappings`; `LIBERICO_BU` hoặc `XECA` → `'excerpt'` (lưu `redactSecrets(text)`); `IBS_HI` hoặc **chưa ánh xạ** → `'pointer_only'` (`text_excerpt` rỗng; chỉ hash, locator, metadata). Nhánh «chưa ánh xạ» là giữ chỗ fail-closed chờ **OQ-28**.
+- `content_mode` (sửa 14/11/2026 theo quyết định OQ-28 (c) «Khai theo từng nhóm»): `'excerpt'` (lưu `redactSecrets(text)`) khi và chỉ khi `chatId ∈ intake.excerptChats` của cấu hình vận hành **và** dòng mới nhất của `project_domain_mappings` cho dự án đó không phải `IBS_HI`. Mọi trường hợp khác → `'pointer_only'` (`text_excerpt` rỗng; chỉ hash, locator, metadata). Hai luật này là cách hiểu fail-closed của phiên điều phối, chờ Chairman xác nhận: nhóm không khai cờ chỉ giữ con trỏ; `IBS_HI` luôn chỉ giữ con trỏ (`AGENTS.md:16`). Cờ không bao giờ lấy từ request (schema strict). `LIBERICO_BU`, `XECA` hay chưa ánh xạ không còn quyết định gì. *(Bản trước: chọn theo nhãn miền `LIBERICO_BU`/`XECA`; bỏ theo quyết định.)*
 - Một transaction `intakeScoped`: (a) `INSERT source_events … ON CONFLICT(tenant_id,source_type,chat_id,message_id) DO NOTHING RETURNING id`; không có dòng trả về → đọc lại theo khoá; đọc cũng không thấy (dòng thuộc dự án khác, RLS giấu) → `SOURCE_EVENT_CONFLICT` 409. (b) `SELECT pg_advisory_xact_lock(hashtextextended($sourceEventId,0))` rồi `INSERT source_event_revisions … ON CONFLICT(source_event_id,revision_key) DO NOTHING RETURNING id,revision_no` với `revision_no = coalesce(max,0)+1`, `revision_key = sha256(contentHash|editedAt|attachment.sha256)`; không có dòng trả về → `replayed=true`. (c) revision mới có tệp → `INSERT intake_attachments` với `state = attachmentVerdict(…)` khi gateway báo `stored`, hoặc `failed`; tệp không ở `stored` thì `locator`, `sha256` để rỗng. (d) `thread_key`: tra tin cha theo `(chat_id, reply_to_message_id)` lấy `thread_key` của cha. (e) `INSERT intake_candidates … ON CONFLICT(tenant_id,project_id,chat_id,thread_key) DO NOTHING RETURNING id`. (f) `intake_events` kind `source_event.persisted` / `source_event.revised` / `candidate.created`, `request_id` mới, `trace_id` của gateway. (g) gọi `enqueueReceipt` của Task 6 (ở Task 4 để một hàm rỗng `async()=>'none'` nhận qua tham số dựng `IntakeService`; Task 6 thay).
 - `candidateRef = 'IN-' + 8 ký tự hex đầu của id, viết hoa`. `source_actor='tg:'+telegramId`. Tin forward: `forwarded=true`, không ghi ai là tác giả hay người duyệt; `quality_score` trừ 40.
 - Trả `receipt:'withheld'`, `reason:'ATTACHMENT_NOT_STORED'` khi tệp không ở `stored`; `'none'` khi tin không `addressed` hoặc là bản phát lại/bản sửa.
@@ -256,9 +257,9 @@ export class IntakeService{constructor(db:Database,tenantId:string,principalId:s
 - [ ] **`(4) a resent message creates no second candidate`** — cùng sự kiện ba lần → 1 `intake_candidates`, 1 `candidate.created` trong `intake_events`.
 - [ ] **`DOC-16 an edit or a reply never asks the reporter to re-enter the request`** — sau tin gốc + bản sửa + tin trả lời: một ứng viên, `candidateRef` không đổi qua ba lần gọi.
 - [ ] **`OQ-27 a group mapped to several projects is refused with INTAKE_PROJECT_AMBIGUOUS and stores nothing`** — `chatMulti`.
-- [ ] **`OQ-28 an unmapped or IBS HI project keeps pointer and hash only`** — không có dòng ánh xạ → `content_mode='pointer_only'`, `text_excerpt IS NULL`, `content_hash` có; `h.operator` chèn ánh xạ tổng hợp `IBS_HI` cho `ids.transport` → như trên; ánh xạ `XECA` cho `ids.sales` → `'excerpt'`, có chữ.
+- [ ] (sửa 14/11/2026, OQ-28 (c)) Thay ca «unmapped or IBS HI» bằng bốn ca, chỉ dùng mã nhóm tổng hợp: **`OQ-28 a flagged group with an unmapped project stores the excerpt`**; **`OQ-28 an unflagged group keeps pointer and hash only even for a XECA project`**; **`OQ-28 an IBS HI project keeps pointer and hash only even in a flagged group`**; **`OQ-28 a flag in the request body is never honoured`** (thân có `contentMode`/`excerpt` ở gốc hoặc trong `context` → bị schema từ chối, không lưu gì; nhóm không cờ vẫn chỉ con trỏ). Mỗi ca kiểm `content_mode`, `text_excerpt` và `content_hash`.
 - [ ] Review Focus 1: **`a file-only message and hostile file names are stored safely`** — `text=''` + tệp; `fileName='../../etc/passwd'`, tên có `\u0000`, tên 300 ký tự → lưu được, `file_name` không chứa `/`, ký tự điều khiển, dài ≤ 200.
-- [ ] Review Focus 2: **`credential-like text is stored redacted while the hash stays the gateway's`** — `text='token: abc123SECRET'` (dự án ánh xạ `XECA`) → `text_excerpt` không chứa `abc123SECRET`, `content_hash` bằng giá trị gửi vào.
+- [ ] Review Focus 2: **`credential-like text is stored redacted while the hash stays the gateway's`** — `text='token: abc123SECRET'` (nhóm có cờ lưu trích; sửa 14/11/2026) → `text_excerpt` không chứa `abc123SECRET`, `content_hash` bằng giá trị gửi vào.
 - [ ] Review Focus 3: **`an edit that arrives before the original, and edits out of order, are all kept`** — gửi bản `editedAt=T2` trước, bản không `editedAt` sau, rồi `editedAt=T1` → 3 revision; hàm đọc «bản mới nhất» (Task 7) trả bản `T2`.
 - [ ] Review Focus 4: **`replaying a message after its group moved to another project is SOURCE_EVENT_CONFLICT`** — lưu ở `ids.sales`, dựng `IntakeService` mới với `chatScopes[chatSales]=[ids.transport]`, gửi lại → `{code:'SOURCE_EVENT_CONFLICT',status:409}`, vẫn 1 event.
 - [ ] **`a failed ingest leaves no row at all`** — ép lỗi ở bước ứng viên (mock `enqueueReceipt` ném) → 0 event, 0 revision, 0 `intake_events`.
@@ -419,7 +420,7 @@ export async function inboxRows(db:Database,p:Principal,projectId:string,window:
 
 **Con trỏ:** brief `:91`, `:133` · OQ-09 · `SPEC-008…:74-75`, `:292` · ADR-002 «Consequences» · `AGENTS.md:5`, `:13` · OQ-26.
 
-### Task 9: Migration 018 + SPEC-007 ca (a) DM có biên nhận, ca (b) phiếu đổi quyền — **review riêng** · quy tắc bỏ phiếu chờ xác nhận ở **OQ-29**
+### Task 9: Migration 018 + SPEC-007 ca (a) DM có biên nhận, ca (b) phiếu đổi quyền — **review riêng** · quy tắc bỏ phiếu theo quyết định **OQ-29** ngày 14/11/2026
 
 **Tệp:** tạo `migrations/018_access_change_approval.sql`, `migrations/rollback/018_access_change_approval.sql`, `tests/account-approval-dm.test.ts`, `tests/access-change.test.ts`; sửa `src/server/accounts.ts` (`:107-126`, `:187-194`), `src/server/account-approval.ts` (`:22-33`, `:84-107`, `:115-145`), `tests/outbox-crash.test.ts` (nhánh DM).
 
@@ -437,7 +438,7 @@ export async function notifyVoters(tx:Queryable,identity:IdentityService,approva
 - Xác nhận của người nhận: trong `voteForPrincipal`, khi ghi phiếu mới, `UPDATE outbox_messages SET acknowledged_at=now() WHERE dedupe_key=$1 AND acknowledged_at IS NULL` cho đúng người bỏ phiếu. Biên nhận giao (`delivered_at`) chỉ đến từ gateway (Task 6); bấm phiếu **không** làm tin thành «đã giao».
 - Ca (b) `propose_access_change`: điều kiện — tài khoản đích đang hoạt động và đã kích hoạt; `expectedVersion` khớp; `grants` trong phạm vi quản trị; `!reducesAccess(before,grants)` (nếu chỉ giảm quyền → `ACCESS_CHANGE_NOT_NEEDED` 409, dùng `access` như cũ); chưa có phiếu đổi quyền còn hiệu lực. Ghế: `verifiedApprovalSeats` **bỏ ghế của chính người được đổi quyền**; sau khi bỏ không còn Chairman + ít nhất một BoM → `APPROVERS_NOT_READY`. Chèn phiếu `kind='access_change'` với `previous_grants=before`, `subject_account_version=user.version`; chèn voters; `notifyVoters`; `identity.events` kind `access_change_proposed`. **Không** đổi `memberships`, không đổi `account_version`.
 - `access` khi mở rộng quyền (`accounts.ts:191-192`): tìm phiếu `access_change` `state='approved'` của đúng người, `grants` bằng đúng `cmd.grants` (so sau khi sắp theo `projectId` và sắp `reportPermissions`), `subject_account_version===user.version`; qua `approvalReady`; có → `setGrants`, phiếu → `issued`, audit kèm `approvalId`. Không có → `TELEGRAM_APPROVAL_REQUIRED` như hiện nay. Giảm quyền giữ nguyên đường cũ, không cần phiếu.
-- Bỏ phiếu: `voteForPrincipal` với phiếu `access_change` — nếu `account_version` của người được đổi quyền khác `subject_account_version` → đặt phiếu `expired`, trả `APPROVAL_CLOSED` 409 (thẻ cũ không ghi phiếu). Quy tắc đủ phiếu dùng lại nguyên `tally` (Chairman + ít nhất một BoM, hạn 48 giờ) — **không đặt quy tắc mới**; xem OQ-29.
+- Bỏ phiếu: `voteForPrincipal` với phiếu `access_change` — nếu `account_version` của người được đổi quyền khác `subject_account_version` → đặt phiếu `expired`, trả `APPROVAL_CLOSED` 409 (thẻ cũ không ghi phiếu). Quy tắc đủ phiếu (sửa 14/11/2026 theo quyết định OQ-29 «1 thành viên BOM»): hàm đếm riêng cho `access_change` — `approved` khi ít nhất một ghế BoM đã đóng băng đồng ý, không cần phiếu Chairman; `rejected` khi mọi ghế BoM đã đóng băng đều từ chối, hoặc Chairman từ chối (S13); còn lại `pending`. Hạn 48 giờ như phiếu lần đầu. `tally` của phiếu cấp tài khoản lần đầu không đổi (Chairman + một BoM). `approvalReady` và `voteForPrincipal` chọn hàm đếm theo `kind`. *(Bản trước: dùng lại nguyên `tally`; bỏ theo quyết định.)*
 - `pendingForPrincipal` (`account-approval.ts:101`) đổi `JOIN identity.registration_requests` thành `LEFT JOIN`, thêm `LEFT JOIN identity.users` cho người được đổi quyền; `approvalReady` và `activate` (`src/server/identity.ts:108-117`) chỉ nhận phiếu `kind='registration'` cho lời mời — phiếu đổi quyền không bao giờ mở được lời mời.
 
 **Ca kiểm viết trước**
@@ -448,8 +449,8 @@ export async function notifyVoters(tx:Queryable,identity:IdentityService,approva
 - [ ] **`proposing the same registration twice never queues a second DM`** — phiếu hết hạn rồi trình lại tạo phiếu mới (mã khác) → DM mới theo `dedupe_key` mới; gọi lại cùng phiếu → không thêm.
 - [ ] **`(6) a ballot tapped in a group, tapped again, or tapped on an old card records no vote`** — `vote(…,'-1000000000001','group',…)` → `PRIVATE_CHAT_REQUIRED`, 0 phiếu; bỏ lại cùng lựa chọn → `replayed:true`, vẫn 1 phiếu; lựa chọn khác → `VOTE_LOCKED`; phiếu đã `approved`/hết hạn → `APPROVAL_CLOSED`, không thêm phiếu.
 - [ ] `tests/access-change.test.ts`: **`expanding access without an approved ballot is still refused`** — `access` thêm dự án → `TELEGRAM_APPROVAL_REQUIRED`.
-- [ ] **`an access-change ballot freezes grants and applies only after Chairman and one BoM agree`** — `propose_access_change` → phiếu `pending`, `memberships` không đổi; Chairman đồng ý → vẫn chưa áp; thêm một BoM → `approved`; `access` với đúng `grants` → áp, phiếu `issued`, `account_version` tăng 1, phiên cũ bị thu hồi.
-- [ ] **`two BoM votes without Chairman do not approve an access change`**; **`Chairman rejection closes it`**.
+- [ ] (sửa 14/11/2026, OQ-29) **`an access-change ballot freezes grants and applies once one BoM agrees`** — `propose_access_change` → phiếu `pending`, `memberships` không đổi; một BoM đồng ý (không có phiếu Chairman) → `approved`; `access` với đúng `grants` → áp, phiếu `issued`, `account_version` tăng 1, phiên cũ bị thu hồi.
+- [ ] (sửa 14/11/2026, OQ-29) **`Chairman agreement alone does not approve an access change`**; **`one BoM rejection keeps it pending while another BoM can still vote; every BoM rejecting closes it`**; **`Chairman rejection closes it`** (S13); **`the first-registration ballot still needs Chairman and one BoM`** (bảy ca SPEC-007 của `tests/onboarding-feedback.test.ts` giữ xanh).
 - [ ] **`grants that differ from the frozen ballot are refused`** — `access` với thêm một quyền báo cáo so với phiếu → `TELEGRAM_APPROVAL_REQUIRED`, `memberships` không đổi.
 - [ ] **`an account change after the proposal invalidates the ballot`** — `disable` rồi `enable` (version đổi) → bỏ phiếu → `APPROVAL_CLOSED`, phiếu `expired`; `access` → `TELEGRAM_APPROVAL_REQUIRED`.
 - [ ] **`the subject never votes on their own access change`** — người được đổi quyền đang giữ ghế `bom_quan` → không nằm trong voters; nếu đó là BoM duy nhất → `APPROVERS_NOT_READY`.
@@ -614,10 +615,11 @@ export function IntakeCard(props:{card:CandidateCard;canAct:boolean;onCommand:(c
 5. **Mục 8 của brief (kích hoạt ProjectChannel): không làm, không expand.** Nguồn hiệu lực vẫn là `chatScopes`; có test khẳng định (Task 4).
 
 **Dừng theo câu hỏi mở mới (phần còn lại vẫn làm đủ):**
-- **OQ-26** — đường đưa sổ ticket của priority1 tới AI OS. Dừng: mọi mã nạp sổ ticket thật. Vẫn làm: hàm đối soát và test trên dữ liệu tổng hợp (Task 8).
-- **OQ-27** — tin từ nhóm gắn nhiều dự án thuộc dự án nào trước khi PM xác nhận. Dừng: tiếp nhận cho nhóm nhiều dự án (từ chối `INTAKE_PROJECT_AMBIGUOUS`, không lưu). Vẫn làm: nhóm một dự án.
-- **OQ-28** — có lưu trích nội dung tin cho dự án chưa ánh xạ miền hay không. Dừng: lưu chữ cho dự án chưa ánh xạ (chỉ giữ con trỏ + hash). Vẫn làm: `IBS_HI` chỉ con trỏ; `LIBERICO_BU`/`XECA` lưu trích.
-- **OQ-29** — quy tắc đủ phiếu, hạn và ghế cho phiếu đổi quyền. Không dừng mã: dùng lại nguyên quy tắc phiếu cấp tài khoản lần đầu; cần xác nhận trước khi dùng cho người thật.
+*Chairman đã quyết OQ-26…29 ngày 14/11/2026 (`docs/OPEN-QUESTIONS.md`). Bốn dòng dưới thay bốn dòng giữ chỗ lúc lập kế hoạch.*
+- **OQ-26** — quyết định (c) «Chỉ đối soát tổng hợp». Task 8 giữ nguyên. Không viết mã nạp sổ ticket thật. Đối soát thật làm tay ở đợt runtime bằng hai bản kê hai bên tự xuất; đó là điểm dừng.
+- **OQ-27** — quyết định (a) «Chỉ nhóm một dự án». Nhóm gắn từ hai dự án bị từ chối `INTAKE_PROJECT_AMBIGUOUS`, không lưu gì, cho tới khi tách cấu hình.
+- **OQ-28** — quyết định (c) «Khai theo từng nhóm». Cờ `intake.excerptChats` trong cấu hình vận hành; nhóm không cờ và dự án `IBS_HI` chỉ giữ con trỏ + hash (cách hiểu chờ xác nhận). Giá trị cờ cho nhóm thật là điểm dừng triển khai.
+- **OQ-29** — Chairman tự gõ «1 thành viên BOM». Phiếu đổi quyền đủ khi một BoM đã đóng băng đồng ý, không cần phiếu Chairman; ba cách hiểu fail-closed của phiên điều phối và S13 chờ xác nhận trước khi dùng cho người thật.
 
 **Chỗ chưa chắc, cần phiên điều phối hoặc reviewer quyết:**
 1. **Trần kích thước và danh sách loại tệp** (bảng ở Global Constraints) là đề xuất kỹ thuật, chưa là chính sách.
@@ -632,12 +634,12 @@ export function IntakeCard(props:{card:CandidateCard;canAct:boolean;onCommand:(c
 10. **Khoá lặp cho thao tác của PM** dùng `deduplicate` theo dự án (như việc), không theo cách OQ-24 (b) vốn chỉ áp cho tài liệu.
 11. **Cảnh báo outbox quá 10 phút** chỉ hiện trong hàng lỗi của Inbox; chưa gửi cảnh báo cho người vận hành (gửi thật là điểm dừng).
 12. **Chữ của tin vẫn đi qua yêu cầu** tới AI OS cả khi dự án ở chế độ chỉ con trỏ; AI OS bỏ trước khi ghi và không log. Gateway không biết nhãn miền nên không tự bỏ được.
-13. Chưa có đường ghi `project_domain_mappings` (lát 1 không cấp INSERT). Cho tới khi có, mọi dự án thật ở «Chưa xác nhận» ⇒ theo giữ chỗ OQ-28 mọi tin thật chỉ giữ con trỏ.
+13. Chưa có đường ghi `project_domain_mappings` (lát 1 không cấp INSERT). Cho tới khi có, mọi dự án thật ở «Chưa xác nhận» ⇒ theo giữ chỗ OQ-28 mọi tin thật chỉ giữ con trỏ. *(Sửa 14/11/2026: sau quyết định OQ-28 (c), việc lưu trích theo cờ của nhóm, không theo ánh xạ; ánh xạ chỉ còn dùng để chặn `IBS_HI`.)*
 14. `SPEC-008…:116` nói «bản nội dung đã lọc» nhưng không nêu luật lọc; `redactSecrets` ở Task 4 là mức tối thiểu do kế hoạch đề xuất.
 
-## Phán quyết của phiên điều phối, 13/11/2026 (Chairman xem lại được)
+## Phán quyết của phiên lát 2, 13/11/2026 (không phải quyết định của Chairman)
 
-Các mục dưới trả lời phần «Chỗ chưa chắc» ở trên. Không mục nào thay quyết định của Chairman; OQ-26…29 vẫn chờ Chairman và được trình trong báo cáo cuối lát.
+Các mục dưới trả lời phần «Chỗ chưa chắc» ở trên. Không mục nào thay quyết định của Chairman. OQ-26…29 được Chairman quyết ngày 14/11/2026 (`docs/OPEN-QUESTIONS.md`); các phán quyết S1–S13 và các cách hiểu kèm quyết định vẫn được trình trong báo cáo cuối lát.
 
 - **S1 · Login thứ ba** (chỗ chưa chắc 2): chấp nhận `libetech_intake_svc` + `INTAKE_DATABASE_URL`. Lý do: không cấp role nào cho `libetech_web` (tiền lệ OQ-22). Cấp mật khẩu, đặt biến và tệp `intake.json` là điểm dừng triển khai.
 - **S2 · Migration 018** (chỗ chưa chắc 9): chấp nhận mở rộng `identity.account_approvals` theo kiểu expand (thêm cột, nới `registration_id`) để dùng lại một hàm đếm phiếu. `liberico-database-reviewer` kiểm riêng phần này. Tệp lùi từ chối khi còn dòng `access_change`.
@@ -651,3 +653,5 @@ Các mục dưới trả lời phần «Chỗ chưa chắc» ở trên. Không m
 - **S10 · Chữ đi qua yêu cầu khi chỉ con trỏ** (chỗ chưa chắc 12): chấp nhận. Task 4 thêm ca khẳng định chữ không được ghi vào bảng nào và không xuất hiện trong log khi `content_mode='pointer_only'`.
 - **S11 · Review riêng**: gộp thành bốn lượt thay vì bảy — sau Task 4 (016 + cầu nối + ingest), sau Task 6 (017 + outbox), sau Task 9 (018 + SPEC-007), sau Task 11 (plugin). Tầng 1 toàn nhánh vẫn là lưới chính (bài học token lát 1).
 - **S12 · Builder không commit**: phiên điều phối commit sau mỗi lượt review.
+- **S13 · Phiếu của Chairman trên phiếu đổi quyền** (thêm 14/11/2026, sau quyết định OQ-29): Chairman vẫn nằm trong danh sách ghế đóng băng như trước (`validSeats` không đổi, nên vẫn cần Chairman đã ghép Telegram để mở phiếu). Phiếu đồng ý của Chairman không được tính; phiếu từ chối của Chairman đóng phiếu, vì Chairman là người đề xuất. Lý do: quyết định chỉ nói phiếu đủ khi có một BoM, không nói phiếu Chairman làm gì; đọc theo hướng chặt. Nếu sai: Chairman muốn từ chối mà không đóng được, hoặc muốn bỏ Chairman khỏi danh sách nhận DM; cả hai chỉ sửa hàm đếm hoặc chỗ chèn voters.
+- **S14 · Hình dạng cờ lưu trích** (thêm 14/11/2026, sau quyết định OQ-28): `intake.excerptChats`, một danh sách mã nhóm ⊆ `intake.chats`, thêm vào cấu hình cũ mà không đổi trường nào đã có. Lý do: cùng chỗ với `chatScopes` và `intake.chats` như phiên điều phối yêu cầu; thiếu trường = không nhóm nào. Nếu sai: đổi thành bảng theo nhóm chỉ chạm `bridge-config.ts` và chỗ dựng `IntakeService`.

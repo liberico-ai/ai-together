@@ -1,0 +1,56 @@
+
+> libetech-ai-os@0.7.1 build
+> next build
+
+▲ Next.js 16.4.5 (Turbopack)
+✓ Running next.config.ts took 13ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1135ms
+  Running TypeScript ...
+  Finished TypeScript in 311ms ...
+  Collecting page data using 17 workers ...
+  Generating static pages using 17 workers (0/4) ...
+  Generating static pages using 17 workers (1/4) 
+  Generating static pages using 17 workers (2/4) 
+  Generating static pages using 17 workers (3/4) 
+✓ Generating static pages using 17 workers (4/4) in 60ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /activate
+├ ƒ /api/auth/[action]
+├ ƒ /api/bridge
+├ ƒ /api/bridge/[...path]
+├ ƒ /api/demo/session
+├ ƒ /api/documents/[[...path]]
+├ ƒ /api/health
+├ ƒ /api/inbox/[[...path]]
+├ ƒ /api/projects/[...path]
+├ ƒ /api/team/accounts
+├ ƒ /api/team/approvals
+├ ƒ /api/team/bom
+├ ƒ /api/team/feedback
+├ ƒ /api/team/registrations
+├ ƒ /api/team/reports
+├ ƒ /api/v1/[...path]
+├ ƒ /approvals
+├ ƒ /bom
+├ ƒ /documents
+├ ƒ /documents/[id]
+├ ƒ /feedback
+├ ƒ /inbox
+├ ƒ /login
+├ ƒ /portfolio
+├ ƒ /register
+├ ƒ /reports
+└ ƒ /team
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
