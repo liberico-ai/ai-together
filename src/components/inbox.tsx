@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import type { CandidateCard, SourceAvailabilityRow, FailureRow, RevisionView, EventView, DeliveryView } from '../server/inbox';
 import { api } from './api';
 import { inboxState, statusLabel, failureLabel, variantOf, isOpen, initialDraft, cardActions, commandErrorMessage, formatTime, sizeLabel, chatTail,
-  templateLabel, sourceLabel, reloadInbox, loadDetail, VARIANT_NAMES, STATE_NAMES, CONFLICT_COPY, NOT_MANAGER_COPY, POINTER_ONLY_COPY,
+  templateLabel, sourceLabel, reloadInbox, loadDetail, VARIANT_NAMES, STATE_NAMES, CONFLICT_COPY, NOT_MANAGER_COPY, POINTER_ONLY_COPY, HIDDEN_COPY,
   type CardAction, type CardDraft, type DetailLoad, type InboxPageState } from './inbox-view';
 
 type Page = { items: CandidateCard[]; total: number };
@@ -37,14 +37,18 @@ export function FailureList({ failures }: { failures: FailureRow[] }) {
   </section>;
 }
 
+/** OQ-30: text is shown only for 'excerpt'; 'hidden' and 'pointer_only' show their notice with the source reference. */
+function NoTextNotice({ mode, sourceRef }: { mode: 'hidden' | 'pointer_only'; sourceRef: string }) {
+  return <p className="inbox-pointer doc-wrap">{mode === 'hidden' ? HIDDEN_COPY : POINTER_ONLY_COPY}<br /><span className="doc-ref">{sourceRef}</span></p>;
+}
+
 function DetailView({ detail }: { detail: Detail }) {
-  const showText = detail.card.contentMode !== 'pointer_only';
   return <div className="inbox-detail">
     <h4>Các bản của tin</h4>
     {detail.revisions.length === 0 ? <p className="doc-meta">Chưa có bản nào.</p> : <ul className="inbox-plain">{detail.revisions.map(r => <li key={r.revisionNo}>
       <span>r{r.revisionNo} · ghi lúc {formatTime(r.recordedAt)}{r.editedAt ? ' · sửa lúc ' + formatTime(r.editedAt) : ''}{r.textTruncated ? ' · chữ bị cắt' : ''}</span><br />
       <GatewayHash hash={r.contentHash} />
-      {showText && r.excerpt && <p className="doc-wrap">{r.excerpt}</p>}</li>)}</ul>}
+      {r.contentMode === 'excerpt' ? r.excerpt && <p className="doc-wrap">{r.excerpt}</p> : <NoTextNotice mode={r.contentMode} sourceRef={detail.card.sourceRef} />}</li>)}</ul>}
     <h4>Lịch sử thao tác</h4>
     {detail.events.length === 0 ? <p className="doc-meta">Chưa có thao tác.</p> : <ul className="inbox-plain">{detail.events.map(e => <li key={e.id} className="doc-wrap">
       {e.kind} · {formatTime(e.createdAt)}{typeof e.payload.note === 'string' && e.payload.note ? ' · Ảnh hưởng / khôi phục: ' + e.payload.note : ''}</li>)}</ul>}
@@ -92,9 +96,9 @@ export function CardView({ card, canAct, draft, busy, error, onDraft, onSubmit, 
         {card.forwarded && <span className="inbox-badge">Tin chuyển tiếp</span>}</p>
     </header>
     <p className="doc-meta doc-wrap">Tin gốc: {card.sourceRef}{card.ticketRef ? ' · Mã việc ngoài: ' + card.ticketRef : ''}</p>
-    {card.contentMode === 'pointer_only'
-      ? <p className="inbox-pointer doc-wrap">{POINTER_ONLY_COPY}<br /><span className="doc-ref">{card.sourceRef}</span></p>
-      : <p className="inbox-text doc-wrap">{card.excerpt ?? 'Tin không có chữ (chỉ có tệp).'}</p>}
+    {card.contentMode === 'excerpt'
+      ? <p className="inbox-text doc-wrap">{card.excerpt ?? 'Tin không có chữ (chỉ có tệp).'}</p>
+      : <NoTextNotice mode={card.contentMode} sourceRef={card.sourceRef} />}
     {card.attachments.length > 0 && <ul className="inbox-plain" aria-label="Tệp đính kèm">{card.attachments.map((a, i) => <li key={i} className="doc-wrap">
       {a.fileName || 'Tệp không tên'} · {a.mimeType} · {sizeLabel(a.sizeBytes)} · {a.state === 'stored' ? 'Đã ghi con trỏ' : a.state === 'too_large' ? 'Quá lớn, chỉ ghi thông tin' : a.state === 'unsupported_type' ? 'Loại tệp không nhận, chỉ ghi thông tin' : a.state}</li>)}</ul>}
     <dl className="inbox-life">

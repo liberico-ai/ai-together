@@ -6,6 +6,8 @@ export type InboxPageState = 'loading' | 'denied' | 'error' | 'empty' | 'ready';
 export const CONFLICT_COPY = 'Mục này vừa được người khác cập nhật. Tải lại để xem bản mới.';
 export const NOT_MANAGER_COPY = 'Chỉ điều phối dự án được thao tác. Vai hiện tại của anh/chị chỉ xem Inbox.';
 export const POINTER_ONLY_COPY = 'Chỉ giữ con trỏ và hash. Mở tin gốc trong Telegram';
+// OQ-30 (14/11/2026): text was stored, but the current configuration no longer allows showing it.
+export const HIDDEN_COPY = 'Nội dung đang ẩn theo cấu hình hiện tại. Mở tin gốc trong Telegram';
 
 export const inboxState = (i: { loading: boolean; error: string | null; denied: boolean; count: number }): InboxPageState =>
   i.loading ? 'loading' : i.denied ? 'denied' : i.error ? 'error' : i.count === 0 ? 'empty' : 'ready';

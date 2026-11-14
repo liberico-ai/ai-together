@@ -35,3 +35,17 @@ export async function requireBridgeConfig(code:'INTAKE_UNCONFIGURED'|'BRIDGE_UNC
  if(!config) throw new AppError(code,code==='INTAKE_UNCONFIGURED'?'Tiếp nhận chưa được cấu hình.':'Cầu nối chưa được cấu hình.',503);
  return config;
 }
+/**
+ * The operator's excerpt flag list, read for the Inbox each time it is built (OQ-30, 14/11/2026: stored text is hidden as soon as the
+ * current config no longer allows it). Unset, unreadable, malformed or inconsistent config means no group is flagged (fail-closed).
+ * Only the fixed event code and the error class are logged; never the path or the content.
+ */
+export async function currentExcerptChats():Promise<string[]> {
+ try {
+  const config=await loadBridgeConfig();
+  return [...(config?.intake?.excerptChats??[])];
+ } catch(error) {
+  console.error(JSON.stringify({level:'error',event:'bridge_config_unreadable',code:'INBOX_EXCERPT_CONFIG',errorType:error instanceof Error?error.name:'unknown'}));
+  return [];
+ }
+}

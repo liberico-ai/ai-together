@@ -26,10 +26,10 @@ async function asIntake<T>(projectIds:string[],fn:(tx:Queryable)=>Promise<T>,ten
     return fn(tx);
   });
 }
-const eventSql=`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,content_mode,trace_id,correlation_id)
-  VALUES($1,$2,'gw-1','telegram_gateway',80,$3,$4,'t1','actor-1',now(),false,false,'excerpt',$5,$5) RETURNING id`;
+const eventSql=`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
+  VALUES($1,$2,'gw-1','telegram_gateway',80,$3,$4,'t1','actor-1',now(),false,false,$5,$5) RETURNING id`;
 const newEvent=(tx:Queryable,project=ids.sales,tenant=ids.tenant,msg='1')=>tx.query<{id:string}>(eventSql,[tenant,project,chatSales,msg,randomUUID()]);
-const revSql=`INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash) VALUES($1,$2,$3,1,$4,$5) RETURNING id`;
+const revSql=`INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,content_mode) VALUES($1,$2,$3,1,$4,$5,'pointer_only') RETURNING id`;
 const candSql=`INSERT INTO intake_candidates(tenant_id,project_id,chat_id,thread_key,root_source_event_id) VALUES($1,$2,$3,'t1',$4) RETURNING id`;
 const evtSql=`INSERT INTO intake_events(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload)
   VALUES($1,$2,'source_event',$3,$4,$5,'k',$6,$6,'{}')`;
@@ -163,7 +163,7 @@ test('a stored attachment needs locator, hash and a size within 20 MiB',async()=
     // one revision per attachment (UNIQUE(revision_id)); make a fresh revision each time
     n+=1;
     const rid=n===1?r:(await h.operator.query<{id:string}>(
-      'INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash) VALUES($1,$2,$3,$4,$5,$6) RETURNING id',
+      "INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,content_mode) VALUES($1,$2,$3,$4,$5,$6,'pointer_only') RETURNING id",
       [ids.tenant,ids.sales,e,n,hex(String(n)),hex('b')])).rows[0].id;
     return h.operator.query(`INSERT INTO intake_attachments(tenant_id,project_id,source_event_id,revision_id,state,locator,sha256,size_bytes) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
       [ids.tenant,ids.sales,e,rid,state,locator,sha,size]);
@@ -195,6 +195,37 @@ test('intake_events actor_id is bound to the acting identity (fail-closed)',asyn
   await expect(asRuntime(usr(pm.id),null)).rejects.toThrow();
 });
 
+// OQ-30 decided 14/11/2026 (b): the content mode is a column of each revision; the event carries none.
+const modeRevSql=`INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,content_mode,text_excerpt) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`;
+test('a pointer-only revision cannot carry text',async()=>{
+  const e=(await h.operator.query<{id:string}>(eventSql,[ids.tenant,ids.sales,chatSales,'1',randomUUID()])).rows[0].id;
+  const put=(q:Queryable,no:number,mode:string|null,text:string|null)=>q.query(modeRevSql,[ids.tenant,ids.sales,e,no,hex(String(no)),hex('b'),mode,text]);
+  await expect(put(h.operator,1,'pointer_only','chữ lọt')).rejects.toThrow(/source_event_revisions_pointer_only_no_text|check constraint/);
+  await expect(asIntake([ids.sales],tx=>put(tx,1,'pointer_only','chữ lọt'))).rejects.toThrow(/source_event_revisions_pointer_only_no_text|check constraint/);
+  await expect(put(h.operator,1,'other',null)).rejects.toThrow();
+  await expect(put(h.operator,1,null,null)).rejects.toThrow();
+  await expect(put(h.operator,1,'pointer_only',null)).resolves.toBeTruthy();
+  await expect(asIntake([ids.sales],tx=>put(tx,2,'excerpt','chữ được lưu'))).resolves.toBeTruthy();
+  const rows=(await h.operator.query<{content_mode:string;text_excerpt:string|null}>('SELECT content_mode,text_excerpt FROM source_event_revisions ORDER BY revision_no')).rows;
+  expect(rows).toEqual([{content_mode:'pointer_only',text_excerpt:null},{content_mode:'excerpt',text_excerpt:'chữ được lưu'}]);
+});
+
+test('source_events has no content_mode column',async()=>{
+  const cols=async(t:string)=>(await h.operator.query<{column_name:string}>(
+    "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1",[t])).rows.map(r=>r.column_name);
+  expect(await cols('source_events')).not.toContain('content_mode');
+  expect(await cols('source_event_revisions')).toContain('content_mode');
+});
+
+test('the intake role inserts content_mode on a revision and still cannot update or delete either table',async()=>{
+  const e=(await asIntake([ids.sales],tx=>newEvent(tx))).rows[0].id;
+  await expect(asIntake([ids.sales],tx=>tx.query(modeRevSql,[ids.tenant,ids.sales,e,1,hex('1'),hex('b'),'excerpt','chữ']))).resolves.toBeTruthy();
+  for(const sql of ["UPDATE source_event_revisions SET content_mode='pointer_only',text_excerpt=NULL","UPDATE source_event_revisions SET text_excerpt=NULL",
+    'DELETE FROM source_event_revisions',"UPDATE source_events SET locator=''",'DELETE FROM source_events'])
+    await expect(asIntake([ids.sales],tx=>tx.query(sql)),sql).rejects.toThrow(/permission denied|Append-only history/);
+  expect((await h.operator.query<{content_mode:string;text_excerpt:string}>('SELECT content_mode,text_excerpt FROM source_event_revisions')).rows).toEqual([{content_mode:'excerpt',text_excerpt:'chữ'}]);
+});
+
 describe.skipIf(!native)('native roles',()=>{
   test('web login cannot assume the intake role; intake login is unprivileged',async()=>{
     await expect(h.db.transaction(async tx=>{await tx.query('SET ROLE libetech_intake');})).rejects.toThrow();
@@ -218,9 +249,9 @@ test('item 2 column-level INSERT grants: defaults own ids, timestamps, ingested_
   };
   const old='2020-01-01T00:00:00Z',idv='00000000-0000-4000-8000-0000000000cc';
   const cases:[string,string,unknown[],[string,unknown][]][]=[
-    ['source_events','tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,content_mode,trace_id,correlation_id',
-      [...T,'g','telegram_gateway',80,chatSales,'91','t','a',old,false,false,'excerpt',idv,idv],[['ingested_at',old],['created_at',old],['id',idv]]],
-    ['source_event_revisions','tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash',[...T,e,2,hex('c'),hex('d')],[['created_at',old],['id',idv]]],
+    ['source_events','tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id',
+      [...T,'g','telegram_gateway',80,chatSales,'91','t','a',old,false,false,idv,idv],[['ingested_at',old],['created_at',old],['id',idv]]],
+    ['source_event_revisions','tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,content_mode',[...T,e,2,hex('c'),hex('d'),'pointer_only'],[['created_at',old],['id',idv]]],
     ['intake_attachments','tenant_id,project_id,source_event_id,revision_id,state',[...T,e,r,'failed'],[['created_at',old],['hash_verification','gateway_declared']]],
     ['intake_candidates','tenant_id,project_id,chat_id,thread_key,root_source_event_id',[...T,chatSales,'t9',e],[['created_at',old],['version',5],['note','x'],['missing_fields','[]']]],
     ['intake_events','tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload',[...T,'source_event',e,pm.id,'intake_service','k',idv,idv,'{}'],[['created_at',old],['id',idv]]],

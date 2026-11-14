@@ -64,6 +64,8 @@ export class IntakeService {
   return intakeScoped(this.db,pid,async tx=>{
    // OQ-28 (c): the operator flags a group in the bridge config. Fail closed twice: no flag means pointer only, and a project
    // mapped to IBS_HI is always pointer only (AGENTS.md:16). Other domain labels and "unmapped" decide nothing.
+   // OQ-30 (b), decided 14/11/2026: the mode belongs to this revision, judged with the configuration current now. It may loosen or
+   // tighten between revisions of one message; a replayed revision keeps the row (and mode) it was first written with.
    const flagged=(this.intake.excerptChats??[]).includes(c.chatId);
    const mapping=flagged?(await tx.query<{domain_code:string}>('SELECT domain_code FROM project_domain_mappings WHERE tenant_id=$1 AND project_id=$2 ORDER BY mapping_version DESC LIMIT 1',[tenantId,projectId])).rows[0]?.domain_code:undefined;
    const contentMode=flagged&&mapping!=='IBS_HI'?'excerpt':'pointer_only';
@@ -72,10 +74,10 @@ export class IntakeService {
    const locator=c.chatId.startsWith('-100')?`https://t.me/c/${c.chatId.slice(4)}/${c.messageId}`:'';
    const score=qualityScore({forwarded:e.forwarded,textTruncated:e.textTruncated,attachmentState:attState});
    const ins=await tx.query<{id:string;thread_key:string;trace_id:string;correlation_id:string}>(
-    `INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,topic_id,message_id,reply_to_message_id,media_group_id,thread_key,source_actor,source_actor_label,observed_at,locator,forwarded,addressed,spooled,content_mode,trace_id,correlation_id)
-     VALUES($1,$2,$3,'telegram_gateway',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+    `INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,topic_id,message_id,reply_to_message_id,media_group_id,thread_key,source_actor,source_actor_label,observed_at,locator,forwarded,addressed,spooled,trace_id,correlation_id)
+     VALUES($1,$2,$3,'telegram_gateway',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      ON CONFLICT(tenant_id,source_type,chat_id,message_id) DO NOTHING RETURNING id,thread_key,trace_id,correlation_id`,
-    [tenantId,projectId,eventKey(c.chatId,c.messageId),score,c.chatId,c.topicId??'',c.messageId,c.replyToMessageId??null,c.mediaGroupId??null,tKey,'tg:'+c.telegramId,e.actorLabel??'',e.observedAt,locator,e.forwarded,e.addressed,e.spooled,contentMode,e.traceId,randomUUID()]);
+    [tenantId,projectId,eventKey(c.chatId,c.messageId),score,c.chatId,c.topicId??'',c.messageId,c.replyToMessageId??null,c.mediaGroupId??null,tKey,'tg:'+c.telegramId,e.actorLabel??'',e.observedAt,locator,e.forwarded,e.addressed,e.spooled,e.traceId,randomUUID()]);
    let ev=ins.rows[0];
    const isNewEvent=Boolean(ev);
    if(!ev) {
@@ -85,10 +87,10 @@ export class IntakeService {
    await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[ev.id]);
    const excerpt=contentMode==='excerpt'?redactSecrets(e.text.slice(0,4096)).slice(0,4096):null;
    const rev=(await tx.query<{id:string;revision_no:number}>(
-    `INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,text_excerpt,text_truncated)
-     SELECT $1::uuid,$2::uuid,$3::uuid,coalesce(max(revision_no),0)+1,$4::text,$5::timestamptz,$6::text,$7::text,$8::boolean FROM source_event_revisions WHERE source_event_id=$3::uuid
+    `INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,content_mode,text_excerpt,text_truncated)
+     SELECT $1::uuid,$2::uuid,$3::uuid,coalesce(max(revision_no),0)+1,$4::text,$5::timestamptz,$6::text,$7::text,$8::text,$9::boolean FROM source_event_revisions WHERE source_event_id=$3::uuid
      ON CONFLICT(source_event_id,revision_key) DO NOTHING RETURNING id,revision_no`,
-    [tenantId,projectId,ev.id,revisionKey,e.editedAt??null,e.contentHash,excerpt,e.textTruncated])).rows[0];
+    [tenantId,projectId,ev.id,revisionKey,e.editedAt??null,e.contentHash,contentMode,excerpt,e.textTruncated])).rows[0];
    const replayed=!rev;
    const revisionNo=rev?rev.revision_no:(await tx.query<{revision_no:number}>('SELECT revision_no FROM source_event_revisions WHERE source_event_id=$1 AND revision_key=$2',[ev.id,revisionKey])).rows[0].revision_no;
 
@@ -106,6 +108,7 @@ export class IntakeService {
     `INSERT INTO intake_events(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload) VALUES($1,$2,$3,$4,$5,'intake_service',$6,$7,$8,$9)`,
     [tenantId,projectId,entityType,entityId,this.principalId,kind,requestId,e.traceId,JSON.stringify(payload)]);
    if(rev) {
+    // contentMode here is this revision's mode (OQ-30 (b)).
     await audit('source_event',ev.id,isNewEvent?'source_event.persisted':'source_event.revised',{revisionNo,contentMode});
     const created=(await tx.query<{id:string}>(
      `INSERT INTO intake_candidates(tenant_id,project_id,chat_id,thread_key,root_source_event_id) VALUES($1,$2,$3,$4,$5)

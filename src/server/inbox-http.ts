@@ -5,6 +5,7 @@ import type { Database } from './db';
 import { AppError } from './errors';
 import { body, failure, success } from './http';
 import { InboxService } from './inbox';
+import { currentExcerptChats } from './bridge-config';
 
 // Same sentence as InboxService's out-of-scope answer: unknown path, unknown id and out-of-scope id are indistinguishable.
 const notFound = () => new AppError('SCOPE_DENIED', 'Không tìm thấy mục trong phạm vi được cấp.', 404);
@@ -30,7 +31,8 @@ export async function handleInboxApi(request: Request, parts: string[], db: Data
     const m = request.method;
     if (m !== 'GET') checkOrigin(request);
     if (parts[0] !== 'inbox') throw notFound();
-    const inbox = new InboxService(db);
+    // OQ-30: the flag list is read from the operator config on every request, so a tightened config hides text at once.
+    const inbox = new InboxService(db, await currentExcerptChats());
     const rest = parts.slice(1);
     if (m === 'GET' && rest.length === 0) return success(await inbox.list(principal, query(request)), 200, requestId);
     if (m === 'GET' && rest.length === 1 && rest[0] === 'sources') return success(await inbox.sources(principal, projectQuery.parse(query(request)).projectId), 200, requestId);

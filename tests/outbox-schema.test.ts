@@ -16,8 +16,8 @@ const TG='900000001'; // telegram id linked to pm (synthetic)
 beforeEach(async()=>{
   h=await openHarness();await h.reset();await seedSlice1(h);
   await h.operator.query('INSERT INTO identity.telegram_links(tenant_id,user_id,telegram_id) VALUES($1,$2,$3)',[ids.tenant,pm.id,TG]);
-  srcSales=(await h.operator.query<{id:string}>(`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,content_mode,trace_id,correlation_id)
-    VALUES($1,$2,'g','telegram_gateway',80,$3,'1000','t','a',now(),false,false,'excerpt',$4,$4) RETURNING id`,[ids.tenant,ids.sales,chatSales,randomUUID()])).rows[0].id;
+  srcSales=(await h.operator.query<{id:string}>(`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
+    VALUES($1,$2,'g','telegram_gateway',80,$3,'1000','t','a',now(),false,false,$4,$4) RETURNING id`,[ids.tenant,ids.sales,chatSales,randomUUID()])).rows[0].id;
 });
 afterEach(async()=>{await h.reset();await h.close();});
 
@@ -138,8 +138,8 @@ test('a DM row has no project and a group row has one',async()=>{
   await expect(insert(o,groupVals({recipient_user_id:pm.id}))).rejects.toThrow();
   await expect(insert(o,dmVals({project_id:ids.sales}))).rejects.toThrow();
   await expect(insert(o,dmVals({recipient_user_id:null}))).rejects.toThrow();
-  const e=(await o.query<{id:string}>(`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,content_mode,trace_id,correlation_id)
-    VALUES($1,$2,'g','telegram_gateway',80,$3,'1','t','a',now(),false,false,'excerpt',$4,$4) RETURNING id`,[ids.tenant,ids.sales,chatSales,randomUUID()])).rows[0].id;
+  const e=(await o.query<{id:string}>(`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
+    VALUES($1,$2,'g','telegram_gateway',80,$3,'1','t','a',now(),false,false,$4,$4) RETURNING id`,[ids.tenant,ids.sales,chatSales,randomUUID()])).rows[0].id;
   await expect(insert(o,dmVals({source_event_id:e}))).rejects.toThrow();
   await expect(insert(o,groupVals({source_event_id:e}))).resolves.toBeTruthy();
   // a source event of another project is refused by the composite FK

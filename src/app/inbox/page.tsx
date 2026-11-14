@@ -4,6 +4,7 @@ import { database } from '@/server/db';
 import { projectRole } from '@/server/types';
 import { WorkService } from '@/server/service';
 import { InboxService, readable } from '@/server/inbox';
+import { currentExcerptChats } from '@/server/bridge-config';
 import { AppError } from '@/server/errors';
 import { Inbox } from '@/components/inbox';
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const projects = (await new WorkService(db).workspace(principal)).projects.filter(p => mayRead(p.id)).map(p => ({ id: p.id, name: p.name }));
   if (!projectId && projects.length === 1) redirect('/inbox?projectId=' + projects[0].id);
   if (!projectId) return <Inbox key="picker" projects={projects} projectId={null} initial={null} sources={[]} failures={[]} denied={false} canAct={false} />;
-  const inbox = new InboxService(db);
+  const inbox = new InboxService(db, await currentExcerptChats());
   try {
     const [initial, sources, failures] = await Promise.all([inbox.list(principal, { projectId }), inbox.sources(principal, projectId), inbox.failures(principal, projectId)]);
     return <Inbox key={projectId} projects={projects} projectId={projectId} initial={JSON.parse(JSON.stringify(initial))} sources={sources} failures={failures} denied={false} canAct={projectRole(principal, projectId) === 'manager'} />;

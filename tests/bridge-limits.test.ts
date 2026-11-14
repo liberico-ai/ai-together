@@ -171,7 +171,7 @@ test('the intake route takes the excerpt flag from the operator config',async()=
     const event=messageEvent({text:'chữ theo cấu hình'});
     await handleBridgeIo(signedRequest(EVENTS,event),['intake','events'],{intakeDb:h.operator,identity,config,tenantId:ids.tenant});
     return (await h.operator.query<{content_mode:string;text_excerpt:string|null}>(
-      'SELECT e.content_mode,r.text_excerpt FROM source_events e JOIN source_event_revisions r ON r.source_event_id=e.id WHERE e.message_id=$1',[event.context.messageId])).rows[0];
+      'SELECT r.content_mode,r.text_excerpt FROM source_events e JOIN source_event_revisions r ON r.source_event_id=e.id WHERE e.message_id=$1',[event.context.messageId])).rows[0];
   };
   const flagged={...bridgeConfig,intake:{...bridgeConfig.intake!,excerptChats:[bridgeConfig.intake!.chats[0]]}};
   expect(await run(flagged)).toEqual({content_mode:'excerpt',text_excerpt:'chữ theo cấu hình'});

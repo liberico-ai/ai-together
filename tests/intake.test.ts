@@ -1,4 +1,5 @@
 import {afterEach,beforeEach,expect,test,vi} from 'vitest';
+import {createHash} from 'node:crypto';
 import {ZodError} from 'zod';
 import {openHarness,type Harness} from './slice1-db';
 import {pm,seedSlice1} from './slice1-fixtures';
@@ -179,8 +180,10 @@ test('OQ-27 decision (a): a group mapped to several projects is refused with INT
   await allZero();
 });
 
-const modeRow=async(id:string)=>(await h.operator.query<{content_mode:string;text_excerpt:string|null;content_hash:string}>(
-  'SELECT e.content_mode,r.text_excerpt,r.content_hash FROM source_events e JOIN source_event_revisions r ON r.source_event_id=e.id WHERE e.id=$1',[id])).rows[0];
+// OQ-30 (b): the mode belongs to each revision; this reads revision 1 (or the one named).
+const modeRows=async(id:string)=>(await h.operator.query<{revision_no:number;content_mode:string;text_excerpt:string|null;content_hash:string}>(
+  'SELECT r.revision_no,r.content_mode,r.text_excerpt,r.content_hash FROM source_event_revisions r WHERE r.source_event_id=$1 ORDER BY r.revision_no',[id])).rows;
+const modeRow=async(id:string,revisionNo=1)=>(await modeRows(id)).find(r=>r.revision_no===revisionNo)!;
 const HASH=/^[a-f0-9]{64}$/;
 
 test('OQ-28 a flagged group with an unmapped project stores the excerpt',async()=>{
@@ -224,18 +227,69 @@ test('OQ-28 a flag in the request body is never honoured',async()=>{
   expect(r.content_hash).toMatch(HASH);
 });
 
-test('S10 pointer_only text is not written to any table and does not appear in logs',async()=>{
+test('S10 a pointer_only revision\'s text is not written to any table and does not appear in logs',async()=>{
   const secret='ZEBRA-DISTINCT-7731 nội dung riêng';
   const logs:string[]=[];
   for(const m of ['log','info','warn','error','debug'] as const) vi.spyOn(console,m).mockImplementation((...a:unknown[])=>{logs.push(JSON.stringify(a));});
   const r=await svc().ingest(ev({text:secret,actorLabel:'Người gửi',attachment:stored('9')}));
-  expect((await h.operator.query<{content_mode:string}>('SELECT content_mode FROM source_events WHERE id=$1',[r.sourceEventId])).rows[0].content_mode).toBe('pointer_only');
+  expect((await modeRow(r.sourceEventId)).content_mode).toBe('pointer_only');
   for(const t of tables){
     const rows=(await h.operator.query<{r:string}>(`SELECT x::text AS r FROM ${t} x`)).rows;
     expect(rows.length,t).toBeGreaterThan(0);
     for(const x of rows) expect(x.r,t).not.toContain('ZEBRA-DISTINCT-7731');
   }
   expect(logs.join('\n')).not.toContain('ZEBRA-DISTINCT-7731');
+});
+
+// OQ-30 decided 14/11/2026 (b): each revision is judged with the configuration current when it is written; it may loosen or tighten.
+const sha=(t:string)=>createHash('sha256').update(t).digest('hex');
+const editOf=(base:ReturnType<typeof ev>,text:string,minutes:number)=>({...base,text,contentHash:sha(text),editedAt:new Date(new Date(base.observedAt).getTime()+minutes*60000).toISOString()});
+const auditModes=async(id:string)=>(await h.operator.query<{payload:{revisionNo:number;contentMode:string}}>(
+  "SELECT payload FROM intake_events WHERE entity_id=$1 AND entity_type='source_event' ORDER BY created_at,id",[id])).rows.map(r=>r.payload);
+
+test('OQ-30 an edit after the group is flagged stores the excerpt on that revision only',async()=>{
+  const base=ev({text:'bản gốc chưa bật cờ'});
+  const a=await svc().ingest(base);
+  const b=await flagged(chatSales).ingest(editOf(base,'bản sửa sau khi bật cờ',1));
+  expect(b).toMatchObject({sourceEventId:a.sourceEventId,revisionNo:2});
+  const rows=await modeRows(a.sourceEventId);
+  expect(rows.map(r=>[r.revision_no,r.content_mode,r.text_excerpt])).toEqual([[1,'pointer_only',null],[2,'excerpt','bản sửa sau khi bật cờ']]);
+  for(const r of rows) expect(r.content_hash).toMatch(HASH);
+  expect(await auditModes(a.sourceEventId)).toEqual([{revisionNo:1,contentMode:'pointer_only'},{revisionNo:2,contentMode:'excerpt'}]);
+});
+
+test('OQ-30 an edit after the flag is removed keeps pointer and hash only',async()=>{
+  const base=ev({text:'bản gốc khi có cờ'});
+  const a=await flagged(chatSales).ingest(base);
+  const before=await modeRow(a.sourceEventId);
+  await svc().ingest(editOf(base,'bản sửa khi đã gỡ cờ',1));
+  const rows=await modeRows(a.sourceEventId);
+  expect(rows.map(r=>[r.revision_no,r.content_mode,r.text_excerpt])).toEqual([[1,'excerpt','bản gốc khi có cờ'],[2,'pointer_only',null]]);
+  expect(rows[0]).toEqual(before);
+  expect(rows[1].content_hash).toBe(sha('bản sửa khi đã gỡ cờ'));
+  for(const t of tables) for(const x of (await h.operator.query<{r:string}>(`SELECT x::text AS r FROM ${t} x`)).rows) expect(x.r,t).not.toContain('bản sửa khi đã gỡ cờ');
+});
+
+test('OQ-30 an edit after the project becomes IBS HI keeps pointer and hash only',async()=>{
+  const base=ev({text:'bản gốc chưa ánh xạ'});
+  const a=await flagged(chatSales).ingest(base);
+  await mapDomain(ids.sales,'IBS_HI');
+  await flagged(chatSales).ingest(editOf(base,'bản sửa sau IBS HI',1));
+  const rows=await modeRows(a.sourceEventId);
+  expect(rows.map(r=>[r.revision_no,r.content_mode,r.text_excerpt])).toEqual([[1,'excerpt','bản gốc chưa ánh xạ'],[2,'pointer_only',null]]);
+  expect(await auditModes(a.sourceEventId)).toEqual([{revisionNo:1,contentMode:'excerpt'},{revisionNo:2,contentMode:'pointer_only'}]);
+});
+
+test('OQ-30 replaying a stored revision changes nothing after the configuration changes',async()=>{
+  const p=ev({text:'tin con trỏ phát lại'}),x=ev({text:'tin có chữ phát lại'});
+  const a=await svc().ingest(p),b=await flagged(chatSales).ingest(x);
+  const snap=async()=>Promise.all(tables.map(async t=>(await h.operator.query<{r:string}>(`SELECT x::text AS r FROM ${t} x ORDER BY x.id`)).rows));
+  const before=await snap();
+  expect(await flagged(chatSales).ingest(p)).toMatchObject({sourceEventId:a.sourceEventId,revisionNo:1,replayed:true});
+  expect(await svc().ingest(x)).toMatchObject({sourceEventId:b.sourceEventId,revisionNo:1,replayed:true});
+  expect(await snap()).toEqual(before);
+  expect(await modeRow(a.sourceEventId)).toMatchObject({content_mode:'pointer_only',text_excerpt:null});
+  expect(await modeRow(b.sourceEventId)).toMatchObject({content_mode:'excerpt',text_excerpt:'tin có chữ phát lại'});
 });
 
 test('a file-only message and hostile file names are stored safely',async()=>{

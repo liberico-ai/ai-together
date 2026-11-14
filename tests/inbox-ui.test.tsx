@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { statusLabel, variantOf, inboxState, commandErrorMessage, initialDraft, templateLabel, formatTime, reloadInbox, loadDetail, CONFLICT_COPY, NOT_MANAGER_COPY, type CardDraft } from '../src/components/inbox-view';
+import { statusLabel, variantOf, inboxState, commandErrorMessage, initialDraft, templateLabel, formatTime, reloadInbox, loadDetail, CONFLICT_COPY, NOT_MANAGER_COPY, HIDDEN_COPY, POINTER_ONLY_COPY, type CardDraft } from '../src/components/inbox-view';
 import { Inbox, InboxBody, IntakeCard, CardView, CardDetailView, SourceList, FailureList, GatewayHash } from '../src/components/inbox';
 import { api, ApiError } from '../src/components/api';
 import { ApprovalItem } from '../src/components/approvals';
@@ -277,6 +277,31 @@ describe('inbox UI', () => {
     expect(ex).not.toContain('Chỉ giữ con trỏ');
   });
 
+  // OQ-30 decided 14/11/2026: text is shown only for 'excerpt'; 'hidden' (config tightened since) has its own copy, like pointer-only.
+  it('OQ-30 hidden cards show the hidden copy and no text; text renders only for excerpt', () => {
+    const m = render(card({ contentMode: 'hidden', excerpt: 'NỘI DUNG ĐANG ẨN', sourceRef: 'telegram:-1000000000001:77' }));
+    expect(m).toContain(HIDDEN_COPY);
+    expect(HIDDEN_COPY).toBe('Nội dung đang ẩn theo cấu hình hiện tại. Mở tin gốc trong Telegram');
+    expect(m).toContain('telegram:-1000000000001:77');
+    expect(m).not.toContain('NỘI DUNG ĐANG ẨN');
+    expect(m).not.toContain(POINTER_ONLY_COPY);
+    expect(render(card({ contentMode: 'pointer_only', excerpt: null }))).not.toContain(HIDDEN_COPY);
+    expect(render(card())).not.toContain(HIDDEN_COPY);
+  });
+
+  it('OQ-30 the detail view shows text per revision only when that revision is excerpt', () => {
+    const rev = (revisionNo: number, contentMode: 'excerpt' | 'hidden' | 'pointer_only', excerpt: string | null) =>
+      ({ revisionNo, editedAt: null, contentMode, contentHash: contentMode === 'excerpt' ? 'c'.repeat(64) : null, excerpt, textTruncated: false, recordedAt: '2026-11-13T01:00:01.000Z' });
+    const detail = { card: card({ contentMode: 'excerpt', excerpt: 'BẢN BA HIỆN' }), events: [], deliveries: [],
+      revisions: [rev(3, 'excerpt', 'BẢN BA HIỆN'), rev(2, 'hidden', 'BẢN HAI KHÔNG HIỆN'), rev(1, 'pointer_only', 'BẢN MỘT KHÔNG HIỆN')] };
+    const m = renderToStaticMarkup(<CardDetailView state={{ detail, error: '', loading: false }} onOpen={noop} onRetry={noop} />);
+    expect(m).toContain('BẢN BA HIỆN');
+    expect(m).not.toContain('BẢN HAI KHÔNG HIỆN');
+    expect(m).not.toContain('BẢN MỘT KHÔNG HIỆN');
+    expect(m).toContain(HIDDEN_COPY);
+    expect(m).toContain(POINTER_ONLY_COPY);
+  });
+
   it('gateway-declared hashes are never shown as verified', () => {
     const h = 'a'.repeat(64);
     const m = renderToStaticMarkup(<GatewayHash hash={h} />);
@@ -432,7 +457,7 @@ describe('UI-6 request failures', () => {
 
   it('a card detail that fails to load shows the copy and «Thử lại»; pressing it loads again and shows the detail', async () => {
     const detail = { card: fresh(), events: [], deliveries: [],
-      revisions: [{ revisionNo: 1, editedAt: null, contentHash: 'b'.repeat(64), excerpt: 'Cổng thanh toán lỗi từ 9 giờ', textTruncated: false, recordedAt: '2026-11-13T01:00:01.000Z' }] };
+      revisions: [{ revisionNo: 1, editedAt: null, contentMode: 'excerpt' as const, contentHash: 'b'.repeat(64), excerpt: 'Cổng thanh toán lỗi từ 9 giờ', textTruncated: false, recordedAt: '2026-11-13T01:00:01.000Z' }] };
     const fetch = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce(json(200, { data: detail, error: null }));
     vi.stubGlobal('fetch', fetch);
     let state: { detail: typeof detail | null; error: string; loading: boolean } = { detail: null, error: '', loading: false };

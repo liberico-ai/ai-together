@@ -23,7 +23,8 @@ afterEach(async()=>{await h.reset();await h.close();});
 const chats=bridgeConfig.intake!.chats;
 // OQ-28 (c): a group stores an excerpt only when the operator config flags it; the default fixture flags none.
 const intake=(excerptChats?:string[])=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats,excerptChats});
-const inbox=()=>new InboxService(h.db);
+// OQ-30 (b): the Inbox shows stored text only while the operator config still flags the group; these tests flag both groups unless they say otherwise.
+const inbox=(excerptChats:string[]=[chatSales,chatTransport])=>new InboxService(h.db,excerptChats);
 const outbox=()=>new OutboxService(h.operator,new IdentityService(h.operator,ids.tenant),{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales,ids.transport]});
 const k=()=>randomUUID();
 type R=Record<string,unknown>;
@@ -403,7 +404,64 @@ test('M1 detail gives no content hash for a pointer_only project and keeps it fo
   const t=await ingest({context:{chatId:chatTransport},text:'nội dung có trích đoạn'},[chatTransport]);
   const dt=await inbox().detail(pm,t.id);
   expect(dt.card.contentMode).toBe('excerpt');
-  for(const r of dt.revisions) expect(r.contentHash).toMatch(/^[a-f0-9]{64}$/);
+  for(const r of dt.revisions){expect(r.contentMode).toBe('excerpt');expect(r.contentHash).toMatch(/^[a-f0-9]{64}$/);}
+  for(const r of d.revisions) expect(r.contentMode).toBe('pointer_only');
+});
+
+// OQ-30 decided 14/11/2026: «Ẩn ngay, thiết kế xoá sau» — text stays in the immutable table, the Inbox hides it under the current config.
+const mapDomain=(project:string,code:string)=>h.operator.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,$3,$4,'synthetic-source',1)",[ids.tenant,project,code,pm.id]);
+const storedText=async(id:string)=>(await rows<{text_excerpt:string|null}>(
+  'SELECT r.text_excerpt FROM source_event_revisions r JOIN intake_candidates c ON c.root_source_event_id=r.source_event_id WHERE c.id=$1 ORDER BY r.revision_no',[id])).map(r=>r.text_excerpt);
+const expectHidden=async(svc:InboxService,id:string,marker:string,hash:string)=>{
+  const card=(await svc.list(pm,{projectId:ids.sales})).items.find(c=>c.candidateId===id)!;
+  expect(card).toMatchObject({contentMode:'hidden',excerpt:null});
+  const d=await svc.detail(pm,id);
+  expect(d.card).toMatchObject({contentMode:'hidden',excerpt:null});
+  expect(d.revisions.length).toBeGreaterThan(0);
+  for(const r of d.revisions) expect(r).toMatchObject({contentMode:'hidden',excerpt:null,contentHash:null});
+  const all=JSON.stringify({card,d});
+  expect(all).not.toContain(marker);
+  expect(all).not.toContain(hash);
+};
+
+test('OQ-30 stored text is hidden when the group flag is removed',async()=>{
+  const marker='KIWI-HIDDEN-4410 nội dung đã lưu';
+  const a=await ingest({text:marker},[chatSales]);
+  const shown=await inbox([chatSales]).detail(pm,a.id);
+  expect(shown.card).toMatchObject({contentMode:'excerpt',excerpt:marker});
+  expect(shown.revisions[0]).toMatchObject({contentMode:'excerpt',excerpt:marker,contentHash:a.e.contentHash});
+  await expectHidden(inbox([chatTransport]),a.id,marker,a.e.contentHash);
+  expect(await storedText(a.id)).toEqual([marker]);
+});
+
+test('OQ-30 stored text is hidden when the project becomes IBS HI',async()=>{
+  const marker='KIWI-IBSHI-5520 nội dung đã lưu';
+  const a=await ingest({text:marker},[chatSales]);
+  await mapDomain(ids.sales,'IBS_HI');
+  await expectHidden(inbox([chatSales]),a.id,marker,a.e.contentHash);
+  expect(await storedText(a.id)).toEqual([marker]);
+});
+
+test('OQ-30 an edit stored after the flag is turned on shows its text while the earlier pointer-only revision shows none',async()=>{
+  const first=messageEvent({addressed:false,text:'bản gốc khi chưa bật cờ'});
+  await intake().ingest(first);
+  const edit=messageEvent({addressed:false,text:'bản sửa khi đã bật cờ',editedAt:new Date(new Date(first.observedAt).getTime()+60000).toISOString(),context:{messageId:first.context.messageId}});
+  await intake([chatSales]).ingest(edit);
+  const items=(await inbox([chatSales]).list(pm,{projectId:ids.sales})).items;
+  expect(items).toHaveLength(1);
+  expect(items[0]).toMatchObject({contentMode:'excerpt',excerpt:'bản sửa khi đã bật cờ'});
+  const d=await inbox([chatSales]).detail(pm,items[0].candidateId);
+  expect(d.revisions.map(r=>[r.revisionNo,r.contentMode,r.excerpt,r.contentHash])).toEqual([
+    [2,'excerpt','bản sửa khi đã bật cờ',edit.contentHash],[1,'pointer_only',null,null]]);
+  expect(JSON.stringify(d)).not.toContain('bản gốc khi chưa bật cờ');
+});
+
+test('an InboxService built without excerptChats shows no text',async()=>{
+  const marker='KIWI-DEFAULT-6630 nội dung đã lưu';
+  const a=await ingest({text:marker},[chatSales]);
+  await expectHidden(new InboxService(h.db),a.id,marker,a.e.contentHash);
+  const done=await new InboxService(h.db).command(pm,a.id,confirm(),k(),randomUUID());
+  expect(done).toMatchObject({contentMode:'hidden',excerpt:null});
 });
 
 test('M2 the stored command response keeps ids only; a replay returns the current card',async()=>{

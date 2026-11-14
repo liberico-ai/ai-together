@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS source_events (
   source_actor text NOT NULL, source_actor_label text NOT NULL DEFAULT '',
   observed_at timestamptz NOT NULL, locator text NOT NULL DEFAULT '',
   forwarded boolean NOT NULL, addressed boolean NOT NULL, spooled boolean NOT NULL DEFAULT false,
-  content_mode text NOT NULL CHECK(content_mode IN ('excerpt','pointer_only')),
+  -- OQ-30 (b), 14/11/2026: no content mode here; each revision carries its own (source_event_revisions.content_mode).
   trace_id uuid NOT NULL, correlation_id uuid NOT NULL,
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
   UNIQUE(tenant_id,source_type,chat_id,message_id),
@@ -66,8 +66,11 @@ CREATE TABLE IF NOT EXISTS source_event_revisions (
   source_event_id uuid NOT NULL, revision_no integer NOT NULL CHECK(revision_no>0),
   revision_key text NOT NULL CHECK(revision_key ~ '^[a-f0-9]{64}$'), edited_at timestamptz,
   content_hash text NOT NULL CHECK(content_hash ~ '^[a-f0-9]{64}$'),
+  -- OQ-30 (b), 14/11/2026: the mode is decided for each revision with the configuration current when it is written.
+  content_mode text NOT NULL CHECK(content_mode IN ('excerpt','pointer_only')),
   text_excerpt text CHECK(text_excerpt IS NULL OR length(text_excerpt)<=4096),
   text_truncated boolean NOT NULL DEFAULT false,
+  CONSTRAINT source_event_revisions_pointer_only_no_text CHECK(content_mode='excerpt' OR text_excerpt IS NULL),
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
   FOREIGN KEY(source_event_id,tenant_id,project_id) REFERENCES source_events(id,tenant_id,project_id),
   UNIQUE(source_event_id,revision_key), UNIQUE(source_event_id,revision_no), UNIQUE(id,tenant_id,project_id),
@@ -244,8 +247,8 @@ GRANT SELECT ON source_events, source_event_revisions, intake_attachments, intak
 -- Column-level INSERT (pattern 013/014): id, created_at/updated_at, ingested_at, version, hash_verification and candidate decision columns come from defaults.
 REVOKE INSERT ON source_events, source_event_revisions, intake_attachments, intake_candidates, intake_events FROM libetech_intake;
 REVOKE INSERT ON intake_events FROM libetech_runtime;
-GRANT INSERT(tenant_id,project_id,source_id,source_type,quality_score,chat_id,topic_id,message_id,reply_to_message_id,media_group_id,thread_key,source_actor,source_actor_label,observed_at,locator,forwarded,addressed,spooled,content_mode,trace_id,correlation_id) ON source_events TO libetech_intake;
-GRANT INSERT(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,text_excerpt,text_truncated) ON source_event_revisions TO libetech_intake;
+GRANT INSERT(tenant_id,project_id,source_id,source_type,quality_score,chat_id,topic_id,message_id,reply_to_message_id,media_group_id,thread_key,source_actor,source_actor_label,observed_at,locator,forwarded,addressed,spooled,trace_id,correlation_id) ON source_events TO libetech_intake;
+GRANT INSERT(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,content_mode,text_excerpt,text_truncated) ON source_event_revisions TO libetech_intake;
 GRANT INSERT(tenant_id,project_id,source_event_id,revision_id,state,locator,sha256,mime_type,size_bytes,file_name,reason_code) ON intake_attachments TO libetech_intake;
 GRANT INSERT(tenant_id,project_id,chat_id,thread_key,root_source_event_id) ON intake_candidates TO libetech_intake;
 GRANT INSERT(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload) ON intake_events TO libetech_intake;

@@ -1,4 +1,6 @@
-import {afterEach,beforeEach,describe,expect,test} from 'vitest';
+import {afterEach,beforeEach,describe,expect,test,vi} from 'vitest';
+import {mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import {readdirSync,readFileSync,statSync} from 'node:fs';
 import {join} from 'node:path';
 import {openHarness,type Harness} from './slice1-db';
@@ -7,6 +9,7 @@ import {bridgeConfig,chatSales,messageEvent,intakePrincipalId} from './slice2-fi
 import {COOKIE,createSession} from '../src/server/auth';
 import {handleInboxApi} from '../src/server/inbox-http';
 import {IntakeService} from '../src/server/intake';
+import {currentExcerptChats} from '../src/server/bridge-config';
 import {ids} from '../src/server/identities';
 
 let h:Harness;
@@ -78,5 +81,66 @@ describe('inbox HTTP',()=>{
     const files=[...walk('src/app/api/inbox'),'src/server/inbox-http.ts'];
     expect(files.length).toBeGreaterThan(1);
     for(const f of files) expect(readFileSync(f,'utf8')).not.toMatch(/bridge-io/);
+  });
+
+  // OQ-30 decided 14/11/2026: stored text is hidden as soon as the operator config no longer allows it.
+  /** Runs fn with LIBETECH_BRIDGE_CONFIG pointing at a temp file holding `content` (null: variable unset). */
+  const withConfig=async<T>(content:string|null,fn:()=>Promise<T>):Promise<T>=>{
+    const prev=process.env.LIBETECH_BRIDGE_CONFIG;
+    const dir=await mkdtemp(join(tmpdir(),'oq30-'));
+    try {
+      if(content===null) delete process.env.LIBETECH_BRIDGE_CONFIG;
+      else {const f=join(dir,'bridge.json');await writeFile(f,content);process.env.LIBETECH_BRIDGE_CONFIG=f;}
+      return await fn();
+    } finally {
+      if(prev===undefined) delete process.env.LIBETECH_BRIDGE_CONFIG; else process.env.LIBETECH_BRIDGE_CONFIG=prev;
+      await rm(dir,{recursive:true,force:true});
+    }
+  };
+  const flaggedConfig=JSON.stringify({...bridgeConfig,intake:{...bridgeConfig.intake!,excerptChats:[chatSales]}});
+  const unflaggedConfig=JSON.stringify(bridgeConfig);
+
+  test('OQ-30 hidden text never appears in the Inbox API',async()=>{
+    const marker='MANGO-OQ30-9917';
+    const intake=new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{...bridgeConfig.intake!,excerptChats:[chatSales]});
+    const ev=messageEvent({context:{chatId:chatSales},text:'tin có dấu '+marker});
+    const ack=await intake.ingest(ev);
+    const id=(await h.operator.query<{id:string}>('SELECT id FROM intake_candidates WHERE root_source_event_id=$1',[ack.sourceEventId])).rows[0].id;
+    const both=async()=>{
+      const list=await call('GET',`/api/inbox?projectId=${ids.sales}`),det=await call('GET','/api/inbox/'+id);
+      expect(list.status).toBe(200); expect(det.status).toBe(200);
+      return {list:await json(list),det:await json(det)};
+    };
+    const allowed=await withConfig(flaggedConfig,both);
+    expect(JSON.stringify(allowed.list)).toContain(marker);
+    expect(JSON.stringify(allowed.det)).toContain(marker);
+    expect(allowed.det.data.card.contentMode).toBe('excerpt');
+    for(const cfg of [unflaggedConfig,'{not json',null]){
+      const hidden=await withConfig(cfg,both);
+      for(const b of [hidden.list,hidden.det]){const s=JSON.stringify(b);expect(s,String(cfg)).not.toContain(marker);expect(s,String(cfg)).not.toContain(ev.contentHash);}
+      expect(hidden.list.data.items[0]).toMatchObject({contentMode:'hidden',excerpt:null});
+      expect(hidden.det.data.revisions[0]).toMatchObject({contentMode:'hidden',excerpt:null,contentHash:null});
+    }
+    expect((await h.operator.query<{text_excerpt:string}>('SELECT text_excerpt FROM source_event_revisions WHERE source_event_id=$1',[ack.sourceEventId])).rows[0].text_excerpt).toContain(marker);
+  });
+
+  test('the Inbox reads the flag list from the operator config and treats an unreadable config as no flag',async()=>{
+    const logs:string[]=[];
+    const spy=vi.spyOn(console,'error').mockImplementation((...a:unknown[])=>{logs.push(a.map(String).join(' '));});
+    try {
+      expect(await withConfig(flaggedConfig,currentExcerptChats)).toEqual([chatSales]);
+      expect(await withConfig(unflaggedConfig,currentExcerptChats)).toEqual([]);
+      expect(logs).toEqual([]);
+      expect(await withConfig(null,currentExcerptChats)).toEqual([]);
+      expect(await withConfig('{"secret-looking":"PAPAYA-CONTENT-1"',currentExcerptChats)).toEqual([]);
+      expect(await withConfig(JSON.stringify({...bridgeConfig,intake:{...bridgeConfig.intake!,excerptChats:['-1000000000099']}}),currentExcerptChats)).toEqual([]);
+      expect(logs.length).toBe(2);
+      for(const l of logs){
+        expect(JSON.parse(l)).toMatchObject({level:'error',event:'bridge_config_unreadable'});
+        expect(l).not.toContain('PAPAYA');expect(l).not.toContain(tmpdir());expect(l).not.toContain('bridge.json');
+      }
+    } finally { spy.mockRestore(); }
+    for(const f of ['src/server/inbox-http.ts','src/app/inbox/page.tsx'])
+      expect(readFileSync(f,'utf8'),f).toMatch(/new InboxService\(db, await currentExcerptChats\(\)\)/);
   });
 });
