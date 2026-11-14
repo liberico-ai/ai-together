@@ -21,7 +21,7 @@ Theo chỉ đạo mới nhất ngày 11/11, [SPEC-009](SPEC-009-PM-BA-DOCUMENTS-
 
 **Trạng thái P1.1 ngày 14/11/2026:** **đã có mã** — đạt cổng Codex ở vòng 5 (PASS, không finding).
 
-- Nhánh `slice-2-intake-outbox`, mã ở `001d387`, PR liberico-ai/ai-together#10 vào `libetech-ai-os`, chưa merge. Biên nhận: [DELIVERY-011](DELIVERY-011-intake-outbox-20261113.md). Review: [REVIEW-slice-2](reviews/REVIEW-slice-2-20261113.md).
+- Nhánh `slice-2-intake-outbox`, mã ở `001d387`, PR liberico-ai/ai-together#10, merge vào `libetech-ai-os` ngày 14/11/2026 (`eb85364`). Chưa triển khai, chưa dùng thật, chưa nghiệm thu; migration 016–018 chưa áp DB thật. Biên nhận: [DELIVERY-011](DELIVERY-011-intake-outbox-20261113.md). Review: [REVIEW-slice-2](reviews/REVIEW-slice-2-20261113.md).
 - Test, typecheck và build xanh ở `001d387`: native 506/0 bỏ qua, PGlite 485/21 bỏ qua, pytest 66.
 - Chairman đã quyết OQ-26…30 ngày 14/11/2026; mã đã theo OQ-27, OQ-28 (cờ lưu trích theo nhóm), OQ-29 (phiếu đổi quyền đủ khi một BoM đồng ý) và OQ-30 (chế độ theo từng bản sửa, Inbox ẩn theo cấu hình hiện tại).
 - Bốn vòng sửa theo Codex; vòng 3 và vòng 4 có quyết định riêng. `liberico-reality-checker` đã kiểm biên nhận trước khi ghi «đạt».
