@@ -36,15 +36,16 @@ const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
 export const refOf=(id:string)=>'IN-'+id.slice(0,8).toUpperCase();
 
 export class IntakeService {
- constructor(private db:Database,private tenantId:string,private principalId:string,private chatScopes:ChatScopes,private intakeChats:string[],
+ constructor(private db:Database,private tenantId:string,private principalId:string,private chatScopes:ChatScopes,private intake:{chats:readonly string[];excerptChats?:readonly string[]},
   private enqueueReceipt:EnqueueReceipt=realEnqueueReceipt) {}
 
  async ingest(raw:unknown):Promise<IntakeAck> {
   const e=intakeEventSchema.parse(raw),c=e.context;
   // Authority comes only from operator configuration, before any SQL that carries content.
-  if(!c.chatId.startsWith('-')||!this.intakeChats.includes(c.chatId)) throw DENIED();
+  if(!c.chatId.startsWith('-')||!this.intake.chats.includes(c.chatId)) throw DENIED();
   const scope=this.chatScopes[c.chatId]??[];
   if(scope.length===0) throw DENIED();
+  // OQ-27 decided 14/11/2026 (a): only a group mapped to exactly one project is taken in.
   if(scope.length>1) throw new AppError('INTAKE_PROJECT_AMBIGUOUS','Nhóm này chưa được gán đúng một dự án.',409);
   const projectId=scope[0],tenantId=this.tenantId;
   const att=e.attachment;
@@ -59,8 +60,11 @@ export class IntakeService {
   const pid={id:this.principalId,tenantId,projectIds:[projectId]};
 
   return intakeScoped(this.db,pid,async tx=>{
-   const mapping=(await tx.query<{domain_code:string}>('SELECT domain_code FROM project_domain_mappings WHERE tenant_id=$1 AND project_id=$2 ORDER BY mapping_version DESC LIMIT 1',[tenantId,projectId])).rows[0]?.domain_code;
-   const contentMode=mapping==='LIBERICO_BU'||mapping==='XECA'?'excerpt':'pointer_only';
+   // OQ-28 (c): the operator flags a group in the bridge config. Fail closed twice: no flag means pointer only, and a project
+   // mapped to IBS_HI is always pointer only (AGENTS.md:16). Other domain labels and "unmapped" decide nothing.
+   const flagged=(this.intake.excerptChats??[]).includes(c.chatId);
+   const mapping=flagged?(await tx.query<{domain_code:string}>('SELECT domain_code FROM project_domain_mappings WHERE tenant_id=$1 AND project_id=$2 ORDER BY mapping_version DESC LIMIT 1',[tenantId,projectId])).rows[0]?.domain_code:undefined;
+   const contentMode=flagged&&mapping!=='IBS_HI'?'excerpt':'pointer_only';
    const parent=c.replyToMessageId?(await tx.query<{thread_key:string}>('SELECT thread_key FROM source_events WHERE tenant_id=$1 AND source_type=$2 AND chat_id=$3 AND message_id=$4',[tenantId,'telegram_gateway',c.chatId,c.replyToMessageId])).rows[0]?.thread_key:undefined;
    const tKey=threadKey({messageId:c.messageId,mediaGroupId:c.mediaGroupId,parentThreadKey:parent});
    const locator=c.chatId.startsWith('-100')?`https://t.me/c/${c.chatId.slice(4)}/${c.messageId}`:'';

@@ -72,6 +72,24 @@ async function tally(tx:Queryable,approvalId:string,voters:Voter[]) {
  return {state,agreed,chairmanAgreed,bomAgreed,required:'chairman+1bom'};
 }
 
+/** OQ-29 decided 14/11/2026 ("1 thành viên BOM"): an access-change ballot is approved once one frozen BoM voter agrees. The Chairman's
+ * agreement never counts; the Chairman's rejection (ruling S13) or every frozen BoM voter rejecting closes it. */
+async function accessChangeTally(tx:Queryable,approvalId:string,voters:Voter[]) {
+ const votes=(await tx.query<Vote>(`SELECT voter_id,choice FROM identity.account_approval_votes
+  WHERE approval_id=$1`,[approvalId])).rows;
+ const chairman=voters.find(v=>v.seat==='chairman')!;
+ const bom=voters.filter(v=>v.seat!=='chairman');
+ const choice=(id:string)=>votes.find(v=>v.voter_id===id)?.choice;
+ const chairmanAgreed=choice(chairman.user_id)==='agree';
+ const bomAgreed=bom.filter(v=>choice(v.user_id)==='agree').length;
+ const agreed=votes.filter(v=>v.choice==='agree').length;
+ const state=choice(chairman.user_id)==='reject'||bom.every(v=>choice(v.user_id)==='reject')?'rejected':
+  bomAgreed>=1?'approved':'pending';
+ return {state,agreed,chairmanAgreed,bomAgreed,required:'1bom'};
+}
+
+const tallyFor=(kind:ApprovalKind)=>kind==='access_change'?accessChangeTally:tally;
+
 /** An approved, unexpired ballot of exactly `kind` whose frozen voters still hold their seats and still agree.
  * Invitations ask for 'registration' only, so an access-change ballot can never open an invitation. */
 export async function approvalReady(tx:Queryable,identity:IdentityService,approvalId:string,kind:ApprovalKind) {
@@ -81,8 +99,8 @@ export async function approvalReady(tx:Queryable,identity:IdentityService,approv
   'APPROVAL_NOT_READY','Chưa có đủ xác nhận còn hiệu lực.',409);
  const seats=await verifiedApprovalSeats(tx,identity);
  const voters=await frozenVoters(tx,identity,approval,seats);
- invariant((await tally(tx,approvalId,voters)).state==='approved',
-  'APPROVAL_NOT_READY','Cần xác nhận của Chairman và một thành viên BoM.',409);
+ invariant((await tallyFor(kind)(tx,approvalId,voters)).state==='approved',
+  'APPROVAL_NOT_READY',kind==='access_change'?'Cần xác nhận của một thành viên BoM.':'Cần xác nhận của Chairman và một thành viên BoM.',409);
  return approval;
 }
 
@@ -174,7 +192,7 @@ export class AccountApprovalService {
     'SELECT choice FROM identity.account_approval_votes WHERE approval_id=$1 AND voter_id=$2',[approvalId,p.id])).rows[0];
    if(previous) {
     invariant(previous.choice===decision,'VOTE_LOCKED','Phiếu đã ghi lựa chọn khác.',409);
-    return {approvalId,...await tally(tx,approvalId,voters),state:row.state,replayed:true};
+    return {approvalId,...await tallyFor(row.kind)(tx,approvalId,voters),state:row.state,replayed:true};
    }
    invariant(row.state==='pending'&&new Date(row.expires_at).getTime()>Date.now(),
     'APPROVAL_CLOSED','Phiếu đã kết thúc hoặc hết hạn.',409);
@@ -184,7 +202,7 @@ export class AccountApprovalService {
    // a ballot created before the DMs existed has no row, which is not an error.
    await tx.query(`UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now()
     WHERE tenant_id=$1 AND dedupe_key=$2 AND acknowledged_at IS NULL`,[this.identity.tenantId,ballotDmKey(approvalId,p.id)]);
-   const result=await tally(tx,approvalId,voters);
+   const result=await tallyFor(row.kind)(tx,approvalId,voters);
    if(result.state!=='pending') await tx.query(`UPDATE identity.account_approvals SET state=$2,updated_at=now()
     WHERE id=$1`,[approvalId,result.state]);
    await tx.query(`INSERT INTO identity.events(tenant_id,actor_id,kind,detail)

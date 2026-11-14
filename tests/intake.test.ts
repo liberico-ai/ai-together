@@ -2,7 +2,7 @@ import {afterEach,beforeEach,expect,test,vi} from 'vitest';
 import {ZodError} from 'zod';
 import {openHarness,type Harness} from './slice1-db';
 import {pm,seedSlice1} from './slice1-fixtures';
-import {bridgeConfig,chatMulti,chatNotIntake,chatSales,chatUnknown,intakePrincipalId,messageEvent,type EventOverride} from './slice2-fixtures';
+import {bridgeConfig,chatMulti,chatNotIntake,chatSales,chatTransport,chatUnknown,intakePrincipalId,messageEvent,type EventOverride} from './slice2-fixtures';
 import {IntakeService,LATEST_REVISION_ORDER,type EnqueueReceipt} from '../src/server/intake';
 import {attachmentVerdict,cleanFileName,qualityScore,redactSecrets,threadKey} from '../src/server/intake-rules';
 import {enqueueReceipt} from '../src/server/outbox';
@@ -13,7 +13,9 @@ beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);}
 afterEach(async()=>{vi.restoreAllMocks();await h.reset();await h.close();});
 
 const chats=bridgeConfig.intake!.chats;
-const svcWith=(scopes=bridgeConfig.chatScopes,enq?:EnqueueReceipt)=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,scopes,chats,enq);
+const svcWith=(scopes=bridgeConfig.chatScopes,enq?:EnqueueReceipt,excerptChats?:string[])=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,scopes,{chats,excerptChats},enq);
+// OQ-28 (c): the excerpt flag comes from the operator's intake config; the default fixture carries none.
+const flagged=(...flag:string[])=>svcWith(bridgeConfig.chatScopes,undefined,flag);
 const svc=()=>svcWith();
 const tables=['source_events','source_event_revisions','intake_attachments','intake_candidates','intake_events'];
 const count=async(t:string)=>Number((await h.operator.query<{n:string}>(`SELECT count(*) n FROM ${t}`)).rows[0].n);
@@ -172,23 +174,54 @@ test('DOC-16 an edit or a reply never asks the reporter to re-enter the request'
   expect(await count('intake_candidates')).toBe(1);
 });
 
-test('OQ-27 a group mapped to several projects is refused with INTAKE_PROJECT_AMBIGUOUS and stores nothing',async()=>{
+test('OQ-27 decision (a): a group mapped to several projects is refused with INTAKE_PROJECT_AMBIGUOUS and stores nothing',async()=>{
   await expect(svc().ingest(ev({context:{chatId:chatMulti}}))).rejects.toMatchObject({code:'INTAKE_PROJECT_AMBIGUOUS',status:409});
   await allZero();
 });
 
-test('OQ-28 an unmapped or IBS HI project keeps pointer and hash only',async()=>{
-  const row=async(id:string)=>(await h.operator.query<{content_mode:string;text_excerpt:string|null;content_hash:string}>(
-    'SELECT e.content_mode,r.text_excerpt,r.content_hash FROM source_events e JOIN source_event_revisions r ON r.source_event_id=e.id WHERE e.id=$1',[id])).rows[0];
-  const a=await svc().ingest(ev({text:'chữ riêng'}));
-  expect(await row(a.sourceEventId)).toMatchObject({content_mode:'pointer_only',text_excerpt:null});
-  expect((await row(a.sourceEventId)).content_hash).toMatch(/^[a-f0-9]{64}$/);
-  await mapDomain(ids.transport,'IBS_HI');
-  const b=await svc().ingest(ev({context:{chatId:'-1000000000002'},text:'chữ IBS'}));
-  expect(await row(b.sourceEventId)).toMatchObject({content_mode:'pointer_only',text_excerpt:null});
+const modeRow=async(id:string)=>(await h.operator.query<{content_mode:string;text_excerpt:string|null;content_hash:string}>(
+  'SELECT e.content_mode,r.text_excerpt,r.content_hash FROM source_events e JOIN source_event_revisions r ON r.source_event_id=e.id WHERE e.id=$1',[id])).rows[0];
+const HASH=/^[a-f0-9]{64}$/;
+
+test('OQ-28 a flagged group with an unmapped project stores the excerpt',async()=>{
+  const a=await flagged(chatSales).ingest(ev({text:'token: abc123SECRET chữ riêng'}));
+  const r=await modeRow(a.sourceEventId);
+  expect(r.content_mode).toBe('excerpt');
+  expect(r.text_excerpt).toContain('chữ riêng');
+  expect(r.text_excerpt).toContain('[đã che]');
+  expect(r.content_hash).toMatch(HASH);
+});
+
+test('OQ-28 an unflagged group keeps pointer and hash only even for a XECA project',async()=>{
   await mapDomain(ids.sales,'XECA');
-  const c=await svc().ingest(ev({text:'chữ Xeca'}));
-  expect(await row(c.sourceEventId)).toMatchObject({content_mode:'excerpt',text_excerpt:'chữ Xeca'});
+  const a=await svc().ingest(ev({text:'chữ Xeca'}));
+  const r=await modeRow(a.sourceEventId);
+  expect(r.content_mode).toBe('pointer_only');
+  expect(r.text_excerpt).toBeNull();
+  expect(r.content_hash).toMatch(HASH);
+});
+
+test('OQ-28 an IBS HI project keeps pointer and hash only even in a flagged group',async()=>{
+  await mapDomain(ids.transport,'IBS_HI');
+  const a=await flagged(chatTransport).ingest(ev({context:{chatId:chatTransport},text:'chữ IBS'}));
+  const r=await modeRow(a.sourceEventId);
+  expect(r.content_mode).toBe('pointer_only');
+  expect(r.text_excerpt).toBeNull();
+  expect(r.content_hash).toMatch(HASH);
+});
+
+test('OQ-28 a flag in the request body is never honoured',async()=>{
+  const base=ev({text:'chữ không được lưu'});
+  const bad=[{...base,contentMode:'excerpt'},{...base,excerpt:true},{...base,context:{...base.context,excerpt:true}}];
+  for(const b of bad){
+    await expect(svc().ingest(b)).rejects.toBeInstanceOf(ZodError);
+    await allZero();
+  }
+  const a=await svc().ingest(base);
+  const r=await modeRow(a.sourceEventId);
+  expect(r.content_mode).toBe('pointer_only');
+  expect(r.text_excerpt).toBeNull();
+  expect(r.content_hash).toMatch(HASH);
 });
 
 test('S10 pointer_only text is not written to any table and does not appear in logs',async()=>{
@@ -216,9 +249,8 @@ test('a file-only message and hostile file names are stored safely',async()=>{
 });
 
 test('credential-like text is stored redacted while the hash stays the gateway\'s',async()=>{
-  await mapDomain(ids.sales,'XECA');
   const e=ev({text:'token: abc123SECRET'});
-  const r=await svc().ingest(e);
+  const r=await flagged(chatSales).ingest(e);
   const row=(await h.operator.query<{text_excerpt:string;content_hash:string}>('SELECT text_excerpt,content_hash FROM source_event_revisions WHERE source_event_id=$1',[r.sourceEventId])).rows[0];
   expect(row.text_excerpt).not.toContain('abc123SECRET');
   expect(row.text_excerpt).toContain('[đã che]');
@@ -289,7 +321,7 @@ test('M4 computed source fields: locator, source_id, source_actor, correlation_i
   expect(row.correlation_id).toMatch(/^[0-9a-f-]{36}$/);
   expect(row.correlation_id).not.toBe(e.traceId);
   const legacy='-5000000001';
-  const s2=new IntakeService(h.operator,ids.tenant,intakePrincipalId,{...bridgeConfig.chatScopes,[legacy]:[ids.sales]},[...chats,legacy]);
+  const s2=new IntakeService(h.operator,ids.tenant,intakePrincipalId,{...bridgeConfig.chatScopes,[legacy]:[ids.sales]},{chats:[...chats,legacy]});
   const r2=await s2.ingest(ev({context:{chatId:legacy}}));
   expect((await h.operator.query<{locator:string}>('SELECT locator FROM source_events WHERE id=$1',[r2.sourceEventId])).rows[0].locator).toBe('');
 });

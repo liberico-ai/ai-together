@@ -24,7 +24,7 @@ async function call(method:string,route:string,o:{cookie?:string|null;payload?:u
 }
 const json=async(r:Response)=>r.json() as Promise<any>;
 const ingest=async()=>{
-  const intake=new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,bridgeConfig.intake!.chats);
+  const intake=new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,bridgeConfig.intake!);
   const ack=await intake.ingest(messageEvent({context:{chatId:chatSales}}));
   return (await h.operator.query<{id:string}>('SELECT id FROM intake_candidates WHERE root_source_event_id=$1',[ack.sourceEventId])).rows[0].id;
 };

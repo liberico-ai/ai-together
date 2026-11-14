@@ -2,12 +2,12 @@ import {readFile} from 'node:fs/promises';
 import {z} from 'zod';
 import {AppError} from './errors';
 export type ChatScopes=Record<string,string[]>;
-export type BridgeConfig={key:string;chatScopes:ChatScopes;intake?:{key:string;principalId:string;chats:string[]}};
+export type BridgeConfig={key:string;chatScopes:ChatScopes;intake?:{key:string;principalId:string;chats:string[];excerptChats?:string[]}};
 const chatId=z.string().regex(/^-[1-9][0-9]*$/);
 const schema=z.object({
  key:z.string().min(43),
  chatScopes:z.record(chatId,z.array(z.string().uuid())),
- intake:z.object({key:z.string().min(43),principalId:z.string().uuid(),chats:z.array(chatId)}).strict().optional(),
+ intake:z.object({key:z.string().min(43),principalId:z.string().uuid(),chats:z.array(chatId),excerptChats:z.array(chatId).optional()}).strict().optional(),
 }).strict();
 export function parseBridgeConfig(raw:unknown):BridgeConfig {
  const c=schema.parse(raw);
@@ -15,6 +15,7 @@ export function parseBridgeConfig(raw:unknown):BridgeConfig {
   if(c.intake.key===c.key) throw new Error('Intake key must differ from the bot key.');
   const allowed=new Set(Object.keys(c.chatScopes));
   if(!c.intake.chats.every(x=>allowed.has(x))) throw new Error('Intake chats must be a subset of chatScopes.');
+  if(!(c.intake.excerptChats??[]).every(x=>c.intake!.chats.includes(x))) throw new Error('Intake excerpt chats must be a subset of intake chats.');
  }
  return c;
 }

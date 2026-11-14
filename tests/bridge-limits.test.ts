@@ -65,7 +65,7 @@ test('Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plu
   const prev=process.env.LIBETECH_BRIDGE_CONFIG;
   try {
     const cases:[string,string|null][]=[['broken.json','{"key":'],['schema.json',JSON.stringify({key:'short',chatScopes:{}})],
-      ['same-key.json',JSON.stringify({...bridgeConfig,intake:{...bridgeConfig.intake,key:bridgeConfig.key}})],['missing.json',null]];
+      ['excerpt-outside.json',JSON.stringify({...bridgeConfig,intake:{...bridgeConfig.intake,excerptChats:['-1000000000004']}})],['same-key.json',JSON.stringify({...bridgeConfig,intake:{...bridgeConfig.intake,key:bridgeConfig.key}})],['missing.json',null]];
     for(const [name,content] of cases){
       const file=path.join(dir,name);
       if(content!==null) await writeFile(file,content);
@@ -164,4 +164,16 @@ test('Codex r2 P1 a cancel that fails is logged by a fixed code and the body is 
     expect(logged.map(line=>JSON.parse(line))).toEqual([{level:'warn',event:'request_body_cancel_failed',errorType:'Error'}]);
     expect(logged.join('\n')).not.toMatch(/synthetic cancel failure/);
   } finally { spy.mockRestore(); }
+});
+
+test('the intake route takes the excerpt flag from the operator config',async()=>{
+  const run=async(config:typeof bridgeConfig)=>{
+    const event=messageEvent({text:'chữ theo cấu hình'});
+    await handleBridgeIo(signedRequest(EVENTS,event),['intake','events'],{intakeDb:h.operator,identity,config,tenantId:ids.tenant});
+    return (await h.operator.query<{content_mode:string;text_excerpt:string|null}>(
+      'SELECT e.content_mode,r.text_excerpt FROM source_events e JOIN source_event_revisions r ON r.source_event_id=e.id WHERE e.message_id=$1',[event.context.messageId])).rows[0];
+  };
+  const flagged={...bridgeConfig,intake:{...bridgeConfig.intake!,excerptChats:[bridgeConfig.intake!.chats[0]]}};
+  expect(await run(flagged)).toEqual({content_mode:'excerpt',text_excerpt:'chữ theo cấu hình'});
+  expect(await run(bridgeConfig)).toEqual({content_mode:'pointer_only',text_excerpt:null});
 });

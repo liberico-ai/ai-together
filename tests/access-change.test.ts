@@ -9,8 +9,9 @@ import {AccountApprovalService,approvalReady} from '../src/server/account-approv
 import {ids} from '../src/server/identities';
 import type {Principal,ProjectGrant} from '../src/server/types';
 
-// SPEC-007 case (b): widening an existing account's access needs its own frozen ballot (Chairman + one BoM, tally unchanged,
-// OQ-29 open). Reducing access stays a direct admin command.
+// SPEC-007 case (b): widening an existing account's access needs its own frozen ballot. OQ-29 decided 14/11/2026: one frozen BoM
+// voter agreeing approves it; the Chairman's agreement never counts, the Chairman's rejection (S13) or every BoM rejecting closes it.
+// Registration ballots keep Chairman + one BoM. Reducing access stays a direct admin command.
 let h:Harness,identity:IdentityService,accounts:AccountService,ballot:AccountApprovalService,admin:Principal;
 let approvers:Awaited<ReturnType<typeof provisionApprovers>>;
 const subject={id:'',username:'subject.ac',name:'Người được đổi quyền'};
@@ -68,7 +69,7 @@ test('expanding access without an approved ballot is still refused',async()=>{
  expect(await memberships()).toEqual(before);
 });
 
-test('an access-change ballot freezes grants and applies only after Chairman and one BoM agree',async()=>{
+test('an access-change ballot freezes grants and applies once one BoM agrees',async()=>{
  const token=secret();
  await h.operator.query(`INSERT INTO identity.sessions(tenant_id,user_id,token_hash,expires_at) VALUES($1,$2,$3,now()+interval '1 hour')`,
   [ids.tenant,subject.id,digest(token)]);
@@ -76,7 +77,7 @@ test('an access-change ballot freezes grants and applies only after Chairman and
  const before=await memberships();
  const start=await current();
  const proposed=await propose();
- expect(proposed).toMatchObject({pendingTelegramApproval:true,agreed:0,required:'chairman+1bom'});
+ expect(proposed).toMatchObject({pendingTelegramApproval:true,agreed:0,required:'1bom'});
  const id=(proposed as {approvalId:string}).approvalId;
  expect(await approval(id)).toMatchObject({kind:'access_change',state:'pending',registration_id:null,subject_user_id:subject.id,
   subject_account_version:start.version,previous_grants:start.grants,grants:wider,proposer_id:admin.id});
@@ -88,10 +89,9 @@ test('an access-change ballot freezes grants and applies only after Chairman and
   "SELECT user_id,actor_id,detail FROM identity.events WHERE kind='access_change_proposed' AND detail->>'approvalId'=$1",[id]);
  expect(proposedEvent).toHaveLength(1);
  expect(proposedEvent[0]).toMatchObject({user_id:subject.id,actor_id:admin.id,detail:{before:start.grants,after:wider}});
- expect(await say(0,id)).toMatchObject({state:'pending',chairmanAgreed:true,bomAgreed:0});
  await expect(access(wider)).rejects.toMatchObject({code:'TELEGRAM_APPROVAL_REQUIRED'});
  expect(await memberships()).toEqual(before);
- expect(await say(1,id)).toMatchObject({state:'approved',chairmanAgreed:true,bomAgreed:1});
+ expect(await say(1,id)).toMatchObject({state:'approved',chairmanAgreed:false,bomAgreed:1,required:'1bom'});
  expect(await memberships()).toEqual(before);
  // the same grants listed in another order are the frozen grants
  const reordered:ProjectGrant[]=[wider[1],{...wider[0],reportPermissions:['people_read','quality_review']}];
@@ -109,12 +109,37 @@ test('an access-change ballot freezes grants and applies only after Chairman and
  await expect(access([{projectId:ids.sales,role:'manager',reportPermissions:[]},wider[1]])).rejects.toMatchObject({code:'TELEGRAM_APPROVAL_REQUIRED'});
 });
 
-test('two BoM votes without Chairman do not approve an access change',async()=>{
+test('Chairman agreement alone does not approve an access change',async()=>{
  const id=await proposeId();
- expect(await say(1,id)).toMatchObject({state:'pending'});
- expect(await say(2,id)).toMatchObject({state:'pending',chairmanAgreed:false,bomAgreed:2});
+ expect(await say(0,id)).toMatchObject({state:'pending',chairmanAgreed:true,bomAgreed:0,required:'1bom'});
  await expect(access(wider)).rejects.toMatchObject({code:'TELEGRAM_APPROVAL_REQUIRED'});
+ await expect(identity.scope(tx=>approvalReady(tx,identity,id,'access_change'))).rejects.toMatchObject({code:'APPROVAL_NOT_READY',status:409});
  expect(await approval(id)).toMatchObject({state:'pending'});
+});
+
+test('one BoM rejection keeps it pending while another BoM can still vote; every BoM rejecting closes it',async()=>{
+ const id=await proposeId();
+ // seats 1..3 are the three BoM voters besides the subject
+ expect(await say(1,id,'reject')).toMatchObject({state:'pending'});
+ expect(await say(2,id,'reject')).toMatchObject({state:'pending'});
+ expect(await approval(id)).toMatchObject({state:'pending'});
+ expect(await say(3,id,'reject')).toMatchObject({state:'rejected'});
+ expect(await approval(id)).toMatchObject({state:'rejected'});
+ await expect(access(wider)).rejects.toMatchObject({code:'TELEGRAM_APPROVAL_REQUIRED'});
+ // a second ballot: a rejecting BoM does not stop another BoM from approving
+ const next=await proposeId();
+ expect(await say(1,next,'reject')).toMatchObject({state:'pending'});
+ expect(await say(2,next)).toMatchObject({state:'approved',bomAgreed:1});
+});
+
+test('a registration ballot still needs Chairman and one BoM',async()=>{
+ await identity.requestRegistration({username:'reg.tally',name:'Người đăng ký',projectInterest:'Team Tech',note:''});
+ const request=(await accounts.pendingRegistrations(admin)).find(row=>row.username==='reg.tally')!;
+ const proposed=await accounts.registrationDecision(admin,{kind:'approve_registration',requestId:request.id,
+  grants:[{projectId:ids.sales,role:'viewer',reportPermissions:[]}],reason:'Đã kiểm danh tính Team Tech'});
+ const id=(proposed as {approvalId:string}).approvalId;
+ expect(await say(1,id)).toMatchObject({state:'pending',chairmanAgreed:false,bomAgreed:1,required:'chairman+1bom'});
+ expect(await say(0,id)).toMatchObject({state:'approved',chairmanAgreed:true,bomAgreed:1});
 });
 
 test('Chairman rejection closes it',async()=>{

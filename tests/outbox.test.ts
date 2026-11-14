@@ -16,7 +16,7 @@ beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);i
 afterEach(async()=>{await h.reset();await h.close();});
 
 const chats=bridgeConfig.intake!.chats;
-const intake=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,chats,enqueueReceipt);
+const intake=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats},enqueueReceipt);
 const outbox=(projectIds=[ids.sales,ids.transport])=>new OutboxService(h.operator,identity,{id:intakePrincipalId,tenantId:ids.tenant,projectIds});
 const ev=(o:EventOverride={})=>messageEvent(o);
 type R=Record<string,unknown>;

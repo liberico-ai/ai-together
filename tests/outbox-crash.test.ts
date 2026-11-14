@@ -16,7 +16,7 @@ describe.skipIf(!native)('outbox crash and concurrency (native PostgreSQL)',()=>
  beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);});
  afterEach(async()=>{await h.reset();await h.close();});
  const chats=bridgeConfig.intake!.chats;
- const intake=(enq=enqueueReceipt)=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,chats,enq);
+ const intake=(enq=enqueueReceipt)=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats},enq);
  const outbox=()=>new OutboxService(h.operator,new IdentityService(h.operator,ids.tenant),{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales]});
  const count=async(t:string)=>Number((await h.operator.query<{n:string}>(`SELECT count(*) n FROM ${t}`)).rows[0].n);
  const rcpt=(d:{outboxId:string;attemptNo:number;leaseToken:string})=>({outboxId:d.outboxId,attemptNo:d.attemptNo,leaseToken:d.leaseToken,phase:'send',outcome:'delivered',telegramMessageId:'77',reportedAt:new Date().toISOString()});

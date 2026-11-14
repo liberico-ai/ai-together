@@ -21,20 +21,20 @@ beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);}
 afterEach(async()=>{await h.reset();await h.close();});
 
 const chats=bridgeConfig.intake!.chats;
-const intake=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,chats);
+// OQ-28 (c): a group stores an excerpt only when the operator config flags it; the default fixture flags none.
+const intake=(excerptChats?:string[])=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats,excerptChats});
 const inbox=()=>new InboxService(h.db);
 const outbox=()=>new OutboxService(h.operator,new IdentityService(h.operator,ids.tenant),{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales,ids.transport]});
 const k=()=>randomUUID();
 type R=Record<string,unknown>;
 const rows=async<T=R>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
 const n=async(t:string)=>Number((await rows<{n:string}>(`SELECT count(*) n FROM ${t}`))[0].n);
-const ingest=async(o:EventOverride={})=>{
+const ingest=async(o:EventOverride={},excerptChats?:string[])=>{
   const e=messageEvent(o);
-  const ack=await intake().ingest(e);
+  const ack=await intake(excerptChats).ingest(e);
   const id=(await rows<{id:string}>('SELECT id FROM intake_candidates WHERE root_source_event_id=$1',[ack.sourceEventId]))[0].id;
   return {id,ack,e};
 };
-const mapDomain=(project:string,code:string)=>h.operator.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,$3,$4,'synthetic-source',1)",[ids.tenant,project,code,pm.id]);
 const kinds=async(id:string)=>(await rows<{kind:string}>('SELECT kind FROM intake_events WHERE entity_id=$1 ORDER BY created_at,id',[id])).map(r=>r.kind);
 const confirm=(v=1)=>({kind:'confirm',expectedVersion:v,classification:'incident'});
 const deniedMessage=async(p:Promise<unknown>)=>{
@@ -351,11 +351,10 @@ test('M-3 a leased row whose lease ran out is listed as stuck, and every row nam
 });
 
 test('the newest revision is chosen by edited_at',async()=>{
-  await mapDomain(ids.sales,'XECA');
   const first=messageEvent({addressed:false,text:'bản đầu'});
-  await intake().ingest(first);
+  await intake([chatSales]).ingest(first);
   const at=(ms:number)=>new Date(new Date(first.observedAt).getTime()+ms).toISOString();
-  const again=(text:string,editedAt:string)=>intake().ingest(messageEvent({addressed:false,text,editedAt,context:{messageId:first.context.messageId}}));
+  const again=(text:string,editedAt:string)=>intake([chatSales]).ingest(messageEvent({addressed:false,text,editedAt,context:{messageId:first.context.messageId}}));
   await again('bản hai (sửa muộn nhất)',at(60000));
   await again('bản cũ hơn (số thứ tự lớn hơn)',at(30000));
   const revs=await rows<{revision_no:number}>('SELECT revision_no FROM source_event_revisions ORDER BY revision_no');
@@ -386,8 +385,7 @@ test('M1 detail gives no content hash for a pointer_only project and keeps it fo
   expect(d.card.contentMode).toBe('pointer_only');
   expect(d.revisions.length).toBeGreaterThan(0);
   for(const r of d.revisions){expect(r.contentHash).toBeNull();expect(r.excerpt).toBeNull();}
-  await mapDomain(ids.transport,'XECA');
-  const t=await ingest({context:{chatId:chatTransport},text:'nội dung có trích đoạn'});
+  const t=await ingest({context:{chatId:chatTransport},text:'nội dung có trích đoạn'},[chatTransport]);
   const dt=await inbox().detail(pm,t.id);
   expect(dt.card.contentMode).toBe('excerpt');
   for(const r of dt.revisions) expect(r.contentHash).toMatch(/^[a-f0-9]{64}$/);
@@ -395,9 +393,8 @@ test('M1 detail gives no content hash for a pointer_only project and keeps it fo
 
 test('M2 the stored command response keeps ids only; a replay returns the current card',async()=>{
   const dead=await settle({outcome:'failed_permanent',errorCode:'BOT_FORBIDDEN',telegramMessageId:undefined});
-  await mapDomain(ids.sales,'XECA');
   const hex='b'.repeat(64);
-  const a=await ingest({text:'đoạn trích bí mật cần giữ',attachment:{state:'stored',locator:'gw://libetech/attachments/'+hex,sha256:hex,mimeType:'application/pdf',sizeBytes:1000,fileName:'bao-cao-mat.pdf'}});
+  const a=await ingest({text:'đoạn trích bí mật cần giữ',attachment:{state:'stored',locator:'gw://libetech/attachments/'+hex,sha256:hex,mimeType:'application/pdf',sizeBytes:1000,fileName:'bao-cao-mat.pdf'}},[chatSales]);
   const key=k();
   const first=await inbox().command(pm,a.id,confirm(),key,randomUUID());
   expect(first.excerpt).toBe('đoạn trích bí mật cần giữ');

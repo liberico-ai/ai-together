@@ -129,7 +129,7 @@ export class InboxService {
    const revisions=(await tx.query<{revision_no:number;edited_at:unknown;content_hash:string;text_excerpt:string|null;text_truncated:boolean;created_at:unknown}>(
     `SELECT r.revision_no,r.edited_at,r.content_hash,r.text_excerpt,r.text_truncated,r.created_at FROM source_event_revisions r JOIN source_events e ON e.id=r.source_event_id
      WHERE r.source_event_id=$1 ORDER BY ${LATEST_REVISION_ORDER}`,[root.root_source_event_id])).rows
-    // pointer_only: AGENTS.md allows hashes only as stored pointers; OQ-28 is open, so no hash is shown for such a project.
+    // pointer_only: AGENTS.md allows hashes only as stored pointers. The mode comes from the per-group flag in the operator config (OQ-28 (c), 14/11/2026); a pointer-only event still shows no hash.
     .map(r=>({revisionNo:r.revision_no,editedAt:isoOrNull(r.edited_at),contentHash:root.content_mode==='excerpt'?r.content_hash:null,excerpt:root.content_mode==='excerpt'?r.text_excerpt:null,textTruncated:r.text_truncated,recordedAt:iso(r.created_at)}));
    const events=(await tx.query<{id:string;kind:string;actor_kind:string;actor_id:string;created_at:unknown;payload:Record<string,unknown>}>(
     'SELECT id,kind,actor_kind,actor_id,created_at,payload FROM intake_events WHERE project_id=$1 AND entity_id IN ($2,$3) ORDER BY created_at,id LIMIT 500',[projectId,candidateId,root.root_source_event_id])).rows

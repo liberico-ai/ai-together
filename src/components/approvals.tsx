@@ -33,7 +33,7 @@ export function Approvals({initial}:{initial:Pending[]}) {
    const result=await api<{state:string}>('/api/team/approvals',{approvalId:id,choice});
    setPending(await api<Pending[]>('/api/team/approvals'));
    const change=pending.find(p=>p.id===id)?.kind==='access_change';
-   setNotice(result.state==='approved'?(change?'Đủ anh và một thành viên BoM. Quản trị có thể áp quyền đã được duyệt.':'Đủ anh và một thành viên BoM. Quản trị có thể tạo lời mời.'):
+   setNotice(result.state==='approved'?(change?'Đủ một thành viên BoM. Quản trị có thể áp quyền đã được duyệt.':'Đủ anh và một thành viên BoM. Quản trị có thể tạo lời mời.'):
     result.state==='rejected'?'Phiếu đã từ chối.':'Đã ghi nhận lựa chọn; chờ người duyệt còn lại.');
   } catch(e){
    setError((e as Error).message);
@@ -43,7 +43,7 @@ export function Approvals({initial}:{initial:Pending[]}) {
  }
  return <main className="team-page"><a href="/">← Không gian LibeTech</a>
   <h1>Duyệt thành viên và đổi quyền Team Tech</h1>
-  <p>Mỗi phiếu cần anh và một trong ba thành viên BoM xác nhận. Chỉ chọn Yes hoặc No sau khi kiểm đúng người và quyền dự án; phiếu đổi quyền hiện cả quyền hiện tại và quyền đề nghị.</p>
+  <p>Phiếu đăng ký cần anh và một trong ba thành viên BoM xác nhận; phiếu đổi quyền cần một thành viên BoM. Chỉ chọn Yes hoặc No sau khi kiểm đúng người và quyền dự án; phiếu đổi quyền hiện cả quyền hiện tại và quyền đề nghị.</p>
   {notice&&<div role="status" className="notice success">{notice}</div>}
   {error&&<div role="alert" className="notice error">{error}</div>}
   <section className="panel team-form"><h2>Phiếu cần tôi duyệt · {pending.length}</h2>

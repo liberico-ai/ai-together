@@ -16,7 +16,7 @@ describe.skipIf(!native)('intake SLO probe (native PostgreSQL)',()=>{
  beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);});
  afterEach(async()=>{await h.reset();await h.close();});
  const chats=bridgeConfig.intake!.chats;
- const intake=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,chats,enqueueReceipt);
+ const intake=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats},enqueueReceipt);
  const outbox=()=>new OutboxService(h.operator,new IdentityService(h.operator,ids.tenant),{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales]});
 
  test('SLO probe on synthetic data (a measurement, not a commitment)',async()=>{

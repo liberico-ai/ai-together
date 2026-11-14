@@ -63,6 +63,17 @@ test('config rejects an intake key equal to the bot key and intake chats outside
   expect(()=>parseBridgeConfig({...ok,intake:{key:'short',principalId:ids.tenant,chats:[chatSales]}})).toThrow();
   expect(()=>parseBridgeConfig({...ok,extra:1})).toThrow();
 });
+test('config rejects excerpt chats outside intake.chats; no excerptChats means none',()=>{
+  const ok={key:botKey,chatScopes:{[chatSales]:[ids.sales],'-1000000000002':[ids.transport]}};
+  const intake={key:intakeKey,principalId:ids.tenant,chats:[chatSales]};
+  expect(parseBridgeConfig({...ok,intake}).intake?.excerptChats).toBeUndefined();
+  expect(parseBridgeConfig({...ok,intake:{...intake,excerptChats:[]}}).intake?.excerptChats).toEqual([]);
+  expect(parseBridgeConfig({...ok,intake:{...intake,excerptChats:[chatSales]}}).intake?.excerptChats).toEqual([chatSales]);
+  // in chatScopes but not an intake chat, and in neither
+  expect(()=>parseBridgeConfig({...ok,intake:{...intake,excerptChats:['-1000000000002']}})).toThrow('Intake excerpt chats must be a subset of intake chats.');
+  expect(()=>parseBridgeConfig({...ok,intake:{...intake,excerptChats:[chatSales,'-1000000000099']}})).toThrow('Intake excerpt chats must be a subset of intake chats.');
+  expect(()=>parseBridgeConfig({...ok,intake:{...intake,excerptChats:['not-a-chat']}})).toThrow();
+});
 test('oversized bodies are refused before parsing',async()=>{
   await expect(call(signedRequest('/api/bridge/intake/events','x'.repeat(16385)))).rejects.toMatchObject({code:'PAYLOAD_TOO_LARGE'});
   await expect(call(signedRequest('/api/bridge/outbox/receipts','x'.repeat(4097)))).rejects.toMatchObject({code:'PAYLOAD_TOO_LARGE'});

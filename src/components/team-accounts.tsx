@@ -83,7 +83,7 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
       const result=await api<Result>('/api/team/accounts',command);
       if(result.invitation) setInvitation(location.origin+'/activate#'+result.invitation.token);
       setAccounts(await api<Account[]>('/api/team/accounts'));
-      setNotice(kind==='propose_access_change'?'Đã trình phiếu đổi quyền. Anh và ít nhất một thành viên BoM chọn Yes trên nền; quyền chưa đổi cho tới khi áp quyền đã được duyệt.':'Đã lưu thay đổi tài khoản.');
+      setNotice(kind==='propose_access_change'?'Đã trình phiếu đổi quyền. Cần ít nhất một thành viên BoM chọn Yes trên nền; quyền chưa đổi cho tới khi áp quyền đã được duyệt.':'Đã lưu thay đổi tài khoản.');
       if(isNew) element.reset();
     } catch(error) { setError((error as Error).message); }
     finally {setBusy(false);}

@@ -19,7 +19,7 @@ export async function handleBridgeIo(request:Request,parts:string[],deps:IoDeps)
  const raw=await verifySigned(request,{key:deps.config.intake.key,path:route,maxBytes:MAX_BYTES[route],identity:deps.identity,throttleBucket:'bridge-intake',throttleLimit:600});
  if(route==='/api/bridge/intake/events') {
   const i=deps.config.intake;
-  return new IntakeService(deps.intakeDb,deps.tenantId,i.principalId,deps.config.chatScopes,i.chats,deps.enqueueReceipt).ingest(JSON.parse(raw));
+  return new IntakeService(deps.intakeDb,deps.tenantId,i.principalId,deps.config.chatScopes,i,deps.enqueueReceipt).ingest(JSON.parse(raw));
  }
  // Pull scope is the union of the projects of the configured intake chats; empty fails closed in intakeScoped.
  const i=deps.config.intake;

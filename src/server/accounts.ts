@@ -248,7 +248,7 @@ export class AccountService {
     });
   }
 
-  /** SPEC-007 (b): freeze the account's current grants and version in a ballot for Chairman + one BoM. Memberships and the account
+  /** SPEC-007 (b): freeze the account's current grants and version in a ballot that one BoM voter can approve (OQ-29). Memberships and the account
    * version stay as they are; `access` applies the grants later, only with this approved ballot. */
   private async proposeAccessChange(tx:Queryable,p:Principal,scope:Set<string>,user:Account,before:ProjectGrant[],grants:ProjectGrant[],reason:string) {
     invariant(user.active&&user.activated,'ACCOUNT_INACTIVE','Cần tài khoản đang hoạt động.',409);
@@ -273,6 +273,6 @@ export class AccountService {
     await this.audit(tx,p,user.id,'access_change_proposed',
       {approvalId:proposal.id,accountVersion:user.version,before,after:grants,reason,traceId,...(expired.length?{expiredApprovalIds:expired}:{})});
     // Same {user,invitation} shape as every other command; the account itself is unchanged.
-    return {user,invitation:undefined,pendingTelegramApproval:true,approvalId:proposal.id,agreed:0,required:'chairman+1bom'};
+    return {user,invitation:undefined,pendingTelegramApproval:true,approvalId:proposal.id,agreed:0,required:'1bom'};
   }
 }
