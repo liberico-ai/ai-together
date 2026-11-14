@@ -1092,4 +1092,62 @@ class IntakeAdapterTests(unittest.TestCase):
         with profile_home() as home:
             (home/'runtime/libetech-ai-os/attachments').write_text('not a folder')
             self.assertEqual(bridge.store_attachment(home,raw,lambda:data)['reasonCode'],'STORE_UNAVAILABLE')
+
+class ReceiptAnswerTests(unittest.TestCase):
+    """Codex P1: a 2xx receipt answer closes receipts only when its counts account for every receipt of the batch."""
+    def drain(self,home,journal,answer,deliveries=()):
+        backend=FakeBackend([{'deliveries':list(deliveries),'reconcile':[]}],report=answer)
+        with patch.object(bridge,'call_backend',side_effect=backend):
+            summary=bridge.drain_outbox(home,lambda *args:601,journal)
+        return summary,backend
+
+    def closed(self,home):
+        return [(line['outboxId'],line['state'],line.get('code')) for line in journal_lines(home) if line['state'] in ('reported','rejected')]
+
+    def assert_invalid_and_pending(self,answer,deliveries):
+        with profile_home(chats=[GROUP]) as home:
+            journal=bridge.SendJournal(home)
+            summary,backend=self.drain(home,journal,answer,deliveries)
+            self.assertEqual(len(backend.reports),1)
+            self.assertFalse(summary['ok']);self.assertEqual(summary['error'],'RECEIPT_RESPONSE_INVALID')
+            self.assertEqual((summary['reported'],summary['rejected'],summary['pending']),(0,0,len(deliveries)))
+            self.assertEqual(self.closed(home),[])
+            # the next pass resubmits the same receipts and closes them once the answer adds up
+            summary,backend=self.drain(home,journal,lambda receipts:{'accepted':len(receipts),'replayed':0,'rejected':[]})
+            self.assertEqual([r['outboxId'] for r in backend.reports[0]],[d['outboxId'] for d in deliveries])
+            self.assertTrue(summary['ok']);self.assertEqual((summary['reported'],summary['pending']),(len(deliveries),0))
+
+    def test_an_answer_that_accepts_nothing_closes_nothing(self):
+        self.assert_invalid_and_pending(lambda receipts:{'accepted':0,'replayed':0,'rejected':[]},[delivery(OUTBOX_A,LEASE_A)])
+
+    def test_a_refusal_naming_a_receipt_outside_the_batch_is_invalid(self):
+        outside={'outboxId':OUTBOX_C,'attemptNo':1,'code':'LEASE_INVALID'}
+        self.assert_invalid_and_pending(lambda receipts:{'accepted':0,'replayed':0,'rejected':[outside]},[delivery(OUTBOX_A,LEASE_A)])
+        wrong_attempt={'outboxId':OUTBOX_A,'attemptNo':2,'code':'LEASE_INVALID'}
+        self.assert_invalid_and_pending(lambda receipts:{'accepted':0,'replayed':0,'rejected':[wrong_attempt]},[delivery(OUTBOX_A,LEASE_A)])
+
+    def test_the_same_refusal_twice_does_not_stand_for_two_receipts(self):
+        twice={'outboxId':OUTBOX_A,'attemptNo':1,'code':'LEASE_INVALID'}
+        self.assert_invalid_and_pending(lambda receipts:{'accepted':0,'replayed':0,'rejected':[twice,twice]},
+                                        [delivery(OUTBOX_A,LEASE_A),delivery(OUTBOX_B,LEASE_B)])
+
+    def test_counts_must_be_non_negative_integers_and_add_up(self):
+        for accepted,replayed in ((True,0),(0,True),(-1,2),('1',0),(1.0,0),(None,1),(2,0),(1,1)):
+            with self.subTest(accepted=accepted,replayed=replayed):
+                self.assert_invalid_and_pending(lambda receipts,a=accepted,r=replayed:{'accepted':a,'replayed':r,'rejected':[]},[delivery(OUTBOX_A,LEASE_A)])
+        self.assert_invalid_and_pending(lambda receipts:{'replayed':0,'rejected':[]},[delivery(OUTBOX_A,LEASE_A)])
+
+    def test_counts_that_add_up_close_the_batch_as_before(self):
+        with profile_home(chats=[GROUP]) as home:
+            journal=bridge.SendJournal(home)
+            summary,_=self.drain(home,journal,lambda receipts:{'accepted':0,'replayed':1,'rejected':[]},[delivery(OUTBOX_A,LEASE_A)])
+            self.assertTrue(summary['ok']);self.assertEqual((summary['reported'],summary['rejected'],summary['pending']),(1,0,0))
+            self.assertEqual(self.closed(home),[(OUTBOX_A,'reported',None)])
+        with profile_home(chats=[GROUP]) as home:
+            journal=bridge.SendJournal(home)
+            refuse_b=lambda receipts:{'accepted':1,'replayed':0,'rejected':[{'outboxId':OUTBOX_B,'attemptNo':1,'code':'RECEIPT_CONFLICT'}]}
+            summary,_=self.drain(home,journal,refuse_b,[delivery(OUTBOX_A,LEASE_A),delivery(OUTBOX_B,LEASE_B)])
+            self.assertTrue(summary['ok']);self.assertEqual((summary['reported'],summary['rejected'],summary['pending']),(1,1,0))
+            self.assertEqual(self.closed(home),[(OUTBOX_A,'reported',None),(OUTBOX_B,'rejected','RECEIPT_CONFLICT')])
+
 if __name__=='__main__':unittest.main()

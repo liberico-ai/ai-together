@@ -32,8 +32,11 @@ InboxBody({state:'loading'|'denied'|'error'|'empty'|'ready'; items; total; error
 IntakeCard({card:CandidateCard; canAct:boolean; onCommand?:(cmd:Record<string,unknown>)=>Promise<void>})   // giữ draft/busy/error; thiếu onCommand ⇒ chỉ đọc
 CardView({card; canAct; draft:CardDraft; busy:boolean; error:string; onDraft:(patch:Partial<CardDraft>)=>void; onSubmit:(cmd:Record<string,unknown>)=>void; onInvalid:(message:string)=>void})  // không hook; onSubmit nhận lệnh đã có expectedVersion
 SourceList({sources}) · FailureList({failures}) · GatewayHash({hash:string|null})
+CardDetailView({state:DetailLoad<Detail>; onOpen:()=>void; onRetry:()=>void})  // «Xem chi tiết» không hook; CardDetail giữ state và truyền cùng một hàm tải cho onOpen và onRetry
 // inbox-view.ts (hàm thuần): inboxState, statusLabel, failureLabel, templateLabel, isOpen, initialDraft, variantOf, cardActions, needInfoCommand,
-//   commandErrorMessage, formatTime, sizeLabel, chatTail, sourceLabel, reloadInbox; hằng VARIANT_NAMES, STATE_NAMES, TEMPLATE_LABELS
+//   commandErrorMessage, loadDetail, formatTime, sizeLabel, chatTail, sourceLabel, reloadInbox; hằng VARIANT_NAMES, STATE_NAMES, TEMPLATE_LABELS, NETWORK_COPY
+// DetailLoad<T> = {detail:T|null; error:string; loading:boolean} · loadDetail(state, path, get, set): không làm gì khi đang tải hoặc đã có chi tiết; sau lỗi gọi lại = thử lại
+// api.ts ném ApiError(message, code, status) khi máy chủ trả lỗi; message giữ nguyên dạng «<câu tiếng Việt> [<mã>]» như trước
 // CardDraft = {pick:'incident'|'request'|'document'|null; note; missing; reason; dupOf}  — bản nháp tại chỗ, không gửi đi khi chọn loại
 // CardCommand = confirm{classification,note?} | need_info{missingFields} | mark_duplicate{duplicateOf,reason} | dismiss{reason} | reopen{reason}
 // grant-labels.ts: ROLE_LABELS, PERMISSION_LABELS, roleLabel, permissionLabel (dùng chung cho /approvals và /team)
@@ -56,6 +59,8 @@ Thẻ:
 - Kiểm tại chỗ: «Nhập ít nhất một thông tin còn thiếu, mỗi dòng một mục.» · «Tối đa 10 mục còn thiếu.» · «Mỗi mục còn thiếu tối đa 100 ký tự.» · «Nhập căn cứ trước khi thực hiện thao tác này.» · «Chọn tin bị trùng trước.» (`role="alert"`, không gọi API).
 - Đang gửi: mọi nút của thẻ `disabled`.
 - Lỗi lệnh: `role="alert"` trong thẻ, giữ nguyên chữ đang nhập và loại đang chọn. Xung đột version (`REVISION_CONFLICT` 409): «Mục này vừa được người khác cập nhật. Tải lại để xem bản mới.» kèm nút «Tải lại danh sách» ở đầu trang; không tự tải lại để khỏi xoá lựa chọn.
+- Câu lỗi (`commandErrorMessage`, dùng cho lệnh, tải lại danh sách và «Xem chi tiết»): xung đột version → câu xung đột ở trên; lỗi máy chủ trả về (`ApiError` do `api()` dựng) → giữ nguyên câu tiếng Việt của máy chủ kèm mã, ví dụ «Dữ liệu không hợp lệ. … [INVALID_INPUT]»; mọi lỗi khác (mất mạng — `TypeError: Failed to fetch`, thân phản hồi không phải JSON, lỗi lạ) → «Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.». Chữ tiếng Anh thô không bao giờ lên màn hình.
+- «Xem chi tiết»: mở ra thì tải một lần («Đang tải chi tiết…», `aria-busy`); tải hỏng → câu lỗi ở trên trong `role="alert"` kèm nút «Thử lại» (`doc-action`, ≥44×44; dưới 700 full-width) để tải lại; tải được rồi thì đóng mở lại không tải nữa.
 - Thành công: `role="status"` «Đã ghi thao tác cho <mã>. Chưa tạo, giao hay đóng việc nào.»; danh sách tải lại, thẻ dựng lại theo `version` mới.
 Vòng đời (năm trạng thái tách riêng; không dòng nào đọc «đã gửi» trước `deliveredAt`):
 `Nhận lúc` (gateway thấy) · `Ghi lúc` (đã lưu) · `Chiếu`: luôn «Chưa chiếu» · `Gửi`:
@@ -90,6 +95,7 @@ Tài khoản (`/team`): sau khi sửa quyền, nếu có dự án mở rộng (k
 - Thẻ `needs_info` chưa ghi mục nào: «Đã hỏi bổ sung» hiện «Chưa ghi thông tin nào còn thiếu.».
 - Ứng viên trùng: hiện mã đối tượng (`ref`) và căn cứ (`reason`); «Đánh dấu trùng» chỉ cho các ứng viên đó, cần «Căn cứ».
 - Chữ dài không dấu cách (URL, SHA, mã): `overflow-wrap:anywhere`.
+- Mất mạng hoặc máy chủ không trả lời bằng JSON (trang lỗi của proxy): lệnh, danh sách và «Xem chi tiết» đều hiện «Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.»; danh sách có «Thử lại» (trạng thái error), chi tiết có «Thử lại» riêng, lệnh bấm lại nút của nó.
 - Dự án chưa ánh xạ miền: màn này không phân miền, không cộng gộp.
 
 ## Kiểm tay (phiên điều phối chạy và chụp vào `docs/screenshots/`)

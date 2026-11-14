@@ -89,7 +89,9 @@ const receiptSchema=z.object({
  outboxId:z.string().uuid(),attemptNo:z.number().int().min(1),leaseToken:z.string().uuid(),phase:z.enum(['send','reconcile']),
  outcome:z.enum(['delivered','failed_retryable','failed_permanent','uncertain','not_sent']),
  telegramMessageId:z.string().regex(/^[0-9]{1,20}$/).optional(),errorCode:z.string().regex(/^[A-Z0-9_]{1,64}$/).optional(),reportedAt:z.string().datetime({offset:true}),
-}).strict().refine(r=>r.phase==='send'?r.outcome!=='not_sent':(r.outcome==='delivered'||r.outcome==='not_sent'),{message:'Outcome does not match phase.'});
+}).strict().refine(r=>r.phase==='send'?r.outcome!=='not_sent':(r.outcome==='delivered'||r.outcome==='not_sent'),{message:'Outcome does not match phase.'})
+ // A delivered receipt names the Telegram message to reconcile against; no other outcome may carry one (Codex review P1).
+ .refine(r=>(r.outcome==='delivered')===(r.telegramMessageId!==undefined),{message:'telegramMessageId is required for delivered and only for delivered.'});
 const reportSchema=z.object({receipts:z.array(receiptSchema).min(1).max(10)}).strict();
 
 const iso=(v:string|Date)=>new Date(v).toISOString();
@@ -179,8 +181,13 @@ export class OutboxService {
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'telegram_gateway',$11) ON CONFLICT(outbox_id,attempt_no,phase) DO NOTHING RETURNING id`,
      [this.p.tenantId,row.project_id,row.id,r.attemptNo,r.phase,r.outcome,r.telegramMessageId??null,r.errorCode??null,r.reportedAt,`${row.id}:${r.attemptNo}:${r.phase}`,r.phase==='send'?100:60]);
     if(!ins.rows.length) {
-     const old=(await tx.query<{outcome:string}>('SELECT outcome FROM delivery_receipts WHERE outbox_id=$1 AND attempt_no=$2 AND phase=$3',[row.id,r.attemptNo,r.phase])).rows[0];
-     if(old?.outcome!==r.outcome) throw new AppError('RECEIPT_CONFLICT','Biên nhận khác với biên nhận đã ghi cho lượt này.',409);
+     // A replay is the same receipt: outcome, Telegram message id and error code all equal the stored one (NULL equals NULL).
+     // Anything else is evidence that disagrees with what was recorded for this attempt (Codex review P2).
+     const same=(await tx.query<{same:boolean}>(
+      `SELECT (outcome=$4 AND telegram_message_id IS NOT DISTINCT FROM $5::text AND error_code IS NOT DISTINCT FROM $6::text) AS same
+       FROM delivery_receipts WHERE outbox_id=$1 AND attempt_no=$2 AND phase=$3`,
+      [row.id,r.attemptNo,r.phase,r.outcome,r.telegramMessageId??null,r.errorCode??null])).rows[0]?.same;
+     if(same!==true) throw new AppError('RECEIPT_CONFLICT','Biên nhận khác với biên nhận đã ghi cho lượt này.',409);
      replayed++;await tx.query('RELEASE SAVEPOINT receipt_one');continue;
     }
     // A throw below rolls back to the savepoint, including the receipt row just inserted.

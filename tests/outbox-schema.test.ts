@@ -114,8 +114,10 @@ test('runtime cannot mark a message delivered',async()=>{
   await seedBoth();
   await expect(scoped(h.db,pm,tx=>tx.query('UPDATE outbox_messages SET delivered_at=now()'))).rejects.toThrow(/permission denied/);
   await expect(scoped(h.db,pm,tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now()'))).rejects.toThrow(/permission denied/);
-  // state moves are guarded by trigger (see the hardening tests); non-state columns it owns stay writable
-  await expect(scoped(h.db,pm,tx=>tx.query("UPDATE outbox_messages SET last_error_code='X_CODE',version=version+1,updated_at=now()"))).resolves.toBeTruthy();
+  // state moves are guarded by trigger (see the hardening tests). While the state stays, runtime may only take the row
+  // (failure_owner_id with version+1); last_error_code moves only with a state move (Codex P1: it was writable before)
+  await expect(scoped(h.db,pm,tx=>tx.query("UPDATE outbox_messages SET last_error_code='X_CODE',version=version+1,updated_at=now()"))).rejects.toThrow(/change only with a state move/);
+  await expect(scoped(h.db,pm,tx=>tx.query('UPDATE outbox_messages SET failure_owner_id=$1,version=version+1,updated_at=now()',[pm.id]))).resolves.toBeTruthy();
   await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET delivered_at=now()'))).rejects.toThrow(/permission denied/);
   // identity may acknowledge its DM row once, in any state (the recipient can act before delivery is confirmed); a second change is refused
   await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now()'))).resolves.toBeTruthy();
@@ -305,7 +307,8 @@ async function force(id:string,to:string,attempt?:number){
   const cur=await stateOf(id);
   return asIntake(both(),async tx=>{
     await setSignal(tx,SIG[cur.state+'>'+to]);
-    return tx.query("UPDATE outbox_messages SET state=$2,attempt_no=coalesce($3::int,attempt_no),delivered_at=CASE WHEN $2='delivered' THEN now() ELSE delivered_at END,version=version+1,updated_at=now() WHERE id=$1",[id,to,attempt??null]);
+    // a move to delivered names a Telegram message id, as every delivered row must (Codex P1 CHECK)
+    return tx.query("UPDATE outbox_messages SET state=$2,attempt_no=coalesce($3::int,attempt_no),delivered_at=CASE WHEN $2='delivered' THEN now() ELSE delivered_at END,telegram_message_id=CASE WHEN $2='delivered' THEN '5' ELSE telegram_message_id END,version=version+1,updated_at=now() WHERE id=$1",[id,to,attempt??null]);
   });
 }
 type Path='leased'|'delivered'|'dead'|'uncertain';
@@ -322,6 +325,15 @@ const run=async(who:'runtime'|'intake',sql:string,id:string)=>{
   return who==='runtime'?asRuntimePerson(go):asIntake(both(),go);
 };
 const setState=(s:string,extra='')=>`UPDATE outbox_messages SET state='${s}'${extra},version=version+1,updated_at=now() WHERE id=$1`;
+/**
+ * Setup only: puts a row one version ahead while its state stays. The guard refuses that for every role (concern 4 ruling), so this
+ * runs as the operator with triggers skipped (replica mode). The forgery tests then try an event at that version, which no row check
+ * would stop, so only privilege can refuse it.
+ */
+const versionAhead=(id:string)=>h.operator.transaction(async tx=>{
+  await tx.query("SET LOCAL session_replication_role = 'replica'");
+  await tx.query('UPDATE outbox_messages SET version=version+1 WHERE id=$1',[id]);
+});
 
 test('runtime may only requeue dead rows with attempt_no reset or abandon dead and uncertain rows',async()=>{
   await expect(run('runtime',setState('pending'),await mkRow('delivered'))).rejects.toThrow(/state/i);
@@ -341,15 +353,17 @@ test('runtime may only requeue dead rows with attempt_no reset or abandon dead a
   await expect(run('runtime',setState('pending',',attempt_no=0'),a)).rejects.toThrow();
 });
 
-test('runtime keeps its non-state columns to failure_owner_id, last_error_code, version and updated_at',async()=>{
+test('runtime keeps its same-state columns to failure_owner_id (with version+1), version and updated_at',async()=>{
   const p=await mkRow('pending');
-  await expect(run('runtime',"UPDATE outbox_messages SET next_attempt_at=now()+interval '1 day' WHERE id=$1",p)).rejects.toThrow(/runtime/i);
-  await expect(run('runtime','UPDATE outbox_messages SET attempt_no=0 WHERE id=$1',await mkRow('leased'))).rejects.toThrow(/runtime/i);
-  await expect(run('runtime',"UPDATE outbox_messages SET last_error_code='OWNER',failure_owner_id=$2,version=version+1,updated_at=now() WHERE id=$1".replace('$2',`'${pm.id}'`),p)).resolves.toBeTruthy();
+  await expect(run('runtime',"UPDATE outbox_messages SET next_attempt_at=now()+interval '1 day' WHERE id=$1",p)).rejects.toThrow(/change only with a state move/);
+  await expect(run('runtime','UPDATE outbox_messages SET attempt_no=0 WHERE id=$1',await mkRow('leased'))).rejects.toThrow(/change only with a state move/);
+  // Codex P1: last_error_code is no longer writable while the state stays; the take alone is
+  await expect(run('runtime',"UPDATE outbox_messages SET last_error_code='OWNER',failure_owner_id=$2,version=version+1,updated_at=now() WHERE id=$1".replace('$2',`'${pm.id}'`),p)).rejects.toThrow(/change only with a state move/);
+  await expect(run('runtime',"UPDATE outbox_messages SET failure_owner_id=$2,version=version+1,updated_at=now() WHERE id=$1".replace('$2',`'${pm.id}'`),p)).resolves.toBeTruthy();
 });
 
 test('intake follows the allowed moves; delivered and abandoned are terminal',async()=>{
-  const move=(from:keyof typeof PATHS,to:string)=>mkRow(from).then(id=>run('intake',setState(to,to==='delivered'?',delivered_at=now()':''),id));
+  const move=(from:keyof typeof PATHS,to:string)=>mkRow(from).then(id=>run('intake',setState(to,to==='delivered'?",delivered_at=now(),telegram_message_id='5'":''),id));
   const ok:[string,string][]=[['pending','leased'],['leased','delivered'],['leased','pending'],['leased','dead'],['leased','uncertain'],
     ['uncertain','delivered'],['uncertain','pending'],['uncertain','dead'],['uncertain','abandoned'],['dead','pending'],['dead','abandoned']];
   for(const [f,t] of ok) await expect(move(f,t),f+'→'+t).resolves.toBeTruthy();
@@ -459,8 +473,9 @@ test('outbox_state_events: version never decreases and every state change raises
   const v=(await stateOf(p)).version;
   await expect(run('intake',"UPDATE outbox_messages SET version=version-1 WHERE id=$1",p)).rejects.toThrow(/version/i);
   await expect(run('intake',"UPDATE outbox_messages SET version=version+2 WHERE id=$1",p)).rejects.toThrow(/version/i);
-  await expect(run('intake',"UPDATE outbox_messages SET version=version+1 WHERE id=$1",p)).resolves.toBeTruthy();
-  expect((await stateOf(p)).version).toBe(v+1);
+  // concern 4 ruling: a bare same-state bump is refused too (it used to be allowed); the version stays
+  await expect(run('intake',"UPDATE outbox_messages SET version=version+1 WHERE id=$1",p)).rejects.toThrow(/version stays while the state stays/);
+  expect((await stateOf(p)).version).toBe(v);
   // terminal rows too
   const ab=await mkRow('dead');await run('intake',setState('abandoned'),ab);
   await expect(run('intake',"UPDATE outbox_messages SET version=version-1 WHERE id=$1",ab)).rejects.toThrow(/version/i);
@@ -471,11 +486,13 @@ test('outbox_state_events: a direct INSERT of an event is refused for intake, ru
   const bothP=both();
   const hum={actor_kind:'user',actor_id:pm.id};
   const DENIED=/permission denied/;
-  // abandoned row: runtime bumps the version (allowed by the guard) but still cannot add an abandon event
+  // abandoned row: runtime may no longer bump the version (concern 4 ruling); with the row put one version ahead anyway, it still
+  // cannot add an abandon event
   const u=await mkRow('uncertain');
   await run('runtime',setState('abandoned'),u);
   const ab={...hum,from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3};
-  await run('runtime',"UPDATE outbox_messages SET version=version+1 WHERE id=$1",u);
+  await expect(run('runtime',"UPDATE outbox_messages SET version=version+1 WHERE id=$1",u)).rejects.toThrow(/version stays while the state stays/);
+  await versionAhead(u);
   await expect(asRuntimePerson(tx=>stateEvent(tx,u,ids.sales,ab))).rejects.toThrow(DENIED);
   await expect(asIntake(bothP,tx=>stateEvent(tx,u,ids.sales,{from_state:'uncertain',to_state:'abandoned',signal:'abandon',attempt_no:3}))).rejects.toThrow(DENIED);
   // requeued pending row: failure_owner_id update then a direct requeue event
@@ -556,10 +573,12 @@ async function forgeViaTempTrigger(as:<T>(fn:(tx:Queryable)=>Promise<T>)=>Promis
 }
 
 test('outbox_state_events: a pg_temp trigger cannot forge an event for runtime (privilege, not trigger depth)',async()=>{
-  // a real abandon, then a same-state version bump, so an abandon event at the new version would pass every row check
+  // a real abandon, then the row one version ahead, so an abandon event at the new version would pass every row check. Runtime itself
+  // can no longer make that bump (concern 4 ruling), so the setup skips the guard
   const u=await mkRow('uncertain');
   await run('runtime',setState('abandoned'),u);
-  await run('runtime','UPDATE outbox_messages SET version=version+1 WHERE id=$1',u);
+  await expect(run('runtime','UPDATE outbox_messages SET version=version+1 WHERE id=$1',u)).rejects.toThrow(/version stays while the state stays/);
+  await versionAhead(u);
   const su=await stateOf(u),beforeU=(await events(u)).length;
   const r=await forgeViaTempTrigger(asRuntimePerson,{tenant_id:ids.tenant,project_id:ids.sales,outbox_id:u,from_state:'uncertain',to_state:'abandoned',signal:'abandon',
     attempt_no:su.attempt_no,outbox_version:su.version,actor_kind:'user',actor_id:pm.id,request_id:randomUUID(),trace_id:randomUUID()});
@@ -573,7 +592,8 @@ test('outbox_state_events: a pg_temp trigger cannot forge an event for intake (p
   // the same on a row intake abandoned itself
   const a=await mkRow('dead');
   await run('intake',setState('abandoned'),a);
-  await run('intake','UPDATE outbox_messages SET version=version+1 WHERE id=$1',a);
+  await expect(run('intake','UPDATE outbox_messages SET version=version+1 WHERE id=$1',a)).rejects.toThrow(/version stays while the state stays/);
+  await versionAhead(a);
   const sa=await stateOf(a),beforeA=(await events(a)).length;
   const ri=await forgeViaTempTrigger(asIntakeBoth,{tenant_id:ids.tenant,project_id:ids.sales,outbox_id:a,from_state:'dead',to_state:'abandoned',signal:'abandon',
     attempt_no:sa.attempt_no,outbox_version:sa.version,actor_kind:'intake_service',actor_id:intakePrincipalId,request_id:randomUUID(),trace_id:randomUUID()});
@@ -689,9 +709,13 @@ test('payload cap counts bytes, envelope constants and error codes are closed',a
   await expect(insert(o,groupVals({source:'other'}))).rejects.toThrow();
   await expect(asIntake(both(),tx=>insert(tx,groupVals({event_version:'v1',source:'libetech-ai-os'})))).resolves.toBeTruthy();
   const id=await mkRow('leased');
-  for(const bad of ['bad code','lower_case','X'.repeat(65),''])
-    await expect(o.query('UPDATE outbox_messages SET last_error_code=$2 WHERE id=$1',[id,bad]),JSON.stringify(bad)).rejects.toThrow();
-  await expect(o.query("UPDATE outbox_messages SET last_error_code='NET_TIMEOUT_1' WHERE id=$1",[id])).resolves.toBeTruthy();
+  // the guard now refuses any same-state change of last_error_code (Codex P1), so replica mode skips it and the CHECK alone answers
+  await rolledBack(async(tx,probe)=>{
+    await tx.query("SET LOCAL session_replication_role = 'replica'");
+    for(const bad of ['bad code','lower_case','X'.repeat(65),''])
+      expect(await probe('UPDATE outbox_messages SET last_error_code=$2 WHERE id=$1',[id,bad]),JSON.stringify(bad)).toMatch(/check constraint/);
+    expect(await probe("UPDATE outbox_messages SET last_error_code='NET_TIMEOUT_1' WHERE id=$1",[id])).toBeNull();
+  });
   const {g}=await seedBoth();
   await expect(receipt(o,g,ids.sales,{attempt_no:2,error_code:'free text'})).rejects.toThrow();
   await expect(receipt(o,g,ids.sales,{attempt_no:2,error_code:'RECIPIENT_UNLINKED'})).resolves.toBeTruthy();
@@ -876,4 +900,112 @@ test('DB M-9 the redundant indexes are gone and each FK keeps an index that lead
   expect(lead).toContainEqual({t:'intake_attachments',c:'revision_id'});
   expect(lead).toContainEqual({t:'delivery_receipts',c:'outbox_id'});
   expect(lead).toContainEqual({t:'outbox_state_events',c:'outbox_id'});
+});
+
+// ---- Codex round 1, P1: with the state unchanged, nothing moves the lease, attempt or error columns; only a runtime take moves the owner ----
+// Those columns change only with a state move, which goes through applyOutboxSignal: version +1 and one outbox_state_events row.
+const SAME_STATE=/change only with a state move/;
+const OWNER_ONLY=/failure_owner_id changes only when libetech_runtime takes the row/;
+const fullRow=async(id:string)=>(await h.operator.query('SELECT * FROM outbox_messages WHERE id=$1',[id])).rows[0];
+/** A leased row as the gateway's pull leaves it: attempt 1, a lease token and a lease expiry (service writer, signal 'lease'). */
+async function leasedRow(){
+  const p=await mkRow('pending'),row=await rowOf(p);
+  await asIntakeBoth(tx=>applyOutboxSignal(tx,row,'lease',{requestId:randomUUID()},{set:{attempt_no:1,lease_token:randomUUID()},leaseExpiresInSeconds:60}));
+  return p;
+}
+
+test('Codex P1 with the state unchanged, intake cannot change attempt_no, next_attempt_at, lease_token, lease_expires_at or last_error_code, with the version kept or raised',async()=>{
+  const l=await leasedRow();
+  const before=await fullRow(l),eventsBefore=await eventsFull(l);
+  expect(before).toMatchObject({state:'leased',attempt_no:1});
+  expect(before.lease_token).not.toBeNull();
+  const sets:[string,string][]=[['attempt_no','attempt_no=attempt_no+1'],['next_attempt_at',"next_attempt_at=now()+interval '1 hour'"],
+    ['lease_token',`lease_token='${randomUUID()}'`],['lease_expires_at',"lease_expires_at=now()+interval '1 hour'"],['last_error_code',"last_error_code='LEASE_EDIT'"]];
+  for(const [column,set] of sets) for(const bump of ['',',version=version+1'])
+    await expect(asIntakeBoth(tx=>tx.query(`UPDATE outbox_messages SET ${set}${bump},updated_at=now() WHERE id=$1`,[l])),column+(bump?' version+1':' version kept')).rejects.toThrow(SAME_STATE);
+  expect(await fullRow(l)).toEqual(before);
+  expect(await eventsFull(l)).toEqual(eventsBefore);
+});
+
+test('Codex P1 runtime changes failure_owner_id only with version+1, and never last_error_code while the state stays; the take still works',async()=>{
+  const d=await mkRow('dead');
+  const before=await fullRow(d);
+  await expect(run('runtime',`UPDATE outbox_messages SET failure_owner_id='${pm.id}',updated_at=now() WHERE id=$1`,d),'owner, version kept').rejects.toThrow(OWNER_ONLY);
+  await expect(run('runtime',"UPDATE outbox_messages SET last_error_code='OWNER_NOTE',version=version+1,updated_at=now() WHERE id=$1",d),'error code, version+1').rejects.toThrow(SAME_STATE);
+  await expect(run('runtime',"UPDATE outbox_messages SET last_error_code='OWNER_NOTE',updated_at=now() WHERE id=$1",d),'error code, version kept').rejects.toThrow(SAME_STATE);
+  await expect(run('runtime',`UPDATE outbox_messages SET failure_owner_id='${pm.id}',last_error_code='OWNER_NOTE',version=version+1,updated_at=now() WHERE id=$1`,d),'owner and error code').rejects.toThrow(SAME_STATE);
+  expect(await fullRow(d)).toEqual(before);
+  // positive control: the «take» of src/server/inbox.ts, owner + version+1 with the expected version
+  const taken=await asRuntimePerson(tx=>tx.query('UPDATE outbox_messages SET failure_owner_id=$3,version=version+1,updated_at=now() WHERE id=$1 AND version=$2 RETURNING id',[d,before.version,pm.id]));
+  expect(taken.rows).toHaveLength(1);
+  expect(await fullRow(d)).toMatchObject({state:'dead',failure_owner_id:pm.id,version:Number(before.version)+1,last_error_code:before.last_error_code,attempt_no:before.attempt_no});
+});
+
+test('Codex P1 the same-state rule holds for every role, the operator included; the identity acknowledgement keeps its version and still works',async()=>{
+  const l=await leasedRow();
+  const before=await fullRow(l);
+  await expect(h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE id=$1",[l]),'operator lease').rejects.toThrow(SAME_STATE);
+  await expect(h.operator.query("UPDATE outbox_messages SET next_attempt_at=now()-interval '1 hour',version=version+1 WHERE id=$1",[l]),'operator next attempt').rejects.toThrow(SAME_STATE);
+  await expect(h.operator.query(`UPDATE outbox_messages SET failure_owner_id='${pm.id}',version=version+1 WHERE id=$1`,[l]),'operator owner').rejects.toThrow(OWNER_ONLY);
+  expect(await fullRow(l)).toEqual(before);
+  const dm=(await insert(h.operator,dmVals())).rows[0].id;
+  await force(dm,'leased',1);
+  const v=(await stateOf(dm)).version;
+  await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now() WHERE id=$1 RETURNING id',[dm]))).resolves.toMatchObject({rows:[{id:dm}]});
+  expect(await fullRow(dm)).toMatchObject({state:'leased',version:v});
+  expect((await fullRow(dm)).acknowledged_at).not.toBeNull();
+});
+
+// ---- Codex round 1, P1: a delivered receipt and a delivered outbox row always carry the Telegram message id to reconcile against ----
+test('Codex P1 the database refuses a delivered receipt without a Telegram message id, as libetech_intake',async()=>{
+  const l=await leasedRow();
+  await expect(asIntakeBoth(tx=>receipt(tx,l,ids.sales,{telegram_message_id:null})),'send').rejects.toThrow(/delivery_receipts_delivered_has_message_id/);
+  await expect(asIntakeBoth(tx=>receipt(tx,l,ids.sales,{phase:'reconcile',telegram_message_id:null})),'reconcile').rejects.toThrow(/delivery_receipts_delivered_has_message_id/);
+  expect(await h.operator.query('SELECT 1 FROM delivery_receipts WHERE outbox_id=$1',[l]).then(r=>r.rows)).toEqual([]);
+  // controls: a delivered receipt with an id, and a failure without one
+  await expect(asIntakeBoth(tx=>receipt(tx,l,ids.sales,{telegram_message_id:'601'}))).resolves.toBeTruthy();
+  await expect(asIntakeBoth(tx=>receipt(tx,l,ids.sales,{attempt_no:2,outcome:'failed_retryable',telegram_message_id:null,error_code:'NETWORK'}))).resolves.toBeTruthy();
+});
+
+test('Codex P1 the database refuses moving an outbox row to delivered with a NULL Telegram message id',async()=>{
+  const l=await leasedRow();
+  const before=await fullRow(l),eventsBefore=await eventsFull(l);
+  const deliver=(id:string|null)=>asIntakeBoth(async tx=>{await setSignal(tx,'delivered');
+    return tx.query('UPDATE outbox_messages SET state=$2,delivered_at=now(),telegram_message_id=$3,lease_token=NULL,lease_expires_at=NULL,version=version+1,updated_at=now() WHERE id=$1',[l,'delivered',id]);});
+  await expect(deliver(null)).rejects.toThrow(/outbox_messages_delivered_has_message_id/);
+  expect(await fullRow(l)).toEqual(before);
+  expect(await eventsFull(l)).toEqual(eventsBefore);
+  await expect(deliver('601')).resolves.toBeTruthy();
+  expect(await fullRow(l)).toMatchObject({state:'delivered',telegram_message_id:'601'});
+});
+
+// ---- Codex round 1, concern 4 ruling: while the state stays, the version stays; only a runtime take raises it (by exactly 1) ----
+const VERSION_STAYS=/version stays while the state stays/;
+test('Codex P1 ruling: a bare same-state version bump raises for intake, runtime and the operator, also with only updated_at or acknowledged_at',async()=>{
+  const l=await leasedRow(),d=await mkRow('dead'),ab=await mkRow('dead');
+  await run('intake',setState('abandoned'),ab);
+  const bare='UPDATE outbox_messages SET version=version+1 WHERE id=$1';
+  const withTime='UPDATE outbox_messages SET version=version+1,updated_at=now() WHERE id=$1';
+  const withAck='UPDATE outbox_messages SET acknowledged_at=now(),version=version+1,updated_at=now() WHERE id=$1';
+  for(const [label,id] of [['leased',l],['dead',d],['abandoned',ab]] as const){
+    const before=await fullRow(id),eventsBefore=await eventsFull(id);
+    await expect(run('intake',bare,id),label+' intake bare').rejects.toThrow(VERSION_STAYS);
+    await expect(run('intake',withTime,id),label+' intake updated_at').rejects.toThrow(VERSION_STAYS);
+    await expect(run('runtime',bare,id),label+' runtime bare').rejects.toThrow(VERSION_STAYS);
+    await expect(run('runtime',withTime,id),label+' runtime updated_at').rejects.toThrow(VERSION_STAYS);
+    await expect(h.operator.query(bare,[id]),label+' operator bare').rejects.toThrow(VERSION_STAYS);
+    await expect(h.operator.query(withTime,[id]),label+' operator updated_at').rejects.toThrow(VERSION_STAYS);
+    await expect(h.operator.query(withAck,[id]),label+' operator acknowledged_at').rejects.toThrow(VERSION_STAYS);
+    expect(await fullRow(id)).toEqual(before);
+    expect(await eventsFull(id)).toEqual(eventsBefore);
+  }
+  // controls: the identity acknowledgement keeps the version, and the runtime take raises it by exactly 1
+  const dm=(await insert(h.operator,dmVals())).rows[0].id;
+  await force(dm,'leased',1);
+  const v=(await stateOf(dm)).version;
+  await expect(asIdentity(tx=>tx.query('UPDATE outbox_messages SET acknowledged_at=now(),updated_at=now() WHERE id=$1 RETURNING id',[dm]))).resolves.toMatchObject({rows:[{id:dm}]});
+  expect((await stateOf(dm)).version).toBe(v);
+  const vd=(await stateOf(d)).version;
+  await expect(run('runtime',`UPDATE outbox_messages SET failure_owner_id='${pm.id}',version=version+1,updated_at=now() WHERE id=$1`,d)).resolves.toBeTruthy();
+  expect((await stateOf(d)).version).toBe(vd+1);
 });

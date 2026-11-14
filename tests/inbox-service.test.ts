@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {ZodError} from 'zod';
 import {native,openHarness,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
-import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,ticketStateColumns,type EventOverride} from './slice2-fixtures';
+import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,ticketStateColumns,type EventOverride,outboxClock} from './slice2-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {InboxService} from '../src/server/inbox';
 import {OutboxService} from '../src/server/outbox';
@@ -12,6 +12,9 @@ import {ProjectRegistryService} from '../src/server/projects-registry';
 import {WorkService} from '../src/server/service';
 import {candidateTransition,type CandidateAction,type CandidateState} from '../src/server/intake-rules';
 import {ids} from '../src/server/identities';
+import {AppError} from '../src/server/errors';
+import {failure} from '../src/server/http';
+import type {Principal} from '../src/server/types';
 
 let h:Harness;
 beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);});
@@ -283,12 +286,60 @@ test('failures lists dead, uncertain and overdue messages; requeue and abandon n
   await expect(inbox().failureCommand(pm,unsure.outboxId,{kind:'take',expectedVersion:u.version+1,reason:'x',actorId:pm.id},k(),randomUUID())).rejects.toBeInstanceOf(ZodError);
 });
 
+test('Codex take by the current owner answers 409 OUTBOX_ALREADY_TAKEN and writes nothing; the first key replays; another manager reassigns with version+1',async()=>{
+  // a second manager of the sales project, synthetic
+  const pm2:Principal={id:'14000000-0000-4000-8000-000000000071',tenantId:ids.tenant,projectIds:[ids.sales],name:'Điều phối thứ hai mẫu',role:'manager',
+    grants:[{projectId:ids.sales,role:'manager',reportPermissions:[]}]};
+  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,'slice2-pm2',$3,'manager','fixture-only')`,
+    [pm2.id,pm2.tenantId,pm2.name]);
+  const dead=await settle({outcome:'failed_permanent',errorCode:'BOT_FORBIDDEN',telegramMessageId:undefined});
+  const id=dead.outboxId;
+  const written=async()=>({
+    row:await outboxRow(id),
+    intakeEvents:(await rows<{kind:string}>('SELECT kind FROM intake_events WHERE entity_id=$1 ORDER BY created_at,id',[id])).map(r=>r.kind),
+    stateEvents:Number((await rows<{n:string}>('SELECT count(*) n FROM outbox_state_events WHERE outbox_id=$1',[id]))[0].n),
+    commands:Number((await rows<{n:string}>('SELECT count(*) n FROM commands WHERE project_id=$1',[ids.sales]))[0].n)});
+  const v0=(await outboxRow(id)).version;
+  const key1=k(),first={kind:'take',expectedVersion:v0,reason:'tôi xử lý'};
+  await inbox().failureCommand(pm,id,first,key1,randomUUID());
+  const taken=await written();
+  expect(taken.row).toMatchObject({state:'dead',version:v0+1,failure_owner_id:pm.id});
+  expect(taken.intakeEvents.filter(x=>x==='outbox.taken')).toHaveLength(1);
+
+  // the owner takes it again with the fresh version and a new key: 409, and no version bump, audit row, state event or command key
+  const again={kind:'take',expectedVersion:v0+1,reason:'nhận lại'};
+  const e=await inbox().failureCommand(pm,id,again,k(),randomUUID()).then(()=>null,x=>x);
+  expect(e).toBeInstanceOf(AppError);
+  expect(e).toMatchObject({code:'OUTBOX_ALREADY_TAKEN',status:409,message:'Bạn đang nhận xử lý tin này.'});
+  const res=failure(e);
+  expect(res.status).toBe(409);
+  expect((await res.json()).error).toEqual({code:'OUTBOX_ALREADY_TAKEN',message:'Bạn đang nhận xử lý tin này.'});
+  expect(await written()).toEqual(taken);
+
+  // a retry of the first take, same key and same body, still replays the stored answer and writes nothing
+  await expect(inbox().failureCommand(pm,id,first,key1,randomUUID())).resolves.toBeUndefined();
+  expect(await written()).toEqual(taken);
+  // the first key with the second body is an idempotency conflict, as for any command
+  await expect(inbox().failureCommand(pm,id,again,key1,randomUUID())).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT',status:409});
+  expect(await written()).toEqual(taken);
+
+  // another manager takes the row: the owner changes and the version rises by exactly 1, with one more audit row and no state event
+  await inbox().failureCommand(pm2,id,{kind:'take',expectedVersion:v0+1,reason:'chuyển cho tôi'},k(),randomUUID());
+  const reassigned=await written();
+  expect(reassigned.row).toMatchObject({state:'dead',version:v0+2,attempt_no:taken.row.attempt_no,failure_owner_id:pm2.id});
+  expect(reassigned.intakeEvents).toEqual([...taken.intakeEvents,'outbox.taken']);
+  expect(reassigned.stateEvents).toBe(taken.stateEvents);
+  expect(reassigned.commands).toBe(taken.commands+1);
+  const ev=(await rows<{actor_id:string;payload:R}>("SELECT actor_id,payload FROM intake_events WHERE entity_id=$1 AND kind='outbox.taken' ORDER BY created_at DESC,id DESC LIMIT 1",[id]))[0];
+  expect(ev).toMatchObject({actor_id:pm2.id,payload:{stateBefore:'dead',versionBefore:v0+1}});
+});
+
 test('M-3 a leased row whose lease ran out is listed as stuck, and every row names its card',async()=>{
   const a=await ingest(),b=await ingest();
   const d=(await outbox().pull({limit:5})).deliveries;
   expect(d).toHaveLength(2);
   const [stuck,live]=d;
-  await h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE id=$1",[stuck.outboxId]);
+  await outboxClock(h.operator,"UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE id=$1",[stuck.outboxId]);
   const list=await inbox().failures(pm,ids.sales);
   expect(list.map(r=>r.outboxId)).toEqual([stuck.outboxId]);
   expect(list[0]).toMatchObject({state:'leased',overdue:true,template:'intake.received'});

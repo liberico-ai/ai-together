@@ -95,7 +95,8 @@ CREATE TABLE IF NOT EXISTS outbox_state_events (
   FOREIGN KEY(outbox_id,tenant_id) REFERENCES outbox_messages(id,tenant_id),
   UNIQUE(outbox_id,outbox_version)
 );
--- Range of the outbox counters (Database review M-8). Integrity only: who may change them is the guard trigger's business.
+-- Range of the outbox counters (Database review M-8), and a delivered receipt or row always names its Telegram message so it can be
+-- reconciled (Codex review P1). Integrity only: who may change these columns is the guard trigger's business.
 -- Added by name so a copy created by an earlier draft of this file gets them too.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='outbox_messages_attempt_no_nonnegative' AND conrelid='public.outbox_messages'::regclass) THEN
@@ -103,6 +104,12 @@ DO $$ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='outbox_messages_version_positive' AND conrelid='public.outbox_messages'::regclass) THEN
     ALTER TABLE outbox_messages ADD CONSTRAINT outbox_messages_version_positive CHECK(version>=1);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='outbox_messages_delivered_has_message_id' AND conrelid='public.outbox_messages'::regclass) THEN
+    ALTER TABLE outbox_messages ADD CONSTRAINT outbox_messages_delivered_has_message_id CHECK(state<>'delivered' OR telegram_message_id IS NOT NULL);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conname='delivery_receipts_delivered_has_message_id' AND conrelid='public.delivery_receipts'::regclass) THEN
+    ALTER TABLE delivery_receipts ADD CONSTRAINT delivery_receipts_delivered_has_message_id CHECK(outcome<>'delivered' OR telegram_message_id IS NOT NULL);
   END IF;
 END $$;
 
@@ -250,24 +257,26 @@ DROP TRIGGER IF EXISTS outbox_messages_bind_target ON outbox_messages;
 CREATE TRIGGER outbox_messages_bind_target BEFORE INSERT ON outbox_messages FOR EACH ROW EXECUTE FUNCTION outbox_messages_bind_target();
 
 -- State moves mirror outboxTransition (src/server/outbox.ts). delivered and abandoned are terminal.
--- libetech_runtime may only requeue dead rows (attempt_no reset to 0) or abandon dead/uncertain rows, and otherwise touches
--- failure_owner_id, last_error_code, version and updated_at only.
+-- libetech_runtime may only requeue dead rows (attempt_no reset to 0) or abandon dead/uncertain rows.
+-- While the state stays the same, for every role (Codex review P1): attempt_no, next_attempt_at, lease_token, lease_expires_at and
+-- last_error_code do not change. They change only together with a state move, which goes through applyOutboxSignal: version +1 and
+-- one outbox_state_events row written by the database. failure_owner_id changes only for libetech_runtime and only with version
+-- raised by exactly 1: the «take» command (src/server/inbox.ts), which writes its own intake_events row 'outbox.taken'.
+-- The version stays while the state stays (Codex review, concern 4 ruling): that take is the only same-state update that raises it.
+-- A bare version bump, or one that comes with only updated_at or acknowledged_at, raises for every role; it would move the expected
+-- version with no state event and no intake_events row.
 -- delivered_at and telegram_message_id move only with a move to delivered; delivered and abandoned rows are frozen except
--- acknowledged_at, updated_at and version; acknowledged_at is set once, from NULL to a value, in any state, and is never changed or
+-- acknowledged_at and updated_at; acknowledged_at is set once, from NULL to a value, in any state, and is never changed or
 -- cleared afterwards. Recipient-acknowledged is its own state, separate from delivered: a vote never sets delivered_at, and only
--- libetech_identity on DM rows may set acknowledged_at (grants and RLS below).
+-- libetech_identity on DM rows may set acknowledged_at (grants and RLS below); that update keeps the version.
 -- Runs with the caller's rights on every row update, so it also records current_user (the invoking role) for the state trigger below,
 -- which runs as its owner and must not take the caller's word for who it is.
 CREATE OR REPLACE FUNCTION outbox_messages_guard_state() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
   PERFORM pg_catalog.set_config('app.outbox_invoker', current_user::text, true);
-  -- version never decreases; a state change raises it by exactly 1; a same-state update keeps it or raises it by 1 (terminal rows too).
+  -- a state change raises the version by exactly 1; a same-state update keeps it, except a runtime take (checked at the end of the ELSE branch).
   IF NEW.state IS DISTINCT FROM OLD.state THEN
     IF NEW.version IS DISTINCT FROM OLD.version + 1 THEN RAISE EXCEPTION 'Outbox state change must raise version by exactly 1'; END IF;
-  ELSIF NEW.version < OLD.version OR NEW.version > OLD.version + 1 THEN
-    RAISE EXCEPTION 'Outbox version may only stay or rise by 1';
-  END IF;
-  IF NEW.state IS DISTINCT FROM OLD.state THEN
     IF NOT ((OLD.state = 'pending' AND NEW.state = 'leased')
          OR (OLD.state = 'leased' AND NEW.state IN ('delivered','pending','dead','uncertain'))
          OR (OLD.state = 'uncertain' AND NEW.state IN ('delivered','pending','dead','abandoned'))
@@ -297,9 +306,18 @@ BEGIN
     IF NEW.delivered_at IS DISTINCT FROM OLD.delivered_at OR NEW.telegram_message_id IS DISTINCT FROM OLD.telegram_message_id THEN
       RAISE EXCEPTION 'Outbox delivered_at and telegram_message_id change only on a move to delivered';
     END IF;
-    IF current_user = 'libetech_runtime'
-       AND (NEW.attempt_no IS DISTINCT FROM OLD.attempt_no OR NEW.next_attempt_at IS DISTINCT FROM OLD.next_attempt_at) THEN
-      RAISE EXCEPTION 'Runtime role may only change failure_owner_id and last_error_code while the state stays';
+    IF NEW.attempt_no IS DISTINCT FROM OLD.attempt_no OR NEW.next_attempt_at IS DISTINCT FROM OLD.next_attempt_at
+       OR NEW.lease_token IS DISTINCT FROM OLD.lease_token OR NEW.lease_expires_at IS DISTINCT FROM OLD.lease_expires_at
+       OR NEW.last_error_code IS DISTINCT FROM OLD.last_error_code THEN
+      RAISE EXCEPTION 'Outbox attempt_no, next_attempt_at, lease_token, lease_expires_at and last_error_code change only with a state move';
+    END IF;
+    IF NEW.failure_owner_id IS DISTINCT FROM OLD.failure_owner_id
+       AND NOT (current_user = 'libetech_runtime' AND NEW.version = OLD.version + 1) THEN
+      RAISE EXCEPTION 'Outbox failure_owner_id changes only when libetech_runtime takes the row, with version raised by exactly 1';
+    END IF;
+    IF NEW.version IS DISTINCT FROM OLD.version
+       AND NOT (current_user = 'libetech_runtime' AND NEW.failure_owner_id IS DISTINCT FROM OLD.failure_owner_id AND NEW.version = OLD.version + 1) THEN
+      RAISE EXCEPTION 'Outbox version stays while the state stays; only a libetech_runtime take raises it, by exactly 1';
     END IF;
   END IF;
   IF NEW.acknowledged_at IS DISTINCT FROM OLD.acknowledged_at

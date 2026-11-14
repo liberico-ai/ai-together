@@ -2,7 +2,7 @@ import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {native,openHarness,type Harness} from './slice1-db';
 import {pm,seedSlice1} from './slice1-fixtures';
-import {bridgeConfig,intakePrincipalId,messageEvent} from './slice2-fixtures';
+import {bridgeConfig,intakePrincipalId,messageEvent,outboxClock} from './slice2-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {IdentityService} from '../src/server/identity';
 import {OutboxService,enqueueDm,enqueueReceipt} from '../src/server/outbox';
@@ -81,7 +81,7 @@ describe.skipIf(!native)('outbox crash and concurrency (native PostgreSQL)',()=>
   await intake().ingest(messageEvent({}));
   const d=await outbox().pull({limit:5});
   expect(d.deliveries).toHaveLength(1);
-  await h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute'");
+  await outboxClock(h.operator,"UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute'");
   const next=await outbox().pull({limit:5});
   expect(next.deliveries).toEqual([]);
   expect(next.reconcile).toEqual([{outboxId:d.deliveries[0].outboxId,attemptNo:1}]);

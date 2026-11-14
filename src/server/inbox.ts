@@ -238,13 +238,15 @@ export class InboxService {
   managerOf(p,projectId);
   const input=failureSchema.parse(raw);
   await this.run(p,projectId,tx=>deduplicate(tx,p,projectId,key,{op:'inbox.outbox.'+input.kind,outboxId,...input},async()=>{
-   const row=(await tx.query<{id:string;tenant_id:string;project_id:string;state:OutboxState;attempt_no:number;version:number;trace_id:string}>(
-    'SELECT id,tenant_id,project_id,state,attempt_no,version,trace_id FROM outbox_messages WHERE id=$1 AND project_id=$2 FOR UPDATE',[outboxId,projectId])).rows[0];
+   const row=(await tx.query<{id:string;tenant_id:string;project_id:string;state:OutboxState;attempt_no:number;version:number;trace_id:string;failure_owner_id:string|null}>(
+    'SELECT id,tenant_id,project_id,state,attempt_no,version,trace_id,failure_owner_id FROM outbox_messages WHERE id=$1 AND project_id=$2 FOR UPDATE',[outboxId,projectId])).rows[0];
    if(!row) throw DENIED();
    if(row.version!==input.expectedVersion) throw new AppError('REVISION_CONFLICT','Tin đã thay đổi; tải lại rồi thao tác lại.',409);
    if(input.kind==='take') {
     // Same state: not a transition, so it does not go through applyOutboxSignal.
     if(row.state!=='dead'&&row.state!=='uncertain'&&row.state!=='pending') throw new AppError('OUTBOX_TRANSITION_INVALID','Không nhận xử lý được tin ở trạng thái này.',409);
+    // Already this person's: nothing to change. The guard keeps the version while the owner stays, so answer before any write.
+    if(row.failure_owner_id===p.id) throw new AppError('OUTBOX_ALREADY_TAKEN','Bạn đang nhận xử lý tin này.',409);
     const upd=await tx.query('UPDATE outbox_messages SET failure_owner_id=$3,version=version+1,updated_at=now() WHERE id=$1 AND version=$2 RETURNING id',[outboxId,input.expectedVersion,p.id]);
     if(!upd.rows.length) throw new AppError('REVISION_CONFLICT','Tin đã thay đổi; tải lại rồi thao tác lại.',409);
    } else if(input.kind==='requeue') await applyOutboxSignal(tx,row,'requeue',{requestId},{set:{attempt_no:0}});

@@ -1,4 +1,5 @@
 import type { CandidateCard, CandidateState, FailureRow, IntakeStatus, SourceAvailabilityRow } from '../server/inbox';
+import { ApiError } from './api';
 
 // Pure helpers for the Inbox screen (markup tests render these without a browser).
 export type InboxPageState = 'loading' | 'denied' | 'error' | 'empty' | 'ready';
@@ -96,10 +97,27 @@ export function cardActions(c: CandidateCard, d: CardDraft, canAct: boolean): Ca
   return out;
 }
 
-export const commandErrorMessage = (e: unknown): string => {
-  const m = e instanceof Error ? e.message : 'Không xử lý được yêu cầu.';
-  return m.includes('[REVISION_CONFLICT]') ? CONFLICT_COPY : m;
-};
+export const NETWORK_COPY = 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.';
+/**
+ * The sentence a failed request shows (UI-6). A version conflict has its own copy; an error the server answered (ApiError, built by
+ * api()) keeps the server's Vietnamese message; anything else, such as a fetch TypeError, a body that is not JSON or an unknown throw,
+ * becomes NETWORK_COPY. Raw English never reaches the screen.
+ */
+export const commandErrorMessage = (e: unknown): string =>
+  e instanceof ApiError ? (e.code === 'REVISION_CONFLICT' ? CONFLICT_COPY : e.message) : NETWORK_COPY;
+
+/** «Xem chi tiết» of one card: nothing yet, loading, the detail, or the sentence for a failed load (which a retry clears). */
+export type DetailLoad<T> = { detail: T | null; error: string; loading: boolean };
+/**
+ * Loads a card's detail once. It does nothing while a load runs or once the detail is in, so after a failure calling it again is
+ * the retry. A failure is shown through commandErrorMessage, never as the raw error.
+ */
+export async function loadDetail<T>(current: DetailLoad<T>, path: string, get: <U>(path: string) => Promise<U>, set: (next: DetailLoad<T>) => void): Promise<void> {
+  if (current.detail !== null || current.loading) return;
+  set({ detail: null, error: '', loading: true });
+  try { set({ detail: await get<T>(path), error: '', loading: false }); }
+  catch (e) { set({ detail: null, error: commandErrorMessage(e), loading: false }); }
+}
 
 export const formatTime = (v: string | null): string => v ? new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(v)) : '';
 export const sizeLabel = (n: number | null): string => n === null ? 'Chưa rõ dung lượng' : n < 1024 ? n + ' B' : n < 1048576 ? Math.round(n / 1024) + ' KB' : (n / 1048576).toFixed(1) + ' MB';

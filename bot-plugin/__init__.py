@@ -943,16 +943,25 @@ def _receipt_batches(receipts):
         batches.append(current)
     return batches
 
-def _refusals(answer):
+def _refusals(answer, batch):
+    """The refusals of a 2xx answer by (outboxId, attemptNo), or None when the answer does not account for the batch exactly:
+    `accepted` and `replayed` are non-negative integers (not bool), every refusal names a distinct receipt of the batch, and
+    accepted + replayed + refusals equals the batch size (Codex P1: an answer that settles nothing must not close anything)."""
     if not isinstance(answer, dict) or not isinstance(answer.get("rejected"), list):
         return None
+    counts = (answer.get("accepted"), answer.get("replayed"))
+    if any(type(count) is not int or count < 0 for count in counts):
+        return None
+    keys = {(receipt["outboxId"], receipt["attemptNo"]) for receipt in batch}
     refused = {}
     for item in answer["rejected"]:
         key = _attempt_key(item)
-        if key is None:
+        if key is None or key not in keys or key in refused:
             return None
         code = item.get("code")
         refused[key] = code if isinstance(code, str) and CODE.fullmatch(code) else "RECEIPT_REJECTED"
+    if sum(counts) + len(refused) != len(batch):
+        return None
     return refused
 
 def _report_batch(home, journal, batch, summary):
@@ -971,8 +980,8 @@ def _report_batch(home, journal, batch, summary):
             return True
         summary.update(ok=False, error=safe_error(error)["error"])
         return False
-    refused = _refusals(answer)
-    if refused is None:
+    refused = _refusals(answer, batch)
+    if refused is None:  # nothing of the batch is journaled: every receipt stays pending for the next pass
         summary.update(ok=False, error="RECEIPT_RESPONSE_INVALID")
         return False
     for receipt in batch:

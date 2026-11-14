@@ -2,12 +2,14 @@ import {afterEach,beforeEach,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {openHarness,type Harness} from './slice1-db';
 import {pm,seedSlice1} from './slice1-fixtures';
-import {bridgeConfig,chatSales,intakePrincipalId,messageEvent,signedRequest,type EventOverride} from './slice2-fixtures';
+import {bridgeConfig,chatSales,intakePrincipalId,messageEvent,signedRequest,type EventOverride,outboxClock} from './slice2-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {IdentityService} from '../src/server/identity';
 import {handleBridgeIo} from '../src/server/bridge-io';
 import {MAX_ATTEMPTS,OutboxService,backoffSeconds,enqueueDm,enqueueReceipt,outboxTransition,type OutboxSignal,type OutboxState} from '../src/server/outbox';
 import {ids} from '../src/server/identities';
+import {failure} from '../src/server/http';
+import {ZodError} from 'zod';
 
 let h:Harness,identity:IdentityService;
 beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);identity=new IdentityService(h.operator,ids.tenant);});
@@ -23,7 +25,7 @@ const one=async(id:string)=>(await rows<{state:string;attempt_no:number;delivere
 const n=async(t:string)=>Number((await rows<{n:string}>(`SELECT count(*) n FROM ${t}`))[0].n);
 const rcpt=(d:{outboxId:string;attemptNo:number;leaseToken:string},o:R={})=>({outboxId:d.outboxId,attemptNo:d.attemptNo,leaseToken:d.leaseToken,phase:'send',outcome:'delivered',telegramMessageId:'77',reportedAt:new Date().toISOString(),...o});
 const pullOne=async()=>{const r=await outbox().pull({limit:5});expect(r.deliveries).toHaveLength(1);return r.deliveries[0];};
-const due=(id:string)=>h.operator.query("UPDATE outbox_messages SET next_attempt_at=now()-interval '1 hour' WHERE id=$1",[id]);
+const due=(id:string)=>outboxClock(h.operator,"UPDATE outbox_messages SET next_attempt_at=now()-interval '1 hour' WHERE id=$1",[id]);
 
 test('outboxTransition accepts the listed moves and rejects the rest',()=>{
   const ok:[OutboxState,OutboxSignal,number,OutboxState][]=[
@@ -153,7 +155,7 @@ test('a receipt with an expired or foreign lease, or a second different outcome,
   expect(await outbox().report({receipts:[rcpt({...d,leaseToken:randomUUID()})]})).toEqual({accepted:0,replayed:0,rejected:[rej(d,'LEASE_INVALID')]});
   expect(await n('delivery_receipts')).toBe(0);
   expect(await outbox().report({receipts:[rcpt({...d,attemptNo:2})]})).toMatchObject({accepted:0,rejected:[{code:'LEASE_INVALID'}]});
-  await h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE id=$1",[d.outboxId]);
+  await outboxClock(h.operator,"UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE id=$1",[d.outboxId]);
   await outbox().pull({limit:5});
   expect((await one(d.outboxId)).state).toBe('uncertain');
   expect(await outbox().report({receipts:[rcpt(d)]})).toMatchObject({accepted:0,rejected:[{code:'LEASE_INVALID'}]});
@@ -335,7 +337,7 @@ test('DB M-4 the expired-lease sweep is bounded by the pull limit and the next p
   for(let i=0;i<3;i++) await intake().ingest(ev({}));
   const leased=(await outbox().pull({limit:5})).deliveries;
   expect(leased).toHaveLength(3);
-  await h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute'");
+  await outboxClock(h.operator,"UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute'");
   const states=async()=>(await rows<{state:string}>('SELECT state FROM outbox_messages ORDER BY created_at,id')).map(r=>r.state);
   await outbox().pull({limit:2});
   expect((await states()).sort()).toEqual(['leased','uncertain','uncertain']);
@@ -360,9 +362,78 @@ test('code m-6 when the third pull transaction fails, the leased DM is not lost:
   const dm=async()=>(await rows<{state:string;lease_expires_at:string|null}>("SELECT state,lease_expires_at FROM outbox_messages WHERE dedupe_key='dm-c'"))[0];
   expect((await dm()).state).toBe('leased');
   expect((await dm()).lease_expires_at).not.toBeNull();
-  await h.operator.query("UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE dedupe_key='dm-c'");
+  await outboxClock(h.operator,"UPDATE outbox_messages SET lease_expires_at=now()-interval '1 minute' WHERE dedupe_key=$1",['dm-c']);
   const later=await outbox().pull({limit:5});
   expect(later.deliveries).toEqual([]);
   expect((await dm()).state).toBe('uncertain');
   expect(later.reconcile).toHaveLength(1);
+});
+
+// ---- Codex round 1, P1: the receipt schema ties telegramMessageId to the delivered outcome ----
+test('Codex P1 a delivered receipt without telegramMessageId is refused for send and reconcile, through the validation error path',async()=>{
+  await intake().ingest(ev({}));
+  const d=await pullOne();
+  for(const phase of ['send','reconcile'])
+    await expect(outbox().report({receipts:[rcpt(d,{phase,telegramMessageId:undefined})]}),phase).rejects.toBeInstanceOf(ZodError);
+  // the bridge route answers the standard 422 INVALID_INPUT, which the gateway journals as rejected (never retried)
+  const deps={intakeDb:h.operator,identity,config:bridgeConfig,tenantId:ids.tenant};
+  const p='/api/bridge/outbox/receipts';
+  const error=await handleBridgeIo(signedRequest(p,{receipts:[rcpt(d,{telegramMessageId:undefined})]}),['outbox','receipts'],deps).then(()=>null,(e:unknown)=>e);
+  expect(error).toBeInstanceOf(ZodError);
+  const answer=failure(error);
+  expect(answer.status).toBe(422);
+  expect((await answer.json()).error.code).toBe('INVALID_INPUT');
+  expect(await n('delivery_receipts')).toBe(0);
+  expect((await one(d.outboxId)).state).toBe('leased');
+});
+
+test('Codex P1 a receipt that is not delivered must not carry a telegramMessageId',async()=>{
+  await intake().ingest(ev({}));
+  const d=await pullOne();
+  for(const [phase,outcome] of [['send','failed_retryable'],['send','failed_permanent'],['send','uncertain'],['reconcile','not_sent']] as const)
+    await expect(outbox().report({receipts:[rcpt(d,{phase,outcome,errorCode:'SEND_TIMEOUT'})]}),phase+' '+outcome).rejects.toBeInstanceOf(ZodError);
+  expect(await n('delivery_receipts')).toBe(0);
+  expect((await one(d.outboxId)).state).toBe('leased');
+  // control: the same failure without an id is accepted
+  expect(await outbox().report({receipts:[rcpt(d,{outcome:'failed_retryable',errorCode:'SEND_TIMEOUT',telegramMessageId:undefined})]})).toEqual({accepted:1,replayed:0,rejected:[]});
+});
+
+// ---- Codex round 1, P2: a replay is the same receipt, not just the same outcome ----
+test('Codex P2 a second delivered receipt with another message id for the same attempt is RECEIPT_CONFLICT; an exact resubmission is replayed',async()=>{
+  await intake().ingest(ev({}));
+  const d=await pullOne();
+  const first=rcpt(d,{telegramMessageId:'501'});
+  expect(await outbox().report({receipts:[first]})).toEqual({accepted:1,replayed:0,rejected:[]});
+  const stored=()=>rows('SELECT outcome,telegram_message_id,error_code,reported_at,attempt_no,phase FROM delivery_receipts WHERE outbox_id=$1',[d.outboxId]);
+  const row=()=>rows('SELECT state,version,telegram_message_id,delivered_at,updated_at FROM outbox_messages WHERE id=$1',[d.outboxId]);
+  const s0=await stored(),r0=await row();
+  expect(s0).toMatchObject([{outcome:'delivered',telegram_message_id:'501'}]);
+  expect(await outbox().report({receipts:[rcpt(d,{telegramMessageId:'502'})]})).toEqual({accepted:0,replayed:0,rejected:[{outboxId:d.outboxId,attemptNo:1,code:'RECEIPT_CONFLICT'}]});
+  expect(await stored()).toEqual(s0);
+  expect(await row()).toEqual(r0);
+  expect(await outbox().report({receipts:[first]})).toEqual({accepted:0,replayed:1,rejected:[]});
+  // a conflict is one rejected entry; it does not fail the batch, the valid receipt next to it still applies
+  await intake().ingest(ev({}));
+  const e=await pullOne();
+  expect(await outbox().report({receipts:[rcpt(d,{telegramMessageId:'503'}),rcpt(e,{telegramMessageId:'504'})]}))
+    .toEqual({accepted:1,replayed:0,rejected:[{outboxId:d.outboxId,attemptNo:1,code:'RECEIPT_CONFLICT'}]});
+  expect((await one(e.outboxId)).state).toBe('delivered');
+  expect(await stored()).toEqual(s0);
+});
+
+test('Codex P2 the error code counts too, with NULL equal to NULL (IS NOT DISTINCT FROM)',async()=>{
+  await intake().ingest(ev({}));await intake().ingest(ev({}));
+  const [a,b]=(await outbox().pull({limit:5})).deliveries;
+  const fail=(d:typeof a,errorCode?:string)=>rcpt(d,{outcome:'failed_permanent',telegramMessageId:undefined,errorCode});
+  expect(await outbox().report({receipts:[fail(a,'BOT_FORBIDDEN')]})).toMatchObject({accepted:1});
+  const v=(await rows<{version:number}>('SELECT version FROM outbox_messages WHERE id=$1',[a.outboxId]))[0].version;
+  for(const other of ['BOT_REMOVED',undefined])
+    expect(await outbox().report({receipts:[fail(a,other)]}),String(other)).toEqual({accepted:0,replayed:0,rejected:[{outboxId:a.outboxId,attemptNo:1,code:'RECEIPT_CONFLICT'}]});
+  expect(await outbox().report({receipts:[fail(a,'BOT_FORBIDDEN')]})).toEqual({accepted:0,replayed:1,rejected:[]});
+  expect(await rows('SELECT state,version,last_error_code FROM outbox_messages WHERE id=$1',[a.outboxId])).toEqual([{state:'dead',version:v,last_error_code:'BOT_FORBIDDEN'}]);
+  // no error code stored and none sent: the same receipt
+  const unsure=rcpt(b,{outcome:'uncertain',telegramMessageId:undefined});
+  expect(await outbox().report({receipts:[unsure]})).toMatchObject({accepted:1});
+  expect(await outbox().report({receipts:[unsure]})).toEqual({accepted:0,replayed:1,rejected:[]});
+  expect(await outbox().report({receipts:[{...unsure,errorCode:'SEND_TIMEOUT'}]})).toMatchObject({replayed:0,rejected:[{code:'RECEIPT_CONFLICT'}]});
 });

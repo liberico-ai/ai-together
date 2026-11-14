@@ -4,6 +4,7 @@ import {ids} from '../src/server/identities';
 import {sameBuProject} from './slice1-fixtures';
 
 import type {BridgeConfig} from '../src/server/bridge-config';
+import type {Database} from '../src/server/db';
 import type {IntakeEventInput} from '../src/server/types';
 export type EventOverride=Partial<Omit<IntakeEventInput,'context'>>&{context?:Partial<IntakeEventInput['context']>};
 
@@ -49,4 +50,18 @@ export async function ticketStateColumns(query:(sql:string)=>Promise<{column_nam
   return (await query(`SELECT column_name FROM information_schema.columns WHERE table_schema='public'
     AND table_name IN ('source_events','source_event_revisions','intake_attachments','intake_candidates','intake_events','outbox_messages','delivery_receipts','outbox_state_events')
     AND (column_name LIKE '%ticket_status%' OR column_name LIKE '%ticket_state%')`)).map(r=>r.column_name);
+}
+
+/**
+ * Test clock for outbox rows: moves lease_expires_at or next_attempt_at of rows that keep their state into the past, as if time passed.
+ * The guard refuses that same-state change for every role (Codex P1), so the UPDATE runs in one operator transaction with triggers
+ * skipped (session_replication_role = replica, superuser only); CHECK constraints still apply. Test fixtures only, never app code.
+ */
+export async function outboxClock(operator:Database,sql:string,params:unknown[]=[]):Promise<void>{
+  if(!/^UPDATE outbox_messages SET (lease_expires_at|next_attempt_at)=now\(\)-interval '[0-9]+ (minute|hour)'( WHERE [a-z_]+=\$1)?$/.test(sql))
+    throw new Error('outboxClock only moves lease_expires_at or next_attempt_at into the past');
+  await operator.transaction(async tx=>{
+    await tx.query("SET LOCAL session_replication_role = 'replica'");
+    await tx.query(sql,params);
+  });
 }

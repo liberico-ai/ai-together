@@ -3,8 +3,8 @@ import { useState, type ReactNode } from 'react';
 import type { CandidateCard, SourceAvailabilityRow, FailureRow, RevisionView, EventView, DeliveryView } from '../server/inbox';
 import { api } from './api';
 import { inboxState, statusLabel, failureLabel, variantOf, isOpen, initialDraft, cardActions, commandErrorMessage, formatTime, sizeLabel, chatTail,
-  templateLabel, sourceLabel, reloadInbox, VARIANT_NAMES, STATE_NAMES, CONFLICT_COPY, NOT_MANAGER_COPY, POINTER_ONLY_COPY,
-  type CardAction, type CardDraft, type InboxPageState } from './inbox-view';
+  templateLabel, sourceLabel, reloadInbox, loadDetail, VARIANT_NAMES, STATE_NAMES, CONFLICT_COPY, NOT_MANAGER_COPY, POINTER_ONLY_COPY,
+  type CardAction, type CardDraft, type DetailLoad, type InboxPageState } from './inbox-view';
 
 type Page = { items: CandidateCard[]; total: number };
 type Detail = { card: CandidateCard; revisions: RevisionView[]; events: EventView[]; deliveries: DeliveryView[] };
@@ -53,19 +53,22 @@ function DetailView({ detail }: { detail: Detail }) {
   </div>;
 }
 
-function CardDetail({ candidateId }: { candidateId: string }) {
-  const [detail, setDetail] = useState<Detail | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
-  async function load() {
-    if (detail || loading) return;
-    setLoading(true); setError('');
-    try { setDetail(await api<Detail>('/api/inbox/' + candidateId)); } catch (e) { setError(commandErrorMessage(e)); } finally { setLoading(false); }
-  }
-  return <details className="inbox-more" onToggle={e => { if ((e.currentTarget as HTMLDetailsElement).open) void load(); }}>
+export type CardDetailViewProps = { state: DetailLoad<Detail>; onOpen: () => void; onRetry: () => void };
+/** «Xem chi tiết» without state of its own. A failed load shows its sentence and «Thử lại», which loads the detail again (UI-6). */
+export function CardDetailView({ state, onOpen, onRetry }: CardDetailViewProps) {
+  return <details className="inbox-more" onToggle={e => { if ((e.currentTarget as HTMLDetailsElement).open) onOpen(); }}>
     <summary className="inbox-summary">Xem chi tiết</summary>
-    {loading && <p className="doc-meta" aria-busy="true">Đang tải chi tiết…</p>}
-    {error && <p role="alert" className="doc-problem">{error}</p>}
-    {detail && <DetailView detail={detail} />}
+    {state.loading && <p className="doc-meta" aria-busy="true">Đang tải chi tiết…</p>}
+    {state.error && <div className="inbox-actions"><p role="alert" className="doc-problem">{state.error}</p>
+      <button type="button" className="doc-action inbox-secondary" onClick={onRetry}>Thử lại</button></div>}
+    {state.detail && <DetailView detail={state.detail} />}
   </details>;
+}
+
+function CardDetail({ candidateId }: { candidateId: string }) {
+  const [state, setState] = useState<DetailLoad<Detail>>({ detail: null, error: '', loading: false });
+  const load = () => { void loadDetail(state, '/api/inbox/' + candidateId, api, setState); };
+  return <CardDetailView state={state} onOpen={load} onRetry={load} />;
 }
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => <div className="inbox-variant"><h4>{title}</h4>{children}</div>;

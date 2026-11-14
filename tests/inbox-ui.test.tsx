@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { statusLabel, variantOf, inboxState, commandErrorMessage, initialDraft, templateLabel, formatTime, reloadInbox, CONFLICT_COPY, NOT_MANAGER_COPY, type CardDraft } from '../src/components/inbox-view';
-import { Inbox, InboxBody, IntakeCard, CardView, SourceList, FailureList, GatewayHash } from '../src/components/inbox';
+import { statusLabel, variantOf, inboxState, commandErrorMessage, initialDraft, templateLabel, formatTime, reloadInbox, loadDetail, CONFLICT_COPY, NOT_MANAGER_COPY, type CardDraft } from '../src/components/inbox-view';
+import { Inbox, InboxBody, IntakeCard, CardView, CardDetailView, SourceList, FailureList, GatewayHash } from '../src/components/inbox';
+import { api, ApiError } from '../src/components/api';
 import { ApprovalItem } from '../src/components/approvals';
 import { AccessActions, expandsAccess } from '../src/components/team-accounts';
 import type { CandidateCard, IntakeStatus, SourceAvailabilityRow, FailureRow } from '../src/server/inbox';
@@ -322,8 +323,10 @@ describe('inbox UI', () => {
 
   it('a stale version shows the conflict sentence and keeps the choice', () => {
     expect(CONFLICT_COPY).toBe('Mục này vừa được người khác cập nhật. Tải lại để xem bản mới.');
-    expect(commandErrorMessage(new Error('Tin đã thay đổi. [REVISION_CONFLICT]'))).toBe(CONFLICT_COPY);
-    expect(commandErrorMessage(new Error('Lỗi khác [INVALID_INPUT]'))).toBe('Lỗi khác [INVALID_INPUT]');
+    // UI-6: only an error api() built from a server answer (ApiError) keeps its message; a bare Error is not the server speaking
+    expect(commandErrorMessage(new ApiError('Tin đã thay đổi. [REVISION_CONFLICT]', 'REVISION_CONFLICT', 409))).toBe(CONFLICT_COPY);
+    expect(commandErrorMessage(new ApiError('Lỗi khác [INVALID_INPUT]', 'INVALID_INPUT', 422))).toBe('Lỗi khác [INVALID_INPUT]');
+    expect(commandErrorMessage(new Error('Lỗi khác [INVALID_INPUT]'))).toBe('Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.');
   });
 
   it('approvals show the ballot kind and current → proposed grants', () => {
@@ -389,5 +392,76 @@ describe('inbox UI', () => {
     expect(narrow).toContain('>Lưu quyền<');
     expect(narrow).toContain('value="access"');
     expect(narrow).not.toContain('Trình phiếu đổi quyền');
+  });
+});
+
+// ---- UI-6 (manual UI check): a failed request never shows raw English, and a card detail that failed can be loaded again ----
+describe('UI-6 request failures', () => {
+  const NETWORK = 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.';
+  afterEach(() => { vi.unstubAllGlobals(); });
+  const json = (status: number, payload: unknown) => new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
+  const caught = (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e);
+  const cardWith = (error: string) => renderToStaticMarkup(<CardView card={fresh()} canAct draft={initialDraft(fresh())} busy={false} error={error}
+    onDraft={() => {}} onSubmit={() => {}} onInvalid={() => {}} />);
+
+  it('a command whose fetch rejects with TypeError shows the Vietnamese copy and never «Failed to fetch»', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    const error = await caught(api('/api/inbox/' + fresh().candidateId + '/commands', { kind: 'dismiss', reason: 'Tin thử', expectedVersion: 1 }));
+    expect(error).toBeInstanceOf(TypeError);
+    expect(commandErrorMessage(error)).toBe(NETWORK);
+    const html = cardWith(commandErrorMessage(error));
+    expect(html).toContain(NETWORK);
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain('Failed to fetch');
+    // a body that is not JSON (a proxy error page) and anything unknown read the same, never their own text
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>Bad Gateway</html>', { status: 502 })));
+    expect(commandErrorMessage(await caught(api('/api/inbox')))).toBe(NETWORK);
+    for (const odd of [new Error('Network request failed'), 'boom', null]) expect(commandErrorMessage(odd)).toBe(NETWORK);
+  });
+
+  it('an error the server answered (AppError through api()) is shown as is; a version conflict keeps the conflict copy', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json(422, { data: null, error: { code: 'INVALID_INPUT', message: 'Dữ liệu không hợp lệ.' } })));
+    const invalid = await caught(api('/api/inbox/x/commands', { kind: 'dismiss' }));
+    expect(commandErrorMessage(invalid)).toBe('Dữ liệu không hợp lệ. [INVALID_INPUT]');
+    expect(cardWith(commandErrorMessage(invalid))).toContain('Dữ liệu không hợp lệ. [INVALID_INPUT]');
+    vi.stubGlobal('fetch', vi.fn(async () => json(404, { data: null, error: { code: 'SCOPE_DENIED', message: 'Không tìm thấy mục trong phạm vi của anh/chị.' } })));
+    expect(commandErrorMessage(await caught(api('/api/inbox/x')))).toBe('Không tìm thấy mục trong phạm vi của anh/chị. [SCOPE_DENIED]');
+    vi.stubGlobal('fetch', vi.fn(async () => json(409, { data: null, error: { code: 'REVISION_CONFLICT', message: 'Tin đã thay đổi; tải lại rồi thao tác lại.' } })));
+    expect(commandErrorMessage(await caught(api('/api/inbox/x/commands', {})))).toBe(CONFLICT_COPY);
+  });
+
+  it('a card detail that fails to load shows the copy and «Thử lại»; pressing it loads again and shows the detail', async () => {
+    const detail = { card: fresh(), events: [], deliveries: [],
+      revisions: [{ revisionNo: 1, editedAt: null, contentHash: 'b'.repeat(64), excerpt: 'Cổng thanh toán lỗi từ 9 giờ', textTruncated: false, recordedAt: '2026-11-13T01:00:01.000Z' }] };
+    const fetch = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce(json(200, { data: detail, error: null }));
+    vi.stubGlobal('fetch', fetch);
+    let state: { detail: typeof detail | null; error: string; loading: boolean } = { detail: null, error: '', loading: false };
+    let pending: Promise<void> = Promise.resolve();
+    const load = () => { pending = loadDetail(state, '/api/inbox/' + detail.card.candidateId, api, next => { state = next; }); };
+    const view = () => <CardDetailView state={state} onOpen={load} onRetry={load} />;
+    // opening «Xem chi tiết» loads it; the network is down
+    (hosts(view()).find(h => h.type === 'details')!.props.onToggle as (e: unknown) => void)({ currentTarget: { open: true } });
+    await pending;
+    const failed = renderToStaticMarkup(view());
+    expect(failed).toContain(NETWORK);
+    expect(failed).toContain('role="alert"');
+    expect(failed).not.toContain('Failed to fetch');
+    const retry = hosts(view()).find(h => h.type === 'button' && textOf(h.props.children) === 'Thử lại');
+    expect(retry, 'a «Thử lại» button').toBeTruthy();
+    expect(String(retry!.props.className)).toMatch(/\bdoc-action\b/); // the shared 44px control
+    (retry!.props.onClick as () => void)();
+    await pending;
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const shown = renderToStaticMarkup(view());
+    expect(shown).toContain('Các bản của tin');
+    expect(shown).toContain('Cổng thanh toán lỗi từ 9 giờ');
+    expect(shown).not.toContain(NETWORK);
+    expect(shown).not.toContain('Thử lại');
+    // a loaded detail is not fetched again when the panel is opened again
+    load(); await pending;
+    expect(fetch).toHaveBeenCalledTimes(2);
+    // the card's own detail panel is this view, retrying with the same loader
+    const { readFile } = await import('node:fs/promises');
+    expect(await readFile('src/components/inbox.tsx', 'utf8')).toMatch(/<CardDetailView state=\{state\} onOpen=\{load\} onRetry=\{load\} \/>/);
   });
 });
