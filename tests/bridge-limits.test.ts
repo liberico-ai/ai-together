@@ -5,7 +5,7 @@ import path from 'node:path';
 import {ZodError} from 'zod';
 import {openHarness,type Harness} from './slice1-db';
 import {seedSlice1} from './slice1-fixtures';
-import {bridgeConfig,messageEvent,signedRequest} from './slice2-fixtures';
+import {bridgeConfig,chatSales,messageEvent,signedRequest} from './slice2-fixtures';
 import {IdentityService} from '../src/server/identity';
 import {handleBridgeIo} from '../src/server/bridge-io';
 import {body} from '../src/server/http';
@@ -176,4 +176,21 @@ test('the intake route takes the excerpt flag from the operator config',async()=
   const flagged={...bridgeConfig,intake:{...bridgeConfig.intake!,excerptChats:[bridgeConfig.intake!.chats[0]]}};
   expect(await run(flagged)).toEqual({content_mode:'excerpt',text_excerpt:'chữ theo cấu hình'});
   expect(await run(bridgeConfig)).toEqual({content_mode:'pointer_only',text_excerpt:null});
+});
+
+test('OQ-27 an HTTP intake from a group whose config file lists the same project twice is taken in (200 ack)',async()=>{
+  const dir=await mkdtemp(path.join(tmpdir(),'bridge-config-'));
+  const prev=process.env.LIBETECH_BRIDGE_CONFIG;
+  try {
+    const file=path.join(dir,'dup.json');
+    await writeFile(file,JSON.stringify({...bridgeConfig,chatScopes:{...bridgeConfig.chatScopes,[chatSales]:[ids.sales,ids.sales]}}));
+    process.env.LIBETECH_BRIDGE_CONFIG=file;
+    const config=await requireBridgeConfig('INTAKE_UNCONFIGURED');
+    const res=await handleBridgeIo(signedRequest(EVENTS,messageEvent({})),['intake','events'],{intakeDb:h.operator,identity,config,tenantId:ids.tenant});
+    expect(res).toMatchObject({persisted:true});
+    expect(await sourceEvents()).toBe(1);
+  } finally {
+    if(prev===undefined) delete process.env.LIBETECH_BRIDGE_CONFIG; else process.env.LIBETECH_BRIDGE_CONFIG=prev;
+    await rm(dir,{recursive:true,force:true});
+  }
 });

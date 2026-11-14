@@ -45,7 +45,7 @@ export class IntakeService {
   const e=intakeEventSchema.parse(raw),c=e.context;
   // Authority comes only from operator configuration, before any SQL that carries content.
   if(!c.chatId.startsWith('-')||!this.intake.chats.includes(c.chatId)) throw DENIED();
-  const scope=this.chatScopes[c.chatId]??[];
+  const scope=[...new Set(this.chatScopes[c.chatId]??[])];
   if(scope.length===0) throw DENIED();
   // OQ-27 decided 14/11/2026 (a): only a group mapped to exactly one project is taken in.
   if(scope.length>1) throw new AppError('INTAKE_PROJECT_AMBIGUOUS','Nhóm này chưa được gán đúng một dự án.',409);

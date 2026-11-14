@@ -594,3 +594,17 @@ test('Sec M4 attachment file names lose bidi and other Unicode format characters
     ['Báo cáo tháng 11.pdf','Báo cáo tháng 11.pdf'],['../../etc/passwd','passwd']] as const)
     expect(cleanFileName(input),JSON.stringify(input)).toBe(out);
 });
+
+test('OQ-27 a group whose config lists the same project twice is one project and is taken in',async()=>{
+  const dup={...bridgeConfig.chatScopes,[chatSales]:[ids.sales,ids.sales]};
+  const ack=await svcWith(dup).ingest(ev({context:{chatId:chatSales}}));
+  expect(ack.persisted).toBe(true);
+  const rows=(await h.operator.query<{project_id:string}>('SELECT project_id FROM source_events')).rows;
+  expect(rows).toEqual([{project_id:ids.sales}]);
+});
+
+test('OQ-27 a duplicated id next to a second project is still ambiguous',async()=>{
+  const dup={...bridgeConfig.chatScopes,[chatSales]:[ids.sales,ids.sales,ids.transport]};
+  await expect(svcWith(dup).ingest(ev({context:{chatId:chatSales}}))).rejects.toMatchObject({code:'INTAKE_PROJECT_AMBIGUOUS',status:409});
+  await allZero();
+});

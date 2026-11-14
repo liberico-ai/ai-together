@@ -63,6 +63,11 @@ test('config rejects an intake key equal to the bot key and intake chats outside
   expect(()=>parseBridgeConfig({...ok,intake:{key:'short',principalId:ids.tenant,chats:[chatSales]}})).toThrow();
   expect(()=>parseBridgeConfig({...ok,extra:1})).toThrow();
 });
+test('config keeps one copy of a project id listed twice for a group',()=>{
+  const cfg=(l:string[])=>parseBridgeConfig({key:botKey,chatScopes:{[chatSales]:l}}).chatScopes[chatSales];
+  expect(cfg([ids.sales,ids.sales])).toEqual([ids.sales]);
+  expect(cfg([ids.sales,ids.transport,ids.sales])).toEqual([ids.sales,ids.transport]);
+});
 test('config rejects excerpt chats outside intake.chats; no excerptChats means none',()=>{
   const ok={key:botKey,chatScopes:{[chatSales]:[ids.sales],'-1000000000002':[ids.transport]}};
   const intake={key:intakeKey,principalId:ids.tenant,chats:[chatSales]};
