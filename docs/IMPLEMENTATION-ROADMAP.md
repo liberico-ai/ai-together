@@ -19,6 +19,15 @@ Theo chỉ đạo mới nhất ngày 11/11, [SPEC-009](SPEC-009-PM-BA-DOCUMENTS-
 
 **Trạng thái P1.0 ngày 12/11/2026:** **đã có mã** trên nhánh `slice-1-doc-ownership` (mã ở `a319e10`), biên nhận [DELIVERY-010](DELIVERY-010-project-document-registry-20261112.md), review [REVIEW-slice-1](reviews/REVIEW-slice-1-20261112.md) — Codex vòng 3 PASS; PR liberico-ai/ai-together#6, merge vào `libetech-ai-os` ngày 12/11/2026 (`9873f4a`). Chưa triển khai, chưa dùng thật, chưa nghiệm thu; migration 013–015 chưa áp DB thật. Ca Xeca «chờ tin gốc». OQ-25 (host nguồn được phép) đã chốt ngày 13/11/2026: (a) allowlist cố định trong mã, mã chặn host ở `src/server/source-hosts.ts`. Mở các tuyến tài liệu ra proxy công khai vẫn là điểm dừng triển khai. Lát 2 (P1.1) chỉ mở sau khi biên nhận lát 1 được Chairman xem.
 
+**Trạng thái P1.1 ngày 14/11/2026:** **có mã nhưng chưa đạt cổng Codex.**
+
+- Nhánh `slice-2-intake-outbox`, mã ở `2eb9437`. Biên nhận: [DELIVERY-011](DELIVERY-011-intake-outbox-20261113.md). Review: [REVIEW-slice-2](reviews/REVIEW-slice-2-20261113.md).
+- Test, typecheck và build xanh: native 472/0 bỏ qua, PGlite 451/21 bỏ qua, pytest 55.
+- Codex vòng 3 còn 2 P0 + 2 P1 sau hai vòng sửa. Planner đã phân tích; chờ Chairman quyết vòng sửa thứ ba.
+- Chưa push, chưa có PR. Chưa triển khai, chưa dùng thật, chưa nghiệm thu. Migration 016–018 chưa áp lên DB thật.
+- ProjectChannel chưa kích hoạt, vì OQ-09 mục (1) chưa chứng minh.
+- Chờ Chairman: OQ-26…30, S5, DOC-16.
+
 Ca Xeca: **XECA006/STT41** nâng package theo npm audit, hạn 21/11, Quân phụ trách và Thắng phối hợp theo Sheet đọc 11/11. Giữ riêng XECA005/TK-XECA-202611-001; repo/audit report/bản thực thử cần bổ sung. Ca LBRC014 dùng hồ sơ cập nhật §12 ngày 09/11, gồm báo cáo iOS và tám ảnh của Phương; còn mối nối build và nghiệm thu nghiệp vụ. Không yêu cầu lại phần đã có, không mở lại hoặc đổi trạng thái nguồn.
 
 Trước pilot nhóm mở rộng, xác minh chat/topic→project, privacy mode và tin thực nhận; xác minh quyền nguồn Drive/Git, nơi giữ snapshot đã duyệt, reviewer được giao quyền. DOC-01…18 trong SPEC-009 là bộ ca thiết kế chưa chạy. XI-02…06 của SPEC-008 chỉ dùng khi có đợt đối soát Jira riêng, không bắt buộc cho Phase 1 này. Lịch giao được BoM chốt sau xác nhận khả dụng; không tự biến thứ tự thành ngày cam kết.

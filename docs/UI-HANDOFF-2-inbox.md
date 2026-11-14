@@ -98,22 +98,24 @@ Tài khoản (`/team`): sau khi sửa quyền, nếu có dự án mở rộng (k
 - Mất mạng hoặc máy chủ không trả lời bằng JSON (trang lỗi của proxy): lệnh, danh sách và «Xem chi tiết» đều hiện «Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.»; danh sách có «Thử lại» (trạng thái error), chi tiết có «Thử lại» riêng, lệnh bấm lại nút của nó.
 - Dự án chưa ánh xạ miền: màn này không phân miền, không cộng gộp.
 
-## Kiểm tay (phiên điều phối chạy và chụp vào `docs/screenshots/`)
-Builder không chạy kiểm tay. Mọi ô dưới để «chưa chạy» cho tới khi phiên điều phối điền kết quả.
+## Kiểm tay (phiên điều phối, 13–14/11/2026)
+Môi trường: chế độ máy chủ, PostgreSQL cục bộ (container loopback), CSDL thử `slice2_ui` chỉ có dữ liệu tổng hợp; tài khoản tổng hợp `pm_a` (điều phối), `eng_a` (kỹ sư), `viewer_a` (chỉ xem); cấu hình chạy nằm ngoài repo. Riêng «Rỗng» chạy ở chế độ demo cục bộ. Kiểm lần đầu ở `121d35a`, kiểm lại ở `2898def`, phần lỗi mạng kiểm ở `2e37f17`. Ảnh chụp không lưu thành tệp, nên không có `docs/screenshots/`. Kết quả ghi theo điều quan sát được trên trình duyệt và qua truy vấn CSDL thử.
 | Trạng thái | 360×740 | 1280×800 |
 |---|---|---|
-| Có tin (đủ ba loại + chưa phân loại) | chưa chạy | chưa chạy |
-| Rỗng | chưa chạy | chưa chạy |
-| Không quyền (`projectId` ngoài danh sách) | chưa chạy | chưa chạy |
-| Lỗi (ngắt API rồi bấm Thử lại) | chưa chạy | chưa chạy |
-| Đang tải (giảm tốc mạng) | chưa chạy | chưa chạy |
-| Tin chỉ con trỏ | chưa chạy | chưa chạy |
-| Xung đột version (hai tab cùng thao tác) | chưa chạy | chưa chạy |
-| Người không phải điều phối (không nút, có lý do) | chưa chạy | chưa chạy |
-| Nhóm mới và nhóm đã có tin | chưa chạy | chưa chạy |
-| `/approvals` phiếu đổi quyền | chưa chạy | chưa chạy |
-| `/team` mở rộng quyền so với chỉ giảm | chưa chạy | chưa chạy |
-| 360px không cuộn ngang; Tab đi đúng thứ tự đọc | chưa chạy | không áp dụng |
+| Có tin (đủ ba loại + chưa phân loại) | đạt | đạt |
+| Rỗng | đạt (demo) | đạt (demo) |
+| Không quyền (`projectId` ngoài danh sách) | đạt: trang từ chối, không có dữ liệu | đạt |
+| Lỗi (ngắt API rồi bấm Thử lại) | đạt: chi tiết tin lỗi → «Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.» (`role=alert`) + «Thử lại» 44px; bấm → tải lại được | đạt: dừng máy chủ → chi tiết tin và thao tác hiện câu tiếng Việt, không còn «Failed to fetch»; «Thử lại» tải lại được (kiểm bằng một lần fetch bị làm lỗi, vì khởi động lại máy chủ làm trang tự tải lại) |
+| Đang tải (giảm tốc mạng) | chi tiết tin: đạt («Đang tải chi tiết…», `role=status`, khi fetch bị làm chậm 4 giây). Trang `/inbox` (`loading.tsx`): chưa tái hiện được vì máy cục bộ tải quá nhanh; chỉ có test | chưa tái hiện; chỉ có test |
+| Tin chỉ con trỏ | đạt | đạt |
+| Xung đột version (hai tab cùng thao tác) | đạt (đổi version qua API rồi thao tác trên giao diện cũ → câu xung đột + «Tải lại danh sách», lý do đã gõ vẫn giữ) | đạt |
+| Người không phải điều phối (không nút, có lý do) | đạt | đạt |
+| Nhóm mới và nhóm đã có tin | đạt | đạt |
+| `/approvals` phiếu đổi quyền | đạt | đạt |
+| `/team` mở rộng quyền so với chỉ giảm | đạt | đạt |
+| 360px không cuộn ngang; Tab đi đúng thứ tự đọc | không cuộn ngang: đạt (`scrollWidth` 360 trên `/inbox`, `/approvals`, `/team`; không có nút nào dưới 44px trên `/inbox`). Thứ tự Tab: chưa chạy | không áp dụng |
+
+Ghi nhận khi kiểm, ngoài phạm vi màn này: nút Có/Không trên `/approvals` cao 40px (kiểu có từ trước). Các màn khác (`/approvals`, `/team`, tài liệu, đăng nhập) vẫn hiện nguyên văn lỗi kỹ thuật khi mất mạng; lát này chỉ sửa Inbox.
 
 ## Việc chưa làm
 - Đo contrast thực tế (nhãn phụ 12px, nhãn trung tính).
