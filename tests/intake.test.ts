@@ -24,7 +24,7 @@ const allZero=async()=>{for(const t of tables) expect(await count(t),t).toBe(0);
 const hex=(c:string)=>c.repeat(64);
 const stored=(c='a',over:Record<string,unknown>={})=>({state:'stored' as const,locator:'gw://libetech/attachments/'+hex(c),sha256:hex(c),mimeType:'application/pdf',sizeBytes:1000,fileName:'a.pdf',...over});
 const ev=(o:EventOverride)=>messageEvent(o);
-const mapDomain=(project:string,code:string)=>h.operator.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,$3,$4,'synthetic-source',1)",[ids.tenant,project,code,pm.id]);
+const mapDomain=(project:string,code:string,version=1)=>h.operator.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,$3,$4,'synthetic-source',$5)",[ids.tenant,project,code,pm.id,version]);
 
 test('pure rules: key, quality, redaction, file name, verdict',()=>{
   expect(threadKey({messageId:'5'})).toBe('m:5');
@@ -211,6 +211,16 @@ test('OQ-28 an IBS HI project keeps pointer and hash only even in a flagged grou
   expect(r.content_mode).toBe('pointer_only');
   expect(r.text_excerpt).toBeNull();
   expect(r.content_hash).toMatch(HASH);
+});
+
+test('OQ-28 the latest mapping row decides: a project remapped to IBS HI stores pointer only, and remapped away from IBS HI stores the excerpt',async()=>{
+  await mapDomain(ids.sales,'XECA',1);
+  await mapDomain(ids.sales,'IBS_HI',2);
+  const a=await flagged(chatSales).ingest(ev({text:'tin sau khi ánh xạ IBS HI'}));
+  expect(await modeRow(a.sourceEventId)).toMatchObject({content_mode:'pointer_only',text_excerpt:null});
+  await mapDomain(ids.sales,'XECA',3);
+  const b=await flagged(chatSales).ingest(ev({text:'tin sau khi ánh xạ lại XECA'}));
+  expect(await modeRow(b.sourceEventId)).toMatchObject({content_mode:'excerpt',text_excerpt:'tin sau khi ánh xạ lại XECA'});
 });
 
 test('OQ-28 a flag in the request body is never honoured',async()=>{

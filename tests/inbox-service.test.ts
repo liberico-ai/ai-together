@@ -409,7 +409,7 @@ test('M1 detail gives no content hash for a pointer_only project and keeps it fo
 });
 
 // OQ-30 decided 14/11/2026: «Ẩn ngay, thiết kế xoá sau» — text stays in the immutable table, the Inbox hides it under the current config.
-const mapDomain=(project:string,code:string)=>h.operator.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,$3,$4,'synthetic-source',1)",[ids.tenant,project,code,pm.id]);
+const mapDomain=(project:string,code:string,version=1)=>h.operator.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,$3,$4,'synthetic-source',$5)",[ids.tenant,project,code,pm.id,version]);
 const storedText=async(id:string)=>(await rows<{text_excerpt:string|null}>(
   'SELECT r.text_excerpt FROM source_event_revisions r JOIN intake_candidates c ON c.root_source_event_id=r.source_event_id WHERE c.id=$1 ORDER BY r.revision_no',[id])).map(r=>r.text_excerpt);
 const expectHidden=async(svc:InboxService,id:string,marker:string,hash:string)=>{
@@ -439,6 +439,20 @@ test('OQ-30 stored text is hidden when the project becomes IBS HI',async()=>{
   const a=await ingest({text:marker},[chatSales]);
   await mapDomain(ids.sales,'IBS_HI');
   await expectHidden(inbox([chatSales]),a.id,marker,a.e.contentHash);
+  expect(await storedText(a.id)).toEqual([marker]);
+});
+
+test('OQ-30 the latest mapping row decides what the Inbox shows',async()=>{
+  const marker='KIWI-REMAP-7740 nội dung đã lưu';
+  const a=await ingest({text:marker},[chatSales]);
+  await mapDomain(ids.sales,'XECA',1);
+  await mapDomain(ids.sales,'IBS_HI',2);
+  await expectHidden(inbox([chatSales]),a.id,marker,a.e.contentHash);
+  await mapDomain(ids.sales,'XECA',3);
+  const d=await inbox([chatSales]).detail(pm,a.id);
+  expect(d.card).toMatchObject({contentMode:'excerpt',excerpt:marker});
+  expect(d.revisions).toHaveLength(1);
+  expect(d.revisions[0]).toMatchObject({contentMode:'excerpt',excerpt:marker,contentHash:a.e.contentHash});
   expect(await storedText(a.id)).toEqual([marker]);
 });
 
