@@ -1,4 +1,4 @@
-import {afterEach,beforeEach,expect,test} from 'vitest';
+import {afterEach,beforeEach,expect,test,vi} from 'vitest';
 import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import {seedSlice1} from './slice1-fixtures';
 import {bridgeConfig,messageEvent,signedRequest} from './slice2-fixtures';
 import {IdentityService} from '../src/server/identity';
 import {handleBridgeIo} from '../src/server/bridge-io';
+import {body} from '../src/server/http';
 import {requireBridgeConfig} from '../src/server/bridge-config';
 import {ids} from '../src/server/identities';
 
@@ -87,4 +88,80 @@ test('Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plu
     expect(src,f).toMatch(/requireBridgeConfig\(/);
     expect(src,f).not.toMatch(/loadBridgeConfig\(/);
   }
+});
+
+// Codex round 2 P1: a body sent without a length (chunked) is read as a stream and given up at the cap, never buffered whole.
+/** A streamed body with no declared length: `chunks` given in turn, one per read (highWaterMark 0), then the end.
+ * `probe` counts the chunks pulled and records whether the reader cancelled the stream. */
+const streamOf=(chunks:Uint8Array[],opts:{cancelThrows?:boolean}={})=>{
+  const probe={pulls:0,cancelled:false};
+  const stream=new ReadableStream<Uint8Array>({
+    pull(c){const next=chunks[probe.pulls];probe.pulls+=1;if(next) c.enqueue(next); else c.close();},
+    cancel(){probe.cancelled=true;if(opts.cancelThrows) throw new Error('synthetic cancel failure');},
+  },{highWaterMark:0});
+  return {stream,probe};
+};
+/** 256 chunks of 1 KiB JSON whitespace: far past every cap, and it would go on being read. */
+const flood=()=>Array.from({length:256},()=>new TextEncoder().encode(' '.repeat(1024)));
+/** `raw` as bytes cut every `size` bytes, so multi-byte letters fall across chunk boundaries. */
+const cut=(raw:string,size:number)=>{const bytes=Buffer.from(raw);const out:Uint8Array[]=[];for(let i=0;i<bytes.length;i+=size) out.push(new Uint8Array(bytes.subarray(i,i+size)));return out;};
+const streamedRequest=(url:string,stream:ReadableStream<Uint8Array>,headers:Record<string,string>={})=>
+  new Request(url,{method:'POST',body:stream,duplex:'half',headers} as RequestInit);
+/** The signed headers of signedRequest(path, raw), without any length. */
+const signedHeaders=(path:string,raw:string)=>Object.fromEntries(signedRequest(path,raw).headers);
+
+test('Codex r2 P1 a bridge body with no length is cancelled once it passes the cap, before it is read to the end',async()=>{
+  const {stream,probe}=streamOf(flood());
+  const req=streamedRequest('http://127.0.0.1:3148'+EVENTS,stream,signedHeaders(EVENTS,'{}'));
+  expect(req.headers.get('content-length')).toBeNull();
+  await expect(call(req)).rejects.toMatchObject({code:'PAYLOAD_TOO_LARGE',status:413,message:'Yêu cầu quá lớn.'});
+  // 16 KiB is passed on the 17th chunk of 1 KiB: the rest is never pulled
+  expect(probe.cancelled).toBe(true);
+  expect(probe.pulls).toBe(17);
+  // a declared length above the cap is still refused before anything is pulled
+  const declared=streamOf(flood());
+  const big=streamedRequest('http://127.0.0.1:3148'+EVENTS,declared.stream,{...signedHeaders(EVENTS,'{}'),'content-length':'16385'});
+  await expect(call(big)).rejects.toMatchObject({code:'PAYLOAD_TOO_LARGE',status:413});
+  expect(declared.probe.pulls).toBe(0);
+  expect(await sourceEvents()).toBe(0);
+});
+
+test('Codex r2 P1 a streamed bridge body at the cap, signed, is accepted and decoded like request.text()',async()=>{
+  const raw=sized(16384,'Nhờ kiểm tra ệ '.repeat(250));
+  expect(Buffer.byteLength(raw)).toBe(16384);
+  const {stream,probe}=streamOf(cut(raw,1000));
+  await expect(call(streamedRequest('http://127.0.0.1:3148'+EVENTS,stream,signedHeaders(EVENTS,raw)))).resolves.toMatchObject({persisted:true});
+  expect(probe.cancelled).toBe(false);
+  expect(await sourceEvents()).toBe(1);
+});
+
+test('Codex r2 P1 the web body() refuses a streamed body over 16 KB with no length without reading it to the end',async()=>{
+  const {stream,probe}=streamOf(flood());
+  await expect(body(streamedRequest('http://127.0.0.1:3147/api/v1/work',stream))).rejects.toMatchObject({code:'PAYLOAD_TOO_LARGE',status:413,message:'Nội dung vượt 16 KB.'});
+  expect(probe.cancelled).toBe(true);
+  expect(probe.pulls).toBe(17);
+  // at the cap it is parsed as before, multi-byte letters split across chunks included
+  const value={title:'Việc mẫu ệ'.repeat(100)};
+  const json=JSON.stringify(value);
+  const at=json+' '.repeat(16384-Buffer.byteLength(json));
+  const ok=streamOf(cut(at,999));
+  await expect(body(streamedRequest('http://127.0.0.1:3147/api/v1/work',ok.stream))).resolves.toEqual(value);
+  // no body at all reads as '' and stays a JSON syntax error (422 through failure()), as request.text() gave
+  await expect(body(new Request('http://127.0.0.1:3147/api/v1/work',{method:'POST'}))).rejects.toBeInstanceOf(SyntaxError);
+  // a chunk that is not bytes is refused as request.text() refuses it, never counted as zero bytes
+  const odd=streamOf(['x' as unknown as Uint8Array,...flood()]);
+  await expect(body(streamedRequest('http://127.0.0.1:3147/api/v1/work',odd.stream))).rejects.toBeInstanceOf(TypeError);
+  expect([odd.probe.pulls,odd.probe.cancelled]).toEqual([1,true]);
+});
+
+test('Codex r2 P1 a cancel that fails is logged by a fixed code and the body is still refused 413',async()=>{
+  const logged:string[]=[];
+  const spy=vi.spyOn(console,'error').mockImplementation((line:unknown)=>{logged.push(String(line));});
+  try {
+    const {stream,probe}=streamOf(flood(),{cancelThrows:true});
+    await expect(body(streamedRequest('http://127.0.0.1:3147/api/v1/work',stream))).rejects.toMatchObject({code:'PAYLOAD_TOO_LARGE',status:413});
+    expect(probe.cancelled).toBe(true);
+    expect(logged.map(line=>JSON.parse(line))).toEqual([{level:'warn',event:'request_body_cancel_failed',errorType:'Error'}]);
+    expect(logged.join('\n')).not.toMatch(/synthetic cancel failure/);
+  } finally { spy.mockRestore(); }
 });

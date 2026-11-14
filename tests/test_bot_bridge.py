@@ -128,6 +128,9 @@ RECEIVED='Đã ghi nhận, mã IN-0A1B2C3D. PM sẽ xác nhận loại và dự 
 DM_CARD='Có phiếu Tech chờ anh/chị xác nhận. Gõ /duyet trong chat riêng này.'
 # The runtime intake.json of a gateway whose hook is switched on for the one synthetic group.
 HOOK_ON=dict(hookEnabled=True,chats=[GROUP])
+# The fields of the server's IntakeAck that confirm storage (Codex round 2): a fake intake backend that stores answers them.
+SOURCE_EVENT='20000000-0000-4000-8000-000000000001'
+ACK={'persisted':True,'sourceEventId':SOURCE_EVENT}
 
 @contextmanager
 def profile_home(intake=True,bot=True,**intake_fields):
@@ -466,9 +469,9 @@ class IntakeAdapterTests(unittest.TestCase):
                 self.assertEqual(bridge.submit_event(home,event('53','tin ba'),spool),{'ok':False,'spooled':True})
             posted=[]
             def live(_home,payload,**kwargs):
-                posted.append((kwargs,payload));return {'persisted':True}
+                posted.append((kwargs,payload));return dict(ACK)
             with patch.object(bridge,'call_backend',side_effect=live):
-                self.assertEqual(bridge.submit_event(home,event('54','tin bốn'),spool),{'ok':True,'data':{'persisted':True}})
+                self.assertEqual(bridge.submit_event(home,event('54','tin bốn'),spool),{'ok':True,'data':ACK})
             self.assertEqual([(payload['context']['messageId'],payload['spooled']) for _,payload in posted],[('53',True),('54',False)])
             self.assertEqual({(kwargs['path'],kwargs['key_file']) for kwargs,_ in posted},{(bridge.INTAKE_PATH,'intake.json')})
             # A drain stops at the first transient failure and keeps the rest in order.
@@ -518,7 +521,7 @@ class IntakeAdapterTests(unittest.TestCase):
             def backend(_home,payload,**kwargs):
                 calls.append(payload['context']['messageId'])
                 if payload['context']['messageId']=='61':raise bridge.BackendError('INTERNAL_ERROR',500)
-                delivered.append((payload['context']['messageId'],payload['spooled']));return {'persisted':True}
+                delivered.append((payload['context']['messageId'],payload['spooled']));return dict(ACK)
             with patch.object(bridge,'call_backend',side_effect=backend),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
                 # A is answered 500 live (attempt 1) and on each of the next three replays; B, C and D wait behind it.
                 for number in (61,62,63,64):
@@ -893,7 +896,7 @@ class IntakeAdapterTests(unittest.TestCase):
                 for hidden in (text,GROUP,SENDER,'Người mẫu Ba'):self.assertNotIn(hidden,record)
             posted=[]
             def live(_home,payload,**kwargs):
-                posted.append((kwargs,payload));return {'persisted':True}
+                posted.append((kwargs,payload));return dict(ACK)
             backend=Mock(side_effect=live)
             with patch.object(bridge,'call_backend',backend):
                 for args,kwargs in [((),{}),((None,),{}),((object(),),{}),((),{'event':object(),'gateway':object()}),((),{'event':tg_event(source=dict(chat_type='private',chat_id=SENDER))})]:
@@ -1023,7 +1026,7 @@ class IntakeAdapterTests(unittest.TestCase):
             for number in range(100,120):spool.put(fitted(number))
             calls=[];per_hook=[]
             def live(_home,payload,**kwargs):
-                calls.append((kwargs['timeout'],payload['context']['messageId'],payload['spooled']));return {'persisted':True}
+                calls.append((kwargs['timeout'],payload['context']['messageId'],payload['spooled']));return dict(ACK)
             with patch.object(bridge,'call_backend',side_effect=live):
                 for number in range(200,205):
                     count=len(calls)
@@ -1149,5 +1152,126 @@ class ReceiptAnswerTests(unittest.TestCase):
             summary,_=self.drain(home,journal,refuse_b,[delivery(OUTBOX_A,LEASE_A),delivery(OUTBOX_B,LEASE_B)])
             self.assertTrue(summary['ok']);self.assertEqual((summary['reported'],summary['rejected'],summary['pending']),(1,1,0))
             self.assertEqual(self.closed(home),[(OUTBOX_A,'reported',None),(OUTBOX_B,'rejected','RECEIPT_CONFLICT')])
+
+# ---- Codex round 2 P1: on the intake route only the server's IntakeAck counts as stored. ----
+# The server's answer to a stored event (src/server/intake.ts IntakeAck), as success() wraps it.
+STORED=encoded({'data':{'sourceEventId':SOURCE_EVENT,'revisionNo':1,'candidateRef':'IN-0A1B2C3D','replayed':False,'persisted':True,'receipt':'queued'},
+                'error':None,'meta':{'requestId':'30000000-0000-4000-8000-0000000000aa'}})
+# 2xx answers that do not say the event was stored: from a proxy, a wrong route, or a backend fault.
+NOT_STORED=[(200,b'{"data":null,"error":null}'),(200,b'{}'),(200,b'<html>ok</html>'),(204,b''),(202,b'{"data":null}'),
+            (200,encoded({'data':{'persisted':False,'sourceEventId':SOURCE_EVENT},'error':None})),
+            (200,encoded({'data':{'sourceEventId':SOURCE_EVENT},'error':None})),
+            (200,encoded({'data':{'persisted':True},'error':None})),
+            (200,encoded({'data':{'persisted':True,'sourceEventId':''},'error':None})),
+            (200,encoded({'data':{'persisted':'true','sourceEventId':SOURCE_EVENT},'error':None})),
+            (200,encoded({'data':{'persisted':True,'sourceEventId':7},'error':None})),
+            (200,b'"persisted"'),(200,b'[]'),(200,encoded({'data':['persisted'],'error':None})),
+            (200,b'{"data":null,"error":{"code":"SCOPE_DENIED","message":"x"}}'),(200,b' '*65537)]
+
+class AnswerOpener(FakeOpener):
+    """Answers each signed POST with the (status, body) given for its route; any other route is a test error."""
+    def __init__(self,answers):
+        super().__init__();self.answers=answers
+    def open(self,request,timeout):
+        self.requests.append(request)
+        status,body=self.answers[request.full_url.removeprefix(bridge.ORIGIN)]
+        response=FakeResponse(body);response.status=status
+        return response
+
+def intake_answer(status,body):
+    return patch.object(bridge.urllib.request,'build_opener',return_value=AnswerOpener({bridge.INTAKE_PATH:(status,body)}))
+
+class IntakeAnswerTests(unittest.TestCase):
+    def test_a_2xx_that_does_not_confirm_storage_spools_the_new_message_with_one_answer_counted(self):
+        text='Tin riêng tư cần lưu'
+        for number,(status,body) in enumerate(NOT_STORED,start=400):
+            with self.subTest(status=status,body=body),profile_home() as home:
+                spool=bridge.Spool(home)
+                with intake_answer(status,body),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                    result=bridge.submit_event(home,fitted(number,text),spool)
+                self.assertEqual(result,{'ok':False,'spooled':True})
+                self.assertEqual([(line['event']['context']['messageId'],line['attempts'],line['event']['spooled']) for line in spool_lines(home)],
+                                 [(str(number),1,False)])
+                self.assertEqual(dead_lines(home),[])
+                # only the fixed code: no text, chat, sender or answer body
+                self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_RESPONSE_INVALID'])
+
+    def test_through_the_hook_the_message_is_spooled_and_only_codes_are_logged(self):
+        text='Nhờ Người mẫu Ba xem lỗi'
+        with profile_home(**HOOK_ON) as home:
+            hook=hook_of(home)
+            with intake_answer(200,b'{"data":null,"error":null}'),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                self.assertIsNone(hook(event=tg_event(text,source=dict(message_id='450'))))
+            self.assertEqual([(line['event']['context']['messageId'],line['attempts']) for line in spool_lines(home)],[('450',1)])
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_RESPONSE_INVALID',
+                                          f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_SPOOLED'])
+            for record in logs.output:
+                for hidden in (text,GROUP,SENDER):self.assertNotIn(hidden,record)
+
+    def test_the_drain_counts_a_2xx_without_a_stored_ack_and_dead_letters_the_head_at_the_limit(self):
+        with profile_home() as home:
+            spool=bridge.Spool(home)
+            spool.put(fitted(460,'tin A'))
+            with intake_answer(200,b'{"data":null,"error":null}'),self.assertLogs(bridge.LOG.name,level='DEBUG') as logs:
+                for answers in range(1,bridge.SPOOL_MAX_ATTEMPTS):
+                    self.assertEqual(bridge.submit_event(home,fitted(460+answers),spool,replays=1),{'ok':False,'spooled':True})
+                    # the head stays first with one more answer counted; the new message waits behind it, uncounted
+                    lines=spool_lines(home)
+                    self.assertEqual((lines[0]['event']['context']['messageId'],lines[0]['attempts']),('460',answers))
+                    self.assertEqual([line['attempts'] for line in lines[1:]],[0]*answers)
+                self.assertEqual(dead_lines(home),[])
+                # the SPOOL_MAX_ATTEMPTS-th such answer moves it to the dead-letter file; the next line becomes the head
+                self.assertEqual(bridge.submit_event(home,fitted(470),spool,replays=1),{'ok':False,'spooled':True})
+            (dead,)=dead_lines(home)
+            self.assertEqual((dead['reason'],dead['attempts'],dead['event']['context']['messageId']),('INTAKE_RETRY_LIMIT',bridge.SPOOL_MAX_ATTEMPTS,'460'))
+            self.assertEqual([(line['event']['context']['messageId'],line['attempts']) for line in spool_lines(home)],
+                             [('461',0),('462',0),('463',0),('464',0),('470',0)])
+            self.assertEqual(logs.output,[f'WARNING:{bridge.LOG.name}:libetech intake: INTAKE_RESPONSE_INVALID']*bridge.SPOOL_MAX_ATTEMPTS
+                             +[f'WARNING:{bridge.LOG.name}:libetech intake spool: INTAKE_DEAD_LETTER INTAKE_RETRY_LIMIT'])
+            for record in logs.output:self.assertNotIn('tin A',record)
+
+    def test_a_valid_ack_is_still_ok_and_nothing_is_spooled(self):
+        with profile_home() as home:
+            spool=bridge.Spool(home)
+            spool.put(fitted(480))
+            with intake_answer(200,STORED),self.assertNoLogs(bridge.LOG.name,level='DEBUG'):
+                result=bridge.submit_event(home,fitted(481),spool)
+            self.assertEqual(result,{'ok':True,'data':json.loads(STORED)['data']})
+            self.assertEqual((spool_lines(home),dead_lines(home)),([],[]))
+            # a non-2xx answer keeps its class: 503 spooled and counted, 403 dropped with its code
+            with intake_answer(503,b'{"data":null,"error":{"code":"INTAKE_UNCONFIGURED","message":"x"}}'),self.assertNoLogs(bridge.LOG.name,level='DEBUG'):
+                self.assertEqual(bridge.submit_event(home,fitted(482),spool),{'ok':False,'spooled':True})
+            self.assertEqual([line['attempts'] for line in spool_lines(home)],[1])
+            spool_path=home/'runtime/libetech-ai-os/intake-spool.jsonl';spool_path.unlink()
+            with intake_answer(403,b'{"data":null,"error":{"code":"SCOPE_DENIED","message":"x"}}'):
+                self.assertEqual(bridge.submit_event(home,fitted(483),spool),{'ok':False,'error':'SCOPE_DENIED'})
+            self.assertEqual(spool_lines(home),[])
+
+    def test_read_and_outbox_paths_answer_these_2xx_bodies_as_before_and_never_classify_them(self):
+        # The intake check lives in submit_event's post; call_backend and the read, pull and receipt paths are unchanged.
+        empty_pull=encoded({'data':{'deliveries':[],'reconcile':[]},'error':None})
+        cases=[(b'{"data":null,"error":null}','{"ok": true, "data": null, "bridgeVersion": "0.3.0"}','OUTBOX_RESPONSE_INVALID','RECEIPT_RESPONSE_INVALID'),
+               (b'{}','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE'),
+               (b'<html>ok</html>','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE')]
+        for body,read_answer,pull_error,receipt_error in cases:
+            with self.subTest(body=body),profile_home(chats=[GROUP]) as home,patch.object(bridge,'_failure_kind',wraps=bridge._failure_kind) as kind:
+                registered,_=register_with(home)
+                check=next(kwargs['handler'] for name,kwargs in registered if name=='libetech-check')
+                with patch.object(bridge.urllib.request,'build_opener',return_value=AnswerOpener({'/api/bridge':(200,body)})):
+                    self.assertEqual(check('LBRC014 '+'a'*40,source=SimpleNamespace(**DM)),read_answer)
+                send=Mock(return_value=601)
+                with patch.object(bridge.urllib.request,'build_opener',return_value=AnswerOpener({bridge.PULL_PATH:(200,body)})):
+                    summary=bridge.drain_outbox(home,send,bridge.SendJournal(home))
+                self.assertEqual((summary['ok'],summary['error'],summary['pending']),(False,pull_error,0))
+                send.assert_not_called()
+                journal=bridge.SendJournal(home)
+                journal.sending(OUTBOX_A,1,LEASE_A)
+                journal.queued({'outboxId':OUTBOX_A,'attemptNo':1,'leaseToken':LEASE_A,'phase':'send','outcome':'uncertain',
+                                'errorCode':'SEND_TIMEOUT','reportedAt':'2026-11-14T01:00:00.000Z'})
+                answers={bridge.RECEIPT_PATH:(200,body),bridge.PULL_PATH:(200,empty_pull)}
+                with patch.object(bridge.urllib.request,'build_opener',return_value=AnswerOpener(answers)):
+                    summary=bridge.drain_outbox(home,send,journal)
+                self.assertEqual((summary['ok'],summary['error'],summary['reported'],summary['rejected'],summary['pending']),(False,receipt_error,0,0,1))
+                kind.assert_not_called()
 
 if __name__=='__main__':unittest.main()

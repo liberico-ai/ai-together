@@ -49,6 +49,9 @@ SPOOL_LIMIT = 1000
 # it has been spooled longer than SPOOL_MAX_AGE; it moves to intake-dead.jsonl. No answer at all never counts.
 SPOOL_MAX_ATTEMPTS = 5
 SPOOL_MAX_AGE = timedelta(hours=24)
+# The intake route's answer that does not confirm the event was stored (Codex round 2): retried and counted like a 5xx,
+# never dropped and never taken as stored. Only the server's IntakeAck confirms storage.
+INTAKE_RESPONSE_INVALID = "INTAKE_RESPONSE_INVALID"
 # Work the hook may do inside the gateway's dispatch path, per message: one live POST plus HOOK_REPLAYS spooled ones,
 # each with HOOK_TIMEOUT seconds; the spool lock is waited on for at most SPOOL_LOCK_SECONDS.
 HOOK_TIMEOUT = 2
@@ -181,10 +184,13 @@ def call_backend(home, payload, *, path="/api/bridge", key_file="bridge.json", t
 def _failure_kind(error):
     """How the intake path treats one failed POST.
     network:  no answer (status 0, OSError, HTTPException). Kept in order and retried; never counted.
-    answered: the backend answered 404, 408, 429 or 5xx. Retried, counted against SPOOL_MAX_ATTEMPTS and SPOOL_MAX_AGE.
+    answered: the backend answered 404, 408, 429 or 5xx, or answered without confirming storage (INTAKE_RESPONSE_INVALID,
+              classed by that code, whatever its status). Retried, counted against SPOOL_MAX_ATTEMPTS and SPOOL_MAX_AGE.
     disabled: this gateway's intake key file is missing or unsafe. Nothing new is spooled; what is spooled stays.
     final:    anything else, including 401 and 403. Retrying cannot help: the message is dropped with its code."""
     if isinstance(error, BackendError):
+        if str(error) == INTAKE_RESPONSE_INVALID:
+            return "answered"
         if error.status == 0:
             return "network"
         return "answered" if error.status >= 500 or error.status in (404, 408, 429) else "final"
@@ -544,10 +550,10 @@ class Spool:
     def drain(self, send, *, limit=None):
         """Replay oldest first with spooled=True, at most `limit` sends. Returns the number sent.
         No answer (network) or no usable key: stop, keep the line and its order, count nothing.
-        Answered 404/408/429/5xx: count one attempt; at SPOOL_MAX_ATTEMPTS, or when spooled longer than SPOOL_MAX_AGE,
-        the line moves to the dead-letter file (INTAKE_DEAD_LETTER) and the drain continues; otherwise it stays at
-        the head with its new count. Any other refusal (401, 403, 422...): dropped with its code, the drain continues.
-        Sending twice after a crash is harmless: the backend keys events by chat and message id."""
+        Answered 404/408/429/5xx or INTAKE_RESPONSE_INVALID: count one attempt; at SPOOL_MAX_ATTEMPTS, or when spooled
+        longer than SPOOL_MAX_AGE, the line moves to the dead-letter file (INTAKE_DEAD_LETTER) and the drain continues;
+        otherwise it stays at the head with its new count. Any other refusal (401, 403, 422...): dropped with its code,
+        the drain continues. Sending twice after a crash is harmless: the backend keys events by chat and message id."""
         path, lock, dead_path = self._paths()
         lines = _read_lines(path)
         now = datetime.now(timezone.utc)
@@ -608,13 +614,39 @@ class Spool:
                 _append_line(dead_path, "\n".join(dead))
             _write_atomic(path, "".join(line + "\n" for line in head + current[len(consumed):]).encode())
 
+def _stored_ack(data):
+    """True when the answer is the server's IntakeAck for a stored event: `persisted` is the JSON value true and
+    `sourceEventId` a non-empty string."""
+    return (isinstance(data, dict) and data.get("persisted") is True
+            and isinstance(data.get("sourceEventId"), str) and bool(data["sourceEventId"]))
+
 def submit_event(home, payload, spool, *, timeout=5, replays=None):
     """Post one fitted event on the intake key. Spooled events go first (at most `replays` of them), so the backend
     never sees a newer message before an older one; while any remain, the new message is spooled behind them.
-    No answer: spooled. Answered 404/408/429/5xx: spooled with that answer counted. 401, 403 and other refusals:
-    dropped, the code returned. Intake key file missing or unsafe: nothing is spooled. A full spool raises SPOOL_FULL."""
+    No answer: spooled. Answered 404/408/429/5xx: spooled with that answer counted. An answer that does not confirm
+    storage (a 2xx without the IntakeAck, not JSON, or too large): INTAKE_RESPONSE_INVALID, spooled and counted the same.
+    401, 403 and other refusals: dropped, the code returned. Intake key file missing or unsafe: nothing is spooled.
+    A full spool raises SPOOL_FULL."""
     def post(event):
-        return call_backend(home, event, path=INTAKE_PATH, key_file="intake.json", timeout=timeout)
+        # status: the answer's own where call_backend reports it, else 0 (not known here). It is never used to class
+        # this failure: _failure_kind classes INTAKE_RESPONSE_INVALID by its code.
+        status = 0
+        try:
+            data = call_backend(home, event, path=INTAKE_PATH, key_file="intake.json", timeout=timeout)
+        except BackendError as error:
+            if not 200 <= error.status < 300:
+                raise
+            data, status = None, error.status  # a 2xx that is not JSON, not a JSON object, or carries an error
+        except KeyError:
+            data = None  # a JSON object with neither "data" nor "error"
+        except ValueError as error:
+            if str(error) != "BRIDGE_RESPONSE_TOO_LARGE":
+                raise
+            data = None  # an answer over 64 KiB, never read
+        if not _stored_ack(data):
+            LOG.warning("libetech intake: %s", INTAKE_RESPONSE_INVALID)
+            raise BackendError(INTAKE_RESPONSE_INVALID, status)
+        return data
     if spool.pending():
         spool.drain(post, limit=replays)
         if spool.pending():
