@@ -397,3 +397,111 @@ None.
   - The dedupe key is unique per tenant across projects, and a key used in another project answers `IDEMPOTENCY_CONFLICT`.
 - **Tenant-isolation tests:** they cover the dimensions in the section 4 table. Until P1-1 is fixed, cross-tenant read is not tested for the review tables, and no isolation read at all is tested for `draft_decisions`.
 - **Migration runner:** `scripts/migrate.ts` applies all pending migrations in one run. Staged application needs a manual per-file run.
+
+## Re-review of the fix wave (f0d08c8)
+
+**Scope.** The database items W2, W7, W8, W9 and W10 of `ffa5781..f0d08c8`, read through:
+- `review-tier1-fix-ffa5781..f0d08c8.diff`;
+- the wave brief;
+- the implementer's report;
+- `tier1-fix-mutation.txt`;
+- the green logs: native 971 passed, 0 skipped; PGlite 932 passed, 39 skipped; typecheck exit 0.
+
+I ran no database and no test. Line numbers are at `f0d08c8`. Lock statements are `#inference`.
+
+### Verdict per item
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| W2 (P1-1) | **ADDRESSED** | Details in «W2 in detail» below. |
+| W7 (P2-1, P3-6) | **ADDRESSED** | Details in «W7 in detail» below. |
+| W8 (P2-2) | **ADDRESSED** | `src/server/suggestions.ts:183` passes the decision's `requestId` to `proposeRevisionIn`, and `src/server/documents.ts:172` uses `requestId ?? randomUUID()`. Tests at `tests/suggestions.test.ts` (two new W8 cases): (1) the flag event and the draft decision carry the same request id; (2) a manual proposal gives every flag event of its transaction one shared generated id. The manual path's per-transaction id must be stated in the receipt (updated below). |
+| W9 (P2-4) | **ADDRESSED** | Pure helper `src/server/list-cut.ts:2`, with a unit test. The three flags, with no pagination, by ruling: (1) delegations `LIMIT 1001` (`review-delegations.ts:110,112`), cut back to 1000 (`:114-115`), flag from the fetch or from the 200 slice (`:126`); (2) comments `LIMIT 1001` (`document-review.ts:188-190`); (3) decision cards from the queue's `total` (`decisions.ts:81`). The `ORDER BY` clauses and visibility filters are unchanged; only the number in `LIMIT` moved. The comments query now joins `document_revisions` on `v.id=c.document_revision_id`. That join cannot drop a row: by FK, the revision belongs to the comment's document, in the same project and scope. |
+| W10 (P2-3) | **ADDRESSED** | `migrations/019_document_approver_grant.sql:10-12` adds three header lines and nothing else. `git diff ffa5781 f0d08c8 -- migrations/0{19,20,21}_*.sql` shows 3 insertions in 019, all comments, and no change in 020 or 021. |
+
+### W2 in detail
+
+**What the new cases check:**
+- `tests/z4-schema.test.ts`, new case «draft decisions are invisible to another project, another tenant and a session with no context». It reads `draft_decisions` four ways: as the owning scope (control row visible), under project `[transport]` (0 rows), as another tenant holding the sales id (0 rows), and with no context (`[]`).
+- `tests/review-schema.test.ts`, new case «review tables are invisible to another tenant that holds the project id, and fail closed with no context». For each of the five tables it reads three ways: control (1 row), other tenant with the sales id in `app.project_ids` (0 rows), and no context (0 rows).
+- Cross-tenant inserts are added for comments, dependencies, delegations and decisions (`review-schema.test.ts:132-138`).
+- The test at `:123` is renamed to what it checks.
+- Mutations 1 and 2 show that removing the tenant clause on `review_comments` and the project clause on `draft_decisions` each turn a case red.
+
+**The decision insert.** The implementer is right that a cross-tenant decision insert is refused by `review_decisions_guard` before WITH CHECK runs. A BEFORE ROW trigger runs ahead of the policy check. The guard looks the document up by `NEW.tenant_id` under the runtime's own RLS, so with another tenant it never finds it.
+
+So the *dimension* (34b: a write into another tenant is refused) is adequately covered. The barrier the runtime actually meets is the guard, and the guard is itself bound to the RLS-scoped lookup and to `d.tenant_id = NEW.tenant_id`. Through the runtime role, the WITH CHECK tenant clause on `review_decisions` is unreachable defence in depth. No behavioural assertion can pin it while the guard stands.
+
+To pin the clause itself, without a mutation, add one catalog assertion. For each of the seven `runtime_insert` policies (and `ai_insert`), assert that `pg_policies.with_check` contains both `tenant_id` and `app.tenant_id`, for example with `~ 'tenant_id = NULLIF\(current_setting\(''app.tenant_id''::text, true\)'`. That turns `rls-catalog.test.ts`'s «WITH CHECK exists» into «WITH CHECK binds the tenant». This is a P3; it is not required.
+
+**The delegation insert** pins the clause by behaviour. The designation guard reads `bom_eligible_members(NEW.project_id, …)` under the context tenant and never compares `NEW.tenant_id`, so it passes, and WITH CHECK is what refuses. The `row-level security` match proves that.
+
+### W7 in detail
+
+**Rollback 020.** `migrations/rollback/020_document_review.sql:22-30` refuses while any row exists in any of the five review tables. It uses `to_regclass` and `format('… %I', t)`, so it can be run again after the tables are gone. The message names only the table. This runs after the approval check, under `row_security = off`.
+
+**The changed rollback-020 test** (`tests/migrations-rollback.test.ts:283-295`) is a **legitimate consequence of the ruling, not a weakening**:
+- Old step 4 ran the rollback while a `changes_requested` decision existed. The new rule forbids exactly that.
+- The new step 3b adds a refusal: one person's comment alone blocks the rollback, names the table, drops nothing, and the row survives. That covers the new rule's main case.
+- Step 4 then empties the five tables and proves the drop path.
+- Nothing that was asserted before is asserted less. The «approval blocks» and «later migration blocks» steps are unchanged.
+- One gap remains: only `review_comments` is shown refusing on its own (see the Deferred list).
+
+**Forward → rollback → forward** is the generic case at `migrations-rollback.test.ts:24`. It runs on freshly migrated, empty tables, so the new refusal never fires there. Both green logs include it: native has 0 skips; on PGlite that case is not native-only. I read that from the test names and the logs; I did not run it.
+
+**On a legitimately empty server**, both rollbacks still run. An empty review schema passes the 020 loop. 019 is unchanged apart from the new lock.
+
+**Rollback 019 lock** (`migrations/rollback/019_document_approver_grant.sql:11`): `LOCK TABLE identity.memberships, identity.account_approvals IN SHARE MODE`. These are the right two tables: exactly the ones its checks read.
+- SHARE conflicts with ROW EXCLUSIVE, so no ballot or membership write can slip in between the checks and the DROP. Readers (ACCESS SHARE), meaning logins, session checks and grant reads, are not blocked by it.
+- The forward path never runs concurrently with its own rollback (the runner holds an advisory lock).
+- There is one new, minor hazard, a lock upgrade (#inference); see N-1.
+
+### New breakage in the fix diff
+
+- **P0, P1, P2: none.**
+- **N-1, P3: the SHARE lock in rollback 019 can turn into a detected deadlock against a live identity transaction.**
+  - Mechanism: the file later needs ACCESS EXCLUSIVE on `identity.memberships` (`ADD CONSTRAINT`, then `DROP CONSTRAINT`). Two sequences end in `40P01`:
+    - (a) An identity transaction already holds ACCESS SHARE on `memberships` (it has read it) and then wants ROW EXCLUSIVE for its `DELETE`/`INSERT` (`accounts.ts:163-165`). It waits on our SHARE, while our upgrade waits on its ACCESS SHARE.
+    - (b) An identity transaction holds ROW EXCLUSIVE on `account_approvals` and then inserts into `memberships`, while the multi-table `LOCK` holds `memberships` and waits for `account_approvals`.
+  - Outcome: PostgreSQL detects the cycle and aborts one side after `deadlock_timeout`. Nothing is applied in part, and the rollback runs only on copies with Chairman approval. Before the fix, sequence (a) ended in a wait or a lock timeout, not a deadlock.
+  - Smallest fix: take the final mode at once and in the service's order: `LOCK TABLE identity.account_approvals IN SHARE MODE; LOCK TABLE identity.memberships IN ACCESS EXCLUSIVE MODE;`. That removes the upgrade. The cost is that readers of `memberships` (logins) also wait during the checks, which is acceptable for a copy-only rollback that holds that lock right after anyway.
+- **N-2, P3: on rare data, the delegation flag tells a non-coordinator something about rows they cannot see.**
+  - Where: `review-delegations.ts:114,126`. For a non-coordinator, `fetchedCut` is computed on rows that passed the SQL filter but before the JavaScript filter drops other people's dormant rows.
+  - Scenario: in a project with more than 1000 such rows, most of them dormant, a reader sees fewer than 200 rows with `reviewersTruncated: true`. That reveals «more than 1000 rows exist, including dormant ones».
+  - It is one boolean, and it needs more than 1000 delegations in one project. This loss of visible rows to dormant ones existed before the fix; the flag now makes it observable.
+  - Fix: compute the flag after `visibleDelegation`, or move the dormant test into SQL. This can wait.
+- `wasCut` with a total (`decisions.ts:81`) compares `items.length` with the queue's `total`. A record skipped for a missing revision (an unreachable state) reads as «cut», which errs in the safe direction. `total` was already in the queue's own answer, so no new count leaks.
+
+### Quality Gate 34a–34e after the wave (the eight new database objects)
+
+| Table | 34a read | 34b write | 34c delete / update | 34d no context | 34e bypass |
+|---|---|---|---|---|---|
+| `review_delegations` | project ✓ / tenant ✓ | project ✓ (LTR02) / tenant ✓ (policy) | DELETE not granted ✓; cross-scope UPDATE 0 rows ✓ | read ✓ / insert ✓ | ✓ (a) |
+| `review_comments` | ✓ / ✓ (mutation 1) | ✓ / ✓ | not granted + immutable ✓ | ✓ / ✓ | ✓ (a) |
+| `review_decisions` | ✓ / ✓ | ✓ / ✓ (guard first; the WITH CHECK clause is pinned only by the catalog test's existence check, P3) | not granted + immutable ✓ | ✓ / ✓ | ✓ (a); the guard stops the operator |
+| `document_dependencies` | ✓ / ✓ | ✓ / ✓ | not granted ✓; cross-scope UPDATE 0 rows ✓ | ✓ / ✓ | ✓ (a) |
+| `review_events` | ✓ / ✓ | ✓ / ✓ | not granted + immutable ✓ | ✓ / ✓ | ✓ (a) |
+| `intelligence.ai_drafts` | ✓ / tenant on insert | ✓ / ✓ | not granted + immutable ✓ | ✓ | role NOBYPASSRLS ✓ |
+| `draft_decisions` | ✓ / ✓ (mutation 2 for the project clause) | ✓ / ✓ | not granted + immutable ✓ | read ✓ / insert: person only | ✓ (a); the guard stops the operator |
+| `document_approvers()` | ✓ incl. the tenant mutation of 4a | n/a | n/a | ✓ | owner is not a superuser ✓ |
+
+(a) The runtime login is refused at start if it is a superuser or BYPASSRLS (`db.ts:63-64`). The operational login is a superuser by design (S7, S34, S61).
+
+What remains short of full marks: the tenant clause of `review_decisions.runtime_insert` WITH CHECK is not pinned by behaviour (it cannot be, while the guard stands). The suggested catalog assertion would close that.
+
+### Deferred (out of scope of this wave)
+
+- N-1 and N-2 above.
+- A catalog assertion that every insert policy's WITH CHECK binds `app.tenant_id`.
+- A refusal case for each of the other four tables in rollback 020. Only `review_comments` is exercised; the loop is generic, so this is low risk.
+
+### Updates to «For the receipt» and the deployment note
+
+The wave changes these entries:
+- **Rollback 020 preconditions:** nothing above 020 is recorded, and there is **no row at all** in `review_decisions`, `review_comments`, `review_events`, `review_delegations` or `document_dependencies`; an approved decision is one such row. With rows present it refuses and names the table. So 020 is irreversible, within the rules, from the first review row of any kind, unless the rows are exported and the Chairman approves their destruction. This replaces «from the first approval» and the P2-1 caveat.
+- **Rollback 019** now takes `SHARE` on `identity.memberships` and `identity.account_approvals` before its checks. It blocks writes to both tables, not reads, until it commits. Run it in a window with no identity writes (N-1). Its preconditions are unchanged.
+- **Request ids:** a `dependency.flagged` event carries the HTTP request id when the revision comes from a confirmed AI draft. On the manual proposal path it carries one id generated for the transaction, shared by every flag event of that proposal, because the slice-1 proposal API carries no request id. This replaces the P2-2 line.
+- **List cuts:** the three silent cuts now answer with `reviewersTruncated` (at 200 shown, from at most 1000 fetched), `commentsTruncated` (at 1000) and `reviewCardsTruncated` (at 200 documents). There is still no pagination, by ruling. This replaces the P2-4 line.
+- **Re-running 019 on embedded starts:** the 019 header now warns later migrations about the CHECK-drop loop. There is no code change.
+
+VERDICT after the fix wave: READY

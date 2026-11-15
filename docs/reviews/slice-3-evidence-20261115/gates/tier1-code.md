@@ -148,3 +148,40 @@ None. One reservation, not a disagreement: the sweep's B3 ruling (fail closed wi
 - Eval runs against mocked outputs; injection resistance of a model is untested; «revoked» and «same name other BU» are «id absent» checks.
 - `AGENTS.md` does not list `skills/`; the Chairman adds it with the Z4 line.
 - Step 16b, Task 7c and Task 14 are out of this PR by decision.
+
+## Re-review of the fix wave (f0d08c8)
+
+Scope: `git diff ffa5781..f0d08c8`, read only. I did not run tests, a build or a dev server. Green runs are cited from `tier1-fix-green-*.txt` and the fix report (#hypothesis until the controller reruns them). W2, W7 and W10 belong to the database reviewer.
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| W1 (my P1) | ADDRESSED | `src/server/review-page.ts:9` turns only SCOPE_DENIED into an empty list and rethrows everything else. It is used at `src/app/review/[documentId]/page.tsx:29`. `tests/review-page.test.ts` "lets every other failure reach…" uses failing doubles (Error, INTERNAL, near-miss code, TypeError, string) that would go red under a blanket catch, and there is a source check against `.catch(()=>` and empty catch blocks. #fact |
+| W3 | ADDRESSED | `tests/skill-context.test.ts:24` changes `chatTwo` to `-1000000000007`. The fix report's leak grep shows only regex literals. #fact |
+| W4 (P2-1 paging) | ADDRESSED | `src/components/review-view.ts:93-98` parses the offset strictly (digits only, safe integer, multiple of 50, else 0). `src/app/review/page.tsx:19,33` and `queueHref` encode the server-validated projectId. **The redirect to page 1 is acceptable**: it fires only when `offset>0` and the page is empty, lands on offset 0 so it cannot loop, and rebuilds the URL from a projectId the service has already scoped, not from raw input. Next's redirect error passes through the catch because it is not an AppError. #fact |
+| W5 (P2-2 flags) | ADDRESSED | There is one predicate, `src/server/document-review.ts:111`, and it is the same rule that used to be inline. It is called at `:196` (flags) and `:256` (`comment()`). The test diff only adds lines after `:563` plus the import, so the existing `comment()` cases are unedited. The UI renders only from the flags (`src/components/review.tsx:134-135,179`) and computes no permission. The flags reveal nothing new: each one is the server's own answer for the viewer, on a comment the viewer can already read. #fact |
+| W6 | ADDRESSED | `commandFailure`, `commandSuccess`, `panelFailure`, `panelSuccess` and `panelReloadFailure` (`review-view.ts:75,83`) and `voteFailure`/`voteRecorded` (`decisions.tsx:100,105`) are pure and tested, and a "no second copy" source check exists. #fact |
+| W8 | ADDRESSED | `src/server/documents.ts:172` uses `requestId ?? randomUUID()`. `tests/suggestions.test.ts` checks that the flag event's request_id equals the decision's, and that a manual proposal uses one id across the transaction. #fact |
+| W9 | ADDRESSED | `list-cut.ts`, `document-review.ts:188-189`, `review-delegations.ts:110-126` and `decisions.ts:81`. **The `reviewersTruncated` key edit (`tests/review-http.test.ts:402`) is legitimate**: it is the only removed `expect` in the whole test diff, it is still an exact `toEqual` on the key list, and it follows an additive response field. The non-coordinator query filters to visible rows before `LIMIT 1001`, so the flag counts only rows the viewer may see and does not disclose hidden rows. #fact |
+| W11 | ADDRESSED, not a defect | `review-http.ts:54` maps HEAD to GET, and the decisions handler at `:85` exempts HEAD. The two are written differently but behave the same: in both, HEAD reaches the read path and skips the origin check. Writes still refuse a foreign origin (`review-http.test.ts` W11 case). No HEAD export exists in the route files. #fact |
+| W12 | ADDRESSED | `dir="auto"`/`<bdi>` are on titles, summaries, diff, list items and comment/reply bodies, with one test per screen. Voter/name lines carry no `dir` (P3, deferred). #fact |
+| W13 (P3-3) | ADDRESSED | `review-http.test.ts` W13 checks that `NOT_FOUND_COPY` (`review-view.ts:21`) equals both the handler and the service literal. #fact |
+| W14 (P3-4/5/6) | ADDRESSED | The panel/command outcomes go through the W6 functions, the draft is kept on failure and cleared on success, and the `'page'` fallback is gone. #fact |
+| W15 (P3-7) | ADDRESSED | `detailFailure` (`review-page.ts:18`) handles NO_REVISION, which renders `ReviewDetailNoRevision` with a link back and no retry button. The test covers both the rethrow set and the copy. #fact |
+| W16 (P3-9) | ADDRESSED | `docs/UI-HANDOFF-3-decisions.md:56` adds «5. Breakpoint». #fact |
+| W17 (P3-10) | ADDRESSED | `max-width:699.98px` in both CSS blocks, plus the corrected header comments. #fact |
+
+**New P0/P1/P2 in the fix diff: none.** I checked each of these:
+- Rule extraction: unchanged.
+- Permission in the browser: none.
+- Flags: none reveals something beyond what the viewer may read.
+- Assertions: no existing assertion weakened or renamed; the only `-expect` is the key-list extension.
+- Paging links: built from a strict offset and a scoped projectId.
+- Error paths: no new title or id; NO_REVISION copy is fixed text.
+
+Deferred (P3, out of scope):
+- Voter/name lines on Decisions have no `dir="auto"`.
+- The test that pins W11 shows `review-http.test.ts` is one session from the demo store cap (the fix report notes it). The next test that logs in there should return its session.
+- The `runtime_insert` tenant clause on `review_decisions` is not pinned by a behavioural test because the BEFORE guard refuses first (fix report). This is for the DB reviewer.
+- The receipt items above still stand: there are no browser hand checks, the screen state transitions are static-render only, and the P2-3 and P2-4 numbers are owed.
+
+VERDICT after the fix wave: READY
