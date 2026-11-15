@@ -77,11 +77,15 @@ test('rollback 018 refuses while an access-change ballot exists',async()=>{
     indexes:(await q<{indexname:string;indexdef:string}>(`SELECT indexname,indexdef FROM pg_indexes
       WHERE schemaname='identity' AND tablename='account_approvals' ORDER BY indexname`)),
   });
+  let later:string[]=[];
   const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='018'")).length;
   // the refusal raises inside the file's own BEGIN; PGlite keeps that aborted block open (a pooled client that errors is discarded)
   const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
   try {
     await h.reset();await seedSlice1(h);
+    // migrations after 018 sit on top of it: take them off in reverse order first, put them back at the end
+    later=(await from013()).filter(f=>num(f)>18);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
     const admin=randomUUID(),subject=randomUUID();
     for(const [id,username] of [[admin,'rollback-admin'],[subject,'rollback-subject']] as const)
       await q(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,$3,$3,'viewer','fixture-hash')`,[id,ids.tenant,username]);
@@ -121,5 +125,9 @@ test('rollback 018 refuses while an access-change ballot exists',async()=>{
     expect(await shape()).toEqual(full);
     expect((await q('SELECT id,registration_id,state,grants,updated_at,kind,subject_user_id,subject_account_version,previous_grants FROM identity.account_approvals WHERE id=$1',[registration]))[0])
       .toEqual({...kept,kind:'registration',subject_user_id:null,subject_account_version:null,previous_grants:null});
-  } finally { await h.exec(forward); await h.reset(); await h.close(); }
+  } finally {
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
 });
