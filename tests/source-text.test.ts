@@ -40,13 +40,15 @@ describe('source-text',()=>{
  test('SQL and the pure rule agree for every stored mode, flag and latest mapping',async()=>{
   const stored=await ingest({text:'SQL-RULE-EXCERPT-7731'},[chatSales]);
   const pointer=await ingest({text:'SQL-RULE-POINTER-7732'});
-  const steps:(['XECA'|'LIBERICO_BU'|'IBS_HI'|null])[]=[[null],['XECA'],['LIBERICO_BU'],['IBS_HI'],['XECA']];
-  let version=0;
-  for(const [latest] of steps) {
-   if(latest) await mapDomain(h,ids.sales,latest,++version);
-   for(const flagged of [true,false]) {
+  // The last two inserts are out of version order (v6 before v5): the latest mapping is the highest version, not the last inserted.
+  const steps:[('XECA'|'LIBERICO_BU'|'IBS_HI'),number][]=[['XECA',1],['LIBERICO_BU',2],['IBS_HI',3],['XECA',4],['IBS_HI',6],['XECA',5]];
+  let latest:string|null=null,top=0;
+  for(const [step,ver] of [[null,0] as const,...steps]) {
+   if(step) {await mapDomain(h,ids.sales,step,ver);if(ver>top){top=ver;latest=step;}}
+   for(const flags of [[chatSales],[] as string[],[chatTransport]]) {
+    const flagged=flags.includes(chatSales);
     for(const [m,mode] of [[stored,'excerpt'],[pointer,'pointer_only']] as const) {
-     const revs=await scoped(h.db,salesScope,tx=>listVisibleRevisions(tx,m.sourceEventId,flagged?[chatSales]:[]));
+     const revs=await scoped(h.db,salesScope,tx=>listVisibleRevisions(tx,m.sourceEventId,flags));
      expect(revs.length).toBeGreaterThan(0);
      for(const r of revs) {
       const want=displayMode(mode,flagged&&latest!=='IBS_HI');
@@ -60,15 +62,20 @@ describe('source-text',()=>{
  });
 
  describe.each([
-  ['the group flag is removed',async()=>({flags:[] as string[],pointerOnly:false})],
-  ['the project is mapped to IBS_HI',async()=>{await mapDomain(h,ids.sales,'IBS_HI',1);return {flags:[chatSales],pointerOnly:false};}],
-  ['the service is built without flags',async()=>({flags:undefined,pointerOnly:false})],
-  ['the message stored only a pointer',async()=>({flags:[chatSales],pointerOnly:true})],
+  ['the group flag is removed',async()=>({flags:[] as string[],pointerOnly:false,after:async()=>{}})],
+  ['the project is mapped to IBS_HI after the text was stored',async()=>({flags:[chatSales],pointerOnly:false,after:()=>mapDomain(h,ids.sales,'IBS_HI',1)})],
+  ['the service is built without flags',async()=>({flags:undefined,pointerOnly:false,after:async()=>{}})],
+  ['the message stored only a pointer',async()=>({flags:[chatSales],pointerOnly:true,after:async()=>{}})],
  ] as const)('no row handed to the service carries hidden or pointer-only text or hash: %s',(_n,setup)=>{
   test('hidden',async()=>{
    const marker='ZEBRA-MARKER-5521 nội dung';
    const cfg=await setup();
    const m=await ingest({text:marker},cfg.pointerOnly?undefined:[chatSales]);
+   await cfg.after();
+   // The scenario must start from the stored mode it names, so it cannot quietly fall back to pointer-only.
+   const stored=await rows<{content_mode:string}>('SELECT content_mode FROM source_event_revisions WHERE source_event_id=$1',[m.sourceEventId]);
+   expect(stored.length).toBeGreaterThan(0);
+   for(const r of stored) expect(r.content_mode).toBe(cfg.pointerOnly?'pointer_only':'excerpt');
    const rec=recordingDb(h.db);
    const svc=cfg.flags===undefined?new InboxService(rec.db):new InboxService(rec.db,cfg.flags);
    await svc.list(pm,{projectId:ids.sales});
@@ -90,6 +97,7 @@ describe('source-text',()=>{
   await svc.detail(pm,m.id);
   await svc.command(pm,m.id,{kind:'confirm',expectedVersion:1,classification:'incident'},randomUUID(),randomUUID());
   expect(JSON.stringify(rec.rows())).toContain(marker);
+  expect(JSON.stringify(rec.rows())).toContain(m.hash);
  });
 
  test('an empty flag list hides every stored text and no RLS context returns no row',async()=>{

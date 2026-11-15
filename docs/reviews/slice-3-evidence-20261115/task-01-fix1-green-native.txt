@@ -1,0 +1,10 @@
+npx vitest run tests/source-text.test.ts tests/inbox-service.test.ts tests/inbox-http.test.ts tests/inbox-ui.test.tsx tests/intake.test.ts tests/ledger-reconcile.test.ts   # native, SLICE1_* loaded from env file
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  6 passed (6)
+      Tests  126 passed (126)
+   Start at  10:57:06
+   Duration  23.21s (tests 99%, import 1%)
+

@@ -1,0 +1,50 @@
+npx vitest run tests/source-text.test.ts   # mutation: IBS_HI comparison made always true
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/source-text.test.ts (10 tests | 2 failed) 5090ms
+   ❯ source-text (10)
+     × SQL and the pure rule agree for every stored mode, flag and latest mapping 514ms
+     ❯ no row handed to the service carries hidden or pointer-only text or hash: the project is mapped to IBS_HI after the text was stored (1)
+       × hidden 464ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/source-text.test.ts > source-text > SQL and the pure rule agree for every stored mode, flag and latest mapping
+AssertionError: expected 'excerpt' to be 'hidden' // Object.is equality
+
+Expected: "hidden"
+Received: "excerpt"
+
+ ❯ tests/source-text.test.ts:55:29
+     53|      for(const r of revs) {
+     54|       const want=displayMode(mode,flagged&&latest!=='IBS_HI');
+     55|       expect(r.displayMode).toBe(want);
+       |                             ^
+     56|       expect(r.text!==null).toBe(want==='excerpt');
+     57|       expect(r.contentHash!==null).toBe(want==='excerpt');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the project is mapped to IBS_HI after the text was stored > hidden
+AssertionError: expected '[{"set_config":"11000000-0000-4000-80…' not to contain 'ZEBRA-MARKER-5521 nội dung'
+
+Expected: "ZEBRA-MARKER-5521 nội dung"
+Received: "[{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"n":1},{"id":"731fb102-3394-4f8b-8216-8aca08196904","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:4","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:24.000Z","ingested_at":"2026-11-15T03:56:09.238Z","forwarded":false,"display_mode":"excerpt","visible_text":"ZEBRA-MARKER-5521 nội dung","dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"731fb102-3394-4f8b-8216-8aca08196904","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:4","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:24.000Z","ingested_at":"2026-11-15T03:56:09.238Z","forwarded":false,"display_mode":"excerpt","visible_text":"ZEBRA-MARKER-5521 nội dung","dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"root_source_event_id":"4715eb72-439c-4219-a4bf-6d1b707649b5"},{"revision_no":1,"edited_at":null,"display_mode":"excerpt","visible_text":"ZEBRA-MARKER-5521 nội dung","visible_hash":"1144dbbfe83f5a8073481611925658a74036cc464fff10139132e2c2c90ea312","text_truncated":false,"created_at":"2026-11-15T03:56:09.238Z"},{"id":"1d51ce29-d060-4504-bd77-331b35cfa748","kind":"source_event.persisted","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:56:09.238Z","payload":{"revisionNo":1,"contentMode":"excerpt"}},{"id":"b0847997-744f-4707-bb17-c2f4b7c14fab","kind":"candidate.created","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:56:09.238Z","payload":{}},{"id":"4f575c31-2175-45ff-ad18-bb6d8774db43","template":"intake.received","state":"pending","attempt_no":0,"delivered_at":null,"acknowledged_at":null},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"c1dfd71f-7a3a-4f97-ae16-9966e2e19510"},{"id":"731fb102-3394-4f8b-8216-8aca08196904","state":"new","version":1,"classification":null,"duplicate_of":null,"missing_fields":[],"note":"","ticket_ref":null,"trace_id":"ec15b867-f304-4327-a697-eae0ef00bbc8"},{"id":"731fb102-3394-4f8b-8216-8aca08196904"},{"id":"731fb102-3394-4f8b-8216-8aca08196904","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"confirmed","classification":"incident","missing_fields":[],"ticket_ref":null,"version":2,"source_id":"telegram:-1000000000001:4","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:24.000Z","ingested_at":"2026-11-15T03:56:09.238Z","forwarded":false,"display_mode":"excerpt","visible_text":"ZEBRA-MARKER-5521 nội dung","dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null}]"
+
+ ❯ tests/source-text.test.ts:86:20
+     84|    const all=JSON.stringify(rec.rows());
+     85|    expect(rec.rows().length).toBeGreaterThan(0);
+     86|    expect(all).not.toContain(marker);
+       |                    ^
+     87|    expect(all).not.toContain(m.hash);
+     88|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 passed (10)
+   Start at  10:56:07
+   Duration  5.22s (tests 99%, import 1%)
+
