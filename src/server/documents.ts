@@ -148,7 +148,8 @@ export class DocumentService {
   }
   /** The body of proposeRevision inside the caller's scoped transaction (the AI-draft confirmation shares it): same checks, same order, same events.
  *  `requestId` is the caller's request id for the dependency.flagged events; the manual path passes none and gets one generated id for the transaction. */
-  async proposeRevisionIn(tx: Queryable, p: Principal, documentId: string, raw: unknown, key: string, fromDraft?: { draftId: string }, requestId?: string): Promise<DocumentDetail> {
+  async proposeRevisionIn(tx: Queryable, p: Principal, documentId: string, raw: unknown, key: string, fromDraft?: { draftId: string }, requestId?: string,
+    opts?: { claimHeld?: boolean }): Promise<DocumentDetail> {
     const input = proposeInput(p, documentId, raw);
     // the acting person for the database: flagging dependents writes review_events, whose insert policy binds actor_id to it (S40)
     await tx.query("SELECT set_config('app.person_id',$1,true)", [p.id]);
@@ -158,8 +159,10 @@ export class DocumentService {
     // A confirmation of an AI draft is another command than a manual proposal: its claimed payload names the draft, so a key reused for another draft,
     // or one first used by a manual proposal (or the reverse), is IDEMPOTENCY_CONFLICT and never replays a revision made for something else.
     // The manual payload is unchanged.
+    // `claimHeld`: the caller (the draft decision) already holds this key's claim in this transaction, with its own fingerprint (operation, draft id and the whole
+    // parsed command); the body then runs under that claim and claims nothing, since a second claim of one key with another fingerprint would conflict with the first.
     const claimed = fromDraft ? { op: 'document.propose_revision.from_draft', draftId: fromDraft.draftId, documentId, ...input } : { op: 'document.propose_revision', documentId, ...input };
-    return claimDocumentCommand(tx, p, record.project_id, key, claimed, async () => {
+    const body = async () => {
       invariant(record.version === input.expectedVersion && input.basedOnRevisionId === record.latest_revision_id,
         'REVISION_CONFLICT', 'Tài liệu đã đổi. Đọc bản mới trước khi gửi lại.', 409);
       const no = (await tx.query<{ n: number }>('SELECT coalesce(max(revision_no),0)+1 AS n FROM document_revisions WHERE document_id=$1', [documentId])).rows[0].n;
@@ -174,7 +177,8 @@ export class DocumentService {
         [p.tenantId, record.project_id, rev.id, p.id, key, JSON.stringify({ revisionNo: no, basedOnRevisionId: input.basedOnRevisionId, expectedVersion: input.expectedVersion,
           sourceHash: input.sourceHash, hashVerification: 'self_declared', versionBefore: record.version, versionAfter: record.version + 1 })]);
       return load(tx, documentId);
-    });
+    };
+    return opts?.claimHeld ? body() : claimDocumentCommand(tx, p, record.project_id, key, claimed, body);
   }
   async detail(p: Principal, documentId: string): Promise<DocumentDetail> {
     invariant(p?.role !== 'bot', 'READ_ONLY', 'Vai này không được dùng sổ tài liệu.', 403);

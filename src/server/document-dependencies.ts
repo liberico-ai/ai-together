@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { scoped, type Database, type Queryable } from './db';
 import { claimDocumentCommand } from './document-commands';
+import { STALE_MESSAGE } from './document-review';
 import { AppError } from './errors';
 import { projectRole } from './types';
 import type { Principal } from './types';
@@ -21,6 +22,8 @@ const storable = (s: string) => !s.includes('\u0000') && !LONE_SURROGATE.test(s)
 const uuid = z.string().uuid().transform(s => s.toLowerCase());
 const linkSchema = z.object({
   projectId: uuid, upstreamDocumentId: uuid, dependentDocumentId: uuid,
+  // the revision of the upstream document the coordinator saw; the link is written only while it is still the latest
+  upstreamRevisionId: uuid,
   note: z.string().max(500).refine(storable, 'Chữ chứa ký tự không lưu được.').default(''),
 }).strict();
 const listSchema = z.object({
@@ -77,13 +80,15 @@ export class DependencyService {
       if (!up || !dep) throw denied();
       const done = await claimDocumentCommand(tx, p, projectId, key, { op: 'document.dependency.link', ...input }, async () => {
         if (up.id === dep.id || !up.latest_revision_id) throw new AppError('DEPENDENCY_INVALID', 'Liên kết phụ thuộc không hợp lệ.', 422);
+        // the row lock above makes «latest» final for this transaction; naming anything else (older, or another document's revision) writes nothing
+        if (up.latest_revision_id !== input.upstreamRevisionId) throw new AppError('REVISION_CONFLICT', STALE_MESSAGE, 409);
         const row = (await tx.query<{ id: string }>(`INSERT INTO document_dependencies(tenant_id,project_id,upstream_document_id,upstream_revision_id,dependent_document_id,note,confirmed_by)
           VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(tenant_id,project_id,upstream_document_id,dependent_document_id) DO NOTHING RETURNING id`,
-          [p.tenantId, projectId, up.id, up.latest_revision_id, dep.id, input.note, p.id])).rows[0];
+          [p.tenantId, projectId, up.id, input.upstreamRevisionId, dep.id, input.note, p.id])).rows[0];
         if (!row) throw new AppError('DEPENDENCY_EXISTS', 'Liên kết phụ thuộc này đã có.', 409);
         await tx.query(`INSERT INTO review_events(tenant_id,project_id,entity_type,entity_id,actor_id,kind,request_id,trace_id,payload) VALUES($1,$2,'document_dependency',$3,$4,'dependency.linked',$5,$6,$7)`,
           [p.tenantId, projectId, row.id, p.id, requestId, randomUUID(),
-            JSON.stringify({ dependencyId: row.id, upstreamDocumentId: up.id, upstreamRevisionId: up.latest_revision_id, dependentDocumentId: dep.id })]);
+            JSON.stringify({ dependencyId: row.id, upstreamDocumentId: up.id, upstreamRevisionId: input.upstreamRevisionId, dependentDocumentId: dep.id })]);
         return { id: row.id };
       });
       // the stored idempotent response holds the id only; the link is always read again

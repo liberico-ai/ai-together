@@ -2,6 +2,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {aiScoped,type AiPrincipal} from './ai-scope';
 import {scoped,type Database,type Queryable} from './db';
+import {claimDocumentCommand} from './document-commands';
 import {READ_ROLES} from './document-review';
 import {DocumentService,mayWriteDocuments,proposeSchema,READ_ONLY_MESSAGE} from './documents';
 import {AppError,invariant} from './errors';
@@ -122,8 +123,9 @@ export class SuggestionService {
 
  /**
   * Order inside the one scoped transaction: (1) locate the draft in the person's scope, then narrow the scope to its project, lock on the draft id;
-  * (2) replay / already decided, caller's valueHash; (3) authority; (4) reason for a rejection, or the holds for a confirmation (nothing is written yet);
-  * (5) a document draft: the person's own revision proposal; (6) the decision row. A failure at any point rolls back everything written before it.
+  * (2) for a confirmed document draft the document row is locked; (3) the one idempotency claim (replay = the recorded decision, other content = IDEMPOTENCY_CONFLICT);
+  * under it: (4) already decided, caller's valueHash, authority; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet);
+  * (6) a document draft: the person's own revision proposal, under the same claim; (7) the decision row. A failure at any point rolls back everything, claim included.
   */
  async decide(p:Principal,draftId:string,raw:unknown,key:string,requestId:string):Promise<DraftView> {
   if(!p||p.role==='bot'||!p.id||!Array.isArray(p.projectIds)||!p.projectIds.length) throw denied();
@@ -142,52 +144,61 @@ export class SuggestionService {
    const d=(await tx.query<DraftRow>(`${DRAFT_SQL} WHERE d.id=$1::uuid`,[id])).rows[0];
    if(!d) throw denied();
    const input=decideSchema.parse(raw);
-   if(d.dec_result) {
-    if(d.dec_key===key&&d.dec_by===p.id&&d.dec_result===input.result) return toView(d);
-    throw alreadyDecided();
-   }
-   if(input.valueHash!==d.value_hash) throw new AppError('REVISION_CONFLICT','Nháp đã đổi. Đọc bản mới trước khi quyết định.',409);
-   const role=projectRole(p,projectId);
-   if(d.entity_type==='document') invariant(mayWriteDocuments(role),'READ_ONLY',READ_ONLY_MESSAGE,403);
-   else if(role!=='manager') throw new AppError('MANAGER_REQUIRED','Chỉ điều phối dự án được thực hiện thao tác này.',403);
-   let reason='';
-   if(input.result==='rejected') {
-    reason=(input.reason??'').trim();
-    if(reason.length<5) throw new AppError('REASON_REQUIRED','Cần nêu lý do từ chối (ít nhất 5 ký tự).',422);
-   } else reason=(input.reason??'').trim();
-   let revisionId:string|null=null;
-   if(input.result==='confirmed') {
-    const manifest=skillManifests[d.signal_type];
-    const reasons=new Set<string>();
-    if(d.manifest_hash!==manifest.hash) reasons.add('MANIFEST_MISMATCH');
-    let recomputed='';
-    try {recomputed=sha256(d.value);} catch(e) {
-     // canonicalJson throws TypeError for a value JSON cannot carry (not a plain object, non-finite number): a stored value that cannot be hashed does not match its hash.
-     // Anything else is not understood here and propagates.
-     if(!(e instanceof TypeError)) throw e;
+   // a confirmation of a document draft locks the document row before the claim, the order a manual proposal has (row, then claim): two commands with one key cannot wait on each other
+   if(d.entity_type==='document'&&input.result==='confirmed') await tx.query('SELECT 1 FROM document_records WHERE id=$1::uuid AND project_id=$2::uuid FOR UPDATE',[d.entity_id,projectId]);
+   // ONE idempotency claim for every decision. The fingerprint is the operation, the draft and the whole parsed command (result, valueHash, reason, revision):
+   // the same person, key and content replay the recorded outcome (the decision's id; the view is read again); the same key with other content is IDEMPOTENCY_CONFLICT.
+   // Anything thrown below rolls the claim back with the rest, so a refusal or a hold leaves the key free.
+   await claimDocumentCommand(tx,p,projectId,key,{op:'draft.decide',draftId:id,...input},async()=>{
+    if(d.dec_result) throw alreadyDecided();
+    if(input.valueHash!==d.value_hash) throw new AppError('REVISION_CONFLICT','Nháp đã đổi. Đọc bản mới trước khi quyết định.',409);
+    const role=projectRole(p,projectId);
+    if(d.entity_type==='document') invariant(mayWriteDocuments(role),'READ_ONLY',READ_ONLY_MESSAGE,403);
+    else if(role!=='manager') throw new AppError('MANAGER_REQUIRED','Chỉ điều phối dự án được thực hiện thao tác này.',403);
+    let reason='';
+    if(input.result==='rejected') {
+     reason=(input.reason??'').trim();
+     if(reason.length<5) throw new AppError('REASON_REQUIRED','Cần nêu lý do từ chối (ít nhất 5 ký tự).',422);
+    } else reason=(input.reason??'').trim();
+    let revisionId:string|null=null;
+    if(input.result==='confirmed') {
+     const manifest=skillManifests[d.signal_type];
+     const reasons=new Set<string>();
+     if(d.manifest_hash!==manifest.hash) reasons.add('MANIFEST_MISMATCH');
+     let recomputed='';
+     try {recomputed=sha256(d.value);} catch(e) {
+      // canonicalJson throws TypeError for a value JSON cannot carry (not a plain object, non-finite number): a stored value that cannot be hashed does not match its hash.
+      // Anything else is not understood here and propagates.
+      if(!(e instanceof TypeError)) throw e;
+     }
+     if(recomputed!==d.value_hash) reasons.add('VALUE_HASH_MISMATCH');
+     let ctx:Awaited<ReturnType<typeof buildSkillContextIn>>|null=null;
+     try {
+      ctx=await buildSkillContextIn(tx,p,{skill:d.signal_type,projectId,...(d.entity_type==='document'?{documentId:d.entity_id}:{candidateId:d.entity_id})},this.excerptChats);
+     } catch(e) {
+      if(e instanceof AppError&&(e.code==='SCOPE_DENIED'||e.code==='INVALID_INPUT')) reasons.add('ENTITY_NOT_FOUND'); else throw e;
+     }
+     if(ctx) {
+      if(ctx.pointerOnly) reasons.add('POINTER_ONLY_PROJECT');
+      for(const r of checkSkillOutput({name:manifest.name,hash:manifest.hash,toolAllowlist:manifest.toolAllowlist},ctx,d.value).reasons) reasons.add(r);
+     }
+     if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
+     if(d.entity_type==='document') {
+      if(!input.revision) throw new AppError('REVISION_REQUIRED','Nháp gắn tài liệu cần kèm nội dung bản đề xuất.',422);
+      // the inner proposal runs under the claim held above and claims nothing itself
+      revisionId=(await this.documents.proposeRevisionIn(tx,p,d.entity_id,input.revision,key,{draftId:id},requestId,{claimHeld:true})).record.latest_revision_id;
+     } else if(input.revision) throw new AppError('INVALID_INPUT','Nháp gắn ứng viên không kèm bản đề xuất tài liệu.',422);
     }
-    if(recomputed!==d.value_hash) reasons.add('VALUE_HASH_MISMATCH');
-    let ctx:Awaited<ReturnType<typeof buildSkillContextIn>>|null=null;
-    try {
-     ctx=await buildSkillContextIn(tx,p,{skill:d.signal_type,projectId,...(d.entity_type==='document'?{documentId:d.entity_id}:{candidateId:d.entity_id})},this.excerptChats);
-    } catch(e) {
-     if(e instanceof AppError&&(e.code==='SCOPE_DENIED'||e.code==='INVALID_INPUT')) reasons.add('ENTITY_NOT_FOUND'); else throw e;
-    }
-    if(ctx) {
-     if(ctx.pointerOnly) reasons.add('POINTER_ONLY_PROJECT');
-     for(const r of checkSkillOutput({name:manifest.name,hash:manifest.hash,toolAllowlist:manifest.toolAllowlist},ctx,d.value).reasons) reasons.add(r);
-    }
-    if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
-    if(d.entity_type==='document') {
-     if(!input.revision) throw new AppError('REVISION_REQUIRED','Nháp gắn tài liệu cần kèm nội dung bản đề xuất.',422);
-     revisionId=(await this.documents.proposeRevisionIn(tx,p,d.entity_id,input.revision,key,{draftId:id},requestId)).record.latest_revision_id;
-    } else if(input.revision) throw new AppError('INVALID_INPUT','Nháp gắn ứng viên không kèm bản đề xuất tài liệu.',422);
-   }
-   const row=(await tx.query<{id:string}>(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,document_revision_id,decided_by,command_key,request_id,trace_id)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
-    [p.tenantId,projectId,id,d.value_hash,input.result,reason,revisionId,p.id,key,requestId,randomUUID()])).rows[0];
-   if(!row) throw alreadyDecided();
-   return toView((await tx.query<DraftRow>(`${DRAFT_SQL} WHERE d.id=$1::uuid`,[id])).rows[0]);
+    const row=(await tx.query<{id:string}>(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,document_revision_id,decided_by,command_key,request_id,trace_id)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
+     [p.tenantId,projectId,id,d.value_hash,input.result,reason,revisionId,p.id,key,requestId,randomUUID()])).rows[0];
+    if(!row) throw alreadyDecided();
+    return {decisionId:row.id};
+   });
+   // the stored idempotent response holds the decision's id only; the view is always read again
+   const view=(await tx.query<DraftRow>(`${DRAFT_SQL} WHERE d.id=$1::uuid`,[id])).rows[0];
+   if(!view||!view.dec_result) throw denied();
+   return toView(view);
   });
  }
 }

@@ -1,0 +1,38 @@
+Codex gate fix round 1 - mutations (each applied, focused PGlite run, reverted; sources compared byte-for-byte with the pre-mutation copy afterwards)
+
+m1
+× REVISION_CONFLICT, SOURCE_NOT_FROZEN, APPROVER_NOT_AUTHORIZED, REVIEW_ALREADY_DECIDED, DEPENDENCY_INVALID and DEPENDENCY_EXISTS keep their status and code 547ms
+× a proposal in between answers REVISION_CONFLICT with the review sentence and writes nothing: no link, no event, no claim 499ms
+× a revision id of another document is not the latest of this one: the same answer as a stale one 500ms
+      Tests  3 failed | 29 passed (32)
+
+m2
+× F12-1 (i) one key for two drafts about one document, same revision body: the second is IDEMPOTENCY_CONFLICT and writes nothing 512ms
+      Tests  1 failed | 44 passed | 1 skipped (46)
+
+m3
+× (b) the same key with another valueHash is IDEMPOTENCY_CONFLICT, not the old decision 486ms
+      Tests  1 failed | 44 passed | 1 skipped (46)
+
+m4
+× a confirmed document draft creates exactly one revision through the document service and one decision 523ms
+× W8 the dependency.flagged event of a confirmed draft carries the decision's request id 499ms
+× the context is built under the confirming person, not a wider principal 489ms
+× replaying the same key returns the same decision; a different key answers DRAFT_ALREADY_DECIDED and leaves one decision and one revision 487ms
+× R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results 488ms
+× step 6 a decision that lost the race answers DRAFT_ALREADY_DECIDED and rolls back the revision it created 482ms
+× F12-1 (i) one key for two drafts about one document, same revision body: the second is IDEMPOTENCY_CONFLICT and writes nothing 482ms
+× F12-1 (iii) a key first used by a draft confirmation, then a manual proposal with the same body: conflict, no second revision 483ms
+× (a) the same key and the same body replay the recorded decision: one decision row, one revision, one claim 482ms
+× (b) the same key with another valueHash is IDEMPOTENCY_CONFLICT, not the old decision 479ms
+× (c) the same key with a changed revision body is IDEMPOTENCY_CONFLICT 483ms
+× (f) another person sending the same key string gets DRAFT_ALREADY_DECIDED and leaves no claim 481ms
+× (g) a held confirmation leaves its key free: the same key then works for a later valid command 480ms
+× the inner proposal runs under the claim of the decision: one claim row for the key, whose payload names the draft 480ms
+      Tests  14 failed | 31 passed | 1 skipped (46)
+
+m5
+× comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters 510ms
+× resolved twice: the second is 409 COMMENT_RESOLVED, one row and one event; addressed after resolved is the same answer 494ms
+× the flags of detail() and the answers of comment() agree for every state of a thread 604ms
+      Tests  3 failed | 29 passed (32)

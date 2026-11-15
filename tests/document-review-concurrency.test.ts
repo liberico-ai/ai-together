@@ -121,4 +121,13 @@ describe.skipIf(!native)('document review concurrency (native PostgreSQL)',()=>{
     const out=await svc().decide(approver,c.docId,body(c),randomUUID(),randomUUID());
     expect(out.item.decision?.result).toBe('approved');
   });
+  test('two resolved on one thread sent together store one row and one event; the other answers COMMENT_RESOLVED',async()=>{
+    await grantDocApproval(h,approver.id,ids.sales,['design']);await delegate(h,ids.sales,reviewer.id);
+    const doc=await registerDoc(h,pm),w=await proposeRev(h,member,doc);
+    const root=(await svc().comment(reviewer,w.record.id,{kind:'comment',revisionId:w.record.latest_revision_id,anchor:'',body:'Cần làm rõ phạm vi'},randomUUID(),randomUUID())).comments[0];
+    const resolve=(p:Principal)=>svc().comment(p,w.record.id,{kind:'resolved',parentId:root.id,body:'Đã xác nhận xử lý'},randomUUID(),randomUUID());
+    const res=await race(w.record.id,2,()=>[resolve(reviewer),resolve(approver)]);
+    expect(codes(res).sort()).toEqual(['COMMENT_RESOLVED','ok']);
+    expect(await n("review_comments WHERE kind='resolved'")).toBe(1);expect(await n("review_events WHERE kind='review.resolved'")).toBe(1);
+  });
 });

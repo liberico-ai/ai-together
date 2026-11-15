@@ -16,7 +16,9 @@ import type { DocType, Principal, SourceRef } from './types';
 const NOT_FOUND = 'Không tìm thấy tài liệu trong phạm vi được cấp.';
 const denied = () => new AppError('SCOPE_DENIED', NOT_FOUND, 404);
 const notAuthorized = () => new AppError('APPROVER_NOT_AUTHORIZED', 'Bạn chưa được giao quyền cho thao tác này với loại tài liệu này.', 403);
-const stale = () => new AppError('REVISION_CONFLICT', 'Nguồn đã đổi. Đọc bản mới trước khi gửi lại.', 409);
+/** The one sentence of REVISION_CONFLICT for a command that named a revision which is no longer the document's latest (also used by the dependency link). */
+export const STALE_MESSAGE = 'Nguồn đã đổi. Đọc bản mới trước khi gửi lại.';
+const stale = () => new AppError('REVISION_CONFLICT', STALE_MESSAGE, 409);
 const alreadyDecided = () => new AppError('REVIEW_ALREADY_DECIDED', 'Bản này đã có quyết định.', 409);
 export const READ_ROLES = new Set(['manager', 'engineer', 'technical', 'business']);
 
@@ -112,6 +114,10 @@ export function followUpAllowed(kind: 'addressed' | 'resolved', c: { me: string;
   return kind === 'addressed' ? c.revisionAuthor === c.me || c.manager : c.commentWriter === c.me || (c.revisionAuthor !== c.me && c.covers);
 }
 
+/** The one rule for «this thread is closed», used by `detail()` (the flags) and `comment()` (the refusal): the thread has a `resolved` reply. */
+export const threadClosed = (replyKinds: readonly string[]): boolean => replyKinds.includes('resolved');
+const closedThread = () => new AppError('COMMENT_RESOLVED', 'Nhận xét này đã được xác nhận xử lý xong.', 409);
+
 /** The caller's authority in one project, read inside the transaction: approval types from document_approvers, the live delegation, the project role. */
 type Authority = { approveTypes: string[]; delegation: { id: string; types: string[] } | null; role: string | null };
 const covers = (a: Authority, docType: string) => a.approveTypes.includes(docType) || (a.delegation?.types.includes(docType) ?? false);
@@ -191,8 +197,9 @@ export class ReviewService {
     // what the viewer may do on each open thread: the rule of comment(), applied here so the screen offers nothing the service would refuse
     const me = p.id.toLowerCase();
     const auth = await this.authority(tx, projectId, me);
-    const resolvedThreads = new Set(commentRows.filter(c => c.kind === 'resolved' && c.parent_id !== null).map(c => c.parent_id));
-    const mayWrite = (c: typeof commentRows[number], kind: 'addressed' | 'resolved') => c.parent_id === null && c.kind === 'comment' && !resolvedThreads.has(c.id)
+    const repliesOf = new Map<string, string[]>();
+    for (const c of commentRows) if (c.parent_id !== null) repliesOf.set(c.parent_id, [...(repliesOf.get(c.parent_id) ?? []), c.kind]);
+    const mayWrite = (c: typeof commentRows[number], kind: 'addressed' | 'resolved') => c.parent_id === null && c.kind === 'comment' && !threadClosed(repliesOf.get(c.id) ?? [])
       && followUpAllowed(kind, { me, revisionAuthor: c.proposed_by, commentWriter: c.actor_id, manager: auth.role === 'manager', covers: covers(auth, rec.doc_type) });
     const comments = commentRows.map(c => ({ id: c.id, parentId: c.parent_id, kind: c.kind, anchor: c.anchor, body: c.body, actorId: c.actor_id, revisionId: c.document_revision_id, createdAt: iso(c.created_at),
       canAddress: mayWrite(c, 'addressed'), canResolve: mayWrite(c, 'resolved') }));
@@ -254,6 +261,9 @@ export class ReviewService {
              WHERE c.id=$1 AND c.document_id=$2 AND c.kind='comment'`, [input.parentId, id])).rows[0];
           if (!parent) throw denied();
           if (!followUpAllowed(input.kind, { me, revisionAuthor: parent.proposed_by, commentWriter: parent.actor_id, manager: auth.role === 'manager', covers: covers(auth, rec.doc_type) })) throw notAuthorized();
+          // the document row is locked (lockRecord), so a second `resolved` sent together waits and then sees this one
+          const replies = (await tx.query<{ kind: string }>('SELECT kind FROM review_comments WHERE parent_id=$1 AND document_id=$2', [parent.id, id])).rows.map(r => r.kind);
+          if (threadClosed(replies)) throw closedThread();
           revisionId = parent.document_revision_id; parentId = parent.id;
         }
         const traceId = randomUUID();

@@ -236,6 +236,14 @@ describe('review UI', () => {
     expect(commandErrorCopy('SOMETHING_ELSE')).toBe('');
   });
 
+  it('COMMENT_RESOLVED has no fixed copy: the server sentence is shown as text, with no reload and not as a stale banner', () => {
+    const sentence = 'Nhận xét này đã được xác nhận xử lý xong.';
+    expect(commandErrorCopy('COMMENT_RESOLVED')).toBe('');
+    const err = new ApiError(sentence + ' [COMMENT_RESOLVED]', 'COMMENT_RESOLVED', 409);
+    expect(describeError(err)).toEqual({ text: err.message, reloadable: false, code: 'COMMENT_RESOLVED' });
+    expect(commandFailure(err, 'reply')).toMatchObject({ stale: false, target: 'reply', message: err.message, keepDraft: true });
+  });
+
   it('a decided revision offers no new comment and no decision, but keeps the follow-up actions on existing comments', () => {
     const decided = item({ eligibility: ELIG.ALREADY_DECIDED, decision: decision('changes_requested') });
     const detail: ReviewDetail = { item: decided, base: base(), diff: [entry({})], comments: [comment()], commentsTruncated: false };

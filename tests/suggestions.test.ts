@@ -226,7 +226,7 @@ describe('Z4 drafts: submit',()=>{
 describe('Z4 drafts: decide',()=>{
  test('a confirmed document draft creates exactly one revision through the document service and one decision',async()=>{
   const up=await doc(),dep=await doc();
-  await new DependencyService(h.db).link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,dependentDocumentId:dep.record.id},k(),randomUUID());
+  await new DependencyService(h.db).link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,upstreamRevisionId:up.record.latest_revision_id,dependentDocumentId:dep.record.id},k(),randomUUID());
   const {draftId,valueHash}=await docDraft({d:up});
   const revs=await n('document_revisions'),key=k(),req=randomUUID();
   const view=await decide(svc(),pm,draftId,body(valueHash,{revision:revisionBody(await fresh(up.record.id))}),key,req);
@@ -247,7 +247,7 @@ describe('Z4 drafts: decide',()=>{
 
  test('W8 the dependency.flagged event of a confirmed draft carries the decision\'s request id',async()=>{
   const up=await doc(),dep=await doc();
-  await new DependencyService(h.db).link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,dependentDocumentId:dep.record.id},k(),randomUUID());
+  await new DependencyService(h.db).link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,upstreamRevisionId:up.record.latest_revision_id,dependentDocumentId:dep.record.id},k(),randomUUID());
   const {draftId,valueHash}=await docDraft({d:up});
   const req=randomUUID();
   await decide(svc(),pm,draftId,body(valueHash,{revision:revisionBody(await fresh(up.record.id))}),k(),req);
@@ -261,8 +261,8 @@ describe('Z4 drafts: decide',()=>{
  test('W8 a manual proposal keeps one generated request id for the flag events of its transaction',async()=>{
   const up=await doc(),a=await doc(),b=await doc();
   const links=new DependencyService(h.db);
-  await links.link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,dependentDocumentId:a.record.id},k(),randomUUID());
-  await links.link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,dependentDocumentId:b.record.id},k(),randomUUID());
+  await links.link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,upstreamRevisionId:up.record.latest_revision_id,dependentDocumentId:a.record.id},k(),randomUUID());
+  await links.link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,upstreamRevisionId:up.record.latest_revision_id,dependentDocumentId:b.record.id},k(),randomUUID());
   await proposeRev(h,pm,await new DocumentService(h.db).detail(pm,up.record.id));
   const flags=await rows<{request_id:string}>("SELECT request_id FROM review_events WHERE kind='dependency.flagged'");
   expect(flags).toHaveLength(2);
@@ -349,7 +349,8 @@ describe('Z4 drafts: decide',()=>{
   const again=await decide(svc(),pm,draftId,b,key);
   expect(again).toEqual(first);
   await refused(decide(svc(),pm,draftId,b,k()),'DRAFT_ALREADY_DECIDED',409);
-  await refused(decide(svc(),pm,draftId,{result:'rejected',valueHash,reason:'Không dùng nữa'},key),'DRAFT_ALREADY_DECIDED',409);
+  // same person, same key, other content: the key's claim answers (round-1 fix of the Codex gate; it was DRAFT_ALREADY_DECIDED)
+  await refused(decide(svc(),pm,draftId,{result:'rejected',valueHash,reason:'Không dùng nữa'},key),'IDEMPOTENCY_CONFLICT',409);
   await refused(decide(svc(),member,draftId,b,key),'DRAFT_ALREADY_DECIDED',409);
   expect(await n('draft_decisions')).toBe(1);expect(await n('document_revisions')).toBe(revs+1);
  });
@@ -503,6 +504,96 @@ describe('Z4 drafts: fix round 1',()=>{
   const lowered:Principal={...pm,grants:[{projectId:ids.sales,role:'engineer',reportPermissions:[]},{projectId:ids.transport,role:'manager',reportPermissions:[]}]};
   expect(await decide(svc(),lowered,c.draftId,b,key)).toEqual(first);
   expect(await n('draft_decisions')).toBe(1);
+ });
+});
+
+describe('Z4 drafts: one idempotency claim per decision (Codex gate, round 1)',()=>{
+ const claims=()=>n('document_commands');
+ const confirmBody=(x:{d:DocumentDetail;valueHash:string},over:R={},rev:R={})=>body(x.valueHash,{revision:revisionBody(x.d,rev),...over});
+ test('(a) the same key and the same body replay the recorded decision: one decision row, one revision, one claim',async()=>{
+  const x=await docDraft(),key=k(),revs=await n('document_revisions'),b=confirmBody(x);
+  const first=await decide(svc(),pm,x.draftId,b,key);
+  const claimsAfter=await claims();
+  const again=await decide(svc(),pm,x.draftId,b,key);
+  expect(again).toEqual(first);
+  expect(await n('draft_decisions')).toBe(1);expect(await n('document_revisions')).toBe(revs+1);expect(await claims()).toBe(claimsAfter);
+  expect(claimsAfter).toBeGreaterThan(0);
+  // the stored response is the decision's id only; the view is read again
+  const stored=(await rows<{response:R}>('SELECT response FROM document_commands WHERE command_key=$1',[key]))[0].response;
+  expect(Object.keys(stored)).toEqual(['decisionId']);
+  expect(stored.decisionId).toBe((await rows<{id:string}>('SELECT id FROM draft_decisions'))[0].id);
+ });
+ test('(b) the same key with another valueHash is IDEMPOTENCY_CONFLICT, not the old decision',async()=>{
+  const x=await docDraft(),key=k();
+  await decide(svc(),pm,x.draftId,confirmBody(x),key);
+  const before=[await n('draft_decisions'),await n('document_revisions'),await claims()];
+  const e=await refused(decide(svc(),pm,x.draftId,{...confirmBody(x),valueHash:'f'.repeat(64)},key),'IDEMPOTENCY_CONFLICT',409);
+  expect(e.message).toBe(CONFLICT);
+  expect([await n('draft_decisions'),await n('document_revisions'),await claims()]).toEqual(before);
+ });
+ test('(c) the same key with a changed revision body is IDEMPOTENCY_CONFLICT',async()=>{
+  const x=await docDraft(),key=k();
+  await decide(svc(),pm,x.draftId,confirmBody(x),key);
+  const before=[await n('draft_decisions'),await n('document_revisions'),await claims()];
+  await refused(decide(svc(),pm,x.draftId,confirmBody(x,{},{changes:{summary:'Tóm tắt khác hẳn bản đầu',present:[],missing:[]}}),key),'IDEMPOTENCY_CONFLICT',409);
+  expect([await n('draft_decisions'),await n('document_revisions'),await claims()]).toEqual(before);
+ });
+ test('(d) a rejection claims its key: the same body replays, another reason or another result is IDEMPOTENCY_CONFLICT',async()=>{
+  const x=await docDraft(),key=k();
+  const rej=(reason:string)=>({result:'rejected',valueHash:x.valueHash,reason});
+  const base=await claims();
+  const first=await decide(svc(),pm,x.draftId,rej('Không phù hợp phạm vi'),key);
+  expect(await claims()).toBe(base+1);
+  expect(await decide(svc(),pm,x.draftId,rej('Không phù hợp phạm vi'),key)).toEqual(first);
+  await refused(decide(svc(),pm,x.draftId,rej('Một lý do hoàn toàn khác'),key),'IDEMPOTENCY_CONFLICT',409);
+  await refused(decide(svc(),pm,x.draftId,confirmBody(x),key),'IDEMPOTENCY_CONFLICT',409);
+  expect(await n('draft_decisions')).toBe(1);expect(await claims()).toBe(base+1);
+ });
+ test('(e) a rejection and a candidate confirmation now claim their key: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT',async()=>{
+  const a=await docDraft(),b=await docDraft(),key=k(),base=await claims();
+  await decide(svc(),pm,a.draftId,{result:'rejected',valueHash:a.valueHash,reason:'Không phù hợp phạm vi'},key);
+  expect(await claims()).toBe(base+1);
+  await refused(decide(svc(),pm,b.draftId,{result:'rejected',valueHash:b.valueHash,reason:'Không phù hợp phạm vi'},key),'IDEMPOTENCY_CONFLICT',409);
+  expect(await n('draft_decisions')).toBe(1);
+  const c1=await candDraft(),c2=await candDraft(),key2=k();
+  await decide(svc(),pm,c1.draftId,body(c1.valueHash),key2);
+  expect(await claims()).toBe(base+2);
+  await refused(decide(svc(),pm,c2.draftId,body(c2.valueHash),key2),'IDEMPOTENCY_CONFLICT',409);
+  await refused(decide(svc(),pm,c2.draftId,{result:'rejected',valueHash:c2.valueHash,reason:'Không phù hợp phạm vi'},key2),'IDEMPOTENCY_CONFLICT',409);
+  expect(await n('draft_decisions')).toBe(2);expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[c2.draftId])).toHaveLength(0);
+  // the key space is per person and across projects: the key of a candidate decision is taken for a manual proposal too
+  const d=await doc();
+  await refused(new DocumentService(h.db).proposeRevision(pm,d.record.id,revisionBody(d),key2),'IDEMPOTENCY_CONFLICT',409);
+ });
+ test('(f) another person sending the same key string gets DRAFT_ALREADY_DECIDED and leaves no claim',async()=>{
+  const x=await docDraft(),key=k();
+  await decide(svc(),pm,x.draftId,confirmBody(x),key);
+  const before=await claims();
+  await refused(decide(svc(),member,x.draftId,confirmBody(x),key),'DRAFT_ALREADY_DECIDED',409);
+  await refused(decide(svc(),member,x.draftId,{result:'rejected',valueHash:x.valueHash,reason:'Không phù hợp phạm vi'},key),'DRAFT_ALREADY_DECIDED',409);
+  expect(await claims()).toBe(before);
+  // and the same person with another key: the draft is decided
+  await refused(decide(svc(),pm,x.draftId,confirmBody(x),k()),'DRAFT_ALREADY_DECIDED',409);
+  expect(await claims()).toBe(before);expect(await n('draft_decisions')).toBe(1);
+ });
+ test('(g) a held confirmation leaves its key free: the same key then works for a later valid command',async()=>{
+  const d=await doc(),bad=await rawDraft({entityType:'document',entityId:d.record.id,value:out('technical_writer',[d.record.id]),over:{manifest_hash:'d'.repeat(64)}});
+  const key=k(),before=await claims();
+  await held(decide(svc(),pm,bad.id,body(sha(bad.value),{revision:revisionBody(d)}),key),'MANIFEST_MISMATCH');
+  expect(await claims()).toBe(before);expect(await n('draft_decisions')).toBe(0);
+  // other refusals roll the claim back too
+  await refused(decide(svc(),pm,bad.id,{result:'rejected',valueHash:sha(bad.value),reason:'abc'},key),'REASON_REQUIRED',422);
+  await refused(decide(svc(),pm,bad.id,body('f'.repeat(64),{revision:revisionBody(d)}),key),'REVISION_CONFLICT',409);
+  expect(await claims()).toBe(before);
+  const ok=await docDraft({d:await fresh(d.record.id)});
+  expect((await decide(svc(),pm,ok.draftId,body(ok.valueHash,{revision:revisionBody(await fresh(d.record.id))}),key)).decision?.result).toBe('confirmed');
+  expect(await claims()).toBe(before+1);
+ });
+ test('the inner proposal runs under the claim of the decision: one claim row for the key, whose payload names the draft',async()=>{
+  const x=await docDraft(),key=k();
+  await decide(svc(),pm,x.draftId,confirmBody(x),key);
+  expect(await rows('SELECT 1 FROM document_commands WHERE command_key=$1',[key])).toHaveLength(1);
+  expect(await rows("SELECT 1 FROM registry_events WHERE command_key=$1 AND kind='revision_proposed'",[key])).toHaveLength(1);
  });
 });
 

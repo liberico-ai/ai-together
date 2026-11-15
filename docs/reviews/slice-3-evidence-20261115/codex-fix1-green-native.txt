@@ -1,0 +1,6 @@
+Codex gate fix round 1 - full suite, native PostgreSQL (environment file loaded in the same shell, values not recorded). Worktree: <worktree>.
+Command: ( set -a; . <env file>; set +a; npx vitest run )
+ Test Files  68 passed (68)
+      Tests  997 passed (997)
+skipped: 0
+Focused native (11 files incl. the two concurrency files and tests/document-dependencies-concurrency.test.ts): 219 passed, 0 skipped

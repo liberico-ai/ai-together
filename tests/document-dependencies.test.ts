@@ -5,6 +5,7 @@ import {openHarness,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
 import {proposeRev,registerDoc,reviewer,seedMembers,transportApprover} from './slice3-fixtures';
 import {DependencyService} from '../src/server/document-dependencies';
+import {STALE_MESSAGE} from '../src/server/document-review';
 import {DocumentService} from '../src/server/documents';
 import {ids} from '../src/server/identities';
 import type {DocumentDetail,Principal} from '../src/server/types';
@@ -28,7 +29,9 @@ const refused=async(p:Promise<unknown>,code:string,status:number)=>{
 };
 const snap=async()=>({deps:await rows('SELECT id,version,needs_review,flagged_revision_id FROM document_dependencies ORDER BY id'),events:await n('review_events'),commands:await n('document_commands'),
  recs:await rows('SELECT id,version,latest_revision_id FROM document_records ORDER BY id')});
-const link=(p:Principal,up:string,dep:string,over:R={},key:string=k())=>svc().link(p,{projectId:ids.sales,upstreamDocumentId:up,dependentDocumentId:dep,...over},key,k());
+/** What the coordinator saw: the document's latest revision (a random id when there is none or the id is not one). */
+const latest=async(id:string)=>(await rows<{latest_revision_id:string|null}>('SELECT latest_revision_id FROM document_records WHERE id::text=lower($1)',[id]))[0]?.latest_revision_id??randomUUID();
+const link=async(p:Principal,up:string,dep:string,over:R={},key:string=k())=>svc().link(p,{projectId:ids.sales,upstreamDocumentId:up,dependentDocumentId:dep,upstreamRevisionId:await latest(up),...over},key,k());
 /** A document of sales with one proposed revision (by pm). */
 async function doc(projectId:string=ids.sales,withRevision=true):Promise<DocumentDetail> {
  const d=await registerDoc(h,pm,{projectId});
@@ -143,7 +146,7 @@ describe('document dependencies',()=>{
  test('list requires a project and never returns another project\'s links',async()=>{
   const a=await doc(),b=await doc(),ta=await doc(ids.transport),tb=await doc(ids.transport);
   const l=await link(pm,a.record.id,b.record.id);
-  const tl=await svc().link(pm,{projectId:ids.transport,upstreamDocumentId:ta.record.id,dependentDocumentId:tb.record.id},k(),k());
+  const tl=await svc().link(pm,{projectId:ids.transport,upstreamDocumentId:ta.record.id,upstreamRevisionId:ta.record.latest_revision_id,dependentDocumentId:tb.record.id},k(),k());
   expect(await svc().list(pm,{projectId:ids.sales})).toMatchObject({total:1,items:[{id:l.id}]});
   expect((await svc().list(pm,{projectId:ids.transport})).items.map(i=>i.id)).toEqual([tl.id]);
   expect((await svc().list(member,{projectId:ids.sales,documentId:b.record.id})).items.map(i=>i.id)).toEqual([l.id]);
@@ -160,7 +163,7 @@ describe('document dependencies',()=>{
  test('forged fields are rejected',async()=>{
   const a=await doc(),b=await doc();
   const before=await snap();
-  for(const extra of [{confirmedBy:member.id},{actorId:member.id},{tenantId:randomUUID()},{needsReview:true},{flaggedRevisionId:a.record.latest_revision_id},{upstreamRevisionId:a.record.latest_revision_id},{role:'manager'},{version:5}])
+  for(const extra of [{confirmedBy:member.id},{actorId:member.id},{tenantId:randomUUID()},{needsReview:true},{flaggedRevisionId:a.record.latest_revision_id},{role:'manager'},{version:5}])
    await expect(link(pm,a.record.id,b.record.id,extra)).rejects.toBeInstanceOf(ZodError);
   await expect(link(pm,a.record.id,b.record.id,{note:'a\u0000b'})).rejects.toBeInstanceOf(ZodError);
   await expect(link(pm,a.record.id,b.record.id,{note:'lone \uD800 surrogate'})).rejects.toBeInstanceOf(ZodError);
@@ -171,5 +174,73 @@ describe('document dependencies',()=>{
   const v=await link(pm,a.record.id.toUpperCase(),b.record.id.toUpperCase(),{note:'ok'});
   expect(v).toMatchObject({upstreamDocumentId:a.record.id,dependentDocumentId:b.record.id,note:'ok'});
   expect((await rows<{confirmed_by:string}>('SELECT confirmed_by FROM document_dependencies'))[0].confirmed_by).toBe(pm.id);
+ });
+ describe('the command names the revision the coordinator saw',()=>{
+  test('a proposal in between answers REVISION_CONFLICT with the review sentence and writes nothing: no link, no event, no claim',async()=>{
+   const a=await doc(),b=await doc();
+   const seen=a.record.latest_revision_id as string;
+   await propose(member,a.record.id);                       // r2 proposed before the command reaches the server
+   const before=await snap();
+   const e=await refused(link(pm,a.record.id,b.record.id,{upstreamRevisionId:seen}),'REVISION_CONFLICT',409);
+   expect(e.message).toBe(STALE_MESSAGE);
+   expect(await snap()).toEqual(before);
+   expect(await n('document_dependencies')).toBe(0);expect(await n("review_events WHERE kind='dependency.linked'")).toBe(0);
+   // the answers before the check do not change: a person outside the rule, an unknown document, a self-link, still get theirs first
+   for(const p of [member,viewer,bot,outsider]) expect((await refused(link(p,a.record.id,b.record.id,{upstreamRevisionId:seen}),'SCOPE_DENIED',404)).message).toBe(NOT_FOUND);
+   await refused(link(pm,randomUUID(),b.record.id,{upstreamRevisionId:seen}),'SCOPE_DENIED',404);
+   await refused(link(pm,a.record.id,randomUUID(),{upstreamRevisionId:seen}),'SCOPE_DENIED',404);
+   await refused(link(pm,a.record.id,a.record.id,{upstreamRevisionId:seen}),'DEPENDENCY_INVALID',422);
+   expect(await snap()).toEqual(before);
+   // the same command naming the new latest links, and the stored link names exactly that id
+   const r2=(await fresh(a.record.id)).record.latest_revision_id as string;
+   expect(r2).not.toBe(seen);
+   const v=await link(pm,a.record.id,b.record.id,{upstreamRevisionId:r2});
+   expect(v.upstreamRevisionId).toBe(r2);
+   expect((await rows<{upstream_revision_id:string}>('SELECT upstream_revision_id FROM document_dependencies'))[0].upstream_revision_id).toBe(r2);
+  });
+
+  test('naming the latest links, and the stored upstream_revision_id is the named id',async()=>{
+   const a=await doc(),b=await doc();
+   const v=await link(pm,a.record.id,b.record.id,{upstreamRevisionId:(a.record.latest_revision_id as string).toUpperCase()});
+   expect(v.upstreamRevisionId).toBe(a.record.latest_revision_id);
+   expect(await n("review_events WHERE kind='dependency.linked'")).toBe(1);
+   expect((await rows<{payload:{upstreamRevisionId:string}}>("SELECT payload FROM review_events WHERE kind='dependency.linked'"))[0].payload.upstreamRevisionId).toBe(a.record.latest_revision_id);
+  });
+
+  test('a body without upstreamRevisionId is a validation error and writes nothing',async()=>{
+   const a=await doc(),b=await doc();
+   const before=await snap();
+   await expect(link(pm,a.record.id,b.record.id,{upstreamRevisionId:undefined})).rejects.toBeInstanceOf(ZodError);
+   await expect(link(pm,a.record.id,b.record.id,{upstreamRevisionId:'not-a-uuid'})).rejects.toBeInstanceOf(ZodError);
+   await expect(link(pm,a.record.id,b.record.id,{upstreamRevisionId:null})).rejects.toBeInstanceOf(ZodError);
+   expect(await snap()).toEqual(before);
+  });
+
+  test('a revision id of another document is not the latest of this one: the same answer as a stale one',async()=>{
+   const a=await doc(),b=await doc(),c=await doc();
+   const before=await snap();
+   const foreign=await refused(link(pm,a.record.id,b.record.id,{upstreamRevisionId:c.record.latest_revision_id}),'REVISION_CONFLICT',409);
+   await propose(member,a.record.id);
+   const mid=await snap();
+   const stale=await refused(link(pm,a.record.id,b.record.id,{upstreamRevisionId:a.record.latest_revision_id}),'REVISION_CONFLICT',409);
+   expect(foreign.message).toBe(stale.message);
+   await refused(link(pm,a.record.id,b.record.id,{upstreamRevisionId:randomUUID()}),'REVISION_CONFLICT',409);
+   expect(await snap()).toEqual(mid);expect(mid.deps).toEqual(before.deps);
+  });
+
+  test('a replay with the same key and body returns the same link; the same key with another upstreamRevisionId is IDEMPOTENCY_CONFLICT',async()=>{
+   const a=await doc(),b=await doc();
+   const key=k();
+   const first=await link(pm,a.record.id,b.record.id,{},key);
+   expect(await link(pm,a.record.id,b.record.id,{},key)).toEqual(first);
+   // even after a newer revision the replay is the recorded outcome, as for every other command
+   await propose(member,a.record.id);
+   expect((await link(pm,a.record.id,b.record.id,{upstreamRevisionId:first.upstreamRevisionId},key)).id).toBe(first.id);
+   const mid=await snap();
+   await refused(link(pm,a.record.id,b.record.id,{upstreamRevisionId:(await fresh(a.record.id)).record.latest_revision_id},key),'IDEMPOTENCY_CONFLICT',409);
+   await refused(link(pm,a.record.id,b.record.id,{upstreamRevisionId:randomUUID()},key),'IDEMPOTENCY_CONFLICT',409);
+   expect(await snap()).toEqual(mid);
+   expect(await n('document_dependencies')).toBe(1);
+  });
  });
 });

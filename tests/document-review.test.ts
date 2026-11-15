@@ -4,7 +4,7 @@ import {ZodError} from 'zod';
 import {openHarness,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
 import {approver,delegate,frozenRevision,grantDocApproval,proposeRev,registerDoc,reviewer,revokeDelegation,seedMembers,transportApprover} from './slice3-fixtures';
-import {eligibility,followUpAllowed,isFrozen,revisionDiff,ReviewService,type ReviewItem,type ReviewRevision} from '../src/server/document-review';
+import {eligibility,followUpAllowed,threadClosed,isFrozen,revisionDiff,ReviewService,type ReviewItem,type ReviewRevision} from '../src/server/document-review';
 import {DocumentService} from '../src/server/documents';
 import {ids} from '../src/server/identities';
 import type {Principal} from '../src/server/types';
@@ -436,8 +436,9 @@ describe('document review comments',()=>{
   await refused(comment(member,w.docId,{kind:'resolved',parentId:rootId,body:'Tôi tự đóng'}),'APPROVER_NOT_AUTHORIZED',403);
   await refused(comment(pm,w.docId,{kind:'resolved',parentId:rootId,body:'Điều phối tự đóng'}),'APPROVER_NOT_AUTHORIZED',403);
   await comment(reviewer,w.docId,{kind:'resolved',parentId:rootId,body:'Đã xác nhận'});
-  await comment(approver,w.docId,{kind:'resolved',parentId:rootId,body:'Người duyệt xác nhận'});
-  expect(await n('review_comments')).toBe(6);expect(await n('review_events')).toBe(6);
+  // a thread closed by `resolved` takes no further follow-up (COMMENT_RESOLVED, round-1 fix of the Codex gate): the approver's confirmation is refused
+  await refused(comment(approver,w.docId,{kind:'resolved',parentId:rootId,body:'Người duyệt xác nhận'}),'COMMENT_RESOLVED',409);
+  expect(await n('review_comments')).toBe(5);expect(await n('review_events')).toBe(5);
   // a new comment must name the latest revision
   const old=await current(w.docId);
   await proposeRev(h,member,await docOf(w.docId));
@@ -620,4 +621,70 @@ describe('W9 the detail says when its comments were cut',()=>{
   expect(d.comments).toHaveLength(1000);
   expect(d.commentsTruncated).toBe(true);
  },60000);
+});
+
+describe('a closed thread takes no follow-up',()=>{
+ const RESOLVED_COPY='Nhận xét này đã được xác nhận xử lý xong.';
+ test('resolved twice: the second is 409 COMMENT_RESOLVED, one row and one event; addressed after resolved is the same answer',async()=>{
+  await delegate(h,ids.sales,reviewer.id);await grantDocApproval(h,approver.id,ids.sales,['design']);
+  const w=await world({frozen:false});
+  const root=(await comment(reviewer,w.docId,cmt(w))).comments[0];
+  await comment(reviewer,w.docId,{kind:'resolved',parentId:root.id,body:'Đã xác nhận'});
+  const before=await snap(w.docId);
+  const resolvedRows=()=>n("review_comments WHERE kind='resolved'"),resolvedEvents=()=>n("review_events WHERE kind='review.resolved'");
+  expect([await resolvedRows(),await resolvedEvents()]).toEqual([1,1]);
+  for(const [p,kind] of [[reviewer,'resolved'],[approver,'resolved'],[member,'addressed'],[pm,'addressed']] as const) {
+   const e=await refused(comment(p,w.docId,{kind,parentId:root.id,body:'Gửi thêm sau khi đã đóng'}),'COMMENT_RESOLVED',409);
+   expect(e.message).toBe(RESOLVED_COPY);
+  }
+  expect(await snap(w.docId)).toEqual(before);
+  expect([await resolvedRows(),await resolvedEvents()]).toEqual([1,1]);
+  // the scope and authority answers come first: a person who could not write there anyway is told nothing about the thread
+  await refused(comment(approver,w.docId,{kind:'addressed',parentId:root.id,body:'Không có quyền'}),'APPROVER_NOT_AUTHORIZED',403);
+  await refused(comment(outsider,w.docId,{kind:'resolved',parentId:root.id,body:'Ngoài phạm vi'}),'SCOPE_DENIED',404);
+  // a replay of the command that closed the thread is still the recorded outcome
+  const key=k(),w2=await world({frozen:false});
+  const r2=(await comment(reviewer,w2.docId,cmt(w2))).comments[0];
+  const first=await comment(reviewer,w2.docId,{kind:'resolved',parentId:r2.id,body:'Đã xác nhận lần đầu'},key);
+  expect(await comment(reviewer,w2.docId,{kind:'resolved',parentId:r2.id,body:'Đã xác nhận lần đầu'},key)).toEqual(first);
+ });
+
+ test('the flags of detail() and the answers of comment() agree for every state of a thread',async()=>{
+  await delegate(h,ids.sales,reviewer.id);await grantDocApproval(h,approver.id,ids.sales,['design']);
+  const w=await world({frozen:false});
+  const state={
+   open:async(_root:string)=>{},
+   addressed:async(root:string)=>{await comment(member,w.docId,{kind:'addressed',parentId:root,body:'Đã sửa'});},
+   resolved:async(root:string)=>{await comment(reviewer,w.docId,{kind:'resolved',parentId:root,body:'Đã xác nhận'});},
+  };
+  const table:string[]=[];
+  for(const [name,put] of Object.entries(state)) for(const p of [member,reviewer,pm,approver]) for(const kind of ['addressed','resolved'] as const) {
+   const root=(await comment(reviewer,w.docId,cmt(w))).comments.at(-1)!;
+   await put(root.id);
+   const seen=(await svc().detail(p,w.docId)).comments.find(c=>c.id===root.id)!;
+   const flag=kind==='addressed'?seen.canAddress:seen.canResolve;
+   const before=await snap(w.docId);
+   const out=await comment(p,w.docId,{kind,parentId:root.id,body:'Thử theo bảng'}).then(()=>'ok',x=>(x as {code:string}).code);
+   const label=`${name}/${p.id}/${kind}`;
+   if(flag) expect(out,label).toBe('ok'); else expect(['APPROVER_NOT_AUTHORIZED','COMMENT_RESOLVED'],label).toContain(out);
+   if(name==='resolved') {
+    expect(flag,label).toBe(false);
+    // whoever could write on an open thread is told it is closed; whoever could not still gets the authority answer
+    const wasAllowed=[[member,'addressed'],[pm,'addressed'],[reviewer,'resolved'],[approver,'resolved']].some(([q,kd])=>q===p&&kd===kind);
+    expect(out,label).toBe(wasAllowed?'COMMENT_RESOLVED':'APPROVER_NOT_AUTHORIZED');
+   }
+   if(out!=='ok') expect(await snap(w.docId),label).toEqual(before);
+   table.push(`${label}:${flag}:${out}`);
+  }
+  expect(table.filter(r=>r.startsWith('resolved/')&&!/:false:(COMMENT_RESOLVED|APPROVER_NOT_AUTHORIZED)$/.test(r))).toEqual([]);
+  expect(table.some(r=>r.startsWith('open/')&&r.endsWith(':true:ok'))).toBe(true);
+  expect(table.some(r=>r.startsWith('addressed/')&&r.endsWith(':true:ok'))).toBe(true);
+ });
+
+ test('the one rule: a thread is closed exactly when it has a resolved reply',()=>{
+  expect(threadClosed([])).toBe(false);
+  expect(threadClosed(['addressed','addressed'])).toBe(false);
+  expect(threadClosed(['addressed','resolved'])).toBe(true);
+  expect(threadClosed(['resolved'])).toBe(true);
+ });
 });

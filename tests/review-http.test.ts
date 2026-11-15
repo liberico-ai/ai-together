@@ -186,7 +186,7 @@ describe('review HTTP',()=>{
     await forged(`/api/reviews/${w.docId}/comments`,login('technical'),cmt(w),[{actorId:pm.id},{tenantId:ids.otherTenant},{projectId:ids.sales},{documentId:w.docId},{requestId:randomUUID()}]);
     await forged('/api/reviews/delegations',login('manager'),G(),[{grantedBy:pm.id},{capability:'approve'},{approve:true},{revokedAt:'2026-01-01T00:00:00Z'},{tenantId:ids.otherTenant},{actorId:pm.id}]);
     await forged(`/api/reviews/delegations/${delegationId}/revoke`,login('manager'),V(1),[{revokedBy:pm.id},{revokedAt:'2026-01-01T00:00:00Z'},{docTypes:['design']},{projectId:ids.sales}]);
-    await forged('/api/reviews/dependencies',login('manager'),{projectId:ids.sales,upstreamDocumentId:w.docId,dependentDocumentId:w2.docId},[{actorId:pm.id},{confirmedBy:pm.id},{tenantId:ids.otherTenant}]);
+    await forged('/api/reviews/dependencies',login('manager'),{projectId:ids.sales,upstreamDocumentId:w.docId,upstreamRevisionId:w.revisionId,dependentDocumentId:w2.docId},[{actorId:pm.id},{confirmedBy:pm.id},{tenantId:ids.otherTenant}]);
     // a body that is not an object, or not JSON
     for(const raw of ['[]','null','7','"x"']) expect((await call('POST',`/api/reviews/${w.docId}/comments`,{cookie:login('technical'),raw})).status,raw).toBe(422);
     expect((await call('POST',`/api/reviews/${w.docId}/comments`,{cookie:login('technical'),raw:'{not json'})).status).toBe(422);
@@ -236,7 +236,7 @@ describe('review HTTP',()=>{
     const delegationId=await delegate(h,ids.sales,member.id);
     const snap=[await n('review_decisions'),await n('review_comments'),await n('review_delegations'),await n('document_dependencies')];
     for(const [route,payload] of [[`/api/reviews/${w.docId}/comments`,cmt(w)],[`/api/reviews/${w.docId}/decisions`,dec(w)],
-      ['/api/reviews/dependencies',{projectId:ids.sales,upstreamDocumentId:w.docId,dependentDocumentId:w2.docId}],['/api/reviews/delegations',G({delegateId:reviewer.id})],
+      ['/api/reviews/dependencies',{projectId:ids.sales,upstreamDocumentId:w.docId,upstreamRevisionId:w.revisionId,dependentDocumentId:w2.docId}],['/api/reviews/delegations',G({delegateId:reviewer.id})],
       [`/api/reviews/delegations/${delegationId}/revoke`,V(1)]] as const) {
       for(const key of [null,'']) {
         const r=await call('POST',route,{payload,key});
@@ -300,11 +300,19 @@ describe('review HTTP',()=>{
     expect((await decide('business',w,{result:'approved'})).status).toBe(200);
     await expectErr(await decide('business',w,{result:'approved'}),409,'REVIEW_ALREADY_DECIDED');
     const a=await world(),b=await world();
-    const link=(up:string,down:string)=>call('POST','/api/reviews/dependencies',{payload:{projectId:ids.sales,upstreamDocumentId:up,dependentDocumentId:down}});
+    const mgr=login('manager');   // one session for the whole test: the demo store caps live sessions
+    const link=async(up:string,down:string,over:R={})=>call('POST','/api/reviews/dependencies',{cookie:mgr,payload:{projectId:ids.sales,upstreamDocumentId:up,upstreamRevisionId:(await rows<{latest_revision_id:string}>('SELECT latest_revision_id FROM document_records WHERE id=$1',[up]))[0].latest_revision_id,dependentDocumentId:down,...over}});
     await expectErr(await link(a.docId,a.docId),422,'DEPENDENCY_INVALID');
     const first=await link(a.docId,b.docId); expect(first.status).toBe(200);
     expect((await json(first)).data).toMatchObject({upstreamDocumentId:a.docId,dependentDocumentId:b.docId});
     await expectErr(await link(a.docId,b.docId),409,'DEPENDENCY_EXISTS');
+    // the command names the revision that was seen: without it 422, a stale or foreign one 409, and nothing is written
+    const c=await world(),d=await world(),count=await n('document_dependencies'),events=await n('review_events');
+    await expectErr(await link(c.docId,d.docId,{upstreamRevisionId:undefined}),422,'INVALID_INPUT');
+    await expectErr(await link(c.docId,d.docId,{upstreamRevisionId:a.revisionId}),409,'REVISION_CONFLICT');
+    await proposeRev(h,pm,await new DocumentService(h.db).detail(pm,c.docId));
+    await expectErr(await link(c.docId,d.docId,{upstreamRevisionId:c.revisionId}),409,'REVISION_CONFLICT');
+    expect([await n('document_dependencies'),await n('review_events')]).toEqual([count,events]);
     const list=await call('GET','/api/reviews/dependencies?projectId='+ids.sales);
     expect(list.status).toBe(200); expect((await json(list)).data.total).toBe(1);
   });
@@ -331,7 +339,7 @@ describe('review HTTP',()=>{
 
   test('dependency list: filters by documentId and needsReview, pages, and refuses an unknown parameter',async()=>{
     const a=await world(),b=await world(),c=await world();
-    const link=(up:W,down:W)=>call('POST','/api/reviews/dependencies',{payload:{projectId:ids.sales,upstreamDocumentId:up.docId,dependentDocumentId:down.docId}});
+    const link=(up:W,down:W)=>call('POST','/api/reviews/dependencies',{payload:{projectId:ids.sales,upstreamDocumentId:up.docId,upstreamRevisionId:up.revisionId,dependentDocumentId:down.docId}});
     expect((await link(a,b)).status).toBe(200); expect((await link(b,c)).status).toBe(200);
     await proposeRev(h,pm,await new DocumentService(h.db).detail(pm,b.docId));   // a newer revision of the upstream flags the link that depends on it
     const list=async(q:string)=>{const r=await call('GET','/api/reviews/dependencies?projectId='+ids.sales+q);return {status:r.status,body:await json(r)};};
