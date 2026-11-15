@@ -450,7 +450,7 @@ Lời Chairman 12/11/2026 (nguyên văn):
 
 ---
 
-**Bổ sung 15/11/2026 khi áp quyết định OQ-33 và OQ-34 vào kế hoạch lát 3** (`docs/plans/slice-3-review-skills.md` bản 0.4, base `ec3b5e7`). Mục dưới đây là chỗ lời Chairman ở OQ-33 không phủ; ghi khi **chưa có quyết định**. Nó chỉ chặn đúng một phần của Task 7c; phần còn lại của Task 7c vẫn làm.
+**Bổ sung 15/11/2026 khi áp quyết định OQ-33 và OQ-34 vào kế hoạch lát 3** (`docs/plans/slice-3-review-skills.md` bản 0.4, base `ec3b5e7`). Mục dưới đây là chỗ lời Chairman ở OQ-33 không phủ; ghi khi **chưa có quyết định**. Chairman đã quyết ngày 15/11/2026; quyết định ghi trong mục. Nó chỉ chặn đúng một phần của Task 7c; phần còn lại của Task 7c vẫn làm.
 
 ## OQ-35 — Người đề xuất phiếu cấp quyền duyệt bản chuẩn đồng thời giữ ghế BoM: phiếu của họ có được tính cho chính phiếu mình đề xuất không
 
@@ -461,6 +461,19 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Điều kèm theo để Chairman biết (không phải câu hỏi riêng):** theo «cùng hàm đếm», phiếu từ chối của Chairman vẫn đóng một phiếu do điều phối dự án trình, và phiếu đồng ý của Chairman vẫn không tính. Cách hiểu của phiên lát 2 nêu lý do cho luật đó là Chairman là người đề xuất (câu trích ở Phía B); với đường mới Chairman không còn là người đề xuất. Kế hoạch giữ nguyên hàm đếm.
 - **Ai quyết:** Chairman.
 - **Khuyến nghị của planner (không phải quyết định):** (a) — cùng hướng với các cách hiểu đang chờ xác nhận ở OQ-29 (người có phần trong phiếu không bỏ phiếu cho phiếu đó), không đụng hàm đếm, và không khoá điều phối dự án đang giữ ghế BoM khỏi đường mới.
+- **Quyết định 15/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối; phiên điều phối chuyển lời):** «(a) Người trình không bỏ phiếu (Recommended)».
+  - Câu hỏi Chairman thấy: «OQ-35 (lát 3): điều phối dự án đang giữ ghế BoM trình phiếu cấp quyền duyệt bản chuẩn (đường mới của OQ-33 b) thì phiếu của chính họ có được tính không? Với mã hiện có, hàm đếm không biết ai là người trình, nên một người vừa trình vừa đồng ý là phiếu đủ (quản trị tài khoản vẫn phải áp).»
+  - Bốn phương án Chairman thấy (nhãn — mô tả):
+    - «(a) Người trình không bỏ phiếu (Recommended)» — «Ghế của người trình bị loại khỏi danh sách người bỏ phiếu đóng băng của phiếu đó, như đang loại người được đổi quyền; cần ít nhất một ghế BoM khác. Không sửa hàm đếm, chỉ đổi cách chọn người bỏ phiếu cho đường của điều phối dự án.»
+    - «(c) Người giữ ghế không trình» — «Người đang giữ ghế duyệt tài khoản không trình phiếu qua đường mới; họ nhờ quản trị tài khoản trình theo đường có sẵn. Không sửa hàm đếm, không sửa cách chọn người bỏ phiếu; đây là hành vi giữ chỗ hiện tại. Nếu các điều phối dự án cũng chính là người giữ ghế BoM thì đường mới gần như không dùng được.»
+    - «(b) Phiếu người trình được tính» — «Phiếu của người trình được tính như mọi ghế BoM, đúng mã hiện có, không sửa gì. Một người vừa trình vừa đồng ý là đủ; quản trị tài khoản vẫn là người áp.»
+    - «(d) Ở lại nhưng không tính» — «Người trình vẫn nằm trong danh sách người bỏ phiếu nhưng phiếu đồng ý của họ không tính. Phải sửa hàm đếm accessChangeTally của lát 2.»
+- **Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):**
+  1. Hành vi giữ chỗ `PROPOSER_SEAT_HELD` (trùng phương án (c)) được thay bằng phương án (a): chỉ đổi cách chọn người bỏ phiếu cho đường của điều phối dự án; `accessChangeTally` không sửa; đường trình của quản trị tài khoản không đổi.
+  2. Mô tả Chairman chọn ghi «cần ít nhất một ghế BoM khác». Khi loại cả người được đổi quyền lẫn người trình mà không còn ghế BoM nào thì phiếu không mở được; có ca kiểm cho trường hợp đó, và lỗi trả về không lộ ai đang giữ ghế.
+  3. Điều kèm theo ở trên (phiếu từ chối của Chairman vẫn đóng phiếu do điều phối dự án trình, phiếu đồng ý của Chairman vẫn không tính) đã được phiên điều phối báo Chairman dưới dạng thông tin, không hỏi thành câu riêng. Chairman chưa nói gì về điểm này; giữ nguyên hàm đếm và giữ nó trong danh sách «chờ Chairman xác nhận» cùng S13 của lát 2.
+  4. Hai ghi chú từ review CSDL của migration 019 (một chiều kể từ phiếu đầu tiên mang mã quyền duyệt; khoá độc quyền `identity.memberships` lúc áp) phải nằm trong biên nhận `DELIVERY-012`, mục điều kiện cho điểm dừng áp migration thật.
+- **Áp vào lát 3:** Task 7c vẫn dừng cả task tới khi OQ-36, OQ-37 và OQ-38 có quyết định (phán quyết S66 của kế hoạch); khi đó bước giữ chỗ `PROPOSER_SEAT_HELD` của Task 7c được thay bằng cách chọn người bỏ phiếu theo phương án (a), rồi qua cổng bảo mật lần nữa trước khi viết mã.
 - **Trạng thái lúc lập kế hoạch:** chưa quyết. Kế hoạch lát 3 bản 0.4 đặt **hành vi giữ chỗ fail-closed, không phải phương án được chọn** (phán quyết S57 của kế hoạch): người trình đang giữ một ghế trong `identity.account_approval_seats` bị từ chối khi trình qua đường mới (`PROPOSER_SEAT_HELD`); không sửa `accessChangeTally`, không sửa cách chọn người bỏ phiếu. Giữ chỗ này trùng hành vi của phương án (c) và chặt hơn (a), (b), (d). Phần bị chặn: chỉ việc trình phiếu của điều phối dự án đang giữ ghế duyệt tài khoản; họ vẫn nhờ quản trị tài khoản trình theo đường có sẵn. Khi có câu trả lời, chỉ một bước của `proposeDocApproval` và một ca kiểm đổi.
 
 ---
