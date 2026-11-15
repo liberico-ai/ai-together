@@ -1,0 +1,19 @@
+RED: npx vitest run tests/review-http.test.ts (PGlite, before src/server/review-http.ts exists)
+ RUN  v5.1.0 <worktree>
+ ❯ tests/review-http.test.ts (0 test)
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-http.test.ts [ tests/review-http.test.ts ]
+Error: Cannot find module '../src/server/review-http' imported from <worktree>/tests/review-http.test.ts
+ ❯ tests/review-http.test.ts:9:1
+      7| import {approver,delegate,frozenRevision,grantDocApproval,proposeRev,r…
+      8| import {COOKIE,createSession} from '../src/server/auth';
+      9| import {handleDecisionsApi,handleReviewApi} from '../src/server/review…
+       | ^
+     10| import {DelegationService} from '../src/server/review-delegations';
+     11| import {ids,demoProfiles} from '../src/server/identities';
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  16:58:27
+   Duration  99ms (worker 96%, environment 4%)
+Expected: the handler module does not exist yet, so the suite cannot load (no tests run).
