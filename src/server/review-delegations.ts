@@ -21,8 +21,12 @@ const managerRequired = () => new AppError('MANAGER_REQUIRED', 'Chỉ điều ph
 const invalid = (message: string) => new AppError('DELEGATION_INVALID', message, 422);
 const COLUMNS = 'id,project_id,delegate_id,doc_types,granted_by,basis,revoked_at,revoked_by,revoke_basis,version,created_at';
 
-export type DelegationView = { id: string; projectId: string; delegateId: string; docTypes: DocType[]; grantedBy: string; basis: string; revokedAt: string | null; revokedBy: string | null;
-  revokeBasis: string | null; version: number; createdAt: string };
+// OQ-39 (c) designatorIsCoordinator, OQ-40 (c) dormant: null for everyone who is not a coordinator of the project (and in the answers of grant and revoke). They never change effect.
+// OQ-41 (c) basis and revokeBasis: null when the caller may not read them.
+export type DelegationView = { id: string; projectId: string; delegateId: string; docTypes: DocType[]; grantedBy: string; basis: string | null; revokedAt: string | null; revokedBy: string | null;
+  revokeBasis: string | null; version: number; createdAt: string; designatorIsCoordinator: boolean | null; dormant: boolean | null };
+/** A row of the list: for another person's row, a reader who is not a coordinator receives only id, delegateId and docTypes; every other field is null. */
+export type ListedDelegation = { [K in keyof DelegationView]: K extends 'id' | 'delegateId' | 'docTypes' ? DelegationView[K] : DelegationView[K] | null };
 export type ApproverView = { userId: string; docTypes: DocType[] };
 
 // ---- input: strict schemas, identifiers lower-cased at parse time, text PostgreSQL can store and its CHECK (5..500 characters after trimming spaces) accepts ----
@@ -42,7 +46,7 @@ const revokeSchema = z.object({ expectedVersion: z.number().int().positive().max
 type Row = { id: string; project_id: string; delegate_id: string; doc_types: DocType[]; granted_by: string; basis: string; revoked_at: unknown; revoked_by: string | null; revoke_basis: string | null; version: number; created_at: unknown };
 const iso = (v: unknown) => new Date(v as string).toISOString();
 const toView = (r: Row): DelegationView => ({ id: r.id, projectId: r.project_id, delegateId: r.delegate_id, docTypes: r.doc_types, grantedBy: r.granted_by, basis: r.basis,
-  revokedAt: r.revoked_at == null ? null : iso(r.revoked_at), revokedBy: r.revoked_by, revokeBasis: r.revoke_basis, version: r.version, createdAt: iso(r.created_at) });
+  revokedAt: r.revoked_at == null ? null : iso(r.revoked_at), revokedBy: r.revoked_by, revokeBasis: r.revoke_basis, version: r.version, createdAt: iso(r.created_at), designatorIsCoordinator: null, dormant: null });
 const sqlstate = (e: unknown) => (e as { code?: string })?.code;
 
 export class DelegationService {
@@ -77,17 +81,37 @@ export class DelegationService {
       [p.tenantId, projectId, entityId, p.id.toLowerCase(), kind, requestId, randomUUID(), JSON.stringify(payload)]);
   }
 
-  /** Delegations of the project (live first, then revoked, at most 200) and the holders of an approval grant (read-only). Ids only, no names. */
-  async list(p: Principal, raw: unknown): Promise<{ reviewers: DelegationView[]; approvers: ApproverView[]; canDesignate: boolean }> {
+  /** Delegations of the project (live first, then revoked, at most 200) and the holders of an approval grant (read-only). Ids only, no names.
+   * What each caller receives is decided here, from the caller's role in the database read inside this transaction (never the session's role or grants):
+   * a coordinator receives every row complete with the two indicators; any other reader receives their own rows complete (basis texts, no indicators) and, of other people's rows,
+   * only the live and not dormant ones with id, delegate and document types (everything else null). Revoked and dormant rows of other people are not returned. */
+  async list(p: Principal, raw: unknown): Promise<{ reviewers: ListedDelegation[]; approvers: ApproverView[]; canDesignate: boolean }> {
     if (!p || p.role === 'bot') throw denied();
     const q = listSchema.parse(raw);
     if (!reader(p, q.projectId)) throw denied();
+    const me = p.id.toLowerCase();
     return this.run(p, q.projectId, async tx => {
-      const reviewers = (await tx.query<Row>(`SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 ORDER BY (revoked_at IS NOT NULL), created_at DESC, id LIMIT 200`, [q.projectId])).rows.map(toView);
+      const myRole = await this.dbRole(tx, q.projectId, me);
+      if (!myRole || !READ_ROLES.has(myRole)) throw denied();                                  // the database no longer gives a reading role: same answer as for an outsider
+      const canDesignate = projectRole(p, q.projectId) === 'manager' && myRole === 'manager';
+      const rows = (await tx.query<Row>(`SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 AND ($2::boolean OR $3::uuid=delegate_id OR revoked_at IS NULL) ORDER BY (revoked_at IS NOT NULL), created_at DESC, id LIMIT 1000`,
+        [q.projectId, canDesignate, me])).rows;
+      const people = [...new Set(rows.flatMap(r => [r.delegate_id, r.granted_by]))];
+      const roleOf = new Map((people.length ? (await tx.query<{ user_id: string; project_role: string }>('SELECT user_id,project_role FROM public.bom_eligible_members($1::uuid, $2::uuid[])', [q.projectId, people])).rows : [])
+        .map(r => [r.user_id, r.project_role]));
+      const dormant = (r: Row) => r.revoked_at == null && !READ_ROLES.has(roleOf.get(r.delegate_id) ?? '');
+      const reviewers: ListedDelegation[] = [];
+      for (const r of rows) {
+        if (canDesignate) reviewers.push({ ...toView(r), designatorIsCoordinator: roleOf.get(r.granted_by) === 'manager', dormant: dormant(r) });
+        else if (r.delegate_id === me) reviewers.push(toView(r));
+        else if (r.revoked_at == null && !dormant(r)) {
+          reviewers.push({ id: r.id, delegateId: r.delegate_id, docTypes: r.doc_types, projectId: null, grantedBy: null, basis: null, revokedAt: null, revokedBy: null, revokeBasis: null, version: null, createdAt: null,
+            designatorIsCoordinator: null, dormant: null });
+        }
+      }
       const approvers = (await tx.query<{ user_id: string; doc_types: DocType[] }>('SELECT user_id,doc_types FROM public.document_approvers($1::uuid)', [q.projectId])).rows
         .map(a => ({ userId: a.user_id, docTypes: a.doc_types }));
-      const canDesignate = projectRole(p, q.projectId) === 'manager' && (await this.dbRole(tx, q.projectId, p.id.toLowerCase())) === 'manager';
-      return { reviewers, approvers, canDesignate };
+      return { reviewers: reviewers.slice(0, 200), approvers, canDesignate };
     });
   }
 

@@ -1,0 +1,18 @@
+npx vitest run tests/review-delegations.test.ts (PGlite), three temporary mutations one at a time, each reverted
+=== MUTATION 1 remove the caller filter (coordinator branch always taken)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a reader who is not a coordinator gets no basis text of another person's rows, live or revoked
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a delegate reads the basis and the revoke basis of their own rows
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 the caller's coordinator status comes from the database
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > indicators are for coordinators only
+      Tests  4 failed | 31 passed (35)
+=== MUTATION 2 caller status from the session instead of the database
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-delegations.test.ts > list > canDesignate follows the database role, not a stale session role
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 the caller's coordinator status comes from the database
+      Tests  2 failed | 33 passed (35)
+=== MUTATION 3 change the dormant condition
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a reader who is not a coordinator gets no basis text of another person's rows, live or revoked
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-40 a dormant designation is labelled, gives nothing, and revives when the person returns
+      Tests  2 failed | 33 passed (35)

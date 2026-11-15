@@ -369,6 +369,111 @@ describe('list',()=>{
  });
 });
 
+describe('OQ-39, OQ-40, OQ-41 indicators and who sees what in list',()=>{
+ const MARK_G='MARKER-GRANT-',MARK_R='MARKER-REVOKE-';
+ const mkBasis=(t:string)=>t+'căn cứ chỉ định mẫu';
+ const seed=async()=>{
+  // live: member (engineer) design, reviewer (technical) plan; revoked: approver (business) guide; all granted by pm with marked texts
+  const out:Record<string,string>={};
+  for(const [key,p,types] of [['member',member,['design']],['reviewer',reviewer,['plan']],['approver',approver,['guide']]] as const) {
+   const v=await grant(pm,G({delegateId:p.id,docTypes:types,basis:mkBasis(MARK_G+key+'-')}));out[key]=v.id;
+  }
+  await revoke(pm,out.approver,V(1,{basis:'Thu hồi '+MARK_R+'approver-xyz'}));
+  return out;
+ };
+ test('OQ-41 a reader who is not a coordinator gets no basis text of another person\'s rows, live or revoked',async()=>{
+  const d=await seed();
+  const l=await svc().list(business2,{projectId:ids.sales});
+  const text=JSON.stringify(l);
+  expect(text).not.toContain('MARKER-');
+  expect(text).not.toContain(pm.id);
+  expect(l.reviewers.map(x=>x.id).sort()).toEqual([d.member,d.reviewer].sort());       // no revoked row of another person
+  for(const r of l.reviewers) expect(r).toEqual({id:r.id,projectId:null,delegateId:r.delegateId,docTypes:r.docTypes,grantedBy:null,basis:null,revokedAt:null,revokedBy:null,revokeBasis:null,version:null,createdAt:null,designatorIsCoordinator:null,dormant:null});
+  expect(l.reviewers.find(x=>x.id===d.member)).toMatchObject({delegateId:member.id,docTypes:['design']});
+  expect(l.canDesignate).toBe(false);
+  await setDbRole(member.id,ids.sales,'viewer');                                        // a dormant row of another person is not returned either
+  const l2=await svc().list(business2,{projectId:ids.sales});
+  expect(l2.reviewers.map(x=>x.id)).toEqual([d.reviewer]);
+  expect(JSON.stringify(l2)).not.toContain('MARKER-');
+ });
+ test('OQ-41 a delegate reads the basis and the revoke basis of their own rows',async()=>{
+  const live=await grant(pm,G({delegateId:member.id,docTypes:['design'],basis:mkBasis(MARK_G+'own-')}));
+  const other=await grant(pm,G({delegateId:reviewer.id,docTypes:['plan'],basis:mkBasis(MARK_G+'other-')}));
+  const own=(await svc().list(member,{projectId:ids.sales}));
+  expect(own.reviewers.find(x=>x.id===live.id)).toMatchObject({basis:mkBasis(MARK_G+'own-'),grantedBy:pm.id,revokedAt:null,version:1});
+  expect(JSON.stringify(own)).not.toContain(MARK_G+'other-');
+  expect(own.reviewers.find(x=>x.id===other.id)).toMatchObject({basis:null,grantedBy:null});
+  await revoke(pm,live.id,V(1,{basis:'Thu hồi '+MARK_R+'own-xyz'}));
+  const again=await grant(pm,G({delegateId:member.id,docTypes:['plan'],basis:mkBasis(MARK_G+'own2-')}));
+  const l=await svc().list(member,{projectId:ids.sales});
+  expect(l.reviewers.find(x=>x.id===live.id)).toMatchObject({basis:mkBasis(MARK_G+'own-'),revokeBasis:'Thu hồi '+MARK_R+'own-xyz',revokedBy:pm.id});
+  expect(l.reviewers.find(x=>x.id===again.id)).toMatchObject({basis:mkBasis(MARK_G+'own2-')});
+ });
+ test('OQ-41 a coordinator reads everything',async()=>{
+  const d=await seed();
+  for(const p of [pm,pm2]) {
+   const l=await svc().list(p,{projectId:ids.sales});
+   expect(l.reviewers).toHaveLength(3);
+   const rev=l.reviewers.find(x=>x.id===d.approver)!;
+   expect(rev).toMatchObject({basis:mkBasis(MARK_G+'approver-'),revokeBasis:'Thu hồi '+MARK_R+'approver-xyz',revokedBy:pm.id,grantedBy:pm.id,dormant:false,designatorIsCoordinator:true});
+   expect(l.reviewers.find(x=>x.id===d.member)).toMatchObject({basis:mkBasis(MARK_G+'member-'),dormant:false,designatorIsCoordinator:true,grantedBy:pm.id});
+   expect(l.canDesignate).toBe(true);
+  }
+ });
+ test('OQ-41 the caller\'s coordinator status comes from the database',async()=>{
+  const d=await seed();
+  await setDbRole(pm2.id,ids.sales,'engineer');                                         // the session of pm2 still says manager
+  const l=await svc().list(pm2,{projectId:ids.sales});
+  const text=JSON.stringify(l);
+  expect(text).not.toContain('MARKER-');
+  expect(l.canDesignate).toBe(false);
+  expect(l.reviewers.map(x=>x.id).sort()).toEqual([d.member,d.reviewer].sort());
+  for(const r of l.reviewers) expect(r).toMatchObject({grantedBy:null,basis:null,designatorIsCoordinator:null,dormant:null});
+  await setDbRole(pm2.id,ids.sales,'viewer');                                           // no reading role left in the database: same answer as any outsider
+  await refused(svc().list(pm2,{projectId:ids.sales}),'SCOPE_DENIED',404);
+ });
+ test('OQ-39 a designation outlives its designator\'s role and is labelled',async()=>{
+  const review=new ReviewService(h.db);
+  const doc=await registerDoc(h,pm,{docType:'design'});
+  const f=await frozenRevision(h,doc.record.id,member.id);
+  const cmt=()=>({kind:'comment',revisionId:f.revisionId,anchor:'Mục 1',body:'Cần làm rõ phạm vi'});
+  const v=await grant(pm2,G({delegateId:reviewer.id,docTypes:['design'],basis:mkBasis('x-')}));
+  expect((await svc().list(pm,{projectId:ids.sales})).reviewers[0]).toMatchObject({id:v.id,designatorIsCoordinator:true});
+  await setDbRole(pm2.id,ids.sales,'engineer');
+  const l=await svc().list(pm,{projectId:ids.sales});
+  expect(l.reviewers.find(x=>x.id===v.id)).toMatchObject({designatorIsCoordinator:false,dormant:false,grantedBy:pm2.id});
+  expect((await review.comment(reviewer,doc.record.id,cmt(),k(),k())).comments.map(x=>x.actorId)).toEqual([reviewer.id]);   // effect unchanged
+  await setDbRole(pm2.id,ids.sales,'manager');
+  expect((await svc().list(pm,{projectId:ids.sales})).reviewers.find(x=>x.id===v.id)).toMatchObject({designatorIsCoordinator:true});
+ });
+ test('OQ-40 a dormant designation is labelled, gives nothing, and revives when the person returns',async()=>{
+  const review=new ReviewService(h.db);
+  const doc=await registerDoc(h,pm,{docType:'design'});
+  const f=await frozenRevision(h,doc.record.id,member.id);
+  const cmt=()=>({kind:'comment',revisionId:f.revisionId,anchor:'Mục 1',body:'Cần làm rõ phạm vi'});
+  const codeOf=async(p:Promise<unknown>)=>(await p.then(()=>null,x=>x) as {code?:string}|null)?.code;
+  const v=await grant(pm,G({delegateId:reviewer.id,docTypes:['design']}));
+  const gone=await grant(pm,G({delegateId:approver.id,docTypes:['plan']}));
+  await revoke(pm,gone.id,V(1));
+  await setDbRole(reviewer.id,ids.sales,'viewer');await setDbRole(approver.id,ids.sales,'viewer');
+  const l=await svc().list(pm,{projectId:ids.sales});
+  expect(l.reviewers.find(x=>x.id===v.id)).toMatchObject({dormant:true,docTypes:['design'],revokedAt:null});
+  expect(l.reviewers.find(x=>x.id===gone.id)).toMatchObject({dormant:false,revokedAt:expect.any(String)});     // a revoked row is never dormant
+  expect(await codeOf(review.comment(reviewer,doc.record.id,cmt(),k(),k()))).toBeDefined();                 // refused (viewer: not found or not authorized)
+  expect(await n('review_comments')).toBe(0);
+  await setDbRole(reviewer.id,ids.sales,'technical');
+  expect((await svc().list(pm,{projectId:ids.sales})).reviewers.find(x=>x.id===v.id)).toMatchObject({dormant:false,docTypes:['design']});
+  expect((await review.comment(reviewer,doc.record.id,cmt(),k(),k())).comments.map(x=>x.actorId)).toEqual([reviewer.id]);
+ });
+ test('indicators are for coordinators only',async()=>{
+  await seed();
+  for(const p of [member,reviewer,business2,technical2]) {
+   const l=await svc().list(p,{projectId:ids.sales});
+   for(const r of l.reviewers) expect([r.designatorIsCoordinator,r.dormant]).toEqual([null,null]);
+  }
+ });
+});
+
 describe('a commenter can never approve',()=>{
  test('OQ-31 (3) a designated commenter comments and requests changes for the designated type only, never approves, and the revoke takes effect on the next command',async()=>{
   const review=new ReviewService(h.db);
