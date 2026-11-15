@@ -16,7 +16,7 @@ const denied = () => new AppError('SCOPE_DENIED', NOT_FOUND, 404);
 const notAuthorized = () => new AppError('APPROVER_NOT_AUTHORIZED', 'Bạn chưa được giao quyền cho thao tác này với loại tài liệu này.', 403);
 const stale = () => new AppError('REVISION_CONFLICT', 'Nguồn đã đổi. Đọc bản mới trước khi gửi lại.', 409);
 const alreadyDecided = () => new AppError('REVIEW_ALREADY_DECIDED', 'Bản này đã có quyết định.', 409);
-const READ_ROLES = new Set(['manager', 'engineer', 'technical', 'business']);
+export const READ_ROLES = new Set(['manager', 'engineer', 'technical', 'business']);
 
 export type ReviewRevision = { id: string; revisionNo: number; basedOnRevisionId: string | null; sourceRevision: string | null; sourceHash: string | null; hashVerification: 'self_declared' | 'verified'; frozen: boolean;
   changes: { summary: string; present: string[]; missing: string[] }; sourceRefs: SourceRef[]; proposedBy: string; createdAt: string };
@@ -31,9 +31,9 @@ export type ReviewDetail = { item: ReviewItem; base: ReviewRevision | null; diff
 
 // ---- input: strict schemas, identifiers lower-cased at parse time, free text PostgreSQL can store ----
 const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
-const storable = (s: string) => !s.includes('\u0000') && !LONE_SURROGATE.test(s);
-const text = (min: number, max: number) => z.string().min(min).max(max).refine(storable, 'Chữ chứa ký tự không lưu được.');
-const uuid = z.string().uuid().transform(s => s.toLowerCase());
+export const storable = (s: string) => !s.includes('\u0000') && !LONE_SURROGATE.test(s);
+export const text = (min: number, max: number) => z.string().min(min).max(max).refine(storable, 'Chữ chứa ký tự không lưu được.');
+export const uuid = z.string().uuid().transform(s => s.toLowerCase());
 const queueSchema = z.object({ projectId: uuid, limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0) }).strict();
 const decideSchema = z.object({
   revisionId: uuid,
@@ -109,7 +109,7 @@ type Authority = { approveTypes: string[]; delegation: { id: string; types: stri
 const covers = (a: Authority, docType: string) => a.approveTypes.includes(docType) || (a.delegation?.types.includes(docType) ?? false);
 
 /** Read needs a project role of manager, engineer, technical or business. Bot, viewer and a project outside the session are refused with the not-found answer (S11). */
-function reader(p: Principal, projectId: string): boolean {
+export function reader(p: Principal, projectId: string): boolean {
   return !!p && p.role !== 'bot' && !!p.projectIds?.includes(projectId) && READ_ROLES.has(projectRole(p, projectId));
 }
 
