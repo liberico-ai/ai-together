@@ -98,7 +98,13 @@ Không phần tử nào rộng cố định >328px; nút và liên kết hành �
 - Dòng uỷ quyền chỉ có `id`, `delegateId`, `docTypes` (các trường khác `null`): không «null», không ngày, không chỉ báo, không nút.
 
 ## Kiểm tay
-**Chưa chạy bởi người viết (không có trình duyệt, không `npm run build`, không máy chủ phát triển). Danh sách này dành cho lượt kiểm tay của phiên lát 3 ở 360×740 và 1280×800.**
+**Người viết không chạy danh sách này. Phiên lát 3 đã kiểm tay một phần ngày 15/11/2026, ở chế độ mô phỏng trên máy cục bộ (`npm run dev`, vai «Điều phối LibeTech», dữ liệu tổng hợp), ở 1280×800, 949×800 và 360×740. Đây là kiểm tay, không phải nghiệm thu.**
+
+Đã kiểm, đạt: trang chọn dự án (hai dự án); hàng review với một tài liệu có hai bản (tiêu đề chứa `<script>…</script>` hiện nguyên chữ; «hash tự khai — chưa kiểm»; «Chưa có quyết định»; «Chờ xác định người duyệt»; «1–1 / 1 tài liệu»); trang chi tiết ở 1280 (`.review-diff` hai cột «Trước» / «Sau», nhãn chữ Sửa / Thêm / Xóa, «Nguồn chưa đóng băng», thẻ `<b>` trong tóm tắt hiện nguyên chữ; tác giả thấy câu lý do và không có biểu mẫu nào); ở 949 một cột; ở 360×740 một cột, không cuộn ngang, không phần tử nào tràn khung, mọi nút và liên kết hành động ≥ 44px, chuỗi dài không dấu cách xuống dòng; khối từ chối của dự án ngoài quyền (câu cố định, không tên, không số); tài liệu không tồn tại (câu «Không tìm thấy tài liệu trong phạm vi được cấp.»). `npm run build` liệt kê đủ ba tuyến (bằng chứng ở thư mục bằng chứng của lát).
+
+**Chưa kiểm được ở chế độ mô phỏng** — chỉ dựa trên test dựng tĩnh và test dịch vụ: khối «Người nhận xét của dự án» (chỉ định, thu hồi, hai nhãn của điều phối), vì dịch vụ đọc vai của người gọi từ bảng danh tính mà các vai mô phỏng không có nên khối không hiện; biểu mẫu quyết định và nhận xét, banner Conflict, thông báo `role="status"`, thử hai tab (chế độ mô phỏng không có người duyệt hay người nhận xét nào); vòng focus khi dùng bàn phím; trình đọc màn hình. Các mục tương ứng dưới đây còn để trống.
+
+Phát hiện khi kiểm tay, đã sửa: tài liệu không có mã hiện dấu ngăn thừa trước tiêu đề.
 - [ ] `npm run build` liệt kê `/review`, `/review/[documentId]`, `/api/reviews/[[...path]]`.
 - [ ] `/review` không có `projectId`: một dự án chuyển thẳng; nhiều dự án hiện danh sách chọn.
 - [ ] `/review?projectId=<dự án ngoài quyền>`: chỉ khối từ chối, không tên, không số.
@@ -116,4 +122,4 @@ Không phần tử nào rộng cố định >328px; nút và liên kết hành �
 ## Việc chưa làm
 - Biểu mẫu để điều phối dự án trình phiếu cấp quyền duyệt bản chuẩn (bước 16b của Task 16, Task 7c): thuộc một PR riêng sau lát 3 (Chairman quyết 15/11/2026). Màn này không có `proposals`, `onPropose` hay biểu mẫu trình phiếu; khối người nhận xét không có điều khiển nào chạm tới quyền duyệt bản chuẩn.
 - Câu hỏi mở OQ-43 (người được chỉ định có thấy chỉ báo «người chỉ định không còn là điều phối» ở dòng của mình không) và OQ-44 (ai thấy danh sách người duyệt): giao diện vẽ đúng thứ dịch vụ trả, không tự quyết.
-- Chưa kiểm bằng trình duyệt ở 360×740 và 1280×800 (xem «Kiểm tay»).
+- Kiểm tay mới làm một phần: khối người nhận xét, biểu mẫu quyết định và nhận xét, Conflict, bàn phím và trình đọc màn hình chưa kiểm bằng trình duyệt (xem «Kiểm tay»).

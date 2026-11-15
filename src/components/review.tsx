@@ -7,7 +7,7 @@ import type { DocType } from '../server/types';
 import { api } from './api';
 import { formatTime } from './inbox-view';
 import { roleLabel } from './grant-labels';
-import { reviewPageState, eligibilityCopy, diffLabel, approverCopy, decisionStateLabel, hashLabel, fieldLabel, docTypeLabel, describeError, idempotencyKey, postReview, commandFailure, commandSuccess, panelFailure, panelSuccess, panelReloadFailure,
+import { headingLabel, reviewPageState, eligibilityCopy, diffLabel, approverCopy, decisionStateLabel, hashLabel, fieldLabel, docTypeLabel, describeError, idempotencyKey, postReview, commandFailure, commandSuccess, panelFailure, panelSuccess, panelReloadFailure,
   decisionBody, commentBody, grantBody, revokeBody, decisionCommand, commentCommand, replyCommand, grantCommand, revokeCommand, selectableMembers, sameId,
   DOC_TYPES, EMPTY_PANEL_DRAFT, QUEUE_PAGE_SIZE, queueWindow, queueHref, EMPTY_COPY, DENIED_COPY, ERROR_COPY, NOT_FOUND_COPY, CONFLICT_COPY, NOT_COORDINATOR_COPY, APPROVAL_NOTE_COPY, REVOKED_NOTICE, DECIDED_COPY, TRUNCATED_COPY, NO_REVISION_COPY,
   type ReviewPageState, type ReviewForm, type DecisionDraft, type CommentDraft, type PanelDraft, type DecisionCmd } from './review-view';
@@ -31,7 +31,7 @@ export function ReviewQueueBody({ state, items, total, error, projectLabel, onRe
   const span = queueWindow(offset, items.length, total);
   return <div className="review-list" role="list" aria-label={'Tài liệu cần review của ' + projectLabel}>
     {items.map(it => <article key={it.documentId + ':' + it.revision.id} role="listitem" className="review-card" data-decision={it.decision?.result ?? 'none'}>
-      <h3 className="review-title" dir="auto">{it.refCode} · {it.title}</h3>
+      <h3 className="review-title" dir="auto">{headingLabel(it.refCode, it.title)}</h3>
       <p className="review-meta">{docTypeLabel(it.docType)} · bản r{it.revision.revisionNo} · hash {hashLabel(it.revision.hashVerification)}</p>
       <p className="review-badges"><span className="review-badge">{decisionStateLabel(it.decision)}</span><span className="review-badge">{approverCopy(it.approverState)}</span></p>
       {it.decision && <p className="review-notice">{DECIDED_COPY}</p>}
@@ -262,7 +262,7 @@ export function ReviewDetailScreen({ detail: initial, affectedLinks, people }: {
   const nameFor = (id: string) => nameOf(people, id);
   return <main className="doc-page">
     <a className="doc-action review-action doc-back" href={'/review?projectId=' + item.projectId}>← Về danh sách review</a>
-    <header className="review-head"><h1 className="review-title" dir="auto">{item.refCode} · {item.title}</h1>
+    <header className="review-head"><h1 className="review-title" dir="auto">{headingLabel(item.refCode, item.title)}</h1>
       <p className="review-meta">{docTypeLabel(item.docType)} · bản r{item.revision.revisionNo} · {decisionStateLabel(item.decision)} · {approverCopy(item.approverState)}</p></header>
     <p className="review-notice" role="status">{notice}</p>
     {error && <div role="alert" className="review-problem"><p className="review-text">{error}</p>{reloadable && <button type="button" className="doc-action review-action review-secondary" onClick={() => void reload()}>Tải lại</button>}</div>}

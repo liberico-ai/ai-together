@@ -7,6 +7,9 @@ import { TYPE_NAMES } from './documents-view';
 // Pure helpers of the Review screens: wording, validation of what a person typed, the exact request bodies, and the Idempotency-Key discipline.
 // Nothing here decides a permission: buttons follow the service's `eligibility` and `canDesignate`, and every denial comes back from the service.
 
+/** «<code> · <title>», or the title alone when the document was registered without a reference code. Plain text; the caller renders it as a React child. */
+export const headingLabel = (refCode: string, title: string): string => (refCode.trim() === '' ? title : refCode + ' · ' + title);
+
 export type ReviewPageState = 'loading' | 'error' | 'denied' | 'empty' | 'ready';
 export function reviewPageState(i: { loading: boolean; error: string | null; denied: boolean; rows: number }): ReviewPageState {
   if (i.loading) return 'loading';

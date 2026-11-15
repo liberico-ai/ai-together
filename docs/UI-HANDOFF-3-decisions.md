@@ -80,7 +80,13 @@ Không phần tử nào rộng cố định >328px; nút và liên kết hành �
 - Phiếu duyệt tài khoản và phiếu đổi quyền: không phải thẻ ở đây, không nút; chỉ câu cố định kèm liên kết `/approvals`.
 
 ## Kiểm tay
-**Chưa chạy bởi người viết (không có trình duyệt, không `npm run build`, không máy chủ phát triển). Danh sách này dành cho lượt kiểm tay của phiên lát 3 ở 360×740 và 1280×800.**
+**Người viết không chạy danh sách này. Phiên lát 3 đã kiểm tay một phần ngày 15/11/2026, ở chế độ mô phỏng trên máy cục bộ (`npm run dev`, vai «Điều phối LibeTech», dữ liệu tổng hợp), ở 1280×800 và 360×740. Đây là kiểm tay, không phải nghiệm thu.**
+
+Đã kiểm, đạt: một thẻ review (tiêu đề và tóm tắt chứa thẻ HTML hiện nguyên chữ; hai dòng riêng «Chưa có quyết định» và «Chưa áp dụng làm bản chuẩn»; câu lý do của tác giả; nút «Mở để review»; «1 thẻ»; câu về trang Duyệt tài khoản kèm liên kết); ở 360×740 không cuộn ngang, không phần tử nào tràn khung, mọi nút và liên kết hành động ≥ 44px, chuỗi dài xuống dòng; khối từ chối của dự án ngoài quyền (câu cố định, không tên, không số).
+
+**Chưa kiểm được ở chế độ mô phỏng** — chỉ dựa trên test dựng tĩnh và test dịch vụ: thẻ 3/3 và luồng bỏ phiếu thật (cần người giữ ghế đã ghép Telegram), câu Conflict sau một lệnh, vòng focus, trình đọc màn hình. Các mục tương ứng dưới đây còn để trống.
+
+Phát hiện khi kiểm tay, đã sửa: tài liệu không có mã hiện dấu ngăn thừa trước tiêu đề.
 - [ ] `npm run build` liệt kê `/decisions` và `/api/decisions`.
 - [ ] `/decisions` không có `projectId`: một dự án chuyển thẳng; nhiều dự án hiện danh sách chọn.
 - [ ] `/decisions?projectId=<dự án ngoài quyền>`: chỉ khối từ chối, không tên, không số, không câu `/approvals`.
@@ -97,5 +103,5 @@ Không phần tử nào rộng cố định >328px; nút và liên kết hành �
 - [ ] Liên kết «Quyết định» ở thanh bên cạnh «Review».
 
 ## Việc chưa làm
-- Chưa kiểm bằng trình duyệt (mục 6).
+- Kiểm tay mới làm một phần: thẻ 3/3, luồng bỏ phiếu, Conflict, bàn phím và trình đọc màn hình chưa kiểm bằng trình duyệt (xem «Kiểm tay»).
 - Thẻ review không có nút quyết định: quyết định ghi ở màn Review. Thẻ công bố (publication) và thẻ duyệt tài khoản chưa có ở màn này.

@@ -3,7 +3,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { DecisionCard, ReassignmentCard, ReviewCard } from '../server/decisions';
 import { api } from './api';
 import { formatTime } from './inbox-view';
-import { eligibilityCopy, idempotencyKey, postReview, sameId, TRUNCATED_COPY } from './review-view';
+import { headingLabel, eligibilityCopy, idempotencyKey, postReview, sameId, TRUNCATED_COPY } from './review-view';
 import { decisionsPageState, reassignmentLabel, reviewLabels, voteBlockCopy, voteBody, voteCommand, voteFailure, voteRecorded, choiceLabel,
   EMPTY_COPY, DENIED_COPY, ERROR_COPY, ACCOUNTS_COPY, UNKNOWN_PERSON, VOTE_CHOICES, type DecisionsPageState } from './decisions-view';
 
@@ -22,7 +22,7 @@ function ReviewBody({ card, people }: { card: ReviewCard; people: Person[] }) {
   const labels = reviewLabels(card);
   const copy = eligibilityCopy(card.actorEligibility.reason);
   return <>
-    <h3 className="decision-title" dir="auto">{card.refCode} · {card.title}</h3>
+    <h3 className="decision-title" dir="auto">{headingLabel(card.refCode, card.title)}</h3>
     <p className="decision-meta">Tài liệu · bản r{card.revision.no}</p>
     {card.summary && <p className="decision-text" dir="auto">{card.summary}</p>}
     <p className="decision-line" data-line="vote">{labels.vote}</p>

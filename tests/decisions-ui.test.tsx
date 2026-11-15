@@ -324,3 +324,11 @@ describe('decisions UI', () => {
     for (const text of ['Tiêu đề thẻ ', 'Tóm tắt thẻ ', 'Việc ', 'Lý do ']) expect(out, text).toMatch(new RegExp('dir="auto"[^>]*>[^<]*' + text));
   });
 });
+
+describe('decision card heading without a reference code', () => {
+  it('shows the title with no leading separator', () => {
+    const out = cardHtml(review({ refCode: '', title: 'Thiết kế mẫu' }));
+    expect(out).toMatch(/dir="auto">Thiết kế mẫu</);
+    expect(out).not.toContain('· Thiết kế mẫu');
+  });
+});

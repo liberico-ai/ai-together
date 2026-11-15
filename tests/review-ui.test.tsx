@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { reviewPageState, eligibilityCopy, diffLabel, approverCopy, commandErrorCopy, describeError, decisionStateLabel, hashLabel, selectableMembers,
   decisionBody, commentBody, replyBody, grantBody, revokeBody, decisionCommand, grantCommand, revokeCommand, idempotencyKey, postReview,
-  CONFLICT_COPY, DECIDED_COPY, NOT_FOUND_COPY, EMPTY_COPY, DENIED_COPY, ERROR_COPY, parseQueueOffset, queueWindow, QUEUE_PAGE_SIZE, commandFailure, commandSuccess, panelFailure, panelSuccess, panelReloadFailure, type PanelDraft, type DecisionDraft } from '../src/components/review-view';
+  CONFLICT_COPY, DECIDED_COPY, NOT_FOUND_COPY, EMPTY_COPY, DENIED_COPY, ERROR_COPY, parseQueueOffset, queueWindow, QUEUE_PAGE_SIZE, commandFailure, commandSuccess, headingLabel, panelFailure, panelSuccess, panelReloadFailure, type PanelDraft, type DecisionDraft } from '../src/components/review-view';
 import { ReviewQueueBody, RevisionDiff, DecisionFormView, CommentFormView, ReviewersPanelView, ReviewQueue, ReviewDetailScreen } from '../src/components/review';
 import { ApiError } from '../src/components/api';
 import { formatTime } from '../src/components/inbox-view';
@@ -640,5 +640,18 @@ describe('review UI', () => {
     }
     const queue = renderToStaticMarkup(<ReviewQueueBody state="ready" items={[item({ title: 'Tiêu đề hàng ' + rtl })]} total={1} error={null} projectLabel="P" />);
     expect(owner('Tiêu đề hàng ').test(queue)).toBe(true);
+  });
+});
+
+describe('heading label without a reference code', () => {
+  it.each([['TL-001', 'Tiêu đề', 'TL-001 · Tiêu đề'], ['', 'Tiêu đề', 'Tiêu đề'], ['   ', 'Tiêu đề', 'Tiêu đề'], ['TL-002', '<b>x</b>', 'TL-002 · <b>x</b>'], ['', '<b>x</b>', '<b>x</b>']])('%j + %j', (code, title, want) => {
+    expect(headingLabel(code, title)).toBe(want);
+  });
+  it('shows no leading separator in a queue card or a detail header', () => {
+    const q = renderToStaticMarkup(<ReviewQueueBody state="ready" items={[item({ refCode: '', title: 'Thiết kế mẫu' })]} total={1} error={null} projectLabel="P" />);
+    expect(q).toMatch(/dir="auto">Thiết kế mẫu</);
+    expect(q).not.toContain('· Thiết kế mẫu');
+    const d = renderToStaticMarkup(<ReviewDetailScreen detail={{ item: item({ refCode: '', title: 'Thiết kế mẫu' }), base: base(), diff: [], comments: [], commentsTruncated: false }} affectedLinks={[]} people={people} />);
+    expect(d).toMatch(/<h1[^>]*dir="auto">Thiết kế mẫu</);
   });
 });
