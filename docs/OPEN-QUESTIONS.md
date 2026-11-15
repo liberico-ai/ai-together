@@ -427,6 +427,7 @@ Lời Chairman 12/11/2026 (nguyên văn):
   5. Review bảo mật của bước này cần ca quyền âm tối thiểu cho: điều phối dự án A đề xuất cho thành viên dự án B; đề xuất cho người không phải thành viên; đề xuất kèm mở rộng quyền khác ngoài `doc_approve:*`; tự đề xuất cho mình; và gửi lại cùng khoá không tạo phiếu thứ hai.
   6. Số migration và cách chia task vẫn là phán quyết của phiên lát 3. Trần vòng sửa giữ nguyên: 3 cho mỗi task theo R5, 2 cho cổng Codex.
 - **Áp vào lát 3:** bước «mở đường đề xuất cho điều phối dự án» của Task 7b không còn dừng tại OQ-33; nó được lập kế hoạch bổ sung và qua review bảo mật riêng trước khi có mã.
+- **Cập nhật 15/11/2026 (sau các quyết định ở cuối tệp):** Chairman quyết đường trình mới (Task 7c) làm thành **PR riêng sau lát 3** — «Tách PR riêng sau lát 3 (Recommended)»; quyết định OQ-33 (b) giữ nguyên. Cách hiểu ở ghi chú 3 phía trên (điều phối dự án không tự trình cho chính mình) đã được Chairman xác nhận qua câu trả lời OQ-38, không còn «chờ xác nhận». Các quyết định cho PR riêng: OQ-35 (a), OQ-36 (b) cùng (d), OQ-37 (c), OQ-38 (c).
 - **Trạng thái lúc lập kế hoạch (trước quyết định):** chưa quyết. Kế hoạch lát 3 bản 0.3 dùng đường có sẵn (quản trị tài khoản đề xuất và áp), không đổi nó; đây là hệ quả của yêu cầu «dùng lại như đang có», không phải phương án được chọn. Bước «mở đường đề xuất cho điều phối dự án» của Task 7b **dừng tại OQ-33**.
 
 ## OQ-34 — Ai thu hồi uỷ quyền nhận xét do điều phối dự án chỉ định
@@ -480,6 +481,17 @@ Lời Chairman 12/11/2026 (nguyên văn):
 
 **Bổ sung 15/11/2026 sau cổng bảo mật trên kế hoạch Task 7c của lát 3** (`docs/reviews/slice-3-evidence-20261115/gates/security-gate-task-7c-plan.md`, kết luận «PLAN NEEDS CHANGES»; `docs/plans/slice-3-review-skills.md` bản 0.5, base `ec3b5e7`). Ba mục dưới đây là ba câu hỏi cổng bảo mật nêu là không thuộc quyền phiên (mục Q2, Q3, Q4 của tệp cổng; Q1 là OQ-35). Ghi khi **chưa có quyết định**. Phán quyết của phiên lát 3 (không phải quyết định của Chairman): Task 7c dừng cả task tới khi OQ-35, OQ-36, OQ-37 và OQ-38 có quyết định; kế hoạch của 7c vẫn viết đủ theo các hành vi giữ chỗ nêu trong từng mục.
 
+**Quyết định của Chairman ngày 15/11/2026 về nơi làm Task 7c (chọn qua hộp chọn ở phiên điều phối; phiên điều phối chuyển lời):** «Tách PR riêng sau lát 3 (Recommended)». Chairman cũng đã quyết cả ba mục dưới đây cùng ngày; quyết định ghi trong từng mục.
+- Câu hỏi Chairman thấy: «Task 7c — đường để điều phối dự án trình phiếu cấp quyền duyệt bản chuẩn (theo OQ-33 b) — làm ở đâu? Cổng bảo mật trên kế hoạch của task này trả «PLAN NEEDS CHANGES» (3 chỗ phải sửa, đã sửa trong kế hoạch) và nêu các câu hỏi OQ-35…38.»
+- Hai phương án Chairman thấy (nhãn — mô tả):
+  - «Tách PR riêng sau lát 3 (Recommended)» — «PR của lát 3 không có Task 7c; quyền duyệt bản chuẩn vẫn cấp được qua đường có sẵn (quản trị tài khoản trình, một BoM đồng ý, quản trị áp). Task 7c làm thành PR riêng ngay sau đó, có cổng bảo mật và cổng Codex riêng. Quyết định OQ-33 (b) giữ nguyên.»
+  - «Làm trong lát 3» — «Task 7c nằm trong PR của lát 3, viết mã sau khi cổng bảo mật xem lại kế hoạch đã sửa. PR lớn hơn và có thêm mã trong dịch vụ danh tính cho cổng Codex soát.»
+- Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):
+  1. Lát 3 bỏ Task 7c và bước 16b (biểu mẫu trình phiếu của điều phối dự án) khỏi phạm vi PR của lát. Không viết mã nào của đường trình mới trong lát 3. Kế hoạch lên bản mới ghi rõ điều này; phần kế hoạch Task 7c, báo cáo cổng bảo mật và năm quyết định OQ-33, OQ-35…38 giữ trong repo làm đầu vào cho PR riêng.
+  2. Phiên lát 3 không tự mở PR riêng cho Task 7c. Mô tả Chairman chọn ghi «ngay sau đó»; ai làm và cắt nhánh từ đâu, phiên điều phối sẽ hỏi Chairman khi PR của lát 3 đã mở. Lý do: Task 7c dựa trên migration 019 của lát 3, và merge PR của lát 3 là điểm dừng chờ Chairman.
+  3. Biên nhận `DELIVERY-012` ghi rõ: đường để điều phối dự án trình phiếu chưa có trong PR này; quyền duyệt bản chuẩn cấp qua đường có sẵn (quản trị tài khoản trình, một BoM đồng ý, quản trị áp); liệt kê các quyết định đã có cho PR riêng.
+  4. Trần vòng sửa giữ nguyên: 3 cho mỗi task theo R5, 2 cho cổng Codex.
+
 ## OQ-36 — Ai được huỷ hoặc rút một phiếu đang mở do điều phối dự án trình, và quản trị tài khoản thay phiếu đó bằng cách nào
 
 - **Lát:** 3 (Task 7c, đang dừng cả task), pilot.
@@ -488,6 +500,14 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phương án:** (a) không ai, như hiện nay: phiếu chỉ kết thúc bằng phiếu bầu, hạn 48 giờ hoặc khi tài khoản đổi; quản trị tài khoản thay phiếu bằng đòn bẩy có sẵn (một lệnh tăng phiên bản tài khoản, rồi trình phiếu của mình), chấp nhận tác dụng phụ lên phiên của thành viên; (b) người trình rút được phiếu của chính mình, kèm căn cứ; (c) mọi `manager` của dự án đó rút được phiếu do một điều phối của dự án trình, kèm căn cứ; (d) quản trị tài khoản huỷ được phiếu bằng một lệnh riêng, kèm căn cứ, không đổi phiên bản tài khoản và không đụng phiên của thành viên; (e) tổ hợp, ví dụ (b) cùng (d).
 - **Ai quyết:** Chairman.
 - **Khuyến nghị của planner (không phải quyết định):** (b) cùng (d) — người trình sửa được lỗi của chính mình (trình nhầm người hoặc nhầm loại) mà không chờ 48 giờ, và quản trị tài khoản có một lệnh sạch thay cho việc thu hồi phiên của thành viên chỉ để đóng một phiếu. Không khuyến nghị (c): một điều phối rút phiếu của điều phối khác dễ thành tranh chấp trong dự án.
+- **Quyết định 15/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối; phiên điều phối chuyển lời):** «(b) cùng (d) (Recommended)».
+  - Câu hỏi Chairman thấy: «OQ-36: ai được huỷ hoặc rút một phiếu đang mở do điều phối dự án trình? Hiện không ai huỷ được phiếu đổi quyền, và mỗi người chỉ có một phiếu đang mở, nên phiếu của điều phối chặn phiếu của quản trị tài khoản cho cùng người tới 48 giờ. (Phương án (c) của hồ sơ — mọi manager của dự án rút được, planner không khuyến nghị — không có trong bốn lựa chọn; anh gõ vào ô khác nếu muốn.)»
+  - Bốn phương án Chairman thấy (nhãn — mô tả):
+    - «(b) cùng (d) (Recommended)» — «Người trình rút được phiếu của chính mình, kèm căn cứ. Quản trị tài khoản huỷ được phiếu bằng một lệnh riêng, kèm căn cứ, không đổi phiên bản tài khoản và không đụng phiên đăng nhập của thành viên.»
+    - «(a) Không ai, như hiện nay» — «Phiếu chỉ kết thúc bằng phiếu bầu, hạn 48 giờ hoặc khi tài khoản đổi. Quản trị thay phiếu bằng đòn bẩy có sẵn: một lệnh tăng phiên bản tài khoản rồi trình phiếu của mình, chấp nhận việc lệnh đó thu hồi phiên đăng nhập của thành viên.»
+    - «(b) Chỉ người trình rút» — «Người trình rút được phiếu của chính mình, kèm căn cứ. Quản trị tài khoản vẫn chỉ có đòn bẩy có sẵn.»
+    - «(d) Chỉ quản trị huỷ» — «Quản trị tài khoản huỷ được phiếu bằng một lệnh riêng, kèm căn cứ, không đổi phiên bản tài khoản và không đụng phiên của thành viên. Người trình không tự rút được.»
+- **Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):** khi viết kế hoạch cho PR riêng của Task 7c, giữ chỗ S78 đổi theo OQ-36 (b) cùng (d). Hai điểm lời Chairman chưa phủ, để dành cho kế hoạch của PR riêng, không tự chọn: phiếu bị rút hoặc bị huỷ thì người trình có được trình lại ngay không (chặn 24 giờ theo cặp là phán quyết của planner, không phải quyết định); và phương án (c) của OQ-36 không được chọn nên manager khác của dự án không rút được phiếu của người trình.
 - **Trạng thái lúc lập kế hoạch:** chưa quyết. Kế hoạch lát 3 bản 0.5 đặt **hành vi giữ chỗ fail-closed, không phải phương án được chọn** (phán quyết S78 của kế hoạch): không thêm lệnh huỷ hay rút nào — trùng phương án (a); quản trị tài khoản thay phiếu bằng đòn bẩy có sẵn, có ca kiểm; thêm một chặn lạm dụng do planner đặt để đòn bẩy đó không bị vô hiệu: mỗi cặp (người trình, người được cấp) chỉ mở được một phiếu trong 24 giờ, trừ khi phiếu trước đã được áp. Planner coi đòn bẩy có sẵn không phải quyền mới (nó đã áp cho mọi phiếu đổi quyền, bất kể ai trình); lệnh huỷ riêng ở phương án (d) là quyền mới nên không tự thêm.
 
 ## OQ-37 — Phiếu do điều phối dự án trình có còn áp được không khi người trình mất vai `manager` hoặc bị khoá trước lúc quản trị tài khoản áp
@@ -498,6 +518,13 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phương án:** (a) vẫn áp được; quản trị tài khoản tự quyết (đúng mã hiện có); (b) phiếu không còn áp được khi người trình không còn là `manager` đang hoạt động của dự án đó (bị hạ vai, rời dự án, bị khoá); phiếu đóng khi việc đó xảy ra, quản trị muốn cấp thì tự trình; (c) vẫn áp được, nhưng `/team` phải nêu rõ người trình không còn điều phối dự án trước khi quản trị áp.
 - **Ai quyết:** Chairman.
 - **Khuyến nghị của planner (không phải quyết định):** (b) — một người thường bị hạ vai hoặc bị khoá vì có vấn đề; đề xuất còn treo của họ không nên đi tiếp chỉ nhờ quản trị không để ý. Trình lại chỉ tốn một lần quản trị trình và một phiếu BoM.
+- **Quyết định 15/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối; phiên điều phối chuyển lời):** «(c) Áp được, phải nêu rõ». Chairman không chọn phương án được đánh dấu Recommended.
+  - Câu hỏi Chairman thấy: «OQ-37: phiếu do điều phối dự án trình có còn áp được không khi người trình mất vai manager, rời dự án hoặc bị khoá trước lúc quản trị tài khoản áp? Lệnh áp hiện chỉ xét người được đổi quyền, không xét người trình.»
+  - Ba phương án Chairman thấy (nhãn — mô tả):
+    - «(b) Không còn áp được (Recommended)» — «Phiếu không còn áp được khi người trình không còn là manager đang hoạt động của dự án đó; phiếu đóng khi việc đó xảy ra. Quản trị tài khoản muốn cấp thì tự trình.»
+    - «(c) Áp được, phải nêu rõ» — «Vẫn áp được, nhưng /team phải nêu rõ người trình không còn điều phối dự án trước khi quản trị áp.»
+    - «(a) Vẫn áp được» — «Vẫn áp được; quản trị tài khoản tự quyết. Đúng mã hiện có.»
+- **Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):** khi viết kế hoạch cho PR riêng của Task 7c, giữ chỗ S82 đổi theo OQ-37 (c), tức **không chặn** lệnh áp mà nêu rõ trên `/team` trước khi quản trị áp.
 - **Trạng thái lúc lập kế hoạch:** chưa quyết. Kế hoạch lát 3 bản 0.5 đặt **hành vi giữ chỗ fail-closed, không phải phương án được chọn** (phán quyết S82 của kế hoạch): lúc quản trị tài khoản áp, người trình phải vẫn là `manager` đang hoạt động, đã kích hoạt của đúng dự án; không thì phiếu không áp được và `/team` nêu rõ. Giữ chỗ không đóng phiếu và không chặn được việc bỏ phiếu (đường bỏ phiếu ở `src/server/account-approval.ts` không được sửa). Giữ chỗ này chặt hơn (a) và (c), và gần phương án (b) nhưng không ghi gì vào phiếu.
 
 ## OQ-38 — Điều phối dự án có được trình phiếu cấp quyền duyệt bản chuẩn cho một đồng điều phối của cùng dự án không
@@ -509,4 +536,13 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Điều kèm theo để Chairman biết:** câu hỏi này chỉ có nghĩa nếu cách hiểu «không tự trình cho mình» (ghi chú 3 nêu trên) được xác nhận. Nếu Chairman cho điều phối dự án tự trình cho mình thì trình cho đồng điều phối đương nhiên được.
 - **Ai quyết:** Chairman.
 - **Khuyến nghị của planner (không phải quyết định):** (c) — ở nhóm nhỏ, điều phối thường cũng là người đủ hiểu để duyệt bản chuẩn; hai chốt của người (một ghế BoM, quản trị tài khoản) vẫn đứng giữa, miễn là người bỏ phiếu thấy rõ quan hệ đó.
+- **Quyết định 15/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối; phiên điều phối chuyển lời):** «(c) Được, phiếu nêu rõ (Recommended)».
+  - Câu hỏi Chairman thấy: «OQ-38: điều phối dự án có được trình phiếu cấp quyền duyệt bản chuẩn cho một đồng điều phối của cùng dự án không? Hai đồng điều phối trình cho nhau thì đạt đúng kết quả mà luật cấm tự trình chặn. Chọn (a), (b) hoặc (c) cũng là xác nhận cách hiểu của phiên điều phối: điều phối dự án không tự trình cho chính mình.»
+  - Bốn phương án Chairman thấy (nhãn — mô tả):
+    - «(c) Được, phiếu nêu rõ (Recommended)» — «Được, nhưng phiếu phải nêu rõ cho người bỏ phiếu rằng người được cấp cũng là điều phối của dự án đó. Một ghế BoM và quản trị tài khoản vẫn đứng giữa.»
+    - «(a) Được» — «Được; giữa hai người vẫn còn một ghế BoM bỏ phiếu và quản trị tài khoản áp.»
+    - «(b) Không» — «Người được cấp đang giữ vai manager ở chính dự án đó phải do quản trị tài khoản trình theo đường có sẵn.»
+    - «Cho cả tự trình» — «Bỏ cách hiểu «không tự trình cho mình»: điều phối dự án được trình phiếu cả cho chính mình, nên trình cho đồng điều phối đương nhiên được.»
+- **Hệ quả của câu trả lời, theo đúng câu hỏi Chairman thấy:** câu trả lời này cũng xác nhận điều phối dự án không tự trình cho chính mình. Ghi chú 3 của phiên điều phối kèm OQ-33 vì vậy không còn «chờ xác nhận».
+- **Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):** khi viết kế hoạch cho PR riêng của Task 7c, giữ chỗ S83 đổi theo OQ-38 (c), kèm việc đổi cách khoá hai dòng tài khoản mà kế hoạch đã nêu, và cổng bảo mật xem lại.
 - **Trạng thái lúc lập kế hoạch:** chưa quyết. Kế hoạch lát 3 bản 0.5 đặt **hành vi giữ chỗ fail-closed, không phải phương án được chọn** (phán quyết S83 của kế hoạch): người được cấp có vai `manager` ở chính dự án đó bị từ chối trên đường của điều phối — trùng phương án (b); quản trị tài khoản trình theo đường có sẵn thì được. Nếu phương án (a) hoặc (c) được chọn, cách khoá hai dòng tài khoản của Task 7c phải đổi (khoá theo thứ tự mã), nên cổng bảo mật phải xem lại phần đó.
