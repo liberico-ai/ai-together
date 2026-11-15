@@ -620,7 +620,7 @@ Lời Chairman 12/11/2026 (nguyên văn):
 
 ---
 
-**Bổ sung 15/11/2026 sau review bảo mật của Task 7d lát 3** (`docs/reviews/slice-3-evidence-20261115/gates/review-task-7d-security.md`, kết luận bảo mật «Approved»; mã ở `b5d6d21`). Hai mục dưới đây là hai câu hỏi «ai xem được gì» mà các quyết định OQ-39 và OQ-41 chưa phủ. Ghi khi **chưa có quyết định**, do phiên lát 3 chép từ báo cáo review. **Không mục nào chặn task nào của lát 3:** mã đã có một hành vi cho từng trường hợp, nêu ở dòng «Hành vi hiện tại»; đó không phải phương án được chọn.
+**Bổ sung 15/11/2026 sau review bảo mật của Task 7d lát 3** (`docs/reviews/slice-3-evidence-20261115/gates/review-task-7d-security.md`, kết luận bảo mật «Approved»; mã ở `b5d6d21`). Hai mục dưới đây là hai câu hỏi «ai xem được gì» mà các quyết định OQ-39 và OQ-41 chưa phủ. Ghi khi **chưa có quyết định**, do phiên lát 3 chép từ báo cáo review. **Không mục nào chặn task nào của lát 3:** mã đã có một hành vi cho từng trường hợp, nêu ở dòng «Hành vi hiện tại»; đó không phải phương án được chọn. **Cập nhật 16/11/2026: Chairman đã quyết cả hai mục — xem dòng «Quyết định» ở từng mục.**
 
 ## OQ-43 — Người được chỉ định có thấy nhãn «người chỉ định không còn là điều phối» ở dòng của chính mình không
 
@@ -629,7 +629,14 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phía B:** quyết định OQ-41 (c) — «Điều phối thấy đủ. Người đọc khác chỉ thấy ai nhận xét loại tài liệu nào, không thấy chữ căn cứ. Người được chỉ định thấy căn cứ của các dòng của chính mình. Phiên lát 3 đang tạm làm theo hướng này.» Nhãn này cho biết tình trạng vai hiện tại của một người khác (người đã chỉ định). Không tài liệu nào nói người được chỉ định có được biết điều đó ở dòng của mình không.
 - **Phương án:** (a) chỉ điều phối thấy nhãn, như hiện nay; (b) người được chỉ định cũng thấy nhãn ở các dòng của chính mình.
 - **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn.
-- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a) — cách đọc chặt của phiên lát 3 (phán quyết S86 của kế hoạch). Đổi sang (b) là một dòng ở hàm liệt kê.
+- **Quyết định 16/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối; phiên điều phối chuyển lời):** «(a) Chỉ điều phối thấy (Recommended)».
+  - Câu hỏi Chairman thấy: «OQ-43 (lát 3): người được chỉ định làm người nhận xét có thấy nhãn «người chỉ định không còn là điều phối» ở dòng của chính mình không? Quyết định OQ-39 (c) không nói nêu rõ cho ai. Hồ sơ ghi câu này thuộc BoM Tech, Chairman quyết luôn nếu muốn.»
+  - Hai phương án Chairman thấy (nhãn — mô tả):
+    - «(a) Chỉ điều phối thấy (Recommended)» — «Chỉ điều phối thấy nhãn, như hiện nay. Nhãn cho biết tình trạng vai hiện tại của một người khác. Không sửa gì.»
+    - «(b) Đương sự cũng thấy» — «Người được chỉ định cũng thấy nhãn ở các dòng của chính mình. Đổi một dòng ở hàm liệt kê; PR #12 của lát 3 đã mở nên sẽ thêm một commit sửa vào PR.»
+- **Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):** trường «Ai quyết» của mục này ghi BoM Tech; lần này Chairman tự chốt. Quyết định trùng hành vi hiện có nên không đổi mã, chỉ sửa hồ sơ.
+- **Áp vào lát 3:** không đổi mã. Hàm liệt kê của `DelegationService` chỉ trả nhãn này cho điều phối của dự án; cách đọc chặt của phiên lát 3 (phán quyết S86 của kế hoạch) nay là quyết định của Chairman.
+- **Hành vi hiện tại:** trùng (a), nay là phương án Chairman chọn. Đổi sang (b) là một dòng ở hàm liệt kê.
 
 ## OQ-44 — Ai được xem danh sách người đang giữ quyền duyệt bản chuẩn của dự án
 
@@ -638,7 +645,14 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phía B:** quyết định OQ-41 (c) giới hạn điều người đọc thường thấy về người nhận xét ở mức «ai nhận xét loại tài liệu nào», không nói gì về người duyệt. Không tài liệu nào nói người đọc thường được thấy tên người giữ quyền duyệt, hay chỉ được biết có/chưa có người duyệt cho một loại tài liệu.
 - **Phương án:** (a) mọi người đọc của dự án thấy ai duyệt loại tài liệu nào, như hiện nay (cùng mức với «ai nhận xét loại nào» của OQ-41); (b) chỉ điều phối thấy tên; người đọc khác chỉ biết loại tài liệu nào đã có người duyệt.
 - **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn.
-- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a); khối này chỉ gồm mã người và loại tài liệu, không có chữ căn cứ. Đổi sang (b) là một nhánh lọc ở hàm liệt kê.
+- **Quyết định 16/11/2026 (Chairman, chọn qua hộp chọn ở phiên điều phối; phiên điều phối chuyển lời):** «(a) Mọi người đọc dự án (Recommended)».
+  - Câu hỏi Chairman thấy: «OQ-44 (lát 3): ai được xem danh sách người đang giữ quyền duyệt bản chuẩn của dự án? Quyết định OQ-41 (c) chỉ nói về người nhận xét. Hồ sơ ghi câu này thuộc BoM Tech, Chairman quyết luôn nếu muốn.»
+  - Hai phương án Chairman thấy (nhãn — mô tả):
+    - «(a) Mọi người đọc dự án (Recommended)» — «Mọi người đọc của dự án thấy ai duyệt loại tài liệu nào, như hiện nay; cùng mức với «ai nhận xét loại nào» của OQ-41. Khối này chỉ gồm mã người và loại tài liệu, không có chữ căn cứ. Không sửa gì.»
+    - «(b) Chỉ điều phối thấy tên» — «Chỉ điều phối thấy tên; người đọc khác chỉ biết loại tài liệu nào đã có người duyệt. Thêm một nhánh lọc ở hàm liệt kê; PR #12 của lát 3 đã mở nên sẽ thêm một commit sửa vào PR.»
+- **Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):** trường «Ai quyết» của mục này ghi BoM Tech; lần này Chairman tự chốt. Quyết định trùng hành vi hiện có nên không đổi mã, chỉ sửa hồ sơ.
+- **Áp vào lát 3:** không đổi mã. Hàm liệt kê trả khối «người duyệt» (mã người và loại tài liệu) cho mọi người đọc của dự án.
+- **Hành vi hiện tại:** trùng (a), nay là phương án Chairman chọn; khối này chỉ gồm mã người và loại tài liệu, không có chữ căn cứ. Đổi sang (b) là một nhánh lọc ở hàm liệt kê.
 
 ---
 

@@ -124,5 +124,5 @@ Phát hiện khi kiểm tay, đã sửa: tài liệu không có mã hiện dấu
 
 ## Việc chưa làm
 - Biểu mẫu để điều phối dự án trình phiếu cấp quyền duyệt bản chuẩn (bước 16b của Task 16, Task 7c): thuộc một PR riêng sau lát 3 (Chairman quyết 15/11/2026). Màn này không có `proposals`, `onPropose` hay biểu mẫu trình phiếu; khối người nhận xét không có điều khiển nào chạm tới quyền duyệt bản chuẩn.
-- Câu hỏi mở OQ-43 (người được chỉ định có thấy chỉ báo «người chỉ định không còn là điều phối» ở dòng của mình không) và OQ-44 (ai thấy danh sách người duyệt): giao diện vẽ đúng thứ dịch vụ trả, không tự quyết.
+- OQ-43 và OQ-44 đã được Chairman quyết ngày 16/11/2026, đều phương án (a), trùng thứ dịch vụ đang trả: chỉ báo «người chỉ định không còn là điều phối» chỉ điều phối thấy; mọi người đọc của dự án thấy ai duyệt loại tài liệu nào. Giao diện không đổi.
 - Kiểm tay mới làm một phần: khối người nhận xét, biểu mẫu quyết định và nhận xét, Conflict, bàn phím và trình đọc màn hình chưa kiểm bằng trình duyệt (xem «Kiểm tay»).

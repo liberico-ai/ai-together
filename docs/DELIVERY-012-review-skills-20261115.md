@@ -4,7 +4,7 @@
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | **Đạt điều kiện của lát ở mã `ee990b4`** — nhánh `slice-3-review-skills`, PR [#12](https://github.com/liberico-ai/ai-together/pull/12), **chưa merge**. Điều kiện gồm: test trên hai động cơ, coverage, pytest, typecheck và build xanh với mã thoát 0 ở đúng mã đó; các ca nghiệm thu của brief có test tự động và đạt; **không còn finding P0/P1 của Codex chưa xử lý**. **Verdict của Codex ở vòng 3 vẫn là CHANGES_REQUIRED, với một finding mức P2 chưa sửa** (danh sách người nhận xét, khoảng trống 39) — **chưa phải PASS**; sửa mục đó và chạy cổng thêm một lượt chờ Chairman quyết. Đường tới đây: ba vòng Codex, hai vòng sửa (hết số vòng được phép). `liberico-reality-checker` soát biên nhận này hai lượt: lượt đầu NEEDS WORK với hai mục chặn về lời văn (thiếu ghi chú về login vận hành; một con trỏ tới sai tệp), đã sửa; lượt soát lại: READY cho mức «đã có mã» đúng như câu chữ ở đây ([reality-check.md](reviews/slice-3-evidence-20261115/gates/reality-check.md)). | Mục «Bằng chứng kiểm», «Review hai tầng» |
+| **Đã có mã** | **Đạt điều kiện của lát ở mã `ee990b4`** — nhánh `slice-3-review-skills`, PR [#12](https://github.com/liberico-ai/ai-together/pull/12), **chưa merge**. Điều kiện gồm: test trên hai động cơ, coverage, pytest, typecheck và build xanh với mã thoát 0 ở đúng mã đó; các ca nghiệm thu của brief có test tự động và đạt; **không còn finding P0/P1 của Codex chưa xử lý**. **Verdict của Codex ở vòng 3 vẫn là CHANGES_REQUIRED, với một finding mức P2 chưa sửa** (danh sách người nhận xét, khoảng trống 39) — **chưa phải PASS**. **Cập nhật 16/11/2026: Chairman đã chọn «Sửa P2, chạy lại»; vòng sửa và lượt chạy cổng thứ tư đang làm, các số ở biên nhận này vẫn là của `ee990b4` cho tới khi có kết quả.** Đường tới đây: ba vòng Codex, hai vòng sửa (hết số vòng được phép). `liberico-reality-checker` soát biên nhận này hai lượt: lượt đầu NEEDS WORK với hai mục chặn về lời văn (thiếu ghi chú về login vận hành; một con trỏ tới sai tệp), đã sửa; lượt soát lại: READY cho mức «đã có mã» đúng như câu chữ ở đây ([reality-check.md](reviews/slice-3-evidence-20261115/gates/reality-check.md)). | Mục «Bằng chứng kiểm», «Review hai tầng» |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1; migration 019–021 chưa áp lên CSDL thật nào; không cài plugin; không khởi động lại gateway | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Chưa nối mô hình, Z4 chưa bật, không có login hay khoá nào cho role AI. Eval chạy với đầu ra giả lập. Thao tác duyệt chỉ chạy trên dữ liệu tổng hợp; chưa có bản chuẩn thật nào được duyệt | — |
 | Đã nghiệm thu | **Chưa.** PM-02 «chờ tin gốc»: chưa có tin gốc và chủ dự án xác nhận. Chưa có chữ ký nghiệm thu | — |
@@ -26,7 +26,9 @@ Mức «đã có mã» chỉ nói mã khớp test trên dữ liệu tổng hợp
   - **Task 7c** — «Tách PR riêng sau lát 3 (Recommended)».
   - **OQ-36** — «(b) cùng (d) (Recommended)». **OQ-37** — «(c) Áp được, phải nêu rõ». **OQ-38** — «(c) Được, phiếu nêu rõ (Recommended)».
   - **OQ-39** — «(c) Hiệu lực, nêu rõ (Recommended)». **OQ-40** — «(c) Ngủ, có đánh dấu (Recommended)». **OQ-41** — «(c) Điều phối và đương sự (Recommended)». **OQ-42** — «(a) Luật cấp tài khoản (Recommended)».
-- **Chưa quyết** (mã đang theo «Hành vi hiện tại» ghi ở từng mục, không phải phương án được chọn): OQ-43, OQ-44, OQ-45, OQ-46 — xem mục «Câu hỏi mở».
+- **Quyết định của Chairman ngày 16/11/2026**, chọn qua hộp chọn ở phiên điều phối (câu hỏi và đủ các phương án chép nguyên văn ở `docs/OPEN-QUESTIONS.md`): **OQ-43** — «(a) Chỉ điều phối thấy (Recommended)». **OQ-44** — «(a) Mọi người đọc dự án (Recommended)». Cả hai trùng hành vi mã đã có ở `ee990b4`; không đổi mã.
+- **Quyết định của Chairman ngày 16/11/2026 về finding P2 của Codex vòng 3**, chọn ở hộp bước tiếp của phiên lát 3. Câu hỏi Chairman thấy: «Sửa mục P2 của Codex vòng 3 rồi chạy cổng thêm một lượt chứ?», với hai nút «Sửa P2, chạy lại» và «Giữ nguyên». Chairman trả lời: «Sửa P2, chạy lại». Phiên lát 3 hiểu đây là lời cho **một** vòng sửa và **một** lượt chạy cổng thêm; kết quả của vòng đó sẽ được ghi vào biên nhận này khi có.
+- **Chưa quyết** (mã đang theo «Hành vi hiện tại» ghi ở từng mục, không phải phương án được chọn): OQ-45, OQ-46 — xem mục «Câu hỏi mở».
 - Không sửa `AGENTS.md`, `CLAUDE.md`. Dòng Z4 ở `AGENTS.md:11` là việc của Chairman sau lát này; đề nghị thêm cùng lúc một dòng khai thư mục `skills/` và schema `intelligence` (reviewer mã tầng 1 nêu).
 
 ## Đã làm
@@ -202,11 +204,9 @@ Merge PR này · triển khai d1-ai1 · áp 019–021 lên dữ liệu thật ·
 
 ## Câu hỏi mở chưa quyết
 
-- **OQ-43** (`docs/OPEN-QUESTIONS.md:625`) — người được chỉ định có thấy nhãn «người chỉ định không còn là điều phối» ở dòng của chính mình không. Hành vi hiện tại: chỉ điều phối thấy.
-- **OQ-44** (`:634`) — ai xem danh sách người giữ quyền duyệt bản chuẩn. Hành vi hiện tại: mọi vai đọc của dự án thấy mã người và loại tài liệu.
-- **OQ-45** (`:647`) — ai đọc nội dung một nháp AI; có xét lại quyền lúc đọc không; nháp của dự án `IBS_HI` có được lưu không. **Chặn việc thêm tuyến đọc nháp và việc bật Z4.**
-- **OQ-46** (`:663`) — nháp AI dựng trên đầu vào đã cũ có được xác nhận không (ví dụ nháp phân tích bản r3, sau đó có bản r4). Hành vi hiện tại: không kiểm thêm; người xác nhận nháp tài liệu vẫn phải gửi phiên bản tài liệu mình thấy. **Cùng OQ-45, chặn việc bật Z4.**
-OQ-43, OQ-44, OQ-45 an toàn ở mức «chưa triển khai» theo reviewer bảo mật tầng 1; OQ-43 và OQ-44 cần quyết trước pilot. OQ-46 do reviewer mã nêu khi quét lớp lỗi; phiên lát 3 không tự chọn phương án vì SPEC không định nghĩa nháp «cũ».
+- **OQ-45** (`docs/OPEN-QUESTIONS.md:661`) — ai đọc nội dung một nháp AI; có xét lại quyền lúc đọc không; nháp của dự án `IBS_HI` có được lưu không. **Chặn việc thêm tuyến đọc nháp và việc bật Z4.**
+- **OQ-46** (`:677`) — nháp AI dựng trên đầu vào đã cũ có được xác nhận không (ví dụ nháp phân tích bản r3, sau đó có bản r4). Hành vi hiện tại: không kiểm thêm; người xác nhận nháp tài liệu vẫn phải gửi phiên bản tài liệu mình thấy. **Cùng OQ-45, chặn việc bật Z4.**
+OQ-45 an toàn ở mức «chưa triển khai» theo reviewer bảo mật tầng 1. OQ-43 và OQ-44 (mở sau review Task 7d) đã được Chairman quyết ngày 16/11/2026, đều phương án (a) — xem «Căn cứ và quyết định». OQ-46 do reviewer mã nêu khi quét lớp lỗi; phiên lát 3 không tự chọn phương án vì SPEC không định nghĩa nháp «cũ».
 
 ## Cách hiểu chờ Chairman xác nhận (không phải lời Chairman; đều theo hướng chặt)
 
