@@ -480,7 +480,10 @@ describe('review UI', () => {
     // the new rules are the only ones this task adds: nothing outside review-* is declared after the marker
     const marker = css.indexOf('/* Review (.review-*)');
     expect(marker).toBeGreaterThan(0);
-    const tail = css.slice(marker).replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{/g, '');
+    // the Review block ends at the next section marker, a comment of the form /* ... (.xxx-*) */, or at the end of the file
+    const next = css.slice(marker + 1).search(/\/\*[^\n]*\(\.[a-z]+-\*\)/);
+    const block = next < 0 ? css.slice(marker) : css.slice(marker, marker + 1 + next);
+    const tail = block.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{/g, '');
     for (const m of tail.matchAll(/(?:^|\})\s*([^{}]+)\{/g)) for (const s of m[1].split(',')) expect(s.trim(), s).toMatch(/^\.review-/);
   });
 });

@@ -1,0 +1,20 @@
+# Task 17 — mutation tables (copied from the builder's report by the slice-3 session; each mutation was applied alone and reverted)
+
+## Mutations (each applied alone, reverted, files diffed identical to the saved originals)
+| # | Mutation | Cases that went red |
+|---|---|---|
+| m1 | «Đã áp dụng» for `quorum_met` | `quorum met without receipt reads Đủ phiếu, chưa áp dụng`; `only a receipt makes a card read Đã áp dụng`; `the reassignment label never reads Đã áp dụng for any state without a receipt` |
+| m2 | vote buttons when `canVote` false | `a card the viewer cannot act on shows the reason and no vote button`; `a seat outside the proposal's frozen seats sees no button and no sentence`; `vote buttons follow canVote and nothing else` |
+| m3 | baseline derived from the vote | `a review card shows the vote and the baseline as two lines`; `a requested change on a review card reads Yêu cầu sửa with the baseline line unchanged` |
+| m4 | account pointer as a card with a button | `account approvals are a link to /approvals, not a card with buttons` |
+| m5 | block reason sentence dropped | `a card the viewer cannot act on shows the reason and no vote button` |
+| m6 | title via `dangerouslySetInnerHTML` | `names and titles with markup are rendered as text` |
+No gap found.
+
+## Round 0 rulings
+- Concern 1 fixed in `tests/review-ui.test.tsx` (last case only): the line `const tail = css.slice(marker)...` became
+  `const next = css.slice(marker + 1).search(/\/\*[^\n]*\(\.[a-z]+-\*\)/);` / `const block = next < 0 ? css.slice(marker) : css.slice(marker, marker + 1 + next);` / `const tail = block.replace(...)` (same two replaces), plus one comment line. No case name or other expectation changed.
+- `tests/decisions-ui.test.tsx` CSS case gained: Review marker precedes mine; the Review block holds no `.decision-`; my block holds no `.review-`.
+- Mutations (each reverted, globals.css diffed identical): (a) `.zzz-x` in the Review block: review CSS case red. (b) `width:400px` on `.review-list`: review CSS case red (400 > 328). (c) `.decision-zz` in the Review block: review CSS case and decision CSS case red. (d) `.review-zz` in the decision block: decision CSS case red.
+- Concern 2 stated in the hand-off (section 3, commands). Concern 3: `nameOf` in `decisions.tsx` duplicates the private one in `review.tsx`; clean up later. Concerns 4 and 5 stay as built.
+- Command `npx vitest run tests/decisions-ui.test.tsx tests/review-ui.test.tsx tests/rsc-boundary.test.ts`: 3 files passed, 44 tests passed. `npm run typecheck`: no errors. `pgrep -f vitest | wc -l` = 5, none mine.
