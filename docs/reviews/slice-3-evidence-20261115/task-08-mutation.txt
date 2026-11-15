@@ -1,0 +1,38 @@
+=== m1 grant INSERT on document_records to libetech_ai
+npx vitest run tests/z4-schema.test.ts   # PGlite, migration temporarily mutated
+   × (4) the AI role cannot write any Z1 or Z2 table 653ms
+   × privilege query: libetech_ai holds no INSERT, UPDATE, DELETE or TRUNCATE on any table of public, identity or analytics 499ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/z4-schema.test.ts > (4) the AI role cannot write any Z1 or Z2 table
+ FAIL  tests/z4-schema.test.ts > privilege query: libetech_ai holds no INSERT, UPDATE, DELETE or TRUNCATE on any table of public, identity or analytics
+ Test Files  1 failed (1)
+      Tests  2 failed | 17 passed | 2 skipped (21)
+restored identical
+=== m2 ai_insert without the ai_principal_id binding
+npx vitest run tests/z4-schema.test.ts   # PGlite, migration temporarily mutated
+   × the AI role writes drafts only inside its tenant, project and principal 481ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/z4-schema.test.ts > the AI role writes drafts only inside its tenant, project and principal
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 passed | 2 skipped (21)
+restored identical
+=== m3 draft_decisions_guard without the names-no-source condition
+npx vitest run tests/z4-schema.test.ts   # PGlite, migration temporarily mutated
+   × runtime cannot confirm a draft that names no source, nor with a wrong value hash; a decision is bound to the acting person; one decision per draft 489ms
+   × the decision guard also stops the operational login 476ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/z4-schema.test.ts > runtime cannot confirm a draft that names no source, nor with a wrong value hash; a decision is bound to the acting person; one decision per draft
+ FAIL  tests/z4-schema.test.ts > the decision guard also stops the operational login
+ Test Files  1 failed (1)
+      Tests  2 failed | 17 passed | 2 skipped (21)
+restored identical
+=== m4 grant INSERT on intelligence.ai_drafts to libetech_runtime
+npx vitest run tests/z4-schema.test.ts   # PGlite, migration temporarily mutated
+   × runtime reads drafts but cannot insert, update or delete them 481ms
+   × column-level grants: ids and timestamps come from defaults; nothing is granted outside the named columns 474ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/z4-schema.test.ts > runtime reads drafts but cannot insert, update or delete them
+ FAIL  tests/z4-schema.test.ts > column-level grants: ids and timestamps come from defaults; nothing is granted outside the named columns
+ Test Files  1 failed (1)
+      Tests  2 failed | 17 passed | 2 skipped (21)
+restored identical

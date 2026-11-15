@@ -302,3 +302,62 @@ test('rollback 020 refuses while an approval decision exists and while a later m
     await h.reset();await h.close();
   }
 });
+
+test('rollback 021 refuses while a later migration is applied, drops the Z4 objects, keeps the AI role and touches nothing of 019 or 020',async()=>{
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/021_ai_suggestions_z4.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/021_ai_suggestions_z4.sql'),'utf8');
+  expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+ROLE/i);
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  const present=async()=>(await q<{t:string|null}>("SELECT to_regclass(n)::text t FROM unnest(ARRAY['intelligence.ai_drafts','public.draft_decisions']) n")).map(r=>r.t);
+  const objects=async()=>({
+    schema:(await q('SELECT 1 FROM pg_namespace WHERE nspname=\'intelligence\'')).length,
+    functions:(await q("SELECT 1 FROM pg_proc WHERE proname='draft_decisions_guard'")).length,
+    role:(await q<{rolcanlogin:boolean;rolsuper:boolean;rolbypassrls:boolean}>("SELECT rolcanlogin,rolsuper,rolbypassrls FROM pg_roles WHERE rolname='libetech_ai'")),
+  });
+  const upstream=async()=>({
+    triggers:(await q<{d:string}>(`SELECT pg_get_triggerdef(oid) d FROM pg_trigger WHERE NOT tgisinternal AND tgname IN
+      ('review_delegations_guard','review_delegations_revoke_guard','review_decisions_guard','document_records_approval_guard','document_dependencies_flag_guard','document_records_latest_guard','memberships_doc_approve_guard') ORDER BY tgname`)).map(r=>r.d),
+    tables:(await q<{t:string|null}>("SELECT to_regclass(n)::text t FROM unnest(ARRAY['review_delegations','review_comments','review_decisions','document_dependencies','review_events']) n")).map(r=>r.t),
+    applied:(await q("SELECT version FROM schema_migrations WHERE version IN ('019','020') ORDER BY 1")).map(r=>(r as {version:string}).version),
+  });
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='021'")).length;
+  // the refusal raises inside the file's own BEGIN; PGlite keeps that aborted block open (a pooled client that errors is discarded)
+  const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);
+    // migrations after 021 sit on top of it (none today): take them off in reverse order first, put them back at the end
+    later=(await from013()).filter(f=>num(f)>21);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    const full=await objects();
+    expect(full.schema).toBe(1);expect(full.functions).toBe(1);
+    expect(full.role).toEqual([{rolcanlogin:false,rolsuper:false,rolbypassrls:false}]);
+    expect(await present()).toEqual(['intelligence.ai_drafts','draft_decisions']);
+    const kept=await upstream();
+    expect(kept.applied).toEqual(['019','020']);
+    // 1. a later version applied blocks it; nothing was dropped
+    await q("INSERT INTO schema_migrations(version) VALUES('022')");
+    try { await refused(/later|022/i); }
+    finally { await q("DELETE FROM schema_migrations WHERE version='022'"); }
+    expect(await present()).toEqual(['intelligence.ai_drafts','draft_decisions']);expect(await objects()).toEqual(full);expect(await applied()).toBe(1);
+    // 2. clean: it drops both tables, the guard function and the schema, forgets 021, keeps the role and leaves 019 and 020 as they were
+    await h.exec(rollback);
+    expect(await present()).toEqual([null,null]);
+    expect(await objects()).toEqual({schema:0,functions:0,role:full.role});
+    expect(await applied()).toBe(0);
+    expect(await upstream()).toEqual(kept);
+    // 3. repeatable once rolled back; forward twice leaves one of everything; rollback and forward again is clean
+    await h.exec(rollback);
+    await h.exec(forward);await h.exec(forward);
+    expect(await applied()).toBe(1);
+    expect(await present()).toEqual(['intelligence.ai_drafts','draft_decisions']);expect(await objects()).toEqual(full);expect(await upstream()).toEqual(kept);
+    await h.exec(rollback);await h.exec(forward);
+    expect(await objects()).toEqual(full);
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});

@@ -9,7 +9,7 @@ import {ids} from '../src/server/identities';
 import {intakeScoped} from '../src/server/bridge-io';
 import {IdentityService} from '../src/server/identity';
 import {applyOutboxSignal,type OutboxState} from '../src/server/outbox';
-import {chatSales,intakePrincipalId} from './slice2-fixtures';
+import {chatSales,guardBlock as sharedGuardBlock,intakePrincipalId,rolledBack as sharedRolledBack,type Probe} from './slice2-fixtures';
 
 let h:Harness,srcSales:string;
 const TG='900000001'; // telegram id linked to pm (synthetic)
@@ -728,28 +728,8 @@ test('payload cap counts bytes, envelope constants and error codes are closed',a
 // ---- Database review I-1: the role-membership invariant the proof by privilege depends on ----
 // Every probe runs in one operator transaction that is always rolled back: no role, grant or attribute change outlives the test.
 const DUAL='libetech_test_dual_member';
-const guardBlock=async(file:string,name:string)=>{
-  const src=await readFile(path.join(process.cwd(),'migrations',file),'utf8');
-  const m=new RegExp(`-- guard:${name} begin\\n([\\s\\S]*?)\\n-- guard:${name} end`).exec(src);
-  if(!m) throw new Error(`no guard ${name} in ${file}`);
-  return m[1];
-};
-type Probe=(sql:string,params?:unknown[])=>Promise<string|null>;
-async function rolledBack(fn:(tx:Queryable,probe:Probe)=>Promise<void>):Promise<void>{
-  const done=new Error('rolled back');
-  await h.operator.transaction(async tx=>{
-    let n=0;
-    // null when the statement succeeds, else its error message; a savepoint keeps the outer transaction usable
-    const probe:Probe=async(sql,params=[])=>{
-      const sp='probe_'+(++n);
-      await tx.query('SAVEPOINT '+sp);
-      try {await tx.query(sql,params);await tx.query('RELEASE SAVEPOINT '+sp);return null;}
-      catch(e){await tx.query('ROLLBACK TO SAVEPOINT '+sp);return (e as Error).message;}
-    };
-    await fn(tx,probe);
-    throw done;
-  }).catch(e=>{if(e!==done) throw e;});
-}
+const guardBlock=sharedGuardBlock;
+const rolledBack=(fn:(tx:Queryable,probe:Probe)=>Promise<void>):Promise<void>=>sharedRolledBack(h.operator,fn);
 
 test('DB I-1 016 and 017 refuse a role that can act as both libetech_runtime and libetech_intake, directly or through another role',async()=>{
   const g16=await guardBlock('016_intake_inbox.sql','role-separation'),g17=await guardBlock('017_outbox.sql','role-separation');

@@ -13,15 +13,17 @@ export async function embeddedDatabase(dataDir?: string): Promise<Database> {
 }
 /**
  * Refuses a login that owns tables, holds an elevated attribute, can reach more than one of the application roles, or can reach
- * the outbox audit role. The 017 state-event actor is proven by role only while no login can act as both libetech_runtime and
- * libetech_intake and nobody can act as libetech_outbox_audit (Database review I-1). No row for the current role also refuses.
+ * the outbox audit role or the AI role (021: the service writes Z1, the pipeline writes Z4, never one login both). The 017 state-event
+ * actor is proven by role only while no login can act as both libetech_runtime and libetech_intake and nobody can act as
+ * libetech_outbox_audit (Database review I-1). No row for the current role also refuses.
  */
 export async function assertRestrictedLogin(q: Queryable): Promise<void> {
   const row = (await q.query(`SELECT r.rolsuper,r.rolbypassrls,r.rolcreatedb,r.rolcreaterole,
-      EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relowner=r.oid AND n.nspname IN ('public','identity','analytics')) AS owns_tables,
+      EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relowner=r.oid AND n.nspname IN ('public','identity','analytics','intelligence')) AS owns_tables,
       (SELECT count(*) FROM pg_roles g WHERE g.rolname IN ('libetech_runtime','libetech_intake','libetech_identity','libetech_outbox_audit')
         AND pg_has_role(r.oid,g.oid,'MEMBER'))>1 AS several_app_roles,
-      EXISTS(SELECT 1 FROM pg_roles g WHERE g.rolname='libetech_outbox_audit' AND pg_has_role(r.oid,g.oid,'MEMBER')) AS audit_role
+      EXISTS(SELECT 1 FROM pg_roles g WHERE g.rolname='libetech_outbox_audit' AND pg_has_role(r.oid,g.oid,'MEMBER')) AS audit_role,
+      EXISTS(SELECT 1 FROM pg_roles g WHERE g.rolname='libetech_ai' AND pg_has_role(r.oid,g.oid,'MEMBER')) AS ai_role
     FROM pg_roles r WHERE r.rolname=current_user`)).rows[0];
   if (!row || Object.values(row).some(Boolean))
     throw new Error('Runtime login must not own tables, hold elevated database privileges or reach more than one application role.');

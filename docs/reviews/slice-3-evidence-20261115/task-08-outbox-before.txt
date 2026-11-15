@@ -1,0 +1,43 @@
+npx vitest run tests/outbox-schema.test.ts   # PGlite, before the helper move
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  46 passed | 2 skipped (48)
+   Start at  14:59:15
+   Duration  22.12s (tests 100%)
+
+
+npx vitest run tests/outbox-schema.test.ts   # native, before the helper move
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  14:59:37
+   Duration  15.88s (tests 100%)
+
+
+npx vitest run tests/outbox-schema.test.ts   # native, AFTER the helper move
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  15:16:10
+   Duration  15.72s (tests 100%)
+
+
+npx vitest run tests/outbox-schema.test.ts   # PGlite, AFTER the helper move
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  46 passed | 2 skipped (48)
+   Start at  15:16:26
+   Duration  22.89s (tests 100%)
+

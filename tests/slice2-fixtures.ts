@@ -1,10 +1,12 @@
 import {createHmac,randomBytes} from 'node:crypto';
 import {createHash,randomUUID} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import path from 'node:path';
 import {ids} from '../src/server/identities';
 import {sameBuProject} from './slice1-fixtures';
 
 import type {BridgeConfig} from '../src/server/bridge-config';
-import type {Database} from '../src/server/db';
+import type {Database,Queryable} from '../src/server/db';
 import type {IntakeEventInput} from '../src/server/types';
 export type EventOverride=Partial<Omit<IntakeEventInput,'context'>>&{context?:Partial<IntakeEventInput['context']>};
 
@@ -64,4 +66,29 @@ export async function outboxClock(operator:Database,sql:string,params:unknown[]=
     await tx.query("SET LOCAL session_replication_role = 'replica'");
     await tx.query(sql,params);
   });
+}
+
+/** Body of the `-- guard:<name> begin/end` block of a migration file, ready to run as a statement. */
+export const guardBlock=async(file:string,name:string)=>{
+  const src=await readFile(path.join(process.cwd(),'migrations',file),'utf8');
+  const m=new RegExp(`-- guard:${name} begin\\n([\\s\\S]*?)\\n-- guard:${name} end`).exec(src);
+  if(!m) throw new Error(`no guard ${name} in ${file}`);
+  return m[1];
+};
+export type Probe=(sql:string,params?:unknown[])=>Promise<string|null>;
+/** Runs fn in one operational transaction that is always rolled back; probe returns null when a statement succeeds, else its error message. */
+export async function rolledBack(operator:Database,fn:(tx:Queryable,probe:Probe)=>Promise<void>):Promise<void>{
+  const done=new Error('rolled back');
+  await operator.transaction(async tx=>{
+    let n=0;
+    // a savepoint keeps the outer transaction usable
+    const probe:Probe=async(sql,params=[])=>{
+      const sp='probe_'+(++n);
+      await tx.query('SAVEPOINT '+sp);
+      try {await tx.query(sql,params);await tx.query('RELEASE SAVEPOINT '+sp);return null;}
+      catch(e){await tx.query('ROLLBACK TO SAVEPOINT '+sp);return (e as Error).message;}
+    };
+    await fn(tx,probe);
+    throw done;
+  }).catch(e=>{if(e!==done) throw e;});
 }
