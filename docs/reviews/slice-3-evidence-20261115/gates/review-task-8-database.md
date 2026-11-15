@@ -203,3 +203,76 @@ and say so in the receipt). The Minor findings are hardening and test-strength i
 
 **Database verdict for Task 8:** Approved — conditional on I-1 being routed to the planner (extend the guard in 021 or carry it into Task 12 with a
 test) before Task 12 starts.
+
+## Re-review of fix round 1 (bda9465)
+
+Scope: the one commit `bda9465` read through `.superpowers/sdd/slice-3-review-skills/review-8-fix1-734f4a3..bda9465.diff` plus the implementer's
+"Fix round 1" section. No database or test was run. One focused check outside the diff: does the runtime role have SELECT on `document_revisions`, and under which
+policy (`migrations/014_document_registry.sql:97-98,119-122,134`). Line numbers are for files at `bda9465`.
+
+### Verdicts
+
+| Finding | Verdict | Evidence |
+|---|---|---|
+| F-1 (I-1) revision must belong to the draft's document | **ADDRESSED** | Guard `021:163,176-180` selects `entity_type, entity_id` and refuses when the revision is set but `entity_type <> 'document'` or there is no `document_revisions` row with that id and `document_id = entity_id`. New case `tests/z4-schema.test.ts:346-363`: A + B's revision, an intake draft + any revision, a draft about a nonexistent document, and the operator are all refused; A + A's revision and an intake draft with no revision are accepted. Mutation m1 turns it red (`task-08-fix1-mutation.txt:51-60`). |
+| F-2 (M-1) size limits on sources, questions and version strings | **ADDRESSED** | `021:125,128,134-140`: CASE-form checks (array length plus `octet_length(::text)`), with `ELSE false` so a non-array never reaches `jsonb_array_length`; versions are `length BETWEEN 1 AND 64`. Case `tests/z4-schema.test.ts:365-378` tests both sides of every limit and non-arrays. |
+| F-3 (M-2) rollback refuses while a decision exists | **ADDRESSED** | `rollback/021:202-215`: `row_security = off` and a dynamic count when `draft_decisions` exists, following the 020 pattern; drafts alone do not block it. Test `tests/migrations-rollback.test.ts:238-249`: refused with one decision, nothing dropped; the operator's DELETE is blocked by the history trigger; `TRUNCATE` clears it; the draft row stays. Mutation m3 turns it red. |
+| F-4 (M-3) UPDATE probe stands on its own | **ADDRESSED** | `tests/z4-schema.test.ts:276` `SET col=DEFAULT WHERE false` needs only the UPDATE privilege. Mutation m2 (`GRANT UPDATE ON document_records`) turns case (4) red (`mutation.txt:61-70`). |
+| F-5 (M-4) REPLICATION attribute, default ACLs, sequences, CREATE | **ADDRESSED** | Role and guard `021:95,104-105`; guard case adds `REPLICATION` (`z4-schema.test.ts:449`); the attribute case now asserts `rolreplication:false` and `no_password_hash:true` (`:318-324`); new case `:298-308`: `pg_default_acl` (PUBLIC = grantee 0, or the AI role, in the four schemas or globally), sequences, CREATE on the four schemas and on the database. |
+
+### Questions raised by the coordinator
+
+- **Guard now fires before CHECK and FK; two edited lines of the earlier decision case.**
+  - The fix does not change trigger order. In PostgreSQL a BEFORE ROW trigger always ran before the CHECK constraints and the AFTER foreign-key triggers; what is new is that the guard now refuses on revisions.
+  - `:426` (nonexistent revision → guard message instead of "foreign key"): same refusal. The foreign key on `(document_revision_id,tenant_id,project_id)` is no longer reached by any case. That is acceptable: a revision that passes the guard belongs to the draft's document, which is in the draft's project, so the key can no longer fail on a row the guard let through. It stays as structural backstop.
+  - `:420` (rejection with a revision): `sourced` is now about `doc` and `fr` is a revision of `doc`, so the guard passes and the CHECK `draft_decisions_revision_only_confirmed` is what fires. The added alternative `|attached to a draft about that very document` is never needed and slightly loosens what the line proves (see Minor N-1).
+  - Moving `sourced` to `entity_type='document'` keeps every other assertion of that case meaningful: source count and hash do not depend on entity type.
+- **RLS and fail-closed on the new reads.**
+  - The draft read is unchanged: it runs under `runtime_select` and fails closed.
+  - The revision read runs under the caller's rights. Runtime holds `SELECT` on `document_revisions` (`014:134`) under the scoped `scope_select` policy (`014:119-122`), and the table has ENABLE + FORCE RLS (`014:97-98`).
+  - A revision of another project or tenant is therefore invisible to runtime, so `NOT EXISTS` is true and the insert is refused. The composite FK refuses it as well.
+  - The superuser operator bypasses RLS, so for the operator the check is purely structural, which is the intent.
+  - No new privilege is needed. The function is still not SECURITY DEFINER, still pins `search_path`, and still qualifies `public.document_revisions`.
+- **`TRUNCATE` in the rollback test.**
+  - This is fine and does not mean the refusal is untested. The refusal is tested in the failing direction with a real decision row. The successful direction needs an empty table, and `reject_history_mutation` blocks row DELETE even for the operator, so `TRUNCATE` (statement level, not covered by a row trigger) is the only way to reach that state.
+  - Side observation, pre-existing since 001 and not new: history tables are not protected against `TRUNCATE` by the owner or a superuser. No app role holds TRUNCATE.
+- **Do the new limits fit a legitimate draft of the planned contract?**
+  - The draft's `value` is unaffected.
+  - `sources` is capped at 100 elements, which matches S20's "≤ 100 nguồn", and at 65 536 bytes of jsonb text form. That is about 640 bytes per source at the maximum count. This is enough for references (id, locator, hash). It is not enough if Task 9's contract puts quoted excerpts (S20 allows 4 096 per excerpt in the context) into `sources`.
+  - `questions` is capped at 50 elements and 16 384 bytes.
+  - None of these limits is in S20 or S42 yet, so Task 9 must adopt them as application limits. Otherwise a legitimate-looking draft gets a raw `23514`, which S42 forbids (see Task 12 list).
+- **Password check reading `pg_authid`.** It appears only in `tests/z4-schema.test.ts:321`, through `h.operator`. That handle is the PGlite superuser on PGlite and the superuser operator login on native (S43), so the read can always run there. No application code reads `pg_authid`.
+
+### New breakage
+
+- Critical: None.
+- Important: None.
+- Minor **N-1** `tests/z4-schema.test.ts:420`: the added alternative `|attached to a draft about that very document` cannot match with the current fixture, because `fr` is a revision of `sourced`'s document. It lets the line pass even if the CHECK `draft_decisions_revision_only_confirmed` were dropped and the guard refused instead. Smallest fix: drop the alternative and match `/draft_decisions_revision_only_confirmed|check constraint/`.
+
+### Out-of-scope observations
+
+- M-5 and M-6 are not part of this round, by the controller's decision, and get no verdict here.
+- History tables can be truncated by their owner or a superuser. This pattern dates from 001 and applies to every history table. Note it in the receipt and do not change it here.
+
+### Round verdict
+
+All findings addressed, no new Critical/Important breakage. One new Minor (N-1).
+
+### Deployment notes for 021 — changes
+
+- The role is now created with `NOREPLICATION`. The pre-check adds "`libetech_ai`, if present, has no REPLICATION".
+- Rollback preconditions add: no row in `draft_decisions`, otherwise it refuses. Drafts alone do not block it. If the rollback must ever run with decisions present, that is a Chairman decision about destroying a person's recorded act. Never on real data without approval (OQ-20).
+- Everything else in the notes above stands, including the "must NOT be done until OQ-14" list.
+
+### What Task 12 must know — final list
+
+1. The database now refuses a revision that does not belong to the draft's document, and any revision on an intake-candidate draft. The service must still check the person's authority over that document, and should refuse first with its own 404/422 so no raw trigger message reaches the caller.
+2. Measure `sources` (≤ 100 elements, ≤ 65 536 bytes of jsonb text), `questions` (≤ 50, ≤ 16 384) and `skill_version`/`model_version` (1–64 characters) in the application before insert, with the same jsonb text-form margin as `value` (S42). Otherwise a raw `23514` reaches the caller. Task 9's contract must adopt these numbers.
+3. Under `ON CONFLICT DO NOTHING`, "no row inserted and none visible" is a conflict, never success, because the dedupe key is unique per tenant across projects (M-5).
+4. A second decision on the same draft raises `23505`. Tell a replay (same `command_key`) apart from a real conflict.
+5. Set `app.person_id` and `app.ai_principal_id` server-side, never from the request.
+6. Compute and check `value_hash` in the application. The database only binds the decision to the stored hash.
+7. Write the immutable audit event in the same transaction as the decision.
+8. A recorded decision now blocks the 021 rollback: decisions are permanent once written.
+
+**Database verdict for Task 8 after fix round 1:** Approved.
