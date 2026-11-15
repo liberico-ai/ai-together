@@ -1586,4 +1586,22 @@ class IntakeAnswerTests(unittest.TestCase):
                 self.assertEqual((summary['ok'],summary['error'],summary['reported'],summary['rejected'],summary['pending']),(False,receipt_error,0,0,1))
                 kind.assert_not_called()
 
+class DocumentApprovalCodeTests(unittest.TestCase):
+    """Slice 3, OQ-31 (b): the current plugin does not know the doc_approve codes, so it refuses to show such a ballot and never votes on it."""
+
+    def test_a_ballot_with_a_document_approval_code_is_never_asked_by_the_current_plugin(self):
+        row=access_row(
+            grants=[{'projectId':'50000000-0000-4000-8000-000000000001','role':'engineer','reportPermissions':['doc_approve:design']}],
+            grant_details=[{'name':'Dự án mẫu A','role':'engineer','reportPermissions':['doc_approve:design']}],
+            previous_grant_details=[{'name':'Dự án mẫu A','role':'viewer','reportPermissions':[]}])
+        with self.assertRaisesRegex(ValueError,'^APPROVAL_SCOPE_UNAVAILABLE$'):bridge.approval_question(row)
+        asked=[];requests=[]
+        registered,_=register_with(Path('/tmp/hermes-probe'),ask_choice=lambda question,choices:(asked.append(question),'yes')[1])
+        review=next(kwargs['handler'] for name,kwargs in registered if name=='duyet')
+        with patch.object(bridge,'call_backend',side_effect=lambda _home,payload:(requests.append(payload),[row])[1]):
+            self.assertEqual(review('',source=SimpleNamespace(**DM)),'APPROVAL_SCOPE_UNAVAILABLE')
+        self.assertEqual(asked,[])
+        self.assertEqual([r['operation'] for r in requests],['account_approval_pending'])
+        self.assertNotIn('account_approval_vote',[r['operation'] for r in requests])
+
 if __name__=='__main__':unittest.main()

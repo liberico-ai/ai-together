@@ -1,0 +1,174 @@
+npx vitest run tests/doc-approver-grant.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/doc-approver-grant.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approver-grant.test.ts [ tests/doc-approver-grant.test.ts ]
+TypeError: docApprovalCode is not a function
+ ❯ tests/doc-approver-grant.test.ts:44:14
+     42| const rows=async<T=R>(sql:string,p:unknown[]=[])=>(await h.operator.qu…
+     43| const count=async(t:string,where='true',p:unknown[]=[])=>Number((await…
+     44| const design=docApprovalCode('design'),plan=docApprovalCode('plan');
+       |              ^
+     45| const docGrants=(...codes:ProjectGrant['reportPermissions'])=>[{projec…
+     46| const current=async()=>{const user=(await accounts.list(admin)).find(r…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  11:39:31
+   Duration  177ms (worker 98%, environment 2%)
+
+
+# second red: helpers and schema code present, migration 019 not yet in place
+npx vitest run tests/doc-approver-grant.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/doc-approver-grant.test.ts (15 tests | 10 failed) 7332ms
+   × the membership permission set admits the eight doc_approve codes and nothing else 476ms
+   × the three lists agree: access-grants, the documents schema and migration 019 472ms
+   × a doc_approve code enters a membership only with an approved or issued access-change ballot that names that project and code 460ms
+   × document_approvers lists holders of the project in scope only 458ms
+   × a viewer holding a doc_approve code is not listed as an approver 481ms
+   × the runtime role cannot read or write identity.memberships, and only libetech_runtime may execute document_approvers 460ms
+   × one BoM agreeing approves the ballot and the admin applies exactly the frozen grants 520ms
+   × Chairman agreement alone does not grant document approval; the subject does not vote on their own ballot 471ms
+   × applying other document types than the frozen ballot is refused 472ms
+   × removing a doc_approve code is a reduction: applied directly, sessions revoked, and document_approvers no longer lists the person 471ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approver-grant.test.ts > the membership permission set admits the eight doc_approve codes and nothing else
+AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  [
+-   "memberships_grant_permissions_check",
++   "memberships_report_permissions_check",
+  ]
+
+ ❯ tests/doc-approver-grant.test.ts:85:35
+     83|  const checks=await rows<{conname:string;def:string}>(`SELECT conname,…
+     84|   WHERE conrelid='identity.memberships'::regclass AND contype='c' AND …
+     85|  expect(checks.map(c=>c.conname)).toEqual(['memberships_grant_permissi…
+       |                                   ^
+     86|  for(const value of ['people_read','quality_review','report_approve',.…
+     87|   expect(checks[0].def,value).toContain(`'${value}'`);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/doc-approver-grant.test.ts > the three lists agree: access-grants, the documents schema and migration 019
+AssertionError: project_index: expected '' to contain '\'project_index\''
+
+- Expected
++ Received
+
+- 'project_index'
+
+ ❯ tests/doc-approver-grant.test.ts:108:54
+    106|  const definition=(await rows<{def:string}>(`SELECT pg_get_constraintd…
+    107|   AND pg_get_constraintdef(oid) LIKE '%doc_type%'`)).map(r=>r.def).joi…
+    108|  for(const type of docTypes) expect(definition,type).toContain(`'${typ…
+       |                                                      ^
+    109|  const grantCheck=(await rows<{def:string}>(`SELECT pg_get_constraintd…
+    110|  expect([...grantCheck.matchAll(/'doc_approve:([a-z_]+)'/g)].map(m=>m[…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/doc-approver-grant.test.ts > a doc_approve code enters a membership only with an approved or issued access-change ballot that names that project and code
+AssertionError: expected [Function] to throw error matching /Document approval needs an approved a…/ but got 'new row for relation "memberships" vi…'
+
+- Expected:
+/Document approval needs an approved access-change ballot that names it/
+
++ Received:
+"new row for relation \"memberships\" violates check constraint \"memberships_report_permissions_check\""
+
+ ❯ refused tests/doc-approver-grant.test.ts:120:85
+    118|  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,usern…
+    119|  const before=await memberships();
+    120|  const refused=async()=>{await expect(setPermissions(subject.id,ids.sa…
+       |                                                                                     ^
+    121|  // no ballot at all
+    122|  await refused();
+ ❯ tests/doc-approver-grant.test.ts:122:8
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/doc-approver-grant.test.ts > document_approvers lists holders of the project in scope only
+ FAIL  tests/doc-approver-grant.test.ts > a viewer holding a doc_approve code is not listed as an approver
+ FAIL  tests/doc-approver-grant.test.ts > removing a doc_approve code is a reduction: applied directly, sessions revoked, and document_approvers no longer lists the person
+error: new row for relation "memberships" violates check constraint "memberships_report_permissions_check"
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/doc-approver-grant.test.ts > the runtime role cannot read or write identity.memberships, and only libetech_runtime may execute document_approvers
+AssertionError: expected [Function] to throw error matching /permission denied/ but got 'function public.document_approvers(un…'
+
+- Expected:
+/permission denied/
+
++ Received:
+"function public.document_approvers(unknown) does not exist"
+
+ ❯ tests/doc-approver-grant.test.ts:207:99
+    205|  await expect(asRole('libetech_runtime',"INSERT INTO identity.membersh…
+    206|  await expect(asRole('libetech_runtime','DELETE FROM identity.membersh…
+    207|  await expect(asRole('libetech_intake','SELECT * FROM public.document_…
+       |                                                                                                   ^
+    208|  const acl=(await rows<{role:string;ok:boolean}>(`SELECT r.rolname rol…
+    209|   FROM pg_roles r WHERE r.rolname IN ('libetech_runtime','libetech_int…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/doc-approver-grant.test.ts > one BoM agreeing approves the ballot and the admin applies exactly the frozen grants
+ FAIL  tests/doc-approver-grant.test.ts > Chairman agreement alone does not grant document approval; the subject does not vote on their own ballot
+error: function public.document_approvers(unknown) does not exist
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/doc-approver-grant.test.ts > applying other document types than the frozen ballot is refused
+AssertionError: promise rejected "error: new row for relation "memberships"… { …(18) }" instead of resolving
+ ❯ tests/doc-approver-grant.test.ts:319:41
+    317|  expect(await approval(id)).toMatchObject({state:'approved'});
+    318|  // control: exactly the frozen type applies
+    319|  await expect(access(docGrants(design))).resolves.toBeTruthy();
+       |                                         ^
+    320| });
+    321|
+
+Caused by: error: new row for relation "memberships" violates check constraint "memberships_report_permissions_check"
+ ❯ pe.Oe node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:18174
+ ❯ pe.tt node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:15560
+ ❯ pe.parse node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:14234
+ ❯ q.Ce node_modules/@electric-sql/pglite/dist/chunk-O74Z5DUS.js:5:1759
+ ❯ node_modules/@electric-sql/pglite/dist/chunk-O74Z5DUS.js:5:1151
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 223, severity: 'ERROR', code: '23514', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: undefined, schema: 'identity', table: 'memberships', dataType: undefined, constraint: 'memberships_report_permissions_check', file: 'execMain.c', routine: 'ExecConstraints', query: 'INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role,report_permissions) VALUES($1,$2,$3,$4,$5)', params: [ '10000000-0000-4000-8000-000000000001', 'e874de66-13eb-470a-bedb-7ae906d89f59', '11000000-0000-4000-8000-000000000001', 'engineer', [ 'doc_approve:design' ] ], queryOptions: undefined }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  10 failed | 5 passed (15)
+   Start at  11:39:37
+   Duration  7.51s (tests 99%, import 1%, transform 1%)
+

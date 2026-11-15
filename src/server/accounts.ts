@@ -3,13 +3,15 @@ import { z } from 'zod';
 import { invariant } from './errors';
 import { digest, IdentityService, secret } from './identity';
 import type { Queryable } from './db';
-import type { Principal, ProjectGrant } from './types';
+import type { GrantPermission, Principal, ProjectGrant } from './types';
 import {approvalReady,notifyVoters,verifiedApprovalSeats} from './account-approval';
-import {widensAccess} from './access-grants';
+import {DOC_APPROVAL_PREFIX,DOC_APPROVAL_TYPES,docApprovalCode,widensAccess} from './access-grants';
 
+// The three report permissions and the eight doc_approve codes (OQ-31 b). Duplicate values are handled exactly as before: not refused here.
+const grantPermission=z.enum(['people_read','quality_review','report_approve',...DOC_APPROVAL_TYPES.map(docApprovalCode)] as [GrantPermission,...GrantPermission[]]);
 const grantsSchema=z.array(z.object({
   projectId:z.uuid(),role:z.enum(['manager','engineer','technical','business','viewer']),
-  reportPermissions:z.array(z.enum(['people_read','quality_review','report_approve'])).max(3),
+  reportPermissions:z.array(grantPermission).max(11),
 }).strict()).min(1).max(30).refine(grants=>new Set(grants.map(grant=>grant.projectId)).size===grants.length);
 const reason=z.string().trim().min(5).max(500);
 const edit={userId:z.uuid(),expectedVersion:z.number().int().positive(),reason};
@@ -109,6 +111,9 @@ export class AccountService {
         return {reviewed:true};
       }
       if(cmd.kind==='approve_registration') {
+        // Document approval is granted only to an activated account through an access-change ballot (OQ-31 b, S32).
+        invariant(!cmd.grants.some(grant=>grant.reportPermissions.some(permission=>permission.startsWith(DOC_APPROVAL_PREFIX))),
+          'DOC_APPROVAL_NEEDS_ACCESS_CHANGE','Quyền duyệt bản chuẩn chỉ cấp qua phiếu đổi quyền cho tài khoản đã kích hoạt.',422);
         this.validate(cmd.grants,scope);
         const traceId=randomUUID();
         const seats=await verifiedApprovalSeats(tx,this.identity);

@@ -1,6 +1,8 @@
 export type Role = 'manager' | 'engineer' | 'technical' | 'business' | 'viewer' | 'bot';
 export type ReportPermission = 'people_read' | 'quality_review' | 'report_approve';
-export type ProjectGrant = { projectId:string; role:Exclude<Role,'bot'>; reportPermissions:ReportPermission[] };
+export type DocApprovalPermission = `doc_approve:${DocType}`;
+export type GrantPermission = ReportPermission | DocApprovalPermission;
+export type ProjectGrant = { projectId:string; role:Exclude<Role,'bot'>; reportPermissions:GrantPermission[] };
 export type Principal = { id: string; tenantId: string; projectIds: string[]; name: string; role: Role; grants?:ProjectGrant[]; accountAdmin?:boolean };
 export function projectRole(p:Principal,projectId:string):Role {
   if(p.role==='bot') return 'bot';

@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import type {Allocation} from '../src/server/bom';
 import type {Database,Queryable} from '../src/server/db';
+import {docApprovalCode,type DocApprovalType} from '../src/server/access-grants';
 import {DocumentService} from '../src/server/documents';
 import {demoProfiles,ids} from '../src/server/identities';
 import type {DocumentDetail,Principal} from '../src/server/types';
@@ -79,4 +80,34 @@ export async function seedBom(h:Harness):Promise<{workId:string;roster:Principal
   VALUES($1,$2,$3,$4,$5,now(),now()+interval '1 minute')`,[workId,ids.tenant,ids.sales,source,fingerprint]);
  const selection:Allocation={lead_id:pm.id,parts:[{owner_id:member.id,output:'Hồ sơ bàn giao triển khai thử',criteria:'Có kết quả kiểm tra và mốc ghi nhận',dueAt:null,dependency:''}]};
  return {workId,roster,chair,selection,source};
+}
+
+/** Active, activated users and memberships (project_role set explicitly): pm manager in sales and transport, member engineer, reviewer technical,
+ * approver business (all sales), transportApprover technical (transport). The three sales principals above keep their ids. ON CONFLICT DO NOTHING. */
+export async function seedMembers(h:Harness):Promise<void> {
+ const rows:{p:Principal;username:string;role:string;projects:string[]}[]=[
+  {p:pm,username:'slice3-pm',role:'manager',projects:[ids.sales,ids.transport]},
+  {p:member,username:'slice3-member',role:'engineer',projects:[ids.sales]},
+  {p:reviewer,username:'slice3-reviewer',role:'technical',projects:[ids.sales]},
+  {p:approver,username:'slice3-approver',role:'business',projects:[ids.sales]},
+  {p:transportApprover,username:'slice3-transport-approver',role:'technical',projects:[ids.transport]},
+ ];
+ for(const r of rows) {
+  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,$3,$4,$5,'fixture-only')
+   ON CONFLICT DO NOTHING`,[r.p.id,r.p.tenantId,r.username,r.p.name,r.role]);
+  for(const project of r.projects) await h.operator.query(`INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role)
+   VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`,[r.p.tenantId,r.p.id,project,r.role]);
+ }
+}
+
+/** Operational login: inserts a synthetic access_change ballot in state 'issued' that names this project and these codes, then sets the
+ * membership's report_permissions to what it held plus the codes. The guard of migration 019 accepts it because the ballot names them. */
+export async function grantDocApproval(h:Harness,userId:string,projectId:string,types:DocApprovalType[]):Promise<void> {
+ const codes=types.map(docApprovalCode);
+ const grants=JSON.stringify([{projectId,role:'engineer',reportPermissions:codes}]);
+ const previous=JSON.stringify([{projectId,role:'engineer',reportPermissions:[]}]);
+ await h.operator.query(`INSERT INTO identity.account_approvals(tenant_id,kind,subject_user_id,subject_account_version,previous_grants,proposer_id,grants,reason,state)
+  VALUES($1,'access_change',$2,1,$3,$4,$5,'Phiếu đổi quyền tổng hợp cho bản thử','issued')`,[ids.tenant,userId,previous,pm.id,grants]);
+ await h.operator.query(`UPDATE identity.memberships SET report_permissions=(SELECT array_agg(DISTINCT c ORDER BY c) FROM unnest(report_permissions||$3::text[]) c),updated_at=now()
+  WHERE user_id=$1 AND project_id=$2`,[userId,projectId,codes]);
 }

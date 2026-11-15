@@ -131,3 +131,83 @@ test('rollback 018 refuses while an access-change ballot exists',async()=>{
     await h.reset();await h.close();
   }
 });
+
+test('rollback 019 refuses while a membership or a ballot carries a doc_approve code, and while a later migration is applied',async()=>{
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/019_document_approver_grant.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/019_document_approver_grant.sql'),'utf8');
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  const checks=async()=>(await q<{conname:string;def:string}>(`SELECT conname,pg_get_constraintdef(oid) def FROM pg_constraint
+    WHERE conrelid='identity.memberships'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%report_permissions%' ORDER BY conname`));
+  const objects=async()=>({
+    trigger:(await q('SELECT 1 FROM pg_trigger WHERE tgname=\'memberships_doc_approve_guard\' AND NOT tgisinternal')).length,
+    guard:(await q('SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname=\'identity\' AND p.proname=\'memberships_doc_approve_guard\'')).length,
+    reader:(await q('SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname=\'public\' AND p.proname=\'document_approvers\'')).length,
+  });
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='019'")).length;
+  // the refusal raises inside the file's own BEGIN; PGlite keeps that aborted block open (a pooled client that errors is discarded)
+  const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);
+    // migrations after 019 sit on top of it: take them off in reverse order first, put them back at the end
+    later=(await from013()).filter(f=>num(f)>19);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    const admin=randomUUID(),subject=randomUUID();
+    for(const [id,username] of [[admin,'rollback-admin'],[subject,'rollback-subject']] as const)
+      await q(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,$3,$3,'viewer','fixture-hash')`,[id,ids.tenant,username]);
+    await q(`INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) VALUES($1,$2,$3,'engineer')`,[ids.tenant,subject,ids.sales]);
+    const code='doc_approve:design';
+    const grants=JSON.stringify([{projectId:ids.sales,role:'engineer',reportPermissions:[code]}]);
+    const plain=JSON.stringify([{projectId:ids.sales,role:'engineer',reportPermissions:[]}]);
+    const ballot=async(g:string,previous:string)=>(await q<{id:string}>(`INSERT INTO identity.account_approvals(tenant_id,kind,subject_user_id,subject_account_version,
+      previous_grants,proposer_id,grants,reason,state) VALUES($1,'access_change',$2,1,$3,$4,$5,'Phiếu đổi quyền mẫu','issued') RETURNING id`,[ids.tenant,subject,previous,admin,g]))[0].id;
+    const full=await checks();
+    expect(full.map(c=>c.conname)).toEqual(['memberships_grant_permissions_check']);
+    expect(await objects()).toEqual({trigger:1,guard:1,reader:1});
+    // 1. a membership carries a code (a ballot allowed it; the refusal names the membership)
+    const first=await ballot(grants,plain);
+    await q('UPDATE identity.memberships SET report_permissions=$2 WHERE user_id=$1',[subject,[code]]);
+    await refused(/membership carries a doc_approve code/i);
+    expect(await applied()).toBe(1);
+    expect(await checks()).toEqual(full);
+    expect(await objects()).toEqual({trigger:1,guard:1,reader:1});
+    // 2. no membership carries it any more, the ballot's grants still name it
+    await q("UPDATE identity.memberships SET report_permissions='{}' WHERE user_id=$1",[subject]);
+    await refused(/ballot carries a doc_approve code/i);
+    // 3. only previous_grants names it
+    await q('DELETE FROM identity.account_approvals WHERE id=$1',[first]);
+    await ballot(plain,grants);
+    await refused(/ballot carries a doc_approve code/i);
+    expect(await applied()).toBe(1);
+    expect(await checks()).toEqual(full);
+    // 4. a later version applied also blocks it (order 019 → 018 → 017 only)
+    await q('DELETE FROM identity.account_approvals');
+    await q("INSERT INTO schema_migrations(version) VALUES('999')");
+    try { await refused(/later|019/i); }
+    finally { await q("DELETE FROM schema_migrations WHERE version='999'"); }
+    expect(await objects()).toEqual({trigger:1,guard:1,reader:1});
+    // 5. clean: it runs, drops trigger and both functions, restores the three-value CHECK under its 004 name and forgets 019
+    await ballot(plain,plain);
+    await q("UPDATE identity.memberships SET report_permissions=ARRAY['people_read'] WHERE user_id=$1",[subject]);
+    await h.exec(rollback);
+    expect(await objects()).toEqual({trigger:0,guard:0,reader:0});
+    const bare=await checks();
+    expect(bare.map(c=>c.conname)).toEqual(['memberships_report_permissions_check']);
+    expect(bare[0].def).not.toContain('doc_approve');
+    expect(await applied()).toBe(0);
+    expect((await q('SELECT report_permissions FROM identity.memberships WHERE user_id=$1',[subject]))[0]).toEqual({report_permissions:['people_read']});
+    await expect(q("UPDATE identity.memberships SET report_permissions=ARRAY['doc_approve:design'] WHERE user_id=$1",[subject])).rejects.toThrow(/memberships_report_permissions_check/);
+    // the file is repeatable once rolled back, and forward twice leaves one CHECK, one trigger, one of each function
+    await h.exec(rollback);
+    await h.exec(forward);await h.exec(forward);
+    expect(await applied()).toBe(1);
+    expect(await checks()).toEqual(full);
+    expect(await objects()).toEqual({trigger:1,guard:1,reader:1});
+    expect((await q('SELECT report_permissions FROM identity.memberships WHERE user_id=$1',[subject]))[0]).toEqual({report_permissions:['people_read']});
+  } finally {
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});

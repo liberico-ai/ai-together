@@ -1,0 +1,14 @@
+npx vitest run tests/doc-approver-grant.test.ts tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/identity.test.ts tests/spec003.test.ts tests/migrations-rollback.test.ts tests/rls-catalog.test.ts tests/slice3-harness.test.ts tests/outbox-schema.test.ts  # native environment file loaded, fresh database
+
+ RUN  v5.1.0 <worktree>
+
+(node:48585) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:48594) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  10 passed (10)
+      Tests  116 passed (116)
+   Start at  11:58:56
+   Duration  35.91s (tests 99%, import 1%)
+

@@ -1,6 +1,6 @@
 import {afterEach,beforeEach,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
-import {readFile} from 'node:fs/promises';
+import {readdir,readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {native,openHarness,type Harness} from './slice1-db';
 import {outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
@@ -214,11 +214,14 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
   const rb18=await readFile(dir('migrations/rollback/018_access_change_approval.sql'),'utf8');
   const fw18=await readFile(dir('migrations/018_access_change_approval.sql'),'utf8');
   const hasKind=async()=>(await h.operator.query("SELECT 1 FROM information_schema.columns WHERE table_schema='identity' AND table_name='account_approvals' AND column_name='kind'")).rows.length===1;
+  // migrations after 018 sit on top of it: take them off in reverse order before 018's rollback, put them back in the finally
+  const later=(await readdir(dir('migrations'))).filter(f=>/^\d+.*\.sql$/.test(f)&&Number(f.match(/^\d+/)![0])>18).sort();
   try {
     expect(await hasKind()).toBe(true);
     await expect(h.exec(rb)).rejects.toThrow('Roll back 018 before 017');
     await h.exec('ROLLBACK').catch(()=>{});
     expect(await reg('public.outbox_messages')).toBe('outbox_messages');
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
     await h.exec(rb18);
     expect(await hasKind()).toBe(false);
     await h.exec(rb);
@@ -234,6 +237,7 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
     await h.exec('ROLLBACK').catch(()=>{});
     await h.exec(fw);
     await h.exec(fw18);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
   }
   expect(await reg('public.outbox_messages')).toBe('outbox_messages');
   expect(await hasKind()).toBe(true);

@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
-import {afterEach,beforeEach,expect,test} from 'vitest';
-import {openHarness,type Harness} from './slice1-db';
+import {afterEach,beforeEach,describe,expect,test} from 'vitest';
+import {native,openHarness,type Harness} from './slice1-db';
 import {seedSlice1} from './slice1-fixtures';
 import {frozenRevision,proposeRev,recordingDb,registerDoc,reviewer,seedBom} from './slice3-fixtures';
 import {BomService} from '../src/server/bom';
@@ -46,4 +46,12 @@ test('frozenRevision creates a verified, snapshotted revision and advances the d
   // proposeRev builds on the document it is handed
   const next=await proposeRev(h,reviewer,{...doc,record:{...doc.record,version:frozen.version,latest_revision_id:frozen.revisionId}});
   expect(next.revisions).toHaveLength(2);
+});
+
+describe.skipIf(!native)('native roles',()=>{
+  test('the operator login is a superuser and the web login is not',async()=>{
+    const sql='SELECT rolsuper FROM pg_roles WHERE rolname=current_user';
+    expect((await h.operator.query<{rolsuper:boolean}>(sql)).rows[0].rolsuper).toBe(true);
+    expect((await h.db.query<{rolsuper:boolean}>(sql)).rows[0].rolsuper).toBe(false);
+  });
 });
