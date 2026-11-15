@@ -1,5 +1,5 @@
-Task 18 step g - privilege query of Task 8 against the native test database (PostgreSQL, synthetic data), observed 2026-11-15 at code head ee990b4 (the working tree also holds the docs-only commit 3eee1c5)
-Method: the database is empty of migrations between test runs (the harness resets it), so the rows were read inside a one-off vitest run that opens the repository harness (tests/slice1-db openHarness + reset, which applies the migrations) and runs the SQL of task-8-brief.md lines 25-31 as the operator. The scratch test lives outside the repository. Nothing was applied by hand. The same assertions also run in tests/z4-schema.test.ts (native run: passed, see logs/vitest-native-ee990b4.log).
+Task 18 step g - privilege query of Task 8 against the native test database (PostgreSQL, synthetic data), observed 2026-11-16 at code head 007cded (the working tree also holds documentation commits up to 2654abf)
+Method: the database is empty of migrations between test runs (the harness resets it), so the rows were read inside a one-off vitest run that opens the repository harness (tests/slice1-db openHarness + reset, which applies the migrations) and runs the SQL of task-8-brief.md lines 25-31 as the operator. The scratch test lives outside the repository. Nothing was applied by hand. The same assertions also run in tests/z4-schema.test.ts (native run: passed, see logs/vitest-native-007cded.log).
 Expected: 0 rows, 0 rows, exactly SELECT + INSERT on intelligence.ai_drafts.
 
 migrations applied: intelligence.ai_drafts exists = true

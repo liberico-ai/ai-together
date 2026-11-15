@@ -1,6 +1,6 @@
-# Task 18 — bảng ca → test (slice 3), code head ee990b4 (tree at 3eee1c5, docs-only commit on top)
+# Task 18 — bảng ca → test (slice 3), code head 007cded (tree at 2654abf, documentation commits on top)
 
-Nguồn: log `logs/vitest-native-ee990b4.log` (native, 68 tệp, 1007 ca, 0 bỏ qua). Mỗi dòng ca là «tệp > tên ca đầy đủ». Dấu «…» của brief được khớp theo tiền tố hoặc đoạn tên; không đổi tên test nào.
+Nguồn: log `logs/vitest-native-007cded.log` (native, 68 tệp, 1014 ca, 0 bỏ qua). Mỗi dòng ca là «tệp > tên ca đầy đủ». Dấu «…» của brief được khớp theo tiền tố hoặc đoạn tên; không đổi tên test nào.
 
 ## DOC-05
 Mức: Mức mã, đầu ra giả lập
@@ -250,7 +250,7 @@ Mức: 0 dòng; xem task-18-ai-privileges.txt
 {"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
 ```
 
-## Tệp test thêm kể từ lần chạy đầu (2a267c5 → ee990b4; so hai log native)
+## Tệp test thêm kể từ lần chạy đầu (2a267c5 → 007cded; so hai log native)
 
 - `tests/review-page.test.ts`: 7 ca
 - `tests/list-cut.test.ts`: 2 ca
@@ -261,7 +261,7 @@ Tổng: 10 ca trong 3 tệp mới.
 ## Tệp có số ca thay đổi
 
 - `tests/suggestions.test.ts`: 36 → 47
-- `tests/review-delegations.test.ts`: 39 → 40
+- `tests/review-delegations.test.ts`: 39 → 47
 - `tests/review-schema.test.ts`: 35 → 37
 - `tests/document-review.test.ts`: 26 → 32
 - `tests/documents.test.ts`: 27 → 28

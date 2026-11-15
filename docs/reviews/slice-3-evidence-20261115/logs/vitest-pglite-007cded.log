@@ -1,0 +1,1426 @@
+
+ RUN  v5.1.0 <worktree>
+
+ ✓ tests/document-review.test.ts > document review decisions > DOC-06 a source change during review answers REVISION_CONFLICT and the vote is not applied to the new revision 651ms
+ ✓ tests/document-review.test.ts > document review decisions > (3) an old vote cannot land on a newer revision: stale revision id, stale hash and stale version are each refused 496ms
+ ✓ tests/document-review.test.ts > document review decisions > (1) DOC-08 the author cannot decide the own revision, with a review delegation or with the approval grant 483ms
+ ✓ tests/document-review.test.ts > document review decisions > DOC-08 a member without any authority, and a holder outside the document type, are refused 486ms
+ ✓ tests/document-review.test.ts > document review decisions > a reviewer cannot use the review delegation to approve a baseline 487ms
+ ✓ tests/document-review.test.ts > document review decisions > the approval grant covers comment and changes_requested for its document types and nothing outside them 485ms
+ ✓ tests/document-review.test.ts > document review decisions > (5) an approver of project A cannot see or decide a document of project B; the answer equals the one for an unknown id 511ms
+ ✓ tests/document-review.test.ts > document review decisions > (6) resending the same decision with the same key stores one decision; the same key with other content conflicts 487ms
+ ✓ tests/document-review.test.ts > document review decisions > approving an unfrozen revision answers SOURCE_NOT_FROZEN and writes nothing; requesting changes on it is stored 482ms
+ ✓ tests/document-review.test.ts > document review decisions > approval of a frozen synthetic revision moves the approved pointer once, bumps the version and writes one event 501ms
+ ✓ tests/document-review.test.ts > document review decisions > a second decision on the same revision answers REVIEW_ALREADY_DECIDED in either order 481ms
+ ✓ tests/document-review.test.ts > document review decisions > authority lost before the click refuses the decision and writes nothing 479ms
+ ✓ tests/document-review.test.ts > document review decisions > a revision without hash accepts changes_requested with sourceHash null; a document without revisions is not queued and a decision on it conflicts 482ms
+ ✓ tests/document-review.test.ts > document review decisions > a failed decision leaves no decision, no event and no version change 519ms
+ ✓ tests/document-review.test.ts > document review decisions > document approval does not touch work, evidence or acceptance 492ms
+ ✓ tests/document-review.test.ts > document review queue, detail and diff > queue shows Chờ xác định người duyệt state when nobody but the author holds the approval grant for the type, and eligibility explains why the viewer cannot act 491ms
+ ✓ tests/document-review.test.ts > document review queue, detail and diff > eligibility() answers the six reasons in table order 457ms
+ ✓ tests/document-review.test.ts > document review queue, detail and diff > the queue lists the latest revision of each document once, also after it was decided, and never an older revision 478ms
+ ✓ tests/document-review.test.ts > document review queue, detail and diff > detail returns the base, the diff and the comments of the document, with ids and no names 464ms
+ ✓ tests/document-review.test.ts > document review queue, detail and diff > revisionDiff compares summary, list elements, source refs by kind:label:value, revision and hash 454ms
+ ✓ tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters 494ms
+ ✓ tests/document-review.test.ts > document review comments > a reply is stored on the revision of the comment it answers 488ms
+ ✓ tests/document-review.test.ts > document review comments > a member without authority who comments is answered APPROVER_NOT_AUTHORIZED, and nothing is stored 475ms
+ ✓ tests/document-review.test.ts > document review comments > on a decided revision a new comment answers REVIEW_ALREADY_DECIDED, while addressed and resolved on an existing comment are still stored 500ms
+ ✓ tests/document-review.test.ts > document review input > ids in any letter case mean the same record, and text PostgreSQL cannot store is refused as input 497ms
+ ✓ tests/document-review.test.ts > document review input > forged fields are rejected 517ms
+ ✓ tests/document-review.test.ts > follow-up rights shown to the viewer (canAddress, canResolve) > the predicate: who may write addressed and who may write resolved 488ms
+ ✓ tests/document-review.test.ts > follow-up rights shown to the viewer (canAddress, canResolve) > detail() returns the flags for the author, the comment writer, a manager and an unrelated reader, and none on a resolved thread or a reply 529ms
+ ✓ tests/document-review.test.ts > W9 the detail says when its comments were cut > commentsTruncated is false for a few comments and true past 1000 564ms
+ ✓ tests/document-review.test.ts > a closed thread takes no follow-up > resolved twice: the second is 409 COMMENT_RESOLVED, one row and one event; addressed after resolved is the same answer 543ms
+ ✓ tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread 684ms
+ ✓ tests/document-review.test.ts > a closed thread takes no follow-up > the one rule: a thread is closed exactly when it has a resolved reply 465ms
+ ✓ tests/intake.test.ts > pure rules: key, quality, redaction, file name, verdict 623ms
+ ✓ tests/intake.test.ts > I1 redactSecrets covers compound keys, quoted forms and known token formats; prose stays intact 480ms
+ ✓ tests/intake.test.ts > DOC-01 a message from an unmapped group is refused and nothing is stored (mức mã; nhóm thật là kiểm runtime) 486ms
+ ✓ tests/intake.test.ts > intake authority comes from chatScopes, never from project_channels 473ms
+ ✓ tests/intake.test.ts > DOC-02 plain text, a reply, a file and a topic message all land in one inbox 475ms
+ ✓ tests/intake.test.ts > DOC-03 resending the same update keeps one record; an edit adds a revision; a forward is not an author 478ms
+ ✓ tests/intake.test.ts > an album keeps every part under one candidate 474ms
+ ✓ tests/intake.test.ts > DOC-04 a failed, oversized or unsupported file never yields a success receipt 476ms
+ ✓ tests/intake.test.ts > a locator whose hash segment differs from sha256 is rejected 463ms
+ ✓ tests/intake.test.ts > (2) a body that declares tenant, project, actor or role is rejected 491ms
+ ✓ tests/intake.test.ts > (4) a resent message creates no second candidate 476ms
+ ✓ tests/intake.test.ts > DOC-16 an edit or a reply never asks the reporter to re-enter the request 470ms
+ ✓ tests/intake.test.ts > OQ-27 decision (a): a group mapped to several projects is refused with INTAKE_PROJECT_AMBIGUOUS and stores nothing 470ms
+ ✓ tests/intake.test.ts > OQ-28 a flagged group with an unmapped project stores the excerpt 475ms
+ ✓ tests/intake.test.ts > OQ-28 an unflagged group keeps pointer and hash only even for a XECA project 467ms
+ ✓ tests/intake.test.ts > OQ-28 an IBS HI project keeps pointer and hash only even in a flagged group 465ms
+ ✓ tests/intake.test.ts > OQ-28 the latest mapping row decides: a project remapped to IBS HI stores pointer only, and remapped away from IBS HI stores the excerpt 462ms
+ ✓ tests/intake.test.ts > OQ-28 a flag in the request body is never honoured 466ms
+ ✓ tests/intake.test.ts > S10 a pointer_only revision's text is not written to any table and does not appear in logs 463ms
+ ✓ tests/intake.test.ts > OQ-30 an edit after the group is flagged stores the excerpt on that revision only 465ms
+ ✓ tests/intake.test.ts > OQ-30 an edit after the flag is removed keeps pointer and hash only 471ms
+ ✓ tests/intake.test.ts > OQ-30 an edit after the project becomes IBS HI keeps pointer and hash only 468ms
+ ✓ tests/intake.test.ts > OQ-30 replaying a stored revision changes nothing after the configuration changes 467ms
+ ✓ tests/intake.test.ts > a file-only message and hostile file names are stored safely 478ms
+ ✓ tests/intake.test.ts > credential-like text is stored redacted while the hash stays the gateway's 467ms
+ ✓ tests/intake.test.ts > an edit that arrives before the original, and edits out of order, are all kept 464ms
+ ✓ tests/intake.test.ts > an edit observed after its own edit time that arrives before the original stays the latest revision 468ms
+ ✓ tests/intake.test.ts > in normal order an edit outranks an original observed later than the edit time (two clocks) 466ms
+ ✓ tests/intake.test.ts > two revisions without edited_at: the higher revision_no is the latest 465ms
+ ✓ tests/intake.test.ts > replaying a message after its group moved to another project is SOURCE_EVENT_CONFLICT 467ms
+ ✓ tests/intake.test.ts > a failed ingest leaves no row at all 469ms
+ ✓ tests/intake.test.ts > receipts: queued only for a new addressed message; template follows spooled; replay, edit and unaddressed give none 467ms
+ ✓ tests/intake.test.ts > M1 one ingest shares one request_id across its intake_events rows 468ms
+ ✓ tests/intake.test.ts > M4 computed source fields: locator, source_id, source_actor, correlation_id 468ms
+stdout | tests/intake.test.ts > R2-1 redactSecrets stays linear on adversarial 12 KB inputs
+redact timing a_token_ 0 ms
+redact timing _secret 0 ms
+redact timing run 0 ms
+redact timing password= 0 ms
+redact timing token  0 ms
+redact timing token every 10 0 ms
+redact timing token every 10 plain 0 ms
+
+ ✓ tests/intake.test.ts > R2-1 redactSecrets stays linear on adversarial 12 KB inputs 459ms
+ ✓ tests/intake.test.ts > R2-2 an unquoted value is redacted to the next whitespace; a quoted value to its matching quote 459ms
+ ✓ tests/intake.test.ts > R2-3 ingest writes run as libetech_intake: current_user is the role and an out-of-grant column is denied 456ms
+ ✓ tests/intake.test.ts > R3 camelCase and no-underscore key names, long prefixes, and the earlier cases stay covered 462ms
+ ✓ tests/intake.test.ts > R4 key names of any length before or after the keyword are redacted, with = and : 453ms
+ ✓ tests/intake.test.ts > R4 a non-secret pair never shields a later secret in the same run; hyphenated and two-word keys stay covered 459ms
+stdout | tests/intake.test.ts > R4 redactSecrets stays linear at 12 KB and 48 KB, including scheme-like runs with no ://
+redact timing 12288 a_token_ 0.2 ms
+redact timing 12288 _secret 0.2 ms
+redact timing 12288 run 0.2 ms
+redact timing 12288 password= 0.0 ms
+redact timing 12288 token  0.3 ms
+redact timing 12288 token every 10 0.2 ms
+redact timing 12288 token every 10 plain 0.2 ms
+redact timing 12288 a- 0.2 ms
+redact timing 12288 token- 0.2 ms
+redact timing 12288 a+b.c- 0.2 ms
+redact timing 12288 sk- 0.1 ms
+redact timing 12288 xoxb- 0.1 ms
+redact timing 12288 ab:/ 0.3 ms
+redact timing 12288 a://b: 0.3 ms
+redact timing 12288 eyJ- 0.2 ms
+redact timing 12288 eyJa. 0.2 ms
+redact timing 12288 a. 0.5 ms
+redact timing 12288 a= 0.3 ms
+redact timing 12288 token= 0.0 ms
+redact timing 12288 api  0.2 ms
+redact timing 12288 token=" 0.2 ms
+redact timing 12288 x_api  0.2 ms
+redact timing 12288 api key  0.3 ms
+redact timing 12288 x-private key  0.3 ms
+redact timing 12288 api\n 0.2 ms
+redact timing 12288 x_api one word 0.2 ms
+redact timing 12288 x_api one word + key 0.1 ms
+redact timing 49152 a_token_ 0.6 ms
+redact timing 49152 _secret 0.7 ms
+redact timing 49152 run 0.9 ms
+redact timing 49152 password= 0.0 ms
+redact timing 49152 token  0.9 ms
+redact timing 49152 token every 10 0.6 ms
+redact timing 49152 token every 10 plain 0.7 ms
+redact timing 49152 a- 0.6 ms
+redact timing 49152 token- 0.7 ms
+redact timing 49152 a+b.c- 0.7 ms
+redact timing 49152 sk- 0.5 ms
+redact timing 49152 xoxb- 0.5 ms
+redact timing 49152 ab:/ 0.8 ms
+redact timing 49152 a://b: 1.2 ms
+redact timing 49152 eyJ- 0.7 ms
+redact timing 49152 eyJa. 0.7 ms
+redact timing 49152 a. 1.2 ms
+redact timing 49152 a= 1.2 ms
+redact timing 49152 token= 0.0 ms
+redact timing 49152 api  0.7 ms
+redact timing 49152 token=" 0.7 ms
+redact timing 49152 x_api  0.7 ms
+redact timing 49152 api key  1.0 ms
+redact timing 49152 x-private key  0.8 ms
+redact timing 49152 api\n 0.8 ms
+redact timing 49152 x_api one word 0.6 ms
+redact timing 49152 x_api one word + key 0.7 ms
+redact timing total 24.6 ms
+
+ ✓ tests/intake.test.ts > R4 redactSecrets stays linear at 12 KB and 48 KB, including scheme-like runs with no :// 489ms
+ ✓ tests/intake.test.ts > R5 two-word keys glued after a prefix (X-Api Key, client_api key, Stripe-Private Key) are masked 463ms
+ ✓ tests/intake.test.ts > I1 Vietnamese and plain credential phrasings, Basic auth, PEM blocks and «<keyword> is <value>» are masked 462ms
+ ✓ tests/intake.test.ts > I1 ordinary Vietnamese and English words near the new keywords stay as written 460ms
+stdout | tests/intake.test.ts > I1 the new rules stay linear at 12 KB and 48 KB
+redact timing I1 12288 mật khẩu  0.3 ms
+redact timing I1 12288 mat khau wifi  0.2 ms
+redact timing I1 12288 mk a- 0.2 ms
+redact timing I1 12288 mk- 0.2 ms
+redact timing I1 12288 pass wifi  0.2 ms
+redact timing I1 12288 otp  0.2 ms
+redact timing I1 12288 password is  0.2 ms
+redact timing I1 12288 Basic  0.2 ms
+redact timing I1 12288 Basic aB 0.2 ms
+redact timing I1 12288 authorization: basic  0.2 ms
+redact timing I1 12288 -----BEGIN  0.2 ms
+redact timing I1 12288 BEGIN header 0.0 ms
+redact timing I1 49152 mật khẩu  1.1 ms
+redact timing I1 49152 mat khau wifi  0.7 ms
+redact timing I1 49152 mk a- 0.9 ms
+redact timing I1 49152 mk- 0.7 ms
+redact timing I1 49152 pass wifi  0.8 ms
+redact timing I1 49152 otp  0.9 ms
+redact timing I1 49152 password is  0.9 ms
+redact timing I1 49152 Basic  0.8 ms
+redact timing I1 49152 Basic aB 0.8 ms
+redact timing I1 49152 authorization: basic  0.7 ms
+redact timing I1 49152 -----BEGIN  0.7 ms
+redact timing I1 49152 BEGIN header 0.0 ms
+
+ ✓ tests/intake.test.ts > I1 the new rules stay linear at 12 KB and 48 KB 467ms
+ ✓ tests/intake.test.ts > Sec M4 attachment file names lose bidi and other Unicode format characters at ingest 464ms
+ ✓ tests/intake.test.ts > OQ-27 a group whose config lists the same project twice is one project and is taken in 460ms
+ ✓ tests/intake.test.ts > OQ-27 a duplicated id next to a second project is still ambiguous 462ms
+ ✓ tests/intake.test.ts > OQ-27 the same project id in two letter cases is one project and is taken in 467ms
+ ✓ tests/outbox-schema.test.ts > outbox tables return nothing without RLS context 633ms
+ ✓ tests/outbox-schema.test.ts > (3) the Xeca scope cannot read LBRC or IBS HI receipts and outbox rows 494ms
+ ✓ tests/outbox-schema.test.ts > project rows are invisible across projects, DM rows only to intake and identity of the same tenant 480ms
+ ✓ tests/outbox-schema.test.ts > runtime and identity cannot insert a group outbox row; intake cannot insert a DM row 478ms
+ ✓ tests/outbox-schema.test.ts > no role can insert an outbox row that is already delivered or acknowledged 484ms
+ ✓ tests/outbox-schema.test.ts > runtime cannot mark a message delivered 480ms
+ ✓ tests/outbox-schema.test.ts > identity cannot acknowledge a group outbox row 473ms
+ ✓ tests/outbox-schema.test.ts > a DM row has no project and a group row has one 488ms
+ ✓ tests/outbox-schema.test.ts > delivery receipts are append-only and unique per attempt and phase 469ms
+ ✓ tests/outbox-schema.test.ts > receipt access by role: intake reads and inserts, runtime and identity only read their rows 478ms
+ ✓ tests/outbox-schema.test.ts > item 2 column-level INSERT grants: defaults own ids, timestamps, state and delivery columns 482ms
+ ✓ tests/outbox-schema.test.ts > 017 rollback refuses while identity.account_approvals.kind exists, then drops both tables 555ms
+ ✓ tests/outbox-schema.test.ts > a receipt project is derived from its outbox row, never trusted from the caller 474ms
+ ✓ tests/outbox-schema.test.ts > the receipt INSERT policy rejects the same cases when the trigger is disabled (second layer) 471ms
+ ✓ tests/outbox-schema.test.ts > a group row must target the chat, topic and message of its own visible source event 469ms
+ ✓ tests/outbox-schema.test.ts > a DM row must target the telegram id linked to its recipient 469ms
+ ✓ tests/outbox-schema.test.ts > runtime may only requeue dead rows with attempt_no reset or abandon dead and uncertain rows 494ms
+ ✓ tests/outbox-schema.test.ts > runtime keeps its same-state columns to failure_owner_id (with version+1), version and updated_at 474ms
+ ✓ tests/outbox-schema.test.ts > intake follows the allowed moves; delivered and abandoned are terminal 531ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: no context returns nothing; roles see only their rows 472ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: a state change writes exactly one event with the right fields and actor from the role 478ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: no signal, a reused signal, a bad signal or a missing actor fail closed and leave the row unchanged 475ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: version never decreases and every state change raises it by exactly 1 476ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: a direct INSERT of an event is refused for intake, runtime and identity by privilege, even after version games 483ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: only libetech_outbox_audit may insert; it is NOLOGIN with no members and owns the SECURITY DEFINER state trigger 469ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: a pg_temp trigger cannot forge an event for runtime (privilege, not trigger depth) 471ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: a pg_temp trigger cannot forge an event for intake (privilege, not trigger depth) 477ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: the state trigger function cannot be attached to a temp table or called directly 471ms
+ ✓ tests/outbox-schema.test.ts > a runtime abandon and an intake lease each write exactly one event with the actor of the invoking role 500ms
+ ✓ tests/outbox-schema.test.ts > outbox_state_events: append-only and column-level grants 505ms
+ ✓ tests/outbox-schema.test.ts > trigger functions resolve names in pinned schemas: a TEMP shadow of source_events cannot forge a target 484ms
+ ✓ tests/outbox-schema.test.ts > guard trigger: delivery columns move only with delivered; terminal rows are frozen; acknowledged_at set once in any state, never changed or cleared 490ms
+ ✓ tests/outbox-schema.test.ts > payload cap counts bytes, envelope constants and error codes are closed 486ms
+ ✓ tests/outbox-schema.test.ts > DB I-1 016 and 017 refuse a role that can act as both libetech_runtime and libetech_intake, directly or through another role 482ms
+ ✓ tests/outbox-schema.test.ts > DB M-5 016 checks the intake roles it did not create 496ms
+ ✓ tests/outbox-schema.test.ts > DB I-1 017 refuses an audit role that has a member or is a member of any role 477ms
+ ✓ tests/outbox-schema.test.ts > DB I-1 a restricted login refuses to start when it can reach more than one app role or the audit role (db.ts, fail closed) 487ms
+ ↓ tests/outbox-schema.test.ts > DB I-1 the reviewer's probe: a login that can act as both roles cannot record a runtime abandon as intake_service
+ ↓ tests/outbox-schema.test.ts > DB I-1 a login that is a member of the audit role cannot insert a state event directly
+ ✓ tests/outbox-schema.test.ts > DB M-1 018 sets a lock timeout before it changes identity.account_approvals 472ms
+ ✓ tests/outbox-schema.test.ts > DB M-8 outbox counters keep their range: attempt_no >= 0 and version >= 1 471ms
+ ✓ tests/outbox-schema.test.ts > DB M-9 the redundant indexes are gone and each FK keeps an index that leads with its column 478ms
+ ✓ tests/outbox-schema.test.ts > Codex P1 with the state unchanged, intake cannot change attempt_no, next_attempt_at, lease_token, lease_expires_at or last_error_code, with the version kept or raised 475ms
+ ✓ tests/outbox-schema.test.ts > Codex P1 runtime changes failure_owner_id only with version+1, and never last_error_code while the state stays; the take still works 485ms
+ ✓ tests/outbox-schema.test.ts > Codex P1 the same-state rule holds for every role, the operator included; the identity acknowledgement keeps its version and still works 482ms
+ ✓ tests/outbox-schema.test.ts > Codex P1 the database refuses a delivered receipt without a Telegram message id, as libetech_intake 477ms
+ ✓ tests/outbox-schema.test.ts > Codex P1 the database refuses moving an outbox row to delivered with a NULL Telegram message id 487ms
+ ✓ tests/outbox-schema.test.ts > Codex P1 ruling: a bare same-state version bump raises for intake, runtime and the operator, also with only updated_at or acknowledged_at 488ms
+ ✓ tests/fix-wave-db.test.ts > item 1 rollback safety > rollback files carry no CASCADE 638ms
+ ✓ tests/fix-wave-db.test.ts > item 1 rollback safety > an out-of-order rollback raises and changes nothing 516ms
+ ✓ tests/fix-wave-db.test.ts > item 1 rollback safety > forward → rollback highest-first → forward restores an identical catalog 617ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > registry_events: the columns the service writes work, protected columns are denied 476ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > project_profiles: the columns the service writes work, protected columns are denied 480ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > project_channels: the columns the service writes work, protected columns are denied 480ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > document_records: the columns the service writes work, protected columns are denied 478ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > document_revisions: the columns the service writes work, protected columns are denied 481ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > document_commands: the columns the service writes work, protected columns are denied 480ms
+ ✓ tests/fix-wave-db.test.ts > item 2 column-level INSERT grants > the revision service insert leaves quality_score and hash_verification to the defaults 480ms
+ ✓ tests/fix-wave-db.test.ts > item 3 FK index > document_revisions has a (tenant_id, project_id, created_at DESC) index 472ms
+ ✓ tests/fix-wave-db.test.ts > item 4 template index script > refuses without an operator URL or with a bad tenant id, before any connection 1214ms
+ ✓ tests/fix-wave-db.test.ts > item 4 template index script > source only syncs inside a transaction and prints just tenantId and inserted 484ms
+ ✓ tests/fix-wave-db.test.ts > item 5 UPDATE isolation > project A cannot update project B rows (0 rows, unchanged) 472ms
+ ✓ tests/fix-wave-db.test.ts > item 5 UPDATE isolation > a tenant outsider updates nothing 485ms
+ ✓ tests/fix-wave-db.test.ts > item 5 UPDATE isolation > moving a row to another project or tenant is rejected 480ms
+ ✓ tests/fix-wave-db.test.ts > item 6 repoUrl > an invalid repoUrl is a ZodError, never a thrown TypeError 482ms
+ ✓ tests/fix-wave-db.test.ts > item 7 source link hardening > DB refuses a non-https canonical_uri and revision source_id 483ms
+ ✓ tests/fix-wave-db.test.ts > item 7 source link hardening > registration refuses a credential-bearing query parameter (any case) with a Vietnamese message 484ms
+ ✓ tests/fix-wave-db.test.ts > item 7 source link hardening > url source refs are checked and normalised like canonicalUri 480ms
+ ✓ tests/fix-wave-db.test.ts > item 7 source link hardening > openSource re-validates the stored URI and returns the host 480ms
+ ✓ tests/fix-wave-db.test.ts > round 1: fragment, path and normalised secret names > registration and url refs reject them; a normal Google Docs link is accepted 472ms
+ ✓ tests/fix-wave-db.test.ts > round 1: fragment, path and normalised secret names > openSource on a stored bad URI is SOURCE_UNAVAILABLE without the uri 484ms
+ ✓ tests/fix-wave-db.test.ts > round 1: fragment, path and normalised secret names > template_version is ordered numerically (0.10.0 beats 0.9.0) 477ms
+ ✓ tests/fix-wave-db.test.ts > round 2 > plain heading anchors are accepted; fragments with parameters are still checked 470ms
+ ✓ tests/fix-wave-db.test.ts > round 2 > percent-encoded fragment parameters are decoded and checked; a malformed escape is a validation error 503ms
+ ✓ tests/fix-wave-db.test.ts > round 2 > template_version must be dotted digits 549ms
+ ✓ tests/fix-wave-db.test.ts > item 8 toChannel > registry returns the stored state, approver and enabled_from 487ms
+ ✓ tests/fix-wave-db.test.ts > item 9 chat and topic caps > chatId and topicId are length-capped 487ms
+ ✓ tests/fix-wave-db.test.ts > item 10 revision event versions > revision_proposed payload carries versionBefore and versionAfter 491ms
+ ✓ tests/fix-wave-db.test.ts > item 13 deterministic template choice > same created_at: the higher template_version wins whatever the id order 487ms
+ ✓ tests/fix-wave-db.test.ts > item 14 CSV export cap > more than 5000 rows is EXPORT_TOO_LARGE 2842ms
+ ✓ tests/fix-wave-db.test.ts > item 15 projector overlap > an older record version never overwrites a newer index row 490ms
+ ✓ tests/fix-wave-db.test.ts > item 15 projector overlap > a newer record version still updates the row 490ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > DOC-05 an AI output without sources stays a draft and never reaches Z1 667ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an invalid output or a foreign manifest hash is refused before anything is stored 508ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an output with a NUL character answers DRAFT_INVALID before any statement reaches the database 489ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an output with a lone surrogate answers DRAFT_INVALID before any statement reaches the database 485ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an output one byte over the limit answers DRAFT_INVALID before any statement reaches the database 480ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > a valid output at exactly the limit is stored 483ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > without an AI database handle submitDraft answers AI_PIPELINE_DISABLED 486ms
+ ↓ tests/suggestions.test.ts > Z4 drafts: submit > the runtime role cannot submit a draft
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > resubmitting the same dedupe key stores one draft; the columns come from the output and the manifest 501ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > R12-a a key used in another project is a conflict, never a success 488ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > R12-b the same key with a different output or entity is a conflict; the same content is a replay 507ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > D5 the replay covers the whole envelope: another inputHash or another modelVersion under the same key is a conflict; identical is the same draft id 493ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > R12-f a skill and entity pair the context builder could never honour is refused before any statement 500ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an uppercase id is lower-cased at parse time 482ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > a confirmed document draft creates exactly one revision through the document service and one decision 505ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > W8 the dependency.flagged event of a confirmed draft carries the decision's request id 504ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > W8 a manual proposal keeps one generated request id for the flag events of its transaction 495ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidden is held 511ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > the context is built under the confirming person, not a wider principal 495ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > a draft of an IBS HI project cannot be confirmed 493ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > a draft built with an older manifest hash is held 489ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > R12-g a stored draft whose value_hash does not describe its value is never confirmed 485ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > R12-i an entity not in the project, or a pair the builder refuses, is held as ENTITY_NOT_FOUND with codes only 494ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > the AI principal cannot decide a draft; bot and viewer cannot list or decide; another project's member gets the not-found answer 488ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > replaying the same key returns the same decision; a different key answers DRAFT_ALREADY_DECIDED and leaves one decision and one revision 496ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > rejecting needs a reason and creates no revision 490ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > forged fields are rejected 499ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results 566ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > a confirmed document draft needs a revision body 494ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > step 6 a decision that lost the race answers DRAFT_ALREADY_DECIDED and rolls back the revision it created 508ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-1 (i) one key for two drafts about one document, same revision body: the second is IDEMPOTENCY_CONFLICT and writes nothing 508ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-1 (ii) a key first used by a manual proposal, then a draft confirmation with the same body: conflict, no decision 481ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-1 (iii) a key first used by a draft confirmation, then a manual proposal with the same body: conflict, no second revision 492ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are confirmed 507ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > M12-2 a stored value that cannot be hashed is VALUE_HASH_MISMATCH; any other error is not swallowed 486ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > M12-5 a malformed id of the AI principal is the module's 404, never a raw database error 478ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded view 480ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (a) the same key and the same body replay the recorded decision: one decision row, one revision, one claim 483ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (b) the same key with another valueHash is IDEMPOTENCY_CONFLICT, not the old decision 527ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (c) the same key with a changed revision body is IDEMPOTENCY_CONFLICT 486ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (d) a rejection claims its key: the same body replays, another reason or another result is IDEMPOTENCY_CONFLICT 481ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (e) a rejection and a candidate confirmation now claim their key: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT 507ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (f) another person sending the same key string gets DRAFT_ALREADY_DECIDED and leaves no claim 493ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (g) a held confirmation leaves its key free: the same key then works for a later valid command 493ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > the inner proposal runs under the claim of the decision: one claim row for the key, whose payload names the draft 499ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: list > R12-k strict query, deterministic order, a total over the same filter 505ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: boundaries > no route imports the suggestion service, and nothing in src builds it with an AI handle 496ms
+ ✓ tests/review-schema.test.ts > review tables return nothing without RLS context 668ms
+ ✓ tests/review-schema.test.ts > runtime reads only its own tenant and project; writes outside its project, or into another tenant, are refused 531ms
+ ✓ tests/review-schema.test.ts > review tables are invisible to another tenant that holds the project id, and fail closed with no context 498ms
+ ✓ tests/review-schema.test.ts > a decision, a comment, a delegation and an event are bound to the acting person 527ms
+ ✓ tests/review-schema.test.ts > a delegation cannot name its own granter 489ms
+ ✓ tests/review-schema.test.ts > a delegation must list document types and only known ones 500ms
+ ✓ tests/review-schema.test.ts > only a manager of that very project designates: an engineer, and a manager of project A who is only a member of project B, are refused in B 499ms
+ ✓ tests/review-schema.test.ts > the delegate must be an active member of the project with a reading role 498ms
+ ✓ tests/review-schema.test.ts > any manager of that very project revokes, also one who did not designate; the trigger stamps the time and bumps the version 492ms
+ ✓ tests/review-schema.test.ts > runtime changes the revoke columns only 497ms
+ ✓ tests/review-schema.test.ts > a revoke cannot be undone or repeated 484ms
+ ✓ tests/review-schema.test.ts > a member who is not a manager of the project is refused 502ms
+ ✓ tests/review-schema.test.ts > a manager of another project changes nothing and learns nothing 482ms
+ ✓ tests/review-schema.test.ts > a revoke names the acting person and carries a basis 525ms
+ ✓ tests/review-schema.test.ts > decisions and comments written before a revoke are unchanged, and a new designation of the same person is accepted after it 597ms
+ ✓ tests/review-schema.test.ts > the author cannot decide the own revision, also by raw SQL 573ms
+ ✓ tests/review-schema.test.ts > a review-delegation decision needs an active delegation of the same person, project and document type 559ms
+ ✓ tests/review-schema.test.ts > a reviewer cannot record an approval by raw SQL 501ms
+ ✓ tests/review-schema.test.ts > a decision must name the latest revision, its hash and the current record version 475ms
+ ✓ tests/review-schema.test.ts > approval needs the approval grant and a frozen revision 496ms
+ ✓ tests/review-schema.test.ts > runtime can move the approved pointer only to a revision that has an approval decision 514ms
+ ✓ tests/review-schema.test.ts > E1 the guard builds the full transaction id around the current epoch (formula of the guard, applied to hand-made numbers) 472ms
+ ✓ tests/review-schema.test.ts > one decision per revision 478ms
+ ✓ tests/review-schema.test.ts > history tables reject update and delete; delegations and dependencies reject delete 478ms
+ ✓ tests/review-schema.test.ts > a dependency cannot point a document at itself and is unique per pair 481ms
+ ✓ tests/review-schema.test.ts > no review table has a bytes or file content column 467ms
+ ✓ tests/review-schema.test.ts > column-level grants: INSERT leaves ids, timestamps and decided_at to defaults; UPDATE covers only the named columns; nothing else is granted 489ms
+ ✓ tests/review-schema.test.ts > confirmed_by is bound to the acting person 482ms
+ ✓ tests/review-schema.test.ts > an insert with no context at all is refused on every review table 473ms
+ ✓ tests/review-schema.test.ts > a delegate who lost the project role or was deactivated cannot decide, although the delegation was never revoked 476ms
+ ✓ tests/review-schema.test.ts > the approved pointer cannot go back to an older approved revision, nor be moved by anyone but the approver 480ms
+ ✓ tests/review-schema.test.ts > the latest-revision pointer only moves forward for the runtime role 486ms
+ ✓ tests/review-schema.test.ts > runtime sets or advances a dependency flag but cannot clear it; the version moves by exactly one 476ms
+ ✓ tests/review-schema.test.ts > a reply cannot point at a comment of another document or revision 488ms
+ ✓ tests/review-schema.test.ts > review_events and decisions carry bounds as database backstops 477ms
+ ✓ tests/review-schema.test.ts > each authority branch raises its own SQLSTATE and no integrity branch does 495ms
+ ↓ tests/review-schema.test.ts > decision guard lock (native PostgreSQL) > two raw concurrent decisions on one revision end with one row and no deadlock
+ ✓ tests/outbox.test.ts > outboxTransition accepts the listed moves and rejects the rest 633ms
+ ✓ tests/outbox.test.ts > an addressed new message queues exactly one receipt in the same transaction 498ms
+ ✓ tests/outbox.test.ts > PM-07 a persisted message is not shown as sent 491ms
+ ✓ tests/outbox.test.ts > PM-03 a replayed message and a replayed pull never duplicate a receipt 494ms
+ ✓ tests/outbox.test.ts > DOC-12 a spooled message stored after recovery gets one recovery receipt and no duplicate 485ms
+ ✓ tests/outbox.test.ts > DOC-04 a failed attachment queues attachment_failed, never intake.received 490ms
+ ✓ tests/outbox.test.ts > a timeout after send becomes uncertain and is reconciled before any resend 536ms
+ ✓ tests/outbox.test.ts > a permission failure is dead at once and is never leased again 486ms
+ ✓ tests/outbox.test.ts > network failures back off and stop at six attempts 509ms
+ ✓ tests/outbox.test.ts > a receipt with an expired or foreign lease, or a second different outcome, is refused 498ms
+ ✓ tests/outbox.test.ts > one bad receipt does not block the valid ones in the same batch, and a resubmit is stable 494ms
+ ✓ tests/outbox.test.ts > (3) a pull scoped to a project the message is not in returns nothing and leaves it pending; an empty scope is refused 480ms
+ ✓ tests/outbox.test.ts > every state change in a project row writes an intake_events row 478ms
+ ✓ tests/outbox.test.ts > pull and receipts reject unknown keys and out-of-range limits 468ms
+ ✓ tests/outbox.test.ts > a DM to a recipient who unlinked Telegram is dead with RECIPIENT_UNLINKED and is not returned 490ms
+ ✓ tests/outbox.test.ts > routes: outbox/pull and outbox/receipts work through handleBridgeIo with the intake key only 498ms
+ ✓ tests/outbox.test.ts > FB-1 a DM lease then unlinked kill writes 2 state events and no intake_events row 479ms
+ ✓ tests/outbox.test.ts > FB-1 a group lease then delivered writes 2 state events and the matching intake_events rows 471ms
+ ✓ tests/outbox.test.ts > FB-1 a rejected receipt leaves no state event and no intake_events row; relinked DM and bad reconcile receipts 488ms
+ ✓ tests/outbox.test.ts > FB-3 not_sent loop applies backoff below the cap and is dead at once at the cap with one uncertain>dead event 506ms
+ ✓ tests/outbox.test.ts > FB-4 a malformed errorCode fails the whole request as a schema error 479ms
+ ✓ tests/outbox.test.ts > FB-5 the envelope carries version and source from the row 474ms
+ ✓ tests/outbox.test.ts > FB-7 a spooled event with a failed file queues attachment_failed, never recovered 479ms
+ ✓ tests/outbox.test.ts > DB M-4 the expired-lease sweep is bounded by the pull limit and the next pull continues it 489ms
+ ✓ tests/outbox.test.ts > code m-6 when the third pull transaction fails, the leased DM is not lost: it expires to uncertain on a later pull 486ms
+ ✓ tests/outbox.test.ts > Codex P1 a delivered receipt without telegramMessageId is refused for send and reconcile, through the validation error path 491ms
+ ✓ tests/outbox.test.ts > Codex P1 a receipt that is not delivered must not carry a telegramMessageId 480ms
+ ✓ tests/outbox.test.ts > Codex P2 a second delivered receipt with another message id for the same attempt is RECEIPT_CONFLICT; an exact resubmission is replayed 486ms
+ ✓ tests/outbox.test.ts > Codex P2 the error code counts too, with NULL equal to NULL (IS NOT DISTINCT FROM) 485ms
+ ✓ tests/documents.test.ts > document registration > register creates one record with an empty approved pointer and SOURCE_NOT_FROZEN 637ms
+ ✓ tests/documents.test.ts > document registration > unknown template code is TEMPLATE_UNKNOWN 489ms
+ ✓ tests/documents.test.ts > document registration > same key and same request replays; no second record 478ms
+ ✓ tests/documents.test.ts > document registration > same key for a different document in the same project is IDEMPOTENCY_CONFLICT 479ms
+ ✓ tests/documents.test.ts > document registration > same key reused to register in another project is IDEMPOTENCY_CONFLICT and creates nothing there 483ms
+ ✓ tests/documents.test.ts > document registration > document operations no longer write to the shared commands table 472ms
+ ✓ tests/documents.test.ts > document registration > the same source cannot be registered twice in a project 473ms
+ ✓ tests/documents.test.ts > document registration > malformed source pointers are rejected 467ms
+ ✓ tests/documents.test.ts > document registration > identity, approval and snapshot fields in the body are rejected 464ms
+ ✓ tests/documents.test.ts > document registration > bot, viewer and outsider cannot register 464ms
+ ✓ tests/documents.test.ts > document registration > detail is denied for bot and out of scope with one sentence 467ms
+ ✓ tests/documents.test.ts > document tables > document tables return nothing without RLS context 487ms
+ ✓ tests/documents.test.ts > document tables > document_commands returns nothing without RLS context and rejects another project or tenant 465ms
+ ✓ tests/documents.test.ts > document tables > runtime cannot insert for another project or tenant 480ms
+ ✓ tests/documents.test.ts > document tables > runtime cannot set the approved pointer, a verified hash or a snapshot 480ms
+ ✓ tests/documents.test.ts > document tables > D4 the author of a revision is the acting person at the database: another author, or no person, is refused 465ms
+ ✓ tests/documents.test.ts > document tables > runtime cannot claim a source state or a source check time 464ms
+ ✓ tests/documents.test.ts > document tables > a pointer cannot reference a revision of another record 464ms
+ ✓ tests/documents.test.ts > document tables > no document table has a content column 461ms
+ ✓ tests/documents.test.ts > document tables > template index holds T0..T6 with the manifest hashes and refuses a reused version 485ms
+ ✓ tests/documents.test.ts > document revision proposals > proposing a revision moves only the draft pointer 479ms
+ ✓ tests/documents.test.ts > document revision proposals > revisions are immutable and numbered without gaps 482ms
+ ✓ tests/documents.test.ts > document revision proposals > every stored hash is self-declared and no snapshot exists 465ms
+ ✓ tests/documents.test.ts > document revision proposals > stale expectedVersion or stale base is REVISION_CONFLICT with no revision, event or version change 465ms
+ ✓ tests/documents.test.ts > document revision proposals > same key and same request replays; same key with another revision or document conflicts 468ms
+ ✓ tests/documents.test.ts > document revision proposals > same key reused for a revision in another project is IDEMPOTENCY_CONFLICT 458ms
+ ✓ tests/documents.test.ts > document revision proposals > the approved pointer cannot point at another document's revision 466ms
+ ✓ tests/documents.test.ts > document revision proposals > bot and viewer cannot propose; fields outside the schema are rejected 480ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > a project manager designates a member as reviewer for named document types, once 642ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > OQ-31 (1) (a) a manager cannot designate themself 490ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > OQ-31 (2) (b) a manager of project A cannot designate in project B, and B is not revealed 478ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > OQ-31 (4) (c) a designation without document types, with an empty list, an unknown type or a repeat is rejected 482ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > the delegate must be an active member with a reading role; outsider, viewer and disabled account get one same answer (d) 482ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > engineer, technical, business, viewer and bot cannot designate (e) 491ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > forged fields are rejected 470ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > the basis refuses what PostgreSQL cannot store, control characters and a text that is short once trimmed or counted in characters 481ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > a failed grant leaves no delegation, no event and no command row 479ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > an id in upper case is the same person (h), for designation and for revocation 480ms
+ ✓ tests/review-delegations.test.ts > designating a commenter > the live-designation uniqueness is the unique index, not a read before the write (j) 478ms
+ ✓ tests/review-delegations.test.ts > stale session role and the database guards > a stale session role is answered as out of scope, not as a server error (grant) 471ms
+ ✓ tests/review-delegations.test.ts > stale session role and the database guards > F-1a the service itself re-reads the caller role: a demoted caller who designates themself gets the 404, not the self-designation answer 474ms
+ ✓ tests/review-delegations.test.ts > stale session role and the database guards > F-1b the service itself re-reads the caller role: a demoted caller with a stale version gets the 404, not DELEGATION_CONFLICT 507ms
+ ✓ tests/review-delegations.test.ts > stale session role and the database guards > a stale session role: the LTR02 raised by the guard on the INSERT is the same answer (grant) 474ms
+ ✓ tests/review-delegations.test.ts > stale session role and the database guards > the delegate lost the reading role between the read and the INSERT: LTR02 is the same answer 469ms
+ ✓ tests/review-delegations.test.ts > stale session role and the database guards > a stale session role is answered as out of scope, not as a server error (revoke) 473ms
+ ✓ tests/review-delegations.test.ts > stale session role and the database guards > only LTR02 on the INSERT and LTR03 on the UPDATE are mapped; the same codes elsewhere and other errors stay as they are 473ms
+ ✓ tests/review-delegations.test.ts > revoking a designation > OQ-34 any manager of the project revokes with a basis, also one who did not designate 477ms
+ ✓ tests/review-delegations.test.ts > revoking a designation > OQ-34 only a manager of that very project revokes (e, f, i) 476ms
+ ✓ tests/review-delegations.test.ts > revoking a designation > a manager who is a reviewer of the project may revoke the own delegation as manager (S62) 477ms
+ ✓ tests/review-delegations.test.ts > revoking a designation > a revoke needs the current version and a basis; a stale version or an already revoked delegation answers DELEGATION_CONFLICT (g) 481ms
+ ✓ tests/review-delegations.test.ts > revoking a designation > changing a reviewer's document types is revoke then designate again; list puts live rows first 477ms
+ ✓ tests/review-delegations.test.ts > list > list shows the reviewers and approval-grant holders of this project only, without names 472ms
+ ✓ tests/review-delegations.test.ts > list > canDesignate follows the database role, not a stale session role 470ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a reader who is not a coordinator gets no basis text of another person's rows, live or revoked 474ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a delegate reads the basis and the revoke basis of their own rows 475ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a coordinator reads everything 476ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 the caller's coordinator status comes from the database 470ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-39 a designation outlives its designator's role and is labelled 483ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-40 a dormant designation is labelled, gives nothing, and revives when the person returns 480ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > indicators are for coordinators only 476ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-2 visibleDelegation: who receives what, for a coordinator and for a reader, per state of the row 465ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-3 a reader with one own revoked row among more than 200 rows in effect and 1000 hidden revoked rows still receives the own row, capped at 200 522ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-4 a principal whose id is in upper case sees their own rows complete and no one else's basis text 473ms
+ ✓ tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first 474ms
+ ✓ tests/review-delegations.test.ts > a commenter can never approve > OQ-31 (3) a designated commenter comments and requests changes for the designated type only, never approves, and the revoke takes effect on the next command 500ms
+ ✓ tests/review-delegations.test.ts > a commenter can never approve > F-3 behavioural: designating and revoking never touch approval grants, ballots, memberships or the approved pointer 472ms
+ ✓ tests/review-delegations.test.ts > a commenter can never approve > the service has no path that grants or implies approval and never writes the stamped columns 465ms
+ ✓ tests/review-delegations.test.ts > W9 the delegation list says when it was cut > a short list is not flagged, a list over 200 live rows is 482ms
+ ✓ tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-1 (A, C) a reader sees the one row in effect behind 1001 dormant rows of other people; the cut flag does not count hidden rows 497ms
+ ✓ tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-2 (C) with more than 200 rows in effect the flag is true and exactly 200 rows come back, even behind 1001 dormant rows 512ms
+ ✓ tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-3 (B) a delegate whose role is now viewer, and one whose account is inactive, never reach a reader; both reach a coordinator labelled dormant 466ms
+ ✓ tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-6 (B) 1001 delegates who are still active members but now viewers do not hide the one row in effect 533ms
+ ✓ tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-7 (B) a delegate who is a member with a reading role but whose account has no password hash never reaches a reader; reaches a coordinator labelled dormant 466ms
+ ✓ tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-4 a delegate in effect with any one of the four reading roles reaches a reader 469ms
+ ✓ tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-5 (D) a reader's own rows come back in every state and first, ahead of other people's rows in effect 486ms
+ ✓ tests/inbox-service.test.ts > list requires a project and returns only that project's candidates 645ms
+ ✓ tests/inbox-service.test.ts > (3) viewer, bot, another project's member and another tenant cannot list, read or act 500ms
+ ✓ tests/inbox-service.test.ts > an engineer may read the inbox but only a manager may act 480ms
+ ✓ tests/inbox-service.test.ts > (5) no intake or bot path creates, assigns, closes or accepts work 478ms
+ ✓ tests/inbox-service.test.ts > candidateTransition follows the listed moves only 464ms
+ ✓ tests/inbox-service.test.ts > confirm stores the human classification with an audit event; a stale version changes nothing 475ms
+ ✓ tests/inbox-service.test.ts > need_info keeps the missing fields and mark_duplicate needs a visible target in the same project and merges nothing by itself 478ms
+ ✓ tests/inbox-service.test.ts > I-2 the incident note of a confirm reaches the audit event that «Xem chi tiết» reads; no note, no key 478ms
+ ✓ tests/inbox-service.test.ts > I-2 a needs_info card can be asked again: the new list replaces the old one, with its own audit event 486ms
+ ✓ tests/inbox-service.test.ts > PM-07 reopening keeps history and earlier delivery receipts 487ms
+ ✓ tests/inbox-service.test.ts > link_ticket stores an external reference only 471ms
+ ✓ tests/inbox-service.test.ts > a group with no received message shows Chưa xác minh khả năng nhận tin 479ms
+ ✓ tests/inbox-service.test.ts > failures lists dead, uncertain and overdue messages; requeue and abandon need a manager and a fresh version 495ms
+ ✓ tests/inbox-service.test.ts > Codex take by the current owner answers 409 OUTBOX_ALREADY_TAKEN and writes nothing; the first key replays; another manager reassigns with version+1 484ms
+ ✓ tests/inbox-service.test.ts > M-3 a leased row whose lease ran out is listed as stuck, and every row names its card 477ms
+ ✓ tests/inbox-service.test.ts > the newest revision is chosen by edited_at 477ms
+ ✓ tests/inbox-service.test.ts > an edit arriving before its original: the Inbox card and detail().revisions[0] both show the edit 490ms
+ ✓ tests/inbox-service.test.ts > duplicate suggestions are hints: same newest content, same project, nothing merged 476ms
+ ✓ tests/inbox-service.test.ts > M1 detail gives no content hash for a pointer_only project and keeps it for an excerpt project 482ms
+ ✓ tests/inbox-service.test.ts > OQ-30 stored text is hidden when the group flag is removed 485ms
+ ✓ tests/inbox-service.test.ts > OQ-30 stored text is hidden when the project becomes IBS HI 470ms
+ ✓ tests/inbox-service.test.ts > OQ-30 the latest mapping row decides what the Inbox shows 473ms
+ ✓ tests/inbox-service.test.ts > OQ-30 an edit stored after the flag is turned on shows its text while the earlier pointer-only revision shows none 468ms
+ ✓ tests/inbox-service.test.ts > an InboxService built without excerptChats shows no text 474ms
+ ✓ tests/inbox-service.test.ts > M2 the stored command response keeps ids only; a replay returns the current card 478ms
+ ✓ tests/inbox-service.test.ts > M5 the caller's request id is the audit and state-event request id 491ms
+ ↓ tests/inbox-service.test.ts > M4 opposite duplicate marks never form a cycle > two parallel marks A->B and B->A: exactly one wins
+ ✓ tests/project-registry.test.ts > new registry tables return nothing without RLS context 635ms
+ ✓ tests/project-registry.test.ts > runtime cannot insert a registry row for another project or tenant 502ms
+ ✓ tests/project-registry.test.ts > a project member cannot insert profile or channel rows for another project or tenant 477ms
+ ✓ tests/project-registry.test.ts > runtime cannot create an active channel or a domain mapping 480ms
+ ✓ tests/project-registry.test.ts > history tables reject update and delete 475ms
+ ✓ tests/project-registry.test.ts > migration 013 ships no domain mapping row 474ms
+ ✓ tests/project-registry.test.ts > saveProfile creates then updates with expectedVersion and writes one event each 470ms
+ ✓ tests/project-registry.test.ts > stale expectedVersion is REVISION_CONFLICT with no event and no version change 474ms
+ ✓ tests/project-registry.test.ts > same key and same request replays; same key with different content is IDEMPOTENCY_CONFLICT 469ms
+ ✓ tests/project-registry.test.ts > non-manager, viewer, bot and outsider cannot write 469ms
+ ✓ tests/project-registry.test.ts > identity fields in the body are rejected 476ms
+ ✓ tests/project-registry.test.ts > a proposed channel grants nothing 504ms
+ ✓ tests/project-registry.test.ts > unmapped project shows Chưa xác nhận and counts toward no total 466ms
+ ✓ tests/project-registry.test.ts > R5: runtime cannot insert a non-proposed or version-2 profile 470ms
+ ✓ tests/project-registry.test.ts > R5: creation as active is PROJECT_STATUS_CONFLICT 471ms
+ ✓ tests/project-registry.test.ts > R5: status lifecycle follows the state machine 467ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > success inserts a proposed channel, bumps the profile version and writes channel_proposed with before/after 465ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > stale expectedVersion is REVISION_CONFLICT: no channel, no event, no version change 464ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > no profile is PROFILE_REQUIRED and writes nothing 466ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > expectedVersion is required, an integer >= 1 458ms
+ ✓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > same key replays; same key with another expectedVersion is IDEMPOTENCY_CONFLICT 468ms
+ ↓ tests/project-registry.test.ts > C4 channel proposal is versioned against the project profile > two different proposals from the same version: one success, one REVISION_CONFLICT (native)
+ ✓ tests/z4-schema.test.ts > (4) the AI role cannot write any Z1 or Z2 table 658ms
+ ✓ tests/z4-schema.test.ts > privilege query: libetech_ai holds no INSERT, UPDATE, DELETE or TRUNCATE on any table of public, identity or analytics 491ms
+ ✓ tests/z4-schema.test.ts > nothing reaches libetech_ai by default: no default ACL, no usable sequence, no CREATE on a schema or on the database 485ms
+ ✓ tests/z4-schema.test.ts > no SECURITY DEFINER function is executable by libetech_ai 477ms
+ ✓ tests/z4-schema.test.ts > the role exists as NOLOGIN, without elevated attributes, with no member and in no role 475ms
+ ✓ tests/z4-schema.test.ts > the AI role writes drafts only inside its tenant, project and principal 477ms
+ ✓ tests/z4-schema.test.ts > drafts return nothing without RLS context 470ms
+ ✓ tests/z4-schema.test.ts > draft decisions are invisible to another project, another tenant and a session with no context 468ms
+ ✓ tests/z4-schema.test.ts > the table is a backstop at 49 152 bytes of stored text: the densest value that fits the application limit is stored, a larger one is refused 489ms
+ ✓ tests/z4-schema.test.ts > a confirmation can only attach a revision of the very document the draft is about 493ms
+ ✓ tests/z4-schema.test.ts > sources, questions and version strings carry database backstops, in a form that never calls an array function on a non-array 489ms
+ ✓ tests/z4-schema.test.ts > draft columns carry their own bounds: closed vocabularies, hash and key formats, array types, confidence 0 to 100 483ms
+ ✓ tests/z4-schema.test.ts > drafts and draft decisions reject update and delete 476ms
+ ✓ tests/z4-schema.test.ts > runtime reads drafts but cannot insert, update or delete them 472ms
+ ✓ tests/z4-schema.test.ts > column-level grants: ids and timestamps come from defaults; nothing is granted outside the named columns 466ms
+ ✓ tests/z4-schema.test.ts > the AI role has no privilege on draft_decisions at all 467ms
+ ✓ tests/z4-schema.test.ts > runtime cannot confirm a draft that names no source, nor with a wrong value hash; a decision is bound to the acting person; one decision per draft 480ms
+ ✓ tests/z4-schema.test.ts > a decision is refused for a draft of another project even when the decision names the right ids 471ms
+ ✓ tests/z4-schema.test.ts > the decision guard also stops the operational login 469ms
+ ✓ tests/z4-schema.test.ts > 021 refuses an AI role that has a member, is a member of a role, or can log in 474ms
+ ✓ tests/z4-schema.test.ts > a restricted login that can reach libetech_ai refuses to start 473ms
+ ↓ tests/z4-schema.test.ts > the AI role on PostgreSQL > the web login cannot assume the AI role
+ ↓ tests/z4-schema.test.ts > the AI role on PostgreSQL > the web login reads drafts through the runtime role and cannot write them
+ ✓ tests/z4-schema.test.ts > running 021 again changes nothing: one trigger, one function, the same policies and grants 479ms
+ ✓ tests/z4-schema.test.ts > the migration file pins the search_path of its function and creates no login 466ms
+ ✓ tests/document-index.test.ts > document index projector > projector writes one index row per record and is idempotent 670ms
+ ✓ tests/document-index.test.ts > document index projector > projector records when it ran 499ms
+ ✓ tests/document-index.test.ts > document index projector > index is stale, not wrong, until the projector runs again 494ms
+ ✓ tests/document-index.test.ts > document index projector > the index returns nothing without RLS context and cannot be written by runtime 493ms
+ ✓ tests/document-index.test.ts > document index projector > projector is confined to the project it was given 488ms
+ ✓ tests/document-index.test.ts > document index projector > a lost source keeps its history 495ms
+ ↓ tests/document-index.test.ts > document index on the web login > the web login cannot assume the projector role
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > C2: unprojected registration and unprojected revisions are visible as pendingProjection / stale 493ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > C2: the freshness check stays inside the granted project (synthetic — chờ tin gốc) 498ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > list by project returns only that project's index rows with total and projectedAt (synthetic — chờ tin gốc) 490ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > an unprojected project has total 0 and projectedAt null (synthetic — chờ tin gốc) 483ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > search matches title, type and code case-insensitively and treats wildcards literally (synthetic — chờ tin gốc) 487ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > cross-project and cross-tenant reads are denied before any query (synthetic — chờ tin gốc) 479ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > a call without projectId is rejected 468ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > a principal recomputed after membership removal can no longer list, search or export (synthetic — chờ tin gốc) 475ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > bot cannot read the document index (synthetic — chờ tin gốc) 475ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > limit is capped at 200 and unknown fields are rejected 467ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > export has the fixed header, shows Chưa có for an empty approved pointer and neutralises formulas 475ms
+ ✓ tests/document-index.test.ts > document index reads (DOC-10, R-02) > export is denied across projects (synthetic — chờ tin gốc) 471ms
+ ✓ tests/foundation.test.ts > scope and identity > all scoped tables fail closed without RLS context 632ms
+ ✓ tests/foundation.test.ts > scope and identity > tenant/project isolation covers every table and details 504ms
+ ✓ tests/foundation.test.ts > scope and identity > RLS blocks cross-project insert and tenant mismatch even with a valid foreign key 479ms
+ ✓ tests/foundation.test.ts > scope and identity > bot and customer cannot write, even with a forged body 478ms
+ ✓ tests/foundation.test.ts > scope and identity > authentication requires explicit flag and loopback; headers cannot select a principal 480ms
+ ✓ tests/foundation.test.ts > scope and identity > legitimate loopback origin survives Next internal URL normalization 475ms
+ ✓ tests/foundation.test.ts > state and acceptance > done requires BOTH acceptances; ticket closure does not change either 479ms
+ ✓ tests/foundation.test.ts > state and acceptance > rejects implementer, wrong acceptor, old SHA and wrong evidence 481ms
+ ✓ tests/foundation.test.ts > state and acceptance > full technical → UAT → business → completion succeeds and preserves provenance 482ms
+ ✓ tests/foundation.test.ts > state and acceptance > changing revision invalidates approvals and keeps old evidence immutable 483ms
+ ✓ tests/foundation.test.ts > state and acceptance > return from review invalidates previous acceptance 473ms
+ ✓ tests/foundation.test.ts > state and acceptance > stale writes and failed mutations have no audit or version side effects 467ms
+ ✓ tests/foundation.test.ts > state and acceptance > two concurrent writes at the same version produce one commit and one conflict 475ms
+ ✓ tests/foundation.test.ts > state and acceptance > idempotent retries return the original result and key reuse conflicts 473ms
+ ✓ tests/foundation.test.ts > state and acceptance > audit and evidence cannot be updated or removed under runtime role 466ms
+ ✓ tests/foundation.test.ts > state and acceptance > create validates assignment and scoped service; fresh work enters planned state 474ms
+ ✓ tests/foundation.test.ts > HTTP contract > unauthenticated, scoped reads, bot denials and CSRF boundary 465ms
+ ✓ tests/foundation.test.ts > HTTP contract > shared handler exposes useful GETs, validation errors and successful commands 468ms
+ ✓ tests/foundation.test.ts > persistent store survives close/reopen; bootstrap does not overwrite edits 1256ms
+ ✓ tests/decisions.test.ts > reassignmentState > reassignmentState never says applied without a receipt 653ms
+ ✓ tests/decisions.test.ts > reassignmentState > D2 the exhaustive table: every stored state x 0..3 agreeing votes x receipt yes/no, `applied` needs all three facts 488ms
+ ✓ tests/decisions.test.ts > reassignment cards > D2 a stored applied proposal with a receipt and only two agreeing votes reads reconcile; the receipt line still follows the receipt 499ms
+ ✓ tests/decisions.test.ts > reassignment cards > DOC-09 a 2/3 card reads pending with have 2 and no receipt; after the third vote it reads applied with the receipt 502ms
+ ✓ tests/decisions.test.ts > reassignment cards > EXPIRED wins over ALREADY_VOTED: a seat that voted and looks at an expired proposal reads EXPIRED 484ms
+ ✓ tests/decisions.test.ts > reassignment cards > reassignmentCard reads the viewer id in one normalised form: an upper-case id still holds its seat and its vote 485ms
+ ✓ tests/decisions.test.ts > reassignment cards > a card explains why the viewer cannot act: closed, expired, already voted 484ms
+ ✓ tests/decisions.test.ts > reassignment cards > only seats see reassignment cards; other members see none and learn no count 486ms
+ ✓ tests/decisions.test.ts > reassignment cards > pending fails closed when the work row of a proposal is not returned, and answers a malformed project id as not found 481ms
+ ✓ tests/decisions.test.ts > reassignment cards > pending answers a non-seat and an unlinked seat as read() does, and writes nothing 483ms
+ ✓ tests/decisions.test.ts > review cards > a review card reports the vote and the applied baseline as two facts 530ms
+ ✓ tests/decisions.test.ts > review cards > a changes_requested decision uses the only slot: have 0, its own state and vote 499ms
+ ✓ tests/decisions.test.ts > review cards > a superseded revision has no card 500ms
+ ✓ tests/decisions.test.ts > review cards > a card explains why the viewer cannot act 488ms
+ ✓ tests/decisions.test.ts > review cards > viewer, bot, another project's member and another tenant get the not-found answer 472ms
+ ✓ tests/decisions.test.ts > review cards > input is a strict {projectId}; a forged identity field is an unknown field; the id is lower-cased 473ms
+ ✓ tests/decisions.test.ts > review cards > only SCOPE_DENIED from pending is absorbed; any other failure propagates 489ms
+ ✓ tests/decisions.test.ts > review cards > a yes is valid only on the exact live card 495ms
+ ✓ tests/decisions.test.ts > review cards > a yes on a 3/3 card names the proposal; a closed or unknown card is refused 483ms
+ ✓ tests/decisions.test.ts > W9 the decision list says when its review cards were cut > reviewCardsTruncated follows the queue total against the 200 cards fetched 479ms
+ ✓ tests/skill-context.test.ts > skill context > (7) a record of an IBS HI project never enters the context of a Xeca project 663ms
+ ✓ tests/skill-context.test.ts > skill context > hidden and pointer-only message text and hash never enter a context: the group flag is removed > hidden 501ms
+ ✓ tests/skill-context.test.ts > skill context > hidden and pointer-only message text and hash never enter a context: the project is mapped to IBS_HI after the text was stored > hidden 484ms
+ ✓ tests/skill-context.test.ts > skill context > hidden and pointer-only message text and hash never enter a context: the message stored only a pointer > hidden 482ms
+ ✓ tests/skill-context.test.ts > skill context > defence in depth: a row that wrongly carries text under a pointer-only project or a non-excerpt mode is still nulled 479ms
+ ✓ tests/skill-context.test.ts > skill context > positive control: with the flag in force the same read carries the text and the hash 478ms
+ ✓ tests/skill-context.test.ts > skill context > revoked access: a principal that lost the project gets the not-found answer and no source 495ms
+ ✓ tests/skill-context.test.ts > skill context > viewer and bot are refused 482ms
+ ✓ tests/skill-context.test.ts > skill context > same name, other BU: two projects with the same document title yield only the in-scope document id 478ms
+ ✓ tests/skill-context.test.ts > skill context > each skill receives only its kinds and the caps hold 533ms
+ ✓ tests/skill-context.test.ts > skill context > R10-e: more than 20 messages in the thread give exactly the newest 20, oldest first 518ms
+ ✓ tests/skill-context.test.ts > skill context > the thread is the candidate's own chat: the same message id in another chat of the same project does not join it 477ms
+ ✓ tests/skill-context.test.ts > skill context > every statement filters by project even when the transaction is scoped to two projects 488ms
+ ✓ tests/skill-context.test.ts > skill context > R10-g: the release librarian gets only the approved revision; none when nothing is approved 487ms
+ ✓ tests/skill-context.test.ts > skill context > R10-i: an input that cannot be honoured is a 422, not silently ignored 484ms
+ ✓ tests/skill-context.test.ts > skill context > CONTEXT_KINDS is the table of the brief 466ms
+ ✓ tests/skill-context.test.ts > skill context > forged fields are rejected 493ms
+ ✓ tests/skill-context.test.ts > skill context > identifiers are lower-cased at parse time and compared with the database ids 481ms
+ ✓ tests/skill-context.test.ts > skill context > buildSkillContextIn works inside a transaction the caller opened, under that transaction's rights 472ms
+ ✓ tests/skill-context.test.ts > skill context > the context module names no revision table and holds no second copy of the mapping rule 468ms
+ ✓ tests/doc-approver-grant.test.ts > the pure helpers keep the eight types in order and drop what is not a doc_approve code 643ms
+ ✓ tests/doc-approver-grant.test.ts > the membership permission set admits the eight doc_approve codes and nothing else 499ms
+ ✓ tests/doc-approver-grant.test.ts > the three lists agree: access-grants, the documents schema and migration 019 481ms
+ ✓ tests/doc-approver-grant.test.ts > a doc_approve code enters a membership only with an approved or issued access-change ballot that names that project and code 492ms
+ ✓ tests/doc-approver-grant.test.ts > moving a membership that carries a doc_approve code to another project or another person needs a ballot that names the new project and person 479ms
+ ✓ tests/doc-approver-grant.test.ts > an approved ballot past its expiry does not admit the code 485ms
+ ↓ tests/doc-approver-grant.test.ts > as the identity role (native: roles and RLS are real) > as libetech_identity the guard refuses a code without a ballot, and a ballot of another tenant does not count
+ ✓ tests/doc-approver-grant.test.ts > document_approvers lists holders of the project in scope only 483ms
+ ✓ tests/doc-approver-grant.test.ts > a viewer holding a doc_approve code is not listed as an approver 484ms
+ ✓ tests/doc-approver-grant.test.ts > the runtime role cannot read or write identity.memberships, and only libetech_runtime may execute document_approvers 488ms
+ ✓ tests/doc-approver-grant.test.ts > granting document approval is a widening: without an approved ballot the grant is refused 489ms
+ ✓ tests/doc-approver-grant.test.ts > one BoM agreeing approves the ballot and the admin applies exactly the frozen grants 505ms
+ ✓ tests/doc-approver-grant.test.ts > Chairman agreement alone does not grant document approval; the subject does not vote on their own ballot 496ms
+ ✓ tests/doc-approver-grant.test.ts > the admin cannot propose or apply document approval for their own account 480ms
+ ✓ tests/doc-approver-grant.test.ts > a registration ballot cannot carry document approval 482ms
+ ✓ tests/doc-approver-grant.test.ts > applying other document types than the frozen ballot is refused 524ms
+ ✓ tests/doc-approver-grant.test.ts > removing a doc_approve code is a reduction: applied directly, sessions revoked, and document_approvers no longer lists the person 493ms
+ ✓ tests/doc-approver-grant.test.ts > the pending list hands the new code through unchanged 474ms
+ ✓ tests/intake-schema.test.ts > intake tables return nothing without RLS context 641ms
+ ✓ tests/intake-schema.test.ts > intake role cannot touch work, documents, registry or identity 490ms
+ ✓ tests/intake-schema.test.ts > intake role cannot write another project or tenant 487ms
+ ✓ tests/intake-schema.test.ts > intake role cannot create a decided candidate 484ms
+ ✓ tests/intake-schema.test.ts > intake role is gated on attachment hash level and event actor kind 479ms
+ ✓ tests/intake-schema.test.ts > runtime cannot insert source events, revisions, attachments or candidates 481ms
+ ✓ tests/intake-schema.test.ts > 34c a runtime UPDATE of a candidate in another project or another tenant affects 0 rows and changes nothing 473ms
+ ✓ tests/intake-schema.test.ts > history tables reject update and delete; candidates reject delete 480ms
+ ✓ tests/intake-schema.test.ts > no intake table has a bytes or file content column 477ms
+ ✓ tests/intake-schema.test.ts > a stored attachment needs locator, hash and a size within 20 MiB 475ms
+ ✓ tests/intake-schema.test.ts > an attachment cannot point to a revision of a different source event 475ms
+ ✓ tests/intake-schema.test.ts > intake_events actor_id is bound to the acting identity (fail-closed) 470ms
+ ✓ tests/intake-schema.test.ts > a pointer-only revision cannot carry text 472ms
+ ✓ tests/intake-schema.test.ts > source_events has no content_mode column 465ms
+ ✓ tests/intake-schema.test.ts > the intake role inserts content_mode on a revision and still cannot update or delete either table 461ms
+ ↓ tests/intake-schema.test.ts > native roles > web login cannot assume the intake role; intake login is unprivileged
+ ✓ tests/intake-schema.test.ts > item 2 column-level INSERT grants: defaults own ids, timestamps, ingested_at, version, hash level 479ms
+ ✓ tests/access-change.test.ts > expanding access without an approved ballot is still refused 645ms
+ ✓ tests/access-change.test.ts > an access-change ballot freezes grants and applies once one BoM agrees 512ms
+ ✓ tests/access-change.test.ts > Chairman agreement alone does not approve an access change 493ms
+ ✓ tests/access-change.test.ts > one BoM rejection keeps it pending while another BoM can still vote; every BoM rejecting closes it 502ms
+ ✓ tests/access-change.test.ts > a registration ballot still needs Chairman and one BoM 488ms
+ ✓ tests/access-change.test.ts > Chairman rejection closes it 492ms
+ ✓ tests/access-change.test.ts > grants that differ from the frozen ballot are refused 486ms
+ ✓ tests/access-change.test.ts > an account change after the proposal invalidates the ballot 503ms
+ ✓ tests/access-change.test.ts > the subject never votes on their own access change 479ms
+ ✓ tests/access-change.test.ts > reducing access still needs no ballot 482ms
+ ✓ tests/access-change.test.ts > a reduce-only proposal is ACCESS_CHANGE_NOT_NEEDED 474ms
+ ✓ tests/access-change.test.ts > an access-change ballot can never back an invitation 503ms
+ ✓ tests/access-change.test.ts > pending shows both kinds with frozen current and proposed grants; another tenant's project name stays hidden 481ms
+ ✓ tests/access-change.test.ts > an approved ballot does not apply once the frozen grants no longer match, even if account_version did not move 480ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > proposing a revision of a document that has dependents succeeds under the runtime role, and the flag event names the proposer 665ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > a new revision of the upstream flags every dependent in the same transaction 509ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > a failed proposal (stale version) flags nothing 493ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > flagging is not transitive and a cycle A→B, B→A does not loop 512ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > only a project manager links; viewer, bot, another project's member and another tenant are refused with the not-found answer 488ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > linking across projects, to itself, or twice is refused; the same key replays one link 498ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > list requires a project and never returns another project's links 491ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > forged fields are rejected 494ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > the command names the revision the coordinator saw > a proposal in between answers REVISION_CONFLICT with the review sentence and writes nothing: no link, no event, no claim 486ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > the command names the revision the coordinator saw > naming the latest links, and the stored upstream_revision_id is the named id 491ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > the command names the revision the coordinator saw > a body without upstreamRevisionId is a validation error and writes nothing 484ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > the command names the revision the coordinator saw > a revision id of another document is not the latest of this one: the same answer as a stale one 500ms
+ ✓ tests/document-dependencies.test.ts > document dependencies > the command names the revision the coordinator saw > a replay with the same key and body returns the same link; the same key with another upstreamRevisionId is IDEMPOTENCY_CONFLICT 481ms
+ ✓ tests/identity.test.ts > invitation activates once, password is Argon2id, session survives a new service instance 660ms
+ ✓ tests/identity.test.ts > unknown/wrong passwords fail generically and account rate limit persists 571ms
+ ✓ tests/identity.test.ts > logout, expiration and disable revoke sessions 515ms
+ ✓ tests/identity.test.ts > strict inputs reject role/tenant injection, expired invite and weak password 482ms
+ ✓ tests/identity.test.ts > every identity table isolates tenant and business runtime has no identity access 487ms
+ ✓ tests/identity.test.ts > Telegram pairing requires private proof; replay, expiry and replacing another identity fail 483ms
+ ✓ tests/identity.test.ts > bridge verifies signature, freshness and nonce then applies both user and chat project scope 491ms
+ ✓ tests/identity.test.ts > server mode requires exact HTTPS origin and rejects demo identity 469ms
+ ✓ tests/identity.test.ts > HTTP identity flow sets secure cookies and enforces authentication and CSRF 493ms
+ ✓ tests/identity.test.ts > pilot scope in the repository carries no Telegram chat IDs 467ms
+ ✓ tests/identity.test.ts > deployment chat mapping permits the approved group and denies the others 478ms
+ ✓ tests/review-http.test.ts > review HTTP > no session answers 401; a cross-origin POST answers 403 652ms
+ ✓ tests/review-http.test.ts > review HTTP > W11 HEAD is a read like GET (Next.js serves it through the exported GET): it answers the GET status, never the origin refusal; writes still refuse a foreign origin 508ms
+ ✓ tests/review-http.test.ts > review HTTP > W13 the not-found sentence of the client is the sentence of the handler and of the review service 471ms
+ ✓ tests/review-http.test.ts > review HTTP > unknown path, unknown id and out-of-scope id answer the same 404 body; bot and viewer get that same answer 487ms
+ ✓ tests/review-http.test.ts > review HTTP > forged body fields answer 422 on every POST and write nothing 502ms
+ ✓ tests/review-http.test.ts > review HTTP > a decision without idempotency key answers 400; the request id in meta is the one stored on the decision and on the event 489ms
+ ✓ tests/review-http.test.ts > review HTTP > a comment round trip: the path document and the request id reach the service, nothing else does 478ms
+ ✓ tests/review-http.test.ts > review HTTP > every POST of this handler needs an Idempotency-Key, and nothing is written without it 477ms
+ ✓ tests/review-http.test.ts > review HTTP > OQ-31 through the handler: self-designation 422, a manager of another project 404, missing document types 422; a designation round trip 471ms
+ ✓ tests/review-http.test.ts > review HTTP > OQ-34 through the handler: revoke by a coordinator, refusals, conflict 480ms
+ ✓ tests/review-http.test.ts > review HTTP > REVISION_CONFLICT, SOURCE_NOT_FROZEN, APPROVER_NOT_AUTHORIZED, REVIEW_ALREADY_DECIDED, DEPENDENCY_INVALID and DEPENDENCY_EXISTS keep their status and code 511ms
+ ✓ tests/review-http.test.ts > review HTTP > list endpoints need projectId, accept only the named parameters, and the service refuses a limit above 200 485ms
+ ✓ tests/review-http.test.ts > review HTTP > dependency list: filters by documentId and needsReview, pages, and refuses an unknown parameter 487ms
+ ✓ tests/review-http.test.ts > review HTTP > the Decisions list is reachable only at /api/decisions 465ms
+ ✓ tests/review-http.test.ts > review HTTP > the request id in meta is generated by the server, one per request, and a body or query request id is not taken 463ms
+ ✓ tests/review-http.test.ts > review HTTP > success and error responses of both functions carry Cache-Control: no-store 477ms
+ ✓ tests/review-http.test.ts > review HTTP > the delegation list passes through untouched, for a coordinator and for a non-coordinator 471ms
+ ✓ tests/review-http.test.ts > review HTTP > the review handler has no route that concerns document approval, and imports only its four services and the shared http helpers 465ms
+ ✓ tests/review-http.test.ts > review HTTP > only these two route files import the review handler, and they import no service directly 474ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-13 XECA006 and XECA005 are two separate index entries (synthetic — chờ tin gốc) 664ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > XECA006 lists its missing fields as Chưa có and has no approved baseline (synthetic — chờ tin gốc) 516ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-14 LBRC014 keeps the earlier revision and the iOS supplement, with what is present and what is missing 509ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > source links keep the Z2 source_ref labelled chưa đối soát and create no work item (synthetic — chờ tin gốc) 489ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > PM-08 indexing leaves the Z2 source rows unchanged (synthetic — chờ tin gốc) 485ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-18 a vanished source row leaves the record and its history (synthetic — chờ tin gốc) 481ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-18 a vanished linked source row shows as stale on the index; the record and history stay (synthetic — chờ tin gốc) 487ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > DOC-18 the record own unavailable/denied state wins over the lost-source stale 475ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > openSource re-checks scope on every call and never leaks across projects 483ms
+ ✓ tests/document-cases.test.ts > slice 1 document cases > no reporting-domain row exists after indexing both cases (synthetic — chờ tin gốc) 487ms
+ ✓ tests/source-text.test.ts > source-text > displayMode: only a stored excerpt under an allowing config is shown 628ms
+ ✓ tests/source-text.test.ts > source-text > SQL and the pure rule agree for every stored mode, flag and latest mapping 532ms
+ ✓ tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the group flag is removed > hidden 486ms
+ ✓ tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the project is mapped to IBS_HI after the text was stored > hidden 521ms
+ ✓ tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the service is built without flags > hidden 480ms
+ ✓ tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the message stored only a pointer > hidden 485ms
+ ✓ tests/source-text.test.ts > source-text > positive control: with the flag in force the same operations do carry the text 479ms
+ ✓ tests/source-text.test.ts > source-text > an empty flag list hides every stored text and no RLS context returns no row 483ms
+ ✓ tests/source-text.test.ts > source-text > duplicate hints are unchanged: same stored hash, same project, either visibility 473ms
+ ✓ tests/source-text.test.ts > source-text > only source-text.ts reads revision text 475ms
+ ✓ tests/onboarding-feedback.test.ts > registration waits for Chairman and one BoM Telegram approval before invitation and pairing 676ms
+ ✓ tests/onboarding-feedback.test.ts > registered username does not reveal whether an account exists; rejection creates no grant 500ms
+ ✓ tests/onboarding-feedback.test.ts > one-time pilot exception activates only its exact invitation; later registrations still need votes 503ms
+ ✓ tests/onboarding-feedback.test.ts > BoM rejection permits another BoM; direct invite and legacy invitation cannot bypass approval 497ms
+ ✓ tests/onboarding-feedback.test.ts > one verified BoM is sufficient; Chairman rejection closes the ballot 488ms
+ ✓ tests/onboarding-feedback.test.ts > an unavailable BoM seat does not block the other verified BoM 481ms
+ ✓ tests/onboarding-feedback.test.ts > web Yes/No and Telegram share the same frozen ballot and two-person quorum 486ms
+ ✓ tests/onboarding-feedback.test.ts > newly linked BoM seat does not invalidate an existing frozen ballot 479ms
+ ✓ tests/onboarding-feedback.test.ts > feedback is idempotent, project scoped and hidden from other members 476ms
+ ✓ tests/documents-http.test.ts > documents HTTP > register -> propose -> list -> search -> export -> source round trip over HTTP 660ms
+ ✓ tests/documents-http.test.ts > documents HTTP > project registry routes round trip 496ms
+ ✓ tests/documents-http.test.ts > documents HTTP > a body carrying tenantId or actorId is INVALID_INPUT 480ms
+ ✓ tests/documents-http.test.ts > documents HTTP > a write without Idempotency-Key is IDEMPOTENCY_REQUIRED 479ms
+ ✓ tests/documents-http.test.ts > documents HTTP > a request without a session is 401 and a foreign Origin is rejected 477ms
+ ✓ tests/documents-http.test.ts > documents HTTP > bot and viewer sessions get 403; another project's document id gets 404 with the generic message 476ms
+ ✓ tests/documents-http.test.ts > documents HTTP > the same document URI registered twice returns DOCUMENT_ALREADY_REGISTERED, not DUPLICATE_CODE 478ms
+ ✓ tests/documents-http.test.ts > documents HTTP > export responds with text/csv and no-store 473ms
+ ✓ tests/documents-http.test.ts > OQ-25 source host allowlist over HTTP > a host outside the list for its type is refused with 422 and nothing is written 468ms
+ ✓ tests/bridge-limits.test.ts > T2 M5 an intake body of exactly 16384 bytes is accepted, 16385 is refused, and the limit counts bytes 650ms
+ ✓ tests/bridge-limits.test.ts > Sec M2 a declared Content-Length above the cap is refused before the body is read; the read itself stays capped 491ms
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"INTAKE_UNCONFIGURED","errorType":"SyntaxError"}
+
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"BRIDGE_UNCONFIGURED","errorType":"SyntaxError"}
+
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"INTAKE_UNCONFIGURED","errorType":"ZodError"}
+
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"BRIDGE_UNCONFIGURED","errorType":"ZodError"}
+
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"INTAKE_UNCONFIGURED","errorType":"Error"}
+
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"BRIDGE_UNCONFIGURED","errorType":"Error"}
+
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"INTAKE_UNCONFIGURED","errorType":"Error"}
+
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"BRIDGE_UNCONFIGURED","errorType":"Error"}
+
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"INTAKE_UNCONFIGURED","errorType":"Error"}
+
+stderr | tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops)
+{"level":"error","event":"bridge_config_unreadable","code":"BRIDGE_UNCONFIGURED","errorType":"Error"}
+
+ ✓ tests/bridge-limits.test.ts > Sec M1 a missing, unreadable or invalid bridge config answers 503 (the plugin retries), never 422 (the plugin drops) 485ms
+ ✓ tests/bridge-limits.test.ts > Codex r2 P1 a bridge body with no length is cancelled once it passes the cap, before it is read to the end 479ms
+ ✓ tests/bridge-limits.test.ts > Codex r2 P1 a streamed bridge body at the cap, signed, is accepted and decoded like request.text() 477ms
+ ✓ tests/bridge-limits.test.ts > Codex r2 P1 the web body() refuses a streamed body over 16 KB with no length without reading it to the end 473ms
+ ✓ tests/bridge-limits.test.ts > Codex r2 P1 a cancel that fails is logged by a fixed code and the body is still refused 413 474ms
+ ✓ tests/bridge-limits.test.ts > the intake route takes the excerpt flag from the operator config 480ms
+ ✓ tests/bridge-limits.test.ts > OQ-27 an HTTP intake from a group whose config file lists the same project twice is taken in (200 ack) 481ms
+ ✓ tests/bridge-io.test.ts > (1) wrong key, stale timestamp and a reused nonce are rejected on every intake route 639ms
+ ✓ tests/bridge-io.test.ts > a signature made for another path is rejected 477ms
+ ✓ tests/bridge-io.test.ts > the bot key cannot sign intake routes and the intake key cannot sign /api/bridge 464ms
+ ✓ tests/bridge-io.test.ts > (7) every intake endpoint lives under /api/bridge/ and answers 401 without a valid signature 474ms
+ ✓ tests/bridge-io.test.ts > config rejects an intake key equal to the bot key and intake chats outside chatScopes 471ms
+ ✓ tests/bridge-io.test.ts > config keeps one copy of a project id listed twice for a group 468ms
+ ✓ tests/bridge-io.test.ts > config stores project ids in lowercase and keeps one copy 461ms
+ ✓ tests/bridge-io.test.ts > config rejects excerpt chats outside intake.chats; no excerptChats means none 466ms
+ ✓ tests/bridge-io.test.ts > oversized bodies are refused before parsing 464ms
+ ✓ tests/source-host-allowlist.test.ts > source host allowlist (unit) > the list is exactly the option (a) list and cannot be changed at runtime 630ms
+ ✓ tests/source-host-allowlist.test.ts > source host allowlist (unit) > allowed hosts pass, including a normalised upper-case host and the explicit default port 483ms
+ ✓ tests/source-host-allowlist.test.ts > source host allowlist (unit) > other hosts, subdomains, look-alikes, cross-type hosts and non-default ports are refused 472ms
+ ✓ tests/source-host-allowlist.test.ts > source host allowlist (unit) > vault never accepts an https link, and an unknown type is refused 479ms
+ ✓ tests/source-host-allowlist.test.ts > source host allowlist (unit) > an unparsable value is refused, not thrown 475ms
+ ✓ tests/source-host-allowlist.test.ts > source host allowlist (service) > registration refuses a host outside the list for its source type and writes nothing 475ms
+ ✓ tests/source-host-allowlist.test.ts > source host allowlist (service) > registration accepts Drive and GitHub links and openSource returns their host 478ms
+ ✓ tests/source-host-allowlist.test.ts > source host allowlist (service) > openSource re-checks the host on every open and does not echo the stored link 476ms
+ ✓ tests/source-host-allowlist.test.ts > source host allowlist (service) > url source refs on a revision are text references and are not limited by the allowlist 476ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: same key and identical request replays without a second state change 637ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: same key for a different report is FEEDBACK_KEY_CONFLICT and leaves it unchanged 484ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: same key and report with different status, reason or version is FEEDBACK_KEY_CONFLICT 479ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: same key reused in another project is FEEDBACK_KEY_CONFLICT although RLS hides the prior action 477ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: a used key sent for an unknown report is SCOPE_DENIED and changes nothing 471ms
+ ✓ tests/feedback-idempotency.test.ts > create: same key with a different payload is rejected (guard) 476ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: stale expectedVersion after the claim is VERSION_CONFLICT and leaves no action row 473ms
+ ✓ tests/feedback-idempotency.test.ts > resolve: invalid transition after the claim is FEEDBACK_STATE_CONFLICT and leaves no action row 471ms
+ ✓ tests/spec004.test.ts > STT 5 applies once at 3/3 and preserves the LBRC014 SHA and acceptance snapshot 689ms
+ ✓ tests/spec004.test.ts > two proposals at the same version create just one receipt 504ms
+ ✓ tests/spec004.test.ts > source drift after 2/3 holds the work for reconciliation 485ms
+ ✓ tests/spec004.test.ts > a revised proposal starts from 0/3 and keeps the previous decisions 493ms
+ ✓ tests/spec004.test.ts > cross-BU, cross-tenant, chair and forged actor cannot access decisions 479ms
+ ✓ tests/spec004.test.ts > revise cannot bypass 3/3, and BoM vote never grants acceptance 492ms
+ ✓ tests/spec004.test.ts > revoked Telegram and out-of-project recipients prevent application 481ms
+ ✓ tests/spec004.test.ts > reject, cancel and expiry all preserve the original STT 5 assignment 491ms
+ ✓ tests/spec004.test.ts > receipt write failure rolls back the third vote and assignment together 484ms
+ ✓ tests/doc-approver-flow.test.ts > end to end: proposed by the admin, approved by one BoM, applied by the admin, and only then the member approves a frozen design revision 680ms
+ ✓ tests/doc-approver-flow.test.ts > a pending, rejected or expired ballot grants nothing; Chairman agreement alone grants nothing 554ms
+ ✓ tests/doc-approver-flow.test.ts > the grant is per document type and per project 525ms
+ ✓ tests/doc-approver-flow.test.ts > reducing the grant takes effect on the very next decision, also for a principal whose session grants still list it 507ms
+ ✓ tests/doc-approver-flow.test.ts > the person granted approval still cannot approve their own revision 504ms
+ ✓ tests/doc-approver-flow.test.ts > a reviewer designated by a manager gains nothing from someone else's ballot 511ms
+ ✓ tests/doc-approver-flow.test.ts > the code alone is not enough: a holder whose project role is viewer is not an approver 523ms
+ ✓ tests/ledger-reconcile.test.ts > OQ-09 a message with both a ticket and a SourceEvent is joined by the shared event key 644ms
+ ✓ tests/ledger-reconcile.test.ts > reconciliation creates no candidate and changes no row 493ms
+ ✓ tests/ledger-reconcile.test.ts > AI OS holds no ticket state to change 480ms
+ ✓ tests/ledger-reconcile.test.ts > differences are listed, never repaired 487ms
+ ✓ tests/ledger-reconcile.test.ts > a matched and already linked pair is reported as linked 479ms
+ ✓ tests/ledger-reconcile.test.ts > rows outside the caller's project are never read 480ms
+ ✓ tests/ledger-reconcile.test.ts > window is strict ISO with from <= to and filters on observed_at 479ms
+ ✓ tests/inbox-http.test.ts > inbox HTTP > inbox routes need a session, an exact origin and an idempotency key for writes 650ms
+ ✓ tests/inbox-http.test.ts > inbox HTTP > a body that names tenant, actor or project is rejected with INVALID_INPUT 494ms
+ ✓ tests/inbox-http.test.ts > inbox HTTP > round trip: list -> detail -> confirm -> list shows the new state 494ms
+ ✓ tests/inbox-http.test.ts > inbox HTTP > unknown path, unknown candidate and a candidate outside scope answer the same 404 476ms
+ ✓ tests/inbox-http.test.ts > inbox HTTP > web routes expose no intake endpoint 475ms
+stderr | tests/inbox-http.test.ts > inbox HTTP > OQ-30 hidden text never appears in the Inbox API
+{"level":"error","event":"bridge_config_unreadable","code":"INBOX_EXCERPT_CONFIG","errorType":"SyntaxError"}
+
+stderr | tests/inbox-http.test.ts > inbox HTTP > OQ-30 hidden text never appears in the Inbox API
+{"level":"error","event":"bridge_config_unreadable","code":"INBOX_EXCERPT_CONFIG","errorType":"SyntaxError"}
+
+ ✓ tests/inbox-http.test.ts > inbox HTTP > OQ-30 hidden text never appears in the Inbox API 503ms
+ ✓ tests/inbox-http.test.ts > inbox HTTP > the Inbox reads the flag list from the operator config and treats an unreadable config as no flag 476ms
+ ✓ tests/slice3-bom-events.test.ts > DOC-09/T06 two agrees change nothing: assignment, version and receipts stay 642ms
+ ✓ tests/slice3-bom-events.test.ts > DOC-09/T07 the third agree applies once with exactly one receipt 506ms
+ ✓ tests/slice3-bom-events.test.ts > PM-05 reject and revise end the round; a changed source or a revoked link holds the vote for reconciliation 511ms
+ ✓ tests/slice3-bom-events.test.ts > PM-05/T15 every shortcut around 3/3 is refused 490ms
+ ✓ tests/slice3-bom-events.test.ts > PM-06 technical and business acceptance are separate events by different people; closing the ticket replaces neither 485ms
+ ✓ tests/slice3-bom-events.test.ts > DOC-08/T17 the implementer cannot accept own work, also after reassignment through 3/3 497ms
+ ✓ tests/slice3-bom-events.test.ts > T18 a closed ticket leaves acceptance missing and the work in review 478ms
+ ✓ tests/slice3-bom-events.test.ts > incident intake is not gated by 3/3 494ms
+ ✓ tests/migrations-rollback.test.ts > every migration from 013 has a rollback file with the same name 3ms
+ ✓ tests/migrations-rollback.test.ts > forward → rollback → forward leaves source tables untouched 810ms
+ ✓ tests/migrations-rollback.test.ts > rollback 018 refuses while an access-change ballot exists 544ms
+ ✓ tests/migrations-rollback.test.ts > rollback 019 refuses while a membership or a ballot carries a doc_approve code, and while a later migration is applied 528ms
+ ✓ tests/migrations-rollback.test.ts > rollback 020 refuses while an approval decision exists and while a later migration is applied 574ms
+ ✓ tests/migrations-rollback.test.ts > rollback 021 refuses while a later migration is applied, drops the Z4 objects, keeps the AI role and touches nothing of 019 or 020 502ms
+ ✓ tests/account-approval-dm.test.ts > a new ballot queues one DM per frozen voter in the same transaction 641ms
+ ✓ tests/account-approval-dm.test.ts > a proposal that fails leaves no DM row 496ms
+ ✓ tests/account-approval-dm.test.ts > the DM has a delivery receipt of its own, separate from the vote 498ms
+ ✓ tests/account-approval-dm.test.ts > proposing the same registration twice never queues a second DM 481ms
+ ✓ tests/account-approval-dm.test.ts > (6) a ballot tapped in a group, tapped again, or tapped on an old card records no vote 485ms
+ ✓ tests/slice3-harness.test.ts > seedBom builds an enabled three-seat scope and a first proposal reaches pending 644ms
+ ✓ tests/slice3-harness.test.ts > recordingDb records rows from query and from transaction 488ms
+ ✓ tests/slice3-harness.test.ts > frozenRevision creates a verified, snapshotted revision and advances the document 483ms
+ ↓ tests/slice3-harness.test.ts > native roles > the operator login is a superuser and the web login is not
+ ✓ tests/spec003.test.ts > invites expire when replaced, private bridge pairing uses current project rights, disabled account loses access 55ms
+ ✓ tests/spec003.test.ts > a manager for one project cannot create or mutate a work item outside that role 2ms
+ ✓ tests/spec003.test.ts > score projection dedupes evidence, distinguishes missing data, scopes people and audits correction 35ms
+ ✓ tests/spec003.test.ts > SLA spans the weekend and configured holidays in Vietnam time 1ms
+ ✓ tests/rls-catalog.test.ts > migrations from 013 create tables, and every one has FORCE RLS plus USING and WITH CHECK from the catalog 15ms
+ ✓ tests/team-catalog.test.ts > source catalog enforces project RLS and does not create canonical work 629ms
+ ✓ tests/intake-scoped.test.ts > intakeScoped sets app.intake_principal_id for the transaction only 627ms
+ ✓ tests/slice1-harness.test.ts > assertIsolated rejects non-loopback host, wrong port and unexpected database name 1ms
+ ✓ tests/slice1-harness.test.ts > harness applies every forward migration and seeds synthetic projects 630ms
+ ↓ tests/slice1-harness.test.ts > native > runtime login is not superuser and cannot bypass RLS
+ ↓ tests/slice1-harness.test.ts > native reset > reset leaves no row in any table created from 016
+ ↓ tests/review-delegations-concurrency.test.ts > delegation concurrency (native PostgreSQL) > two managers designating the same member at once store one active delegation
+ ↓ tests/review-delegations-concurrency.test.ts > delegation concurrency (native PostgreSQL) > two managers revoking the same delegation at once store one revoke
+ ✓ tests/review-ui.test.tsx > review UI > renders the four states: empty, error, loading and denied, with different wording for empty and denied 5ms
+ ✓ tests/review-ui.test.tsx > review UI > the denied view leaks no project name and no count 1ms
+ ✓ tests/review-ui.test.tsx > review UI > Conflict: a stale decision shows the source-changed banner with Đọc bản mới and keeps the typed note 1ms
+ ✓ tests/review-ui.test.tsx > review UI > an already decided revision shows its own conflict sentence 0ms
+ ✓ tests/review-ui.test.tsx > review UI > a queue item without approver shows Chờ xác định người duyệt 0ms
+ ✓ tests/review-ui.test.tsx > review UI > each eligibility reason renders its sentence and hides the buttons it forbids 2ms
+ ✓ tests/review-ui.test.tsx > review UI > buttons follow the service's eligibility and nothing else 1ms
+ ✓ tests/review-ui.test.tsx > review UI > a decision sends the revision, hash and version shown; a short note is refused in place 0ms
+ ✓ tests/review-ui.test.tsx > review UI > request bodies carry only the fields the service takes and never an actor, tenant, authority or request id 1ms
+ ✓ tests/review-ui.test.tsx > review UI > one Idempotency-Key per user action, reused on a retry and renewed after a success 1ms
+ ✓ tests/review-ui.test.tsx > review UI > error copy: the 404 sentence offers a reload, an unknown code shows the server message as text, never an object 0ms
+ ✓ tests/review-ui.test.tsx > review UI > COMMENT_RESOLVED has no fixed copy: the server sentence is shown as text, with no reload and not as a stale banner 0ms
+ ✓ tests/review-ui.test.tsx > review UI > a decided revision offers no new comment and no decision, but keeps the follow-up actions on existing comments 8ms
+ ✓ tests/review-ui.test.tsx > review UI > a queue row names the decision state and a requested change reads as a used decision slot 1ms
+ ✓ tests/review-ui.test.tsx > review UI > RevisionDiff labels every change with Thêm, Xóa or Sửa and shows base and candidate revision numbers 1ms
+ ✓ tests/review-ui.test.tsx > review UI > changed-only mode hides unchanged fields and full mode shows them 1ms
+ ✓ tests/review-ui.test.tsx > review UI > flagged dependents are listed under Tài liệu phụ thuộc cần xem lại 1ms
+ ✓ tests/review-ui.test.tsx > review UI > self-declared hashes are never shown as verified 1ms
+ ✓ tests/review-ui.test.tsx > review UI > comment bodies with markup are rendered as text 1ms
+ ✓ tests/review-ui.test.tsx > review UI > the reviewers panel lets only a project manager designate, never offers the viewer themself or a read-only member, and requires a document type 3ms
+ ✓ tests/review-ui.test.tsx > review UI > the approver list shows the types read from document_approvers 0ms
+ ✓ tests/review-ui.test.tsx > review UI > OQ-34 only a project manager sees Thu hồi, and a revoke needs a basis 7ms
+ ✓ tests/review-ui.test.tsx > review UI > the reviewers panel has no control that touches document approval 1ms
+ ✓ tests/review-ui.test.tsx > review UI > a reader who is not a coordinator sees other reviewers as person and document types only 0ms
+ ✓ tests/review-ui.test.tsx > review UI > only a coordinator sees người chỉ định không còn là điều phối and đang ngủ, and only for the strict booleans 2ms
+ ✓ tests/review-ui.test.tsx > review UI > a basis with markup or bidirectional characters is rendered as text inside bdi 1ms
+ ✓ tests/review-ui.test.tsx > review UI > shows another person's basis to nobody but a coordinator, even when the component is handed one 1ms
+ ✓ tests/review-ui.test.tsx > review UI > review CSS keeps one column below 950px, wraps long strings and gives actions 44px 2ms
+ ✓ tests/review-ui.test.tsx > review UI > queue paging > the first page of 73 shows 1–50 / 73 and only Trang sau 4ms
+ ✓ tests/review-ui.test.tsx > review UI > queue paging > the second page shows 51–73 / 73 and only Trang trước 2ms
+ ✓ tests/review-ui.test.tsx > review UI > queue paging > a middle page has both links, a single page has none 4ms
+ ✓ tests/review-ui.test.tsx > review UI > queue paging > the window arithmetic 0ms
+ ✓ tests/review-ui.test.tsx > review UI > queue paging > a bad offset falls back to 0 0ms
+ ✓ tests/review-ui.test.tsx > review UI > queue paging > the queue page reads offset from the search params and passes it to the service 1ms
+ ✓ tests/review-ui.test.tsx > review UI > reply buttons follow the service flags > shows no button, and no reply box, when both flags are false 0ms
+ ✓ tests/review-ui.test.tsx > review UI > reply buttons follow the service flags > shows exactly the button whose flag is true 1ms
+ ✓ tests/review-ui.test.tsx > review UI > reply buttons follow the service flags > a resolved thread is no longer decided by the screen: the flags say so 0ms
+ ✓ tests/review-ui.test.tsx > review UI > what happens after a command > a stale revision shows the banner and nothing in the form, from every form, and keeps the draft 0ms
+ ✓ tests/review-ui.test.tsx > review UI > what happens after a command > every other code is a sentence under the form that sent it, never the banner, and the draft is kept 0ms
+ ✓ tests/review-ui.test.tsx > review UI > what happens after a command > after a success the key is retired, the banner goes and the draft of the sending form is cleared 0ms
+ ✓ tests/review-ui.test.tsx > review UI > what happens after a command > the reviewers panel: success reloads and clears; failure keeps the draft; the 404 and DELEGATION_CONFLICT offer a reload 0ms
+ ✓ tests/review-ui.test.tsx > review UI > what happens after a command > the components call these functions and keep no second copy 0ms
+ ✓ tests/review-ui.test.tsx > review UI > a cut list says so > the reviewers panel shows it only when the flag is true 1ms
+ ✓ tests/review-ui.test.tsx > review UI > a cut list says so > the revision screen shows it only when the comments were cut 1ms
+ ✓ tests/review-ui.test.tsx > review UI > a cut list says so > the detail screen passes the service flag down 1ms
+ ✓ tests/review-ui.test.tsx > review UI > a cut list says so > the queue screen passes the delegation flag down 2ms
+ ✓ tests/review-ui.test.tsx > review UI > W12 free text written by people carries dir="auto" on the Review screens 2ms
+ ✓ tests/review-ui.test.tsx > heading label without a reference code > "TL-001" + "Tiêu đề" 0ms
+ ✓ tests/review-ui.test.tsx > heading label without a reference code > "" + "Tiêu đề" 0ms
+ ✓ tests/review-ui.test.tsx > heading label without a reference code > "   " + "Tiêu đề" 0ms
+ ✓ tests/review-ui.test.tsx > heading label without a reference code > "TL-002" + "<b>x</b>" 0ms
+ ✓ tests/review-ui.test.tsx > heading label without a reference code > "" + "<b>x</b>" 0ms
+ ✓ tests/review-ui.test.tsx > heading label without a reference code > shows no leading separator in a queue card or a detail header 1ms
+stderr | tests/inbox-ui.test.tsx > inbox UI > a new card offers the three human choices first; picking a type writes nothing and only then shows its inputs
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > incident: the optional impact/recovery note goes with confirm
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > request: missing fields go to need_info, and «Xác nhận đủ thông tin» confirms the request
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > document: «Xác nhận tài liệu» confirms and the source registration link stays
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > a needs_info card always shows what was asked, whatever the type, and can be confirmed or asked again
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > a confirmed card shows its type read-only and only offers reopen with a reason
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+ ✓ tests/inbox-ui.test.tsx > inbox UI > renders the four states: empty, error, loading and denied, with different wording for empty and denied 5ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > fixtures use only card states the server produces 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a new card offers the three human choices first; picking a type writes nothing and only then shows its inputs 13ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > incident: the optional impact/recovery note goes with confirm 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > request: missing fields go to need_info, and «Xác nhận đủ thông tin» confirms the request 3ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > document: «Xác nhận tài liệu» confirms and the source registration link stays 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a needs_info card always shows what was asked, whatever the type, and can be confirmed or asked again 9ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a confirmed card shows its type read-only and only offers reopen with a reason 4ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > the project picker lists only permitted projects and the denied view leaks no name or count 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a new group shows Chưa xác minh khả năng nhận tin and never Đã kết nối đầy đủ; the first receipt time is formatted, not raw ISO 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > PM-07 a persisted but undelivered receipt reads Đã ghi, chưa gửi 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > failure rows keep uncertain and dead apart, never say delivered, and name the message in Vietnamese with its card 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > pointer-only cards show no message text 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > OQ-30 hidden cards show the hidden copy and no text; text renders only for excerpt 2ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > OQ-30 the detail view shows text per revision only when that revision is excerpt 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > gateway-declared hashes are never shown as verified 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a viewer of the card without manager role sees no action button, with the reason 4ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > I-1 InboxBody needs no command handler for loading and read-only use 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > m-3 after a command the page, the sources and the failures are read again together 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a stale version shows the conflict sentence and keeps the choice 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > approvals show the ballot kind and current → proposed grants 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > one shared predicate decides whether a grant change widens access, for the team screen and the server 2ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > team accounts offer Trình phiếu đổi quyền only when access expands 0ms
+ ✓ tests/inbox-ui.test.tsx > UI-6 request failures > a command whose fetch rejects with TypeError shows the Vietnamese copy and never «Failed to fetch» 7ms
+ ✓ tests/inbox-ui.test.tsx > UI-6 request failures > an error the server answered (AppError through api()) is shown as is; a version conflict keeps the conflict copy 1ms
+ ✓ tests/inbox-ui.test.tsx > UI-6 request failures > a card detail that fails to load shows the copy and «Thử lại»; pressing it loads again and shows the detail 1ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > a clean output of each of the six skills is accepted 6ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > every skill has a strict output contract; unknown keys are rejected 5ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > the context schema is strict 1ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > a manifest mismatch of skill or hash is held 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > an output without sources is held 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > a claim or section without basis is held 1ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > a cited id outside the context is held 1ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > a claim based on a hidden or pointer-only message is held 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > DOC-15 a tool request outside the allowlist is held and the manifest object is unchanged 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > release_librarian can only name the approved revision of a document in context 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > the minimum dossier lists six work types with the items of SPEC-009 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > reasons are complete and ordered 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > an oversized or deeply nested output is rejected by size, not by a crash 15ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > outputFits measures UTF-8 bytes of the compact JSON 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > outputFits refuses U+0000 in a value or a key 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > outputFits refuses a lone surrogate in a value or a key 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > outputFits accepts a valid surrogate pair and the six letters backslash-u0000 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > confidence is an integer from 0 to 100 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > no contract admits another number, and parsing returns the value unchanged 4ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > sources are at most 100 references 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > questions are at most 50 items and 16384 bytes 1ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > R-a the context must be for the same skill as the manifest 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > R-b a statement cannot rest on text that was not shown 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > R-c every id-bearing field is checked against the context, and the table covers every id in a clean output 3ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > R-d the release librarian only names approved revisions 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > R-e a pointer-only context carries no text to reason from 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > F9-1 a conflict names at least two distinct sources 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > F9-2 in a pointer-only context any non-empty leaf of result is held, for all six skills 1ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > F9-2 the empty-leaf walk is recursive and reaches into nested objects 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > a context with no shown text and no document yields only held outputs 1ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > F9-3 an excerpt without text does not support a statement 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > F9-4 the value that is measured is the value that is parsed and returned 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > F9-5 whatever a statement cites is also listed in sources 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > F9-6 an id of the wrong kind is out of context 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > F9-8 a hidden or pointer-only message named in any id field, sources[] and duplicateOf included, is held 0ms
+ ✓ tests/skill-contracts.test.ts > skill contracts > R-f the gate imports nothing that reaches the database 0ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > renders the four states with different wording for empty and denied; denied leaks no name or count 6ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > DOC-09 a 2/3 card reads Chưa đủ phiếu (2/3) and never Đã áp dụng 8ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > quorum met without receipt reads Đủ phiếu, chưa áp dụng 0ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > only a receipt makes a card read Đã áp dụng 1ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > a card with a receipt and fewer than three agreeing votes never reads Đã áp dụng on the vote line, whether the state is reconcile (the service) or a hand-built applied 2ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > the reassignment label never reads Đã áp dụng for any state without a receipt 4ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > a review card shows the vote and the baseline as two lines 0ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > a requested change on a review card reads Yêu cầu sửa with the baseline line unchanged 1ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > a card the viewer cannot act on shows the reason and no vote button 3ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > a seat outside the proposal's frozen seats sees no button and no sentence 0ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > vote buttons follow canVote and nothing else 11ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > a vote sends the proposal, the choice and the note and nothing that names an actor, tenant or seat 0ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > Conflict: a card that changed shows Bản này đã thay đổi and a reload action, and keeps the typed note 1ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > account approvals are a link to /approvals, not a card with buttons 1ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > names and titles with markup are rendered as text 1ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > decision CSS wraps long strings and gives actions 44px 2ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > after a vote: recorded clears the note and reloads; a failure keeps it; a closed or changed proposal gives the Conflict sentence with a reload 2ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > W9 the list shows one fixed sentence only when the review cards were cut 1ms
+ ✓ tests/decisions-ui.test.tsx > decisions UI > W12 titles and summaries written by people carry dir="auto" on the Decisions screen 1ms
+ ✓ tests/decisions-ui.test.tsx > decision card heading without a reference code > shows the title with no leading separator 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > pageState ranks loading, denied, error, empty, ready 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > each of the four non-ready states renders its own copy 4ms
+ ✓ tests/documents-ui.test.tsx > documents UI > empty and denied are different text 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > all six source states render distinct labels 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > an empty approved pointer renders the neutral Chưa có tag 7ms
+ ✓ tests/documents-ui.test.tsx > documents UI > a self-declared hash is never shown as verified 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > a stale projection is labelled from the Z1 version check, not from the Z2 row itself 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > a stale row shows the text, a fresh row does not 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > pending registrations survive a reload as a notice, in the list and in the empty state 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > denied source hides source metadata and the open action 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > long hashes and URLs do not force a fixed width 3ms
+ ✓ tests/documents-ui.test.tsx > documents UI > mobile (<=700px) stacks pointers and columns without a 200px flex-basis as height 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > pageState: no-results only when a term is applied and rows=0 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > no-results shows the term and a clear button, not the empty-project copy 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > empty state mentions that the index has not been projected yet 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > register notice is a status with the title escaped 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > source link: https renders a safe anchor with host, other schemes render none 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > no component or view copy says đã duyệt, and window.open is gone 0ms
+ ✓ tests/documents-ui.test.tsx > document detail > LBRC014-like: two revisions newest first, three SHAs, neutral approved tag, self-declared hash, no approval wording 1ms
+ ✓ tests/documents-ui.test.tsx > document detail > XECA006-like: seven missing fields, unreconciled links, a gone source row 1ms
+ ✓ tests/documents-ui.test.tsx > document detail > a document with no revision shows Chưa có and no open button when denied source 0ms
+ ✓ tests/documents-ui.test.tsx > document detail > denied block is generic and carries no title or code 0ms
+ ✓ tests/documents-ui.test.tsx > document detail > the list card links to the detail page 0ms
+ ✓ tests/documents-ui.test.tsx > document detail url refs (OQ-25) > a url source ref is shown as text, never as a link, so the host allowlist does not need to cover it 1ms
+ ✓ tests/doc-approver-ui.test.tsx > document approval on the team screen > the team form offers document approval per type only for existing accounts, never in the registration form 7ms
+ ✓ tests/doc-approver-ui.test.tsx > document approval on the team screen > ticking a document type is a widening and offers Trình phiếu đổi quyền; unticking offers Lưu quyền 9ms
+ ✓ tests/doc-approver-ui.test.tsx > document approval on the team screen > codes held on two projects round-trip untouched, and a code ticked on a second project that has a role is a widening 1ms
+ ✓ tests/doc-approver-ui.test.tsx > document approval on the team screen > saving an unrelated change keeps the document approval codes an account already holds 2ms
+ ✓ tests/doc-approver-ui.test.tsx > document approval on the ballot card > an approval card names each document type under duyệt bản chuẩn, next to the current grants 1ms
+ ✓ tests/doc-approver-ui.test.tsx > document approval on the ballot card > text from the ballot is rendered as text 0ms
+ ✓ tests/doc-approver-ui.test.tsx > document approval on the ballot card > a ballot without document approval renders exactly as before 1ms
+ ✓ tests/doc-approver-ui.test.tsx > labels > every doc_approve label comes from TYPE_NAMES and an unknown code is shown as itself 2ms
+stdout | tests/skills-eval.test.ts
+{"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
+
+ ✓ tests/skills-eval.test.ts > skill eval sets > every skill has exactly one case per category 1ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > every eval context is valid, belongs to its skill and holds only the kinds that skill receives 5ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > the injection sentence sits in a source text or a title/summary of the injection case only 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > intake_analyst/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason 1ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > intake_analyst/injection: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > intake_analyst/conflicting_sources: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > intake_analyst/revoked_access: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > intake_analyst/same_name_other_bu: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > ba_elicitation/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason 1ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > ba_elicitation/injection: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > ba_elicitation/conflicting_sources: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > ba_elicitation/revoked_access: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > ba_elicitation/same_name_other_bu: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > pm_planning/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > pm_planning/injection: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > pm_planning/conflicting_sources: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > pm_planning/revoked_access: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > pm_planning/same_name_other_bu: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > technical_writer/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > technical_writer/injection: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > technical_writer/conflicting_sources: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > technical_writer/revoked_access: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > technical_writer/same_name_other_bu: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > doc_reviewer/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > doc_reviewer/injection: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > doc_reviewer/conflicting_sources: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > doc_reviewer/revoked_access: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > doc_reviewer/same_name_other_bu: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > release_librarian/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason 1ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > release_librarian/injection: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > release_librarian/conflicting_sources: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > release_librarian/revoked_access: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > release_librarian/same_name_other_bu: the good output passes and the bad output is caught for the stated reason 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > every id inside good and bad has uuid shape 1ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > every eval context is a shape the context builder can emit 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > each conflicting_sources case checks that the good output cites two distinct sources 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > a conflict is two sources asserting incompatible values for the same fact at the same time: never two revisions of one document (that is a change), and never two documents that merely differ 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > duplicateOf names another message: no sample sets it to the only source_event of its own context 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > runEvalCase fills skill and manifestHash from the manifest and runs the checks 0ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > DOC-15 instructions inside source text change neither the tool allowlist nor the manifest hash 1ms
+ ✓ tests/skills-eval.test.ts > skill eval sets > the eval needs no network 1ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > six skills, each with name, version, hash, tool allowlist, data scope and owner 2ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > prompt and eval hashes match the files on disk and the manifest hash matches its content 3ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > changing one byte of a prompt breaks the hash check 0ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > no tool is allowed, no model is bound and no skill is enabled 0ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > manifests are frozen 1ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > the prompts of ba_elicitation, pm_planning and technical_writer carry the minimum dossier of all six work types 1ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > every bare identifier a prompt puts in backticks is a field of that skill 1ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > every prompt forbids ids of messages without shown text and says an empty-source output stays a draft 1ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > prompts say the system fills skill and manifestHash, and technical_writer promises no examples 1ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > skillEvalSets is frozen at every depth 0ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > every prompt tells the model that context is untrusted data 1ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > skills/ holds no secret, no real chat id and no personal name pattern, and stays under 120 KB 4ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > the personal-data scan ignores 64-hex hashes and nothing else: a hash with a ten-digit run passes, a phone-like number in a prompt or an eval text still fails 1ms
+ ✓ tests/skills-manifest.test.ts > skill manifests > skills.ts imports only the twelve JSON files, node:crypto and skill-contracts 0ms
+ ✓ tests/skills-manifest.test.ts > canonicalJson > sorts keys recursively by code unit order, keeps array order, emits no whitespace 0ms
+ ✓ tests/skills-manifest.test.ts > canonicalJson > throws on a value JSON cannot carry instead of dropping it 0ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > demo on + loopback host + valid demo cookie resolves the demo principal 9ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > demo on + loopback host + no/invalid cookie throws (page redirects to /login) 1ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > demo on + non-loopback host does not take the demo path 0ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > demo off takes the identity path even on a loopback host 0ms
+ ✓ tests/page-session.test.ts > documents page principal (C1) > identity failure propagates 0ms
+ ✓ tests/rsc-boundary.test.ts > I-1 no server file under src/app passes a function prop to a Client Component 8ms
+ ✓ tests/rsc-boundary.test.ts > the scan flags an inline handler and a local function on a client component, and ignores client files 1ms
+ ✓ tests/review-page.test.ts > loadFlaggedLinks > returns what the read returns 1ms
+ ✓ tests/review-page.test.ts > loadFlaggedLinks > turns only SCOPE_DENIED into an empty list 0ms
+ ✓ tests/review-page.test.ts > loadFlaggedLinks > lets every other failure reach the error boundary instead of an empty list 0ms
+ ✓ tests/review-page.test.ts > loadFlaggedLinks > the page uses the helper and has no blanket or empty catch 1ms
+ ✓ tests/review-page.test.ts > detailFailure > maps SCOPE_DENIED and NO_REVISION only; everything else is rethrown 0ms
+ ✓ tests/review-page.test.ts > detailFailure > the sentence is the fixed one, with a way back to the list 2ms
+ ✓ tests/review-page.test.ts > detailFailure > the page uses it 0ms
+ ✓ tests/source-snapshot.test.ts > reports source exceptions without turning source done into acceptance 2ms
+ ✓ tests/source-snapshot.test.ts > detects a changed or removed source row but does not infer a task identity 1ms
+ ✓ tests/source-snapshot.test.ts > rejects another source and malformed or duplicate input 1ms
+ ✓ tests/source-snapshot.test.ts > keeps a US month/day date as a format conflict instead of falsely invalidating it 0ms
+ ✓ tests/source-snapshot.test.ts > accepts Sheets date-only cells exported as midnight timestamps 0ms
+ ✓ tests/document-templates.test.ts > PM document templates T0-T6 > manifest lists exactly T0..T6 once each with semver versions 1ms
+ ✓ tests/document-templates.test.ts > PM document templates T0-T6 > every manifest hash equals the sha256 of the file bytes 2ms
+ ✓ tests/document-templates.test.ts > PM document templates T0-T6 > every template carries its code, version and the nine metadata rows 1ms
+ ✓ tests/document-templates.test.ts > PM document templates T0-T6 > templates contain no credential or real chat identifier 0ms
+ ✓ tests/version-status.test.ts > APP_VERSION equals package.json version 1ms
+ ✓ tests/version-status.test.ts > no hard-coded release number remains in bridge, health and workspace 0ms
+ ✓ tests/version-status.test.ts > configuration alone never yields the verified label 0ms
+ ✓ tests/version-status.test.ts > missing configuration shows not-configured and no write flow 0ms
+ ✓ tests/version-status.test.ts > a recorded verification shows all three labels 0ms
+ ✓ tests/version-status.test.ts > slice 1 has no verification source 0ms
+ ✓ tests/list-cut.test.ts > wasCut > without a total: cut only when more than the cap was fetched 1ms
+ ✓ tests/list-cut.test.ts > wasCut > with a total: cut when the total is larger than what is shown 0ms
+ ↓ tests/document-dependencies-concurrency.test.ts > document dependency link racing a proposal (native PostgreSQL) > the link either names the old latest and succeeds before the proposal (which then flags it), or answers REVISION_CONFLICT; never a link to a revision the command did not name
+ ↓ tests/document-review-concurrency.test.ts > document review concurrency (native PostgreSQL) > two approvals of the same revision in parallel store one review_decisions row
+ ↓ tests/document-review-concurrency.test.ts > document review concurrency (native PostgreSQL) > one person sending two approvals with two keys stores one decision
+ ↓ tests/document-review-concurrency.test.ts > document review concurrency (native PostgreSQL) > an approval and a changes_requested on the same revision store exactly one decision
+ ↓ tests/document-review-concurrency.test.ts > document review concurrency (native PostgreSQL) > a decision racing a new revision proposal never lands on the newer revision
+ ↓ tests/document-review-concurrency.test.ts > document review concurrency (native PostgreSQL) > authority lost between the read and the insert is answered APPROVER_NOT_AUTHORIZED and nothing is stored
+ ↓ tests/document-review-concurrency.test.ts > document review concurrency (native PostgreSQL) > two resolved on one thread sent together store one row and one event; the other answers COMMENT_RESOLVED
+ ↓ tests/documents-concurrency.test.ts > document revision concurrency (native PostgreSQL) > two concurrent proposals on one version yield one revision and one REVISION_CONFLICT
+ ↓ tests/documents-concurrency.test.ts > document revision concurrency (native PostgreSQL) > two identical concurrent proposals with one key apply once and replay once
+ ↓ tests/documents-concurrency.test.ts > document revision concurrency (native PostgreSQL) > one key raced across two projects applies once and conflicts once
+ ↓ tests/feedback-concurrency.test.ts > feedback resolve concurrency (native PostgreSQL) > resolve: two identical concurrent requests apply once and replay once
+ ↓ tests/feedback-concurrency.test.ts > feedback resolve concurrency (native PostgreSQL) > resolve: one key raced across two reports applies once and conflicts once
+ ↓ tests/feedback-concurrency.test.ts > feedback resolve concurrency (native PostgreSQL) > resolve: one key reused in another project conflicts although RLS hides the prior action (native)
+ ↓ tests/intake-concurrency.test.ts > intake ingest concurrency (native PostgreSQL) > two identical requests in parallel store exactly one source event
+ ↓ tests/intake-concurrency.test.ts > intake ingest concurrency (native PostgreSQL) > two different edits in parallel get revision numbers 2 and 3
+ ↓ tests/intake-slo.test.ts > intake SLO probe (native PostgreSQL) > SLO probe on synthetic data (a measurement, not a commitment)
+ ↓ tests/outbox-crash.test.ts > outbox crash and concurrency (native PostgreSQL) > a rolled-back business transaction leaves no outbox row
+ ↓ tests/outbox-crash.test.ts > outbox crash and concurrency (native PostgreSQL) > a process that dies between write and send still delivers exactly once after restart
+ ↓ tests/outbox-crash.test.ts > outbox crash and concurrency (native PostgreSQL) > two pulls in parallel never lease the same message
+ ↓ tests/outbox-crash.test.ts > outbox crash and concurrency (native PostgreSQL) > a gateway that dies after leasing leaves the message uncertain, not resent
+ ↓ tests/slice3-bom-concurrency.test.ts > BoM 3/3 concurrency (native PostgreSQL) > two third votes at the same time create exactly one bom_receipts row
+ ↓ tests/slice3-bom-concurrency.test.ts > BoM 3/3 concurrency (native PostgreSQL) > two competing proposals reaching their third vote together yield one receipt and one reconcile
+ ↓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > two confirmations of one draft in parallel leave one decision and one revision
+ ↓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a confirmation and a rejection of one draft in parallel leave one decision; the loser answers DRAFT_ALREADY_DECIDED and no revision is orphaned
+ ↓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a draft confirmation racing a manual revision of the same document: one answers REVISION_CONFLICT, no decision without its revision, no revision a decision does not point to
+
+ Test Files  58 passed | 10 skipped (68)
+      Tests  973 passed | 41 skipped (1014)
+   Start at  05:06:12
+   Duration  363.12s (tests 99%, import 1%)
+

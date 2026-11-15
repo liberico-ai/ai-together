@@ -1,4 +1,4 @@
-# Task 18 step h - static checks, code head ee990b4 (tree at 3eee1c5, a docs-only commit on top), base ec3b5e7, observed 2026-11-15. An exit of 1 from the last grep of a pipeline with no output means empty = pass.
+# Task 18 step h - static checks, code head 007cded (tree at 2654abf, documentation commits on top), base ec3b5e7, observed 2026-11-16. An exit of 1 from the last grep of a pipeline with no output means empty = pass.
 
 $ git diff --stat ec3b5e7 -- tests/foundation.test.ts tests/spec004.test.ts
 [exit 0] no output
@@ -15,13 +15,13 @@ $ git diff ec3b5e7 -- migrations | /usr/bin/grep -nE '^\+.*\bevidence\b'
 # leak check on added lines, (raw) exactly as in the brief:
 
 $ git diff ec3b5e7 -- src tests migrations skills | /usr/bin/grep -E '^\+' | /usr/bin/grep -E -- '-100[0-9]{7,}' | /usr/bin/grep -vE -- '-100000000000[0-9]([^0-9]|$)'
+[exit 0] output below
 +        if (s.kind === 'source_event') expect(s.ref, tag).toMatch(/^telegram:-100000000000[0-9]:\d+$/);
 +  if ((text.match(/-100[0-9]{7,}/g) ?? []).some(h => !/^-100000000000[0-9]$/.test(h))) hits.push('chat id');
-[exit 0] output above
 
 # (amended, ruling of the controlling session) same pipeline plus a filter that drops pattern text (a match followed by a character class):
 
-$ git diff ec3b5e7 -- src tests migrations skills | /usr/bin/grep -E '^\+' | /usr/bin/grep -E -- '-100[0-9]{7,}' | /usr/bin/grep -vE -- '-100000000000[0-9]([^0-9]|$)' | /usr/bin/grep -vE -- '-100000000000\['
+$ <same pipeline> | /usr/bin/grep -vE -- '-100000000000\['
 [exit 1] no output
 
 # untracked files, and network check:
@@ -33,3 +33,8 @@ $ /usr/bin/grep -rn 'fetch(\|https\?://' src/server/skills.ts src/server/skill-c
 [exit 1] no output
 
 # Reading: the raw check prints two lines, both regular-expression literals in test files (tests/ line with telegram:-100000000000[0-9] and a source-scan line with /-100[0-9]{7,}/g); the amended check prints nothing.
+
+$ ls tests/doc-approval-proposal*.test.ts src/app/api/team/doc-approvals
+[exit 1] (run in bash)
+ls: src/app/api/team/doc-approvals: No such file or directory
+ls: tests/doc-approval-proposal*.test.ts: No such file or directory

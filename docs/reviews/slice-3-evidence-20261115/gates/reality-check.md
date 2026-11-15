@@ -154,3 +154,59 @@ None that blocks. One precision note, optional:
 - reads of `tier1-database.md:198-205`, `:271`, `:388`, `review-task-7a-security.md:69`, `review-task-5.md:106` and `migrations/021_ai_suggestions_z4.sql:6`
 
 No test, build or server was run, and no file other than this report was changed.
+
+## Third pass — after the extra fix round and Codex round 4
+
+- Scope: a read-only check of the rewritten receipt, review summary and roadmap against the files that prove them.
+- State: HEAD `2654abf` (docs), code head `007cded`.
+- Not run: any suite, the build, a server, a container, an `EXPLAIN`. Every number below is read from a log or an evidence file.
+- Verdict for «đã có mã» as the receipt now words it: **READY**. This is a recommendation; acceptance stays with the Chairman.
+
+### Claims 1–8
+
+| # | Claim | Result | What I read |
+|---|---|---|---|
+| 1 | Codex round 4 PASS at the code the gate read; round 3 still CHANGES_REQUIRED with one P2 | **supported** | `codex-round-4.md` line 1 is `VERDICT: PASS`, followed by «Không có finding.» and no finding line. `codex-context-round-4.md:8` pins head `2654abf5…`, base `ec3b5e7` (`:7`). `git diff --stat 007cded 2654abf -- src tests migrations skills bot-plugin vitest.config.ts package.json` is empty, and so is the working tree for those paths. The receipt says PASS only for round 4 (level cell line 7; «Tầng 2» bullet «Vòng 4»). The receipt (line 111) and the REVIEW round-3 row (line 49) keep round 3 as `CHANGES_REQUIRED`, 1 P2 · 0 P0 · 0 P1. |
+| 2 | The Chairman's P2 decision is quoted the same way in both records and adds nothing | **supported** (only that the records agree; whether the Chairman said it cannot be checked here) | Receipt «Căn cứ và quyết định» line 30 and REVIEW row 3 give the same question «Sửa mục P2 của Codex vòng 3 rồi chạy cổng thêm một lượt chứ?», the same two buttons «Sửa P2, chạy lại» / «Giữ nguyên», the same answer «Sửa P2, chạy lại», and the same place (the slice session's next-step box). `controller-rulings.md:70` matches. The receipt labels «một vòng sửa và một lượt chạy cổng» as the session's reading («Phiên lát 3 hiểu…»). REVIEW calls it «vòng sửa thêm, ngoài hai vòng của quy trình», and its round-4 row says «Lượt chạy thêm theo lời Chairman». No added wording. |
+| 3 | Numbers at `007cded` | **supported** | `logs/vitest-pglite-007cded.log`: 58 passed, 10 skipped; 973 passed, 41 skipped (1014). `logs/vitest-native-007cded.log`: 68 files, 1014 passed, 1014 `✓`, 0 `×`. `logs/coverage-007cded.log` «All files»: 96.17 / 91.04 / 97.71 / 97.39. pytest: `67 passed, 69 subtests passed`. typecheck: `tsc --noEmit`, no output. build: «Compiled successfully» and the five routes. `manifest.json`: `codeHead` `007cded…`, `headAtRun` `2654abf`; every exit is 0 except `absent-7c` = 1, by design. `previousRun` keeps `ee990b4` and, nested inside it, `2a267c5`. The receipt table (lines 59-72) and roadmap line 35 carry the same numbers. The case table and both `task-18-*.txt` files are re-stamped at `007cded`. The eval JSON line in the native log is unchanged. |
+| 4 | The fix as described (item 39, «Vòng sửa thêm» bullet) | **supported** | `git diff ee990b4 007cded -- src/server/review-delegations.ts`: only the non-coordinator SQL changes. Another person's row is fetched only when `revoked_at IS NULL` and its `delegate_id` is in one `bom_eligible_members` call with `project_role = ANY($3)`, before `LIMIT 1001`; the docstring names both lines. Seven cases G-1…G-7 (`tests/review-delegations.test.ts:617-674`) are `✓` in both 007cded logs. `codex-fix3-mutation.txt` reruns m1 (G-1, G-2, G-5, G-6 red), m2 (G-6 red) and m3 (G-4 red) on the final test file. m4 is honestly marked «not a mutation» (the rule lives in migration 006, guarded by G-7). This matches «ba phép đột biến đều đỏ». In `codex-fix3-query-plan.txt` the outer scan visits 300 rows (`Rows Removed by Filter: 300`), and «hashed SubPlan 2» holds one «Function Scan on bom_eligible_members» with `loops=1`; InitPlan 1 also runs once. The receipt's «một lần cho mỗi câu lệnh… 300 dòng, chưa xem ở khối lượng lớn hơn» is accurate. |
+| 5 | The two tier-1 passes of this round | **supported** | `gates/tier1-code.md`, last section: `VERDICT: CLEAN`, N1 P2 + N2–N5 P3, «neighbouring issues… not the exact class», nothing fixed. `gates/review-task-7d-security.md`, last section: `VERDICT: READY`, P3-1…P3-3, «No P0, P1 or P2». The receipt «Tầng 1» bullet and REVIEW line 36 state that the `007cded` follow-up had no tier-1 reviewer of its own («phiên lát 3 đọc diff, rồi cổng Codex đọc»). It is stated, not hidden. |
+| 6 | Items 44–48 against the sweep's N1–N5 | **supported** | 44 = N1, with «(reviewer xếp P2)», the scenario and the two-line fix. 45 = N2: oldest kept, newest cut, the button is offered and then refused. 46 = N3 (50, no «còn nữa»). 47 = N4 (unstable paging, total correct). 48 = N5 (no cut marker). The sub-heading says «ghi nhận, không sửa». Nothing is softened. Item 25 now names the uncapped-flag fourth list (N1's note on item 25) and describes the reviewer-list flag after the fix. |
+| 7 | Nothing above «đã có mã» | **supported** | Deployed, used and accepted are still «Chưa» (lines 8-10). PM-02 is «Không coi đạt» (line 87). OQ-45 and OQ-46 are under «Chưa quyết» and «Câu hỏi mở chưa quyết»; their pointers `:661` and `:677` match the headings in `docs/OPEN-QUESTIONS.md`. OQ-43 and OQ-44 read (a)/(a). Both labels are verbatim in `docs/OPEN-QUESTIONS.md`, with the question and both options (added in `b8f5a99`). The «Ghi chú của phiên điều phối» lines there are marked as not the Chairman's. |
+| 8 | Leftovers of the earlier state | **none found** | Grepped the three documents for `ee990b4`, `1007`, `966`, `97,26`, «chưa sửa», «chờ Chairman», «còn mở». `ee990b4` survives only in historical contexts (round-2 fix, round-3 head, the growth line «ee990b4 … 1007», the reality-checker's earlier pass). «Lúc đó chưa sửa» (receipt :111, REVIEW :49) is explicitly past. The ruling at receipt :260 is annotated «về sau Chairman chọn "Sửa P2, chạy lại"». Item 39 now reads «đã sửa». The roadmap's «Chờ Chairman» (line 39) no longer lists the P2. Roadmap line 30 is the slice-2 block. |
+
+### Blocking
+
+None.
+
+### Non-blocking
+
+- **T1 — Coverage changed engine between runs, and the receipt calls the cause unknown.** `logs/coverage-007cded.log` ran the native suite («68 passed (68)», 1014 tests). `logs/coverage-ee990b4.log` ran on PGlite («58 passed | 10 skipped»). The native-only concurrency tests explain `bom.ts` (98.09 → 100 lines) and `document-review.ts` (98.81 → 99.4) going up without code changes. The receipt says «nguyên nhân chưa điều tra». `manifest.json` records the command as plain `npx vitest run --coverage`, without the environment file the run evidently loaded. Suggested wording: «lượt coverage ở `007cded` chạy trên PostgreSQL thật (68 tệp), lượt ở `ee990b4` trên PGlite; các ca chỉ chạy native giải thích phần nhích lên». Record the engine in the manifest's coverage entry.
+- **T2 — The query plan was taken as the operational login.** `codex-fix3-query-plan.txt` says «as the operator login». That is a superuser, so RLS on the inner `review_delegations d` read does not apply. The plan under `libetech_runtime` adds the RLS filter, and its shape could differ. Item 39 (c) should add «chạy bằng login vận hành (RLS không áp)».
+- **T3 — The record of the P2 decision lives outside `docs/OPEN-QUESTIONS.md`.** The receipt, REVIEW and `controller-rulings.md:70` agree, and the receipt never claims otherwise. The committed message of `b8f5a99` («record … and on the Codex round-3 P2») could be read as saying `OPEN-QUESTIONS.md` holds it; it does not. Nothing to change in the uncommitted files. A reader should not look there.
+- **T4 — The round-4 prompt context gave Codex stale run numbers.** `codex-context-round-4.md:32` gives Codex the `ee990b4` full-run numbers as the latest. This does not affect the verdict (Codex reads code, not counts). Noted so nobody cites that file for `007cded` numbers.
+
+### The planned sentences
+
+- `@@RC@@`: true as written. Each pass matches the record:
+  - first pass NEEDS WORK, two blocking wording items, fixed;
+  - second pass READY at `ee990b4` (HEAD was `3eee1c5`);
+  - third pass READY after the extra round and Codex round 4, read-only, with no tests run.
+- `@@RC-ROW@@` and the extra sentence in the «Tầng 1» reality-checker bullet: correct if they say the same, and add that the third pass found 0 blocking and 4 non-blocking items (T1–T4).
+- They must not say the third pass ran tests or the build, or looked at a query plan itself. It did none of those.
+- Before the commit, `grep -n "@@"` over the receipt, REVIEW and roadmap must return nothing.
+
+### What I ran (third pass)
+
+- `git log`, `git status --short`.
+- `git diff --stat 007cded 2654abf -- src tests migrations skills bot-plugin vitest.config.ts package.json`, plus the working tree for the same paths.
+- `git diff ee990b4 007cded -- src/server/review-delegations.ts` and `git diff --stat ee990b4 007cded`; `git show b8f5a99` (message and `OPEN-QUESTIONS.md` diff).
+- `python3` parse of `manifest.json`; summary lines of the six `*-007cded.log` files and the two coverage logs.
+- Reads of:
+  - `codex-round-4.md`, `codex-context-round-4.md`;
+  - `codex-fix3-mutation.txt`, `codex-fix3-query-plan.txt`;
+  - the last sections of `tier1-code.md` and `review-task-7d-security.md`;
+  - `controller-rulings.md:70`;
+  - the changed receipt, REVIEW and roadmap lines.
+- `grep` for the verbatim labels across the four documents, for G-1…G-7 in the test file and logs, and for leftovers.
+- No other file changed.
