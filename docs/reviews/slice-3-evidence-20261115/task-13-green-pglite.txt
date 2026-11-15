@@ -1,0 +1,5 @@
+ RUN  v5.1.0 <worktree>
+ Test Files  50 passed | 8 skipped (58)
+      Tests  730 passed | 35 skipped (765)
+   Start at  16:40:17
+   Duration  315.06s (tests 99%, import 1%)

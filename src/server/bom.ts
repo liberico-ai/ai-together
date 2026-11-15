@@ -34,6 +34,7 @@ type Vote = {voter_id:string;choice:'agree'|'reject'|'revise';note:string;create
 type Receipt = {proposal_id:string;work_version:number;source_checked_at:string;created_at:string};
 type Member = {user_id:string;project_role:string;linked:boolean};
 type Card = {proposal:Proposal;votes:Vote[];receipt:Receipt|null};
+export type PendingCard = Card&{work:{id:string;code:string;title:string;version:number}};
 export type BomView = {work:Work;allocation:Allocation;enabled:boolean;source:Source|null;cards:Card[];recipients:string[]};
 
 async function scopeFor(tx:Queryable,projectId:string,lock=false) {
@@ -95,6 +96,24 @@ export class BomService {
       for(const proposal of proposals) cards.push(await card(tx,proposal));
       return {work,allocation:await currentAllocation(tx,work),enabled:scope.enabled&&seatsReady(scope,eligible),
         source:await liveSource(tx,id)??null,cards,recipients:eligible.filter(member=>canReceive(member,scope)).map(member=>member.user_id)};
+    });
+  }
+
+  /** Read-only: the newest 30 proposals of a project for a seat holder (the Decisions screen). Same seat and Telegram checks as read(); no write, no lock. */
+  pending(p:Principal,projectId:string):Promise<PendingCard[]> {
+    return scoped(this.db,p,async tx=>{
+      const scope=await scopeFor(tx,projectId);
+      assertSeat(p,scope);
+      const eligible=await members(tx,projectId,[...new Set(scope.seat_ids)]);
+      invariant(eligible.some(member=>member.user_id===p.id&&member.linked),'SCOPE_DENIED','Cần ghép Telegram và có phạm vi dự án.',403);
+      const proposals=(await tx.query<Proposal>('SELECT * FROM bom_proposals WHERE project_id=$1 ORDER BY created_at DESC,id DESC LIMIT 30',[projectId])).rows;
+      const works=new Map((await tx.query<PendingCard['work']>('SELECT id,code,title,version FROM work_items WHERE id=ANY($1::uuid[])',[[...new Set(proposals.map(x=>x.work_id))]])).rows.map(w=>[w.id,w]));
+      const cards:PendingCard[]=[];
+      for(const proposal of proposals) {
+        const work=works.get(proposal.work_id);
+        if(work) cards.push({...await card(tx,proposal),work});
+      }
+      return cards;
     });
   }
 

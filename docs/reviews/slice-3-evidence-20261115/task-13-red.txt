@@ -1,0 +1,15 @@
+# RED: npx vitest run tests/decisions.test.ts (before src/server/decisions.ts exists; BomService.pending was already added)
+ FAIL  tests/decisions.test.ts [ tests/decisions.test.ts ]
+Error: Cannot find module '../src/server/decisions' imported from <worktree>/tests/decisions.test.ts
+ ❯ tests/decisions.test.ts:8:1
+      6| import {approver,beforeStatement,delegate,frozenRevision,grantDocAppro…
+      7| import {BomService} from '../src/server/bom';
+      8| import {DecisionService,reassignmentState,type DecisionCard,type Reass…
+       | ^
+      9| import {ReviewService} from '../src/server/document-review';
+     10| import {DocumentService} from '../src/server/documents';
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  16:39:18
+   Duration  107ms (worker 97%, environment 3%)
