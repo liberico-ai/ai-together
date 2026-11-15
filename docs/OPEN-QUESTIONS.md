@@ -546,3 +546,43 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Hệ quả của câu trả lời, theo đúng câu hỏi Chairman thấy:** câu trả lời này cũng xác nhận điều phối dự án không tự trình cho chính mình. Ghi chú 3 của phiên điều phối kèm OQ-33 vì vậy không còn «chờ xác nhận».
 - **Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):** khi viết kế hoạch cho PR riêng của Task 7c, giữ chỗ S83 đổi theo OQ-38 (c), kèm việc đổi cách khoá hai dòng tài khoản mà kế hoạch đã nêu, và cổng bảo mật xem lại.
 - **Trạng thái lúc lập kế hoạch:** chưa quyết. Kế hoạch lát 3 bản 0.5 đặt **hành vi giữ chỗ fail-closed, không phải phương án được chọn** (phán quyết S83 của kế hoạch): người được cấp có vai `manager` ở chính dự án đó bị từ chối trên đường của điều phối — trùng phương án (b); quản trị tài khoản trình theo đường có sẵn thì được. Nếu phương án (a) hoặc (c) được chọn, cách khoá hai dòng tài khoản của Task 7c phải đổi (khoá theo thứ tự mã), nên cổng bảo mật phải xem lại phần đó.
+
+---
+
+**Bổ sung 15/11/2026 sau review bảo mật của Task 7a lát 3** (`docs/reviews/slice-3-evidence-20261115/gates/review-task-7a-security.md`, kết luận «Approved», mục «Questions that are not the session's to decide»; mã ở `828158a`). Bốn mục dưới đây là bốn câu hỏi «ai được làm gì» mà lời Chairman ở OQ-31 và OQ-34 chưa phủ. Ghi khi **chưa có quyết định**, do phiên lát 3 chép từ báo cáo review. **Không mục nào chặn task nào của lát 3:** mã đã có một hành vi cho từng trường hợp (nêu ở dòng «Hành vi hiện tại»); đó là hệ quả của cách kế hoạch và lược đồ được viết, không phải phương án được chọn. Đổi theo quyết định sau này là việc nhỏ, nêu ở từng mục.
+
+## OQ-39 — Uỷ quyền nhận xét có còn hiệu lực khi người đã chỉ định mất vai `manager` của dự án không
+
+- **Lát:** 3 (Task 7a, đã có mã), pilot.
+- **Phía A:** quyết định OQ-31 (b) — «Điều phối dự án (vai manager) chỉ định người nhận xét. Quyền duyệt bản chuẩn đi qua phiếu đổi quyền một BoM như OQ-29. Phát sinh thêm migration 021 và task trong lát 3.»; quyết định OQ-34 (a) — «Mọi người giữ vai manager của chính dự án đó thu hồi được, kèm căn cứ, hiệu lực ngay; quyết định và nhận xét đã ghi giữ nguyên.» Theo đó thẩm quyền được xét lúc chỉ định, và muốn chấm dứt thì một điều phối thu hồi.
+- **Phía B:** quyết định OQ-37 (c) cho một trường hợp gần giống ở phiếu cấp quyền duyệt — «Vẫn áp được, nhưng /team phải nêu rõ người trình không còn điều phối dự án trước khi quản trị áp.» — nhưng đó là phiếu, không phải uỷ quyền nhận xét. Không tài liệu nào nói: uỷ quyền do một người không còn là điều phối chỉ định thì tiếp tục, tự hết, hay phải hiện rõ.
+- **Phương án:** (a) vẫn hiệu lực tới khi một điều phối thu hồi, như hiện nay; (b) tự hết khi người chỉ định không còn là `manager` của dự án đó; (c) vẫn hiệu lực nhưng danh sách và giao diện nêu rõ «người chỉ định không còn là điều phối».
+- **Ai quyết:** BoM Tech (phần người nhận xét, theo dòng «Ai quyết» của OQ-31); Chairman nếu muốn quyết luôn.
+- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a). Đổi sang (c) chỉ thêm một cột tính trong hàm liệt kê và một dòng chữ trên giao diện; đổi sang (b) cần thêm điều kiện ở chỗ dịch vụ và guard đọc uỷ quyền.
+
+## OQ-40 — Uỷ quyền nhận xét của một người mất vai đọc, rời dự án hoặc bị khoá rồi quay lại
+
+- **Lát:** 3 (Task 4b, 5, 7a, đã có mã), pilot.
+- **Phía A:** quyết định OQ-34 (a) chỉ nêu một đường chấm dứt uỷ quyền là thu hồi bởi điều phối. Lược đồ và dịch vụ vì vậy không tự đóng dòng uỷ quyền khi người được chỉ định mất vai: dòng vẫn «còn hiệu lực» trong bảng, nhưng không dùng được chừng nào người đó không còn là thành viên đang hoạt động có vai đọc (guard của `review_decisions` ở `migrations/020_document_review.sql`; `src/server/document-review.ts`, hàm đọc thẩm quyền).
+- **Phía B:** `docs/SLICE-BRIEFS.md:13` cấm «tự cấp quyền»; khi người đó được thêm lại vào dự án với vai đọc, uỷ quyền cũ cùng các loại tài liệu cũ có hiệu lực lại mà không điều phối nào làm gì — một quyền quay lại không qua bước chỉ định mới. Không tài liệu nào nói uỷ quyền «ngủ» rồi tự sống lại, hay coi như đã hết.
+- **Phương án:** (a) ngủ rồi tự có hiệu lực lại với loại tài liệu cũ, như hiện nay; (b) coi như đã hết: quay lại thì phải được chỉ định mới; (c) vẫn ngủ, nhưng điều phối thấy dòng đó được đánh dấu «đang ngủ» để thu hồi nếu muốn.
+- **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn.
+- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a). Trong lúc ngủ, uỷ quyền không cho làm gì (đã có ca kiểm); danh sách vẫn hiện nó là còn hiệu lực. Đổi sang (c) chỉ thêm một chỉ báo trong hàm liệt kê; đổi sang (b) cần migration (đóng dòng khi mất vai) hoặc một bước thu hồi trong lệnh đổi quyền của dịch vụ tài khoản.
+
+## OQ-41 — Ai được xem danh sách người nhận xét, căn cứ chỉ định và căn cứ thu hồi
+
+- **Lát:** 3 (Task 7a đã có mã; Task 15, 16 sẽ đưa lên tuyến và màn hình), pilot.
+- **Phía A:** phán quyết S11 của kế hoạch lát 3 (tự nó còn chờ Chairman xác nhận) — vai đọc Review và Quyết định là `manager`, `engineer`, `technical`, `business`; chặn `viewer` và `bot`. Theo đó mọi người đọc của dự án xem được ai nhận xét loại tài liệu nào, kèm chữ căn cứ.
+- **Phía B:** căn cứ chỉ định và nhất là căn cứ thu hồi là chữ tự do do điều phối viết, có thể nói về công việc của một người; `AGENTS.md` và luật chung đòi lỗi và danh sách không lộ quá điều người xem cần. Quyết định OQ-34 (a) đòi thu hồi «kèm căn cứ» nhưng không nói ai đọc được căn cứ đó. Không tài liệu nào nói người đọc không phải điều phối có được thấy chữ căn cứ không.
+- **Phương án:** (a) mọi người đọc của dự án thấy đủ, như hiện nay; (b) điều phối thấy đủ, người đọc khác chỉ thấy ai nhận xét loại nào, không thấy chữ căn cứ; (c) như (b), và người được chỉ định thấy căn cứ của các dòng của chính mình.
+- **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn.
+- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a) ở tầng dịch vụ; chưa có tuyến hay màn hình nào hiện nó. Đổi sang (b) hoặc (c) là bỏ hai trường khỏi kết quả trả cho người không phải điều phối. **Phán quyết của phiên lát 3 (không phải quyết định của Chairman) cho Task 15 và 16 trong lúc chờ:** tuyến và màn hình chỉ đưa chữ căn cứ cho điều phối của dự án và cho chính người được chỉ định với dòng của mình — hướng chặt, trùng (c); khi có quyết định (a) thì nới lại.
+
+## OQ-42 — Một người có hai tài khoản: điều phối chỉ định tài khoản thứ hai của chính mình
+
+- **Lát:** ngoài lát 3 (dịch vụ tài khoản); nêu vì nó chạm luật «không tự chỉ định» của OQ-31.
+- **Phía A:** phần kèm của OQ-31 — «Người chỉ định không được chỉ định chính mình, và mỗi uỷ quyền phải nêu rõ loại tài liệu được review hoặc duyệt.» Lát 3 ép luật này theo mã tài khoản (dịch vụ, CHECK và trigger).
+- **Phía B:** dịch vụ không biết hai tài khoản thuộc cùng một người; `docs/SPEC-007-telegram-account-approval.md` quy định cấp tài khoản qua phiếu Chairman + một BoM nhưng không nêu luật «một người một tài khoản». Không tài liệu nào nói ai bảo đảm một người chỉ có một tài khoản.
+- **Phương án:** (a) coi «một người một tài khoản» là luật của việc cấp tài khoản, do quản trị tài khoản và người bỏ phiếu bảo đảm khi duyệt; không thêm mã; (b) thêm một phép kiểm kỹ thuật ở dịch vụ tài khoản (ví dụ một Telegram ID chỉ ghép một tài khoản đang hoạt động); (c) không coi là rủi ro cần xử lý ở giai đoạn này.
+- **Ai quyết:** Chairman.
+- **Hành vi hiện tại (không phải phương án được chọn):** lát 3 không thêm gì về việc này; luật không tự chỉ định chỉ chắc trong phạm vi một tài khoản.
