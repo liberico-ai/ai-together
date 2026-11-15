@@ -124,3 +124,55 @@ None found.
 - The hash binds prompt, eval and manifest content, not the schemas or the gate code.
 - The "no personal name" test checks patterns only (e-mail, phone, handle, chat id, secret words); it cannot detect a plain name.
 - The evidence line needs `--reporter=verbose` to appear.
+
+---
+
+## Re-review of fix round 1 (2bc6944)
+
+Read from the committed code and the implementer's evidence files. The suite was not re-run. Evidence shows the focused PGlite run at 135 passed and the native full run at 899 passed. The one PGlite failure is `tests/review-ui.test.tsx`, which is not a file of these tasks.
+
+### Verdicts
+
+Task 9
+- F9-1 ADDRESSED (`skill-contracts.ts:158`): fewer than two distinct `sourceIds` gives `UNSOURCED_CLAIM`. Mutation "relaxed to one" and "distinctness dropped" both go red.
+- F9-2 ADDRESSED (`:120-131`, `:164-165`): `onlyEmptyLeaves` is an iterative walk of `result`. A new field is covered without a table. I confirmed that the five skills other than `doc_reviewer` can accept an all-empty result in a context that contains a document.
+- F9-3 ADDRESSED (`:162`): visible only with `mode==='excerpt' && text!==null`. Mutation red.
+- F9-4 ADDRESSED (`:60-78`, `:144-146`): `measure()` returns the round-tripped value, and the schema parses that value. The test uses a toJSON wrapper and a getter.
+- F9-5 ADDRESSED (`:156-159`): a cited id that is in the context but not in `sources[]` gives `UNSOURCED_CLAIM`. Out-of-context ids give only `SOURCE_OUT_OF_CONTEXT`, so there is no double report.
+- F9-6 ADDRESSED (`:95-107`, `:154`): `kind` is checked per `ID_FIELDS` entry. `duplicateOf` is `source_event`, a stated choice that I accept.
+- F9-7 ADDRESSED: the mutation file lists R-a, pointer-only walk, R-d approved branch, confidence, the sources limit, the questions limit and the five fix mutations. Each goes red on named cases.
+- F9-8 ADDRESSED (`:161-162`): every id field, `sources.*.id` and `duplicateOf` included, is checked for visibility. The R-b change is recorded as ruled.
+
+Task 11
+- F11-1 ADDRESSED: the pm prompt says `questions`, or `decisionsNeeded`; the technical_writer prompt says `questions`. A test checks that backticked identifiers are fields of that skill's schema and that `unknowns` is not a pm key.
+- F11-2 ADDRESSED: the six conflict goods cite two ids and have a `conflicts.0.sourceIds` minLength 2 check. The gate also enforces two distinct ids.
+- F11-3 ADDRESSED: "ví dụ" is removed, and every prompt says the system fills `skill` and `manifestHash`.
+- F11-4 ADDRESSED: frozen-at-depth test, uuid shape inside good/bad, and the dossier checked per work-type line.
+- F11-5 ADDRESSED (`skills.ts` sparse-array throw).
+- Hashes: the on-disk recomputation test still recomputes the prompt, eval and manifest hashes, so the regenerated values are checked.
+
+### New findings in the fix diff
+
+**Critical:** none.
+
+**Important N-1. In a pointer-only context the output the prompts demand cannot pass unless the context holds a document or revision.**
+- The prompts now say that when `pointerOnly` is true the model must leave claims, conflicts and result empty and write only `questions`. The gate still requires a non-empty `sources` (`:152`, SOURCE_REQUIRED). F9-8 holds any `source_event` named in `sources` that is not visible (`:162`).
+- For an IBS HI project whose context is only pointer messages, a questions-only output therefore gets SOURCE_REQUIRED if `sources` is empty, or TEXT_NOT_VISIBLE if it lists a pointer. It cannot be accepted.
+- The new tests build the pointer-only case from the fixture that includes documents, so they do not show this.
+- This follows from ruling F9-8 together with the old SOURCE_REQUIRED rule, but it is a prompt/gate disagreement the controller should decide on. Options:
+  - waive SOURCE_REQUIRED when `pointerOnly` and the output has no claims, conflicts or result content; or
+  - state in the receipt and in Task 12 that a pointer-only project with no document in context always yields a hold.
+- Also add to the prompts that the ids of hidden or pointer-only messages must not be put in `sources`. The intake prompt still says every relevant message must be cited or its omission explained in `questions`.
+
+**Minor**
+- N-2. Both conflict-case reasons (`CHECK_FAILED:conflicts` and `CHECK_FAILED:conflicts.0.sourceIds`) come from one omission. That is inherent, and the exact-set test holds. The harness's `minLength` check cannot tell two distinct ids from the same id twice; only the gate can, and the good samples go through the gate, so this is covered.
+- N-3. Under F9-2, `doc_reviewer` is always held in a pointer-only context. The report states it; state it in the receipt.
+
+### Deferred
+- Non-excerpt events with an `excerpt` mode but a `forwarded` origin are treated as shown; nothing in this slice distinguishes them.
+- Whether Task 10's context builder ever places hidden or pointer events in `sources` for non-IBS projects (affects N-1 reach).
+
+Spec compliance: ✅ (Task 9)
+Task quality: Needs fixes (Task 9, only N-1, a decision on the pointer-only rule and prompt wording)
+Spec compliance: ✅ (Task 11)
+Task quality: Approved (Task 11, subject to the one-line prompt addition in N-1)
