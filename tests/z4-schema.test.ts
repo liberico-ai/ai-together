@@ -74,7 +74,7 @@ test('(4) the AI role cannot write any Z1 or Z2 table',async()=>{
       const [schema,table]=t.split('.');
       const target=`${schema}.${/^[a-z_][a-z0-9_]*$/.test(table)?table:`"${table}"`}`;
       expect(await probe(`INSERT INTO ${target} DEFAULT VALUES`),'INSERT '+t).toMatch(/permission denied/);
-      expect(await probe(`UPDATE ${target} SET ${col}=${col} WHERE false`),'UPDATE '+t).toMatch(/permission denied/);
+      expect(await probe(`UPDATE ${target} SET ${col}=DEFAULT WHERE false`),'UPDATE '+t).toMatch(/permission denied/);
     }
     expect(await probe('SELECT * FROM public.document_approvers($1)',[ids.sales])).toMatch(/permission denied/);
     expect(await probe('SELECT * FROM public.bom_eligible_members($1,$2::uuid[])',[ids.sales,[pm.id]])).toMatch(/permission denied/);
@@ -114,6 +114,18 @@ test('privilege query: libetech_ai holds no INSERT, UPDATE, DELETE or TRUNCATE o
   expect(await rows(`SELECT 1 FROM pg_class c WHERE c.relowner=(SELECT oid FROM pg_roles WHERE rolname='libetech_ai')`)).toEqual([]);
 });
 
+test('nothing reaches libetech_ai by default: no default ACL, no usable sequence, no CREATE on a schema or on the database',async()=>{
+  // a default privilege entry that names the AI role or PUBLIC (grantee empty) would hand it every table created later
+  expect(await rows(`SELECT d.defaclnamespace FROM pg_default_acl d, aclexplode(d.defaclacl) a
+    WHERE (a.grantee=0 OR a.grantee=(SELECT oid FROM pg_roles WHERE rolname='libetech_ai'))
+      AND (d.defaclnamespace=0 OR d.defaclnamespace IN (SELECT oid FROM pg_namespace WHERE nspname IN ('public','identity','analytics','intelligence')))`)).toEqual([]);
+  expect(await rows<{s:string}>(`SELECT n.nspname||'.'||c.relname s FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE c.relkind='S' AND (has_sequence_privilege('libetech_ai',c.oid,'USAGE') OR has_sequence_privilege('libetech_ai',c.oid,'SELECT') OR has_sequence_privilege('libetech_ai',c.oid,'UPDATE'))`)).toEqual([]);
+  for(const schema of ['public','identity','analytics','intelligence'])
+    expect((await rows<{s:string}>('SELECT has_schema_privilege($1,$2,$3)::text s',['libetech_ai',schema,'CREATE']))[0].s,schema).toBe('false');
+  expect((await rows<{s:string}>("SELECT has_database_privilege('libetech_ai',current_database(),'CREATE')::text s"))[0].s).toBe('false');
+});
+
 test('no SECURITY DEFINER function is executable by libetech_ai',async()=>{
   const exposed=await rows<{f:string}>(`SELECT n.nspname||'.'||p.proname f FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
     WHERE p.prosecdef AND has_function_privilege('libetech_ai',p.oid,'EXECUTE')`);
@@ -121,11 +133,11 @@ test('no SECURITY DEFINER function is executable by libetech_ai',async()=>{
 });
 
 test('the role exists as NOLOGIN, without elevated attributes, with no member and in no role',async()=>{
-  const r=(await rows<R>(`SELECT rolcanlogin,rolsuper,rolbypassrls,rolcreatedb,rolcreaterole,rolinherit,
+  const r=(await rows<R>(`SELECT rolcanlogin,rolsuper,rolbypassrls,rolcreatedb,rolcreaterole,rolreplication,rolinherit,
     EXISTS(SELECT 1 FROM pg_auth_members m WHERE m.roleid=r.oid) has_member,EXISTS(SELECT 1 FROM pg_auth_members m WHERE m.member=r.oid) is_member,
-    rolpassword IS NULL AS no_password_hash
+    (SELECT x.rolpassword IS NULL FROM pg_authid x WHERE x.oid=r.oid) AS no_password_hash
     FROM pg_roles r WHERE rolname='libetech_ai'`))[0];
-  expect(r).toMatchObject({rolcanlogin:false,rolsuper:false,rolbypassrls:false,rolcreatedb:false,rolcreaterole:false,has_member:false,is_member:false});
+  expect(r).toMatchObject({rolcanlogin:false,rolsuper:false,rolbypassrls:false,rolcreatedb:false,rolcreaterole:false,rolreplication:false,has_member:false,is_member:false,no_password_hash:true});
   // no login can reach it, whatever its name
   expect(await rows(`SELECT m.member FROM pg_auth_members m JOIN pg_roles a ON a.rolname='libetech_ai' WHERE m.roleid=a.oid`)).toEqual([]);
 });
@@ -185,6 +197,40 @@ test('the table is a backstop at 49 152 bytes of stored text: the densest value 
   const wide=JSON.stringify({a:'é'.repeat(25000)});
   expect(wide.length).toBeLessThan(49152);
   await expect(asAi(tx=>insertDraft(tx,{value:wide}))).rejects.toThrow(/check constraint|ai_drafts_value/);
+});
+
+test('a confirmation can only attach a revision of the very document the draft is about',async()=>{
+  const docA=await registerDoc(h,pm),docB=await registerDoc(h,pm);
+  const revA=await frozenRevision(h,docA.record.id,member.id),revB=await frozenRevision(h,docB.record.id,member.id);
+  const ATTACH=/attached to a draft about that very document/;
+  const about=(id:string)=>seedDraft({entity_type:'document',entity_id:id});
+  // a revision of document B on a draft about A (same project), also when the decision is a rejection that carries none of it by CHECK
+  await expect(decide(await about(docA.record.id),{document_revision_id:revB.revisionId})).rejects.toThrow(ATTACH);
+  // an intake-candidate draft takes no revision at all
+  const candidate=await seedDraft({entity_type:'intake_candidate',entity_id:docA.record.id});
+  await expect(decide(candidate,{document_revision_id:revA.revisionId})).rejects.toThrow(ATTACH);
+  await expect(decide(await about(randomUUID()),{document_revision_id:revA.revisionId})).rejects.toThrow(ATTACH);
+  // the operational login is stopped as well
+  await expect(insertDecision(h.operator,await about(docA.record.id),{document_revision_id:revB.revisionId})).rejects.toThrow(ATTACH);
+  expect(await rows('SELECT 1 FROM draft_decisions')).toHaveLength(0);
+  // a revision of A on a draft about A, and no revision at all, are accepted
+  await expect(decide(await about(docA.record.id),{document_revision_id:revA.revisionId})).resolves.toBeTruthy();
+  await expect(decide(candidate)).resolves.toBeTruthy();
+});
+
+test('sources, questions and version strings carry database backstops, in a form that never calls an array function on a non-array',async()=>{
+  const refused=async(over:R)=>{await expect(asAi(tx=>insertDraft(tx,over)),JSON.stringify(over).slice(0,60)).rejects.toThrow(/check constraint|ai_drafts_/);};
+  const list=(n:number,item:unknown)=>JSON.stringify(Array(n).fill(item));
+  await expect(asAi(tx=>insertDraft(tx,{sources:list(100,1)}))).resolves.toBeTruthy();
+  await refused({sources:list(101,1)});
+  await refused({sources:JSON.stringify([{ref:'x'.repeat(65536)}])});
+  await expect(asAi(tx=>insertDraft(tx,{questions:list(50,1)}))).resolves.toBeTruthy();
+  await refused({questions:list(51,1)});
+  await refused({questions:JSON.stringify(['x'.repeat(16384)])});
+  await refused({sources:'{"a":1}'});await refused({questions:'"text"'});
+  for(const n of [1,64]) await expect(asAi(tx=>insertDraft(tx,{skill_version:'v'.repeat(n),model_version:'m'.repeat(n)}))).resolves.toBeTruthy();
+  await refused({skill_version:''});await refused({skill_version:'v'.repeat(65)});
+  await refused({model_version:''});await refused({model_version:'m'.repeat(65)});
 });
 
 test('draft columns carry their own bounds: closed vocabularies, hash and key formats, array types, confidence 0 to 100',async()=>{
@@ -272,7 +318,7 @@ test('the AI role has no privilege on draft_decisions at all',async()=>{
 test('runtime cannot confirm a draft that names no source, nor with a wrong value hash; a decision is bound to the acting person; one decision per draft',async()=>{
   const doc=await registerDoc(h,pm);
   const fr=await frozenRevision(h,doc.record.id,member.id);
-  const sourced=await seedDraft(),unsourced=await seedDraft({sources:'[]'});
+  const sourced=await seedDraft({entity_type:'document',entity_id:doc.record.id}),unsourced=await seedDraft({sources:'[]'});
   // a draft that names no source cannot be confirmed (DOC-05 at the database), but it can be rejected with a reason
   await expect(decide(unsourced)).rejects.toThrow(/names no source/);
   await expect(decide(unsourced,{result:'rejected',reason:'Không đủ căn cứ'})).resolves.toBeTruthy();
@@ -289,11 +335,11 @@ test('runtime cannot confirm a draft that names no source, nor with a wrong valu
   // shape: a rejection needs a reason, a rejection names no revision
   await expect(decide(sourced,{result:'rejected',reason:'ngắn'})).rejects.toThrow(/check constraint|draft_decisions/);
   await expect(decide(sourced,{result:'rejected',reason:'     ',document_revision_id:null})).rejects.toThrow(/check constraint|draft_decisions/);
-  await expect(decide(sourced,{result:'rejected',reason:'Lý do đủ dài',document_revision_id:fr.revisionId})).rejects.toThrow(/check constraint|draft_decisions/);
+  await expect(decide(sourced,{result:'rejected',reason:'Lý do đủ dài',document_revision_id:fr.revisionId})).rejects.toThrow(/check constraint|draft_decisions|attached to a draft about that very document/);
   await expect(decide(sourced,{result:'maybe'})).rejects.toThrow(/check constraint|draft_decisions/);
   await expect(decide(sourced,{reason:'x'.repeat(1001)})).rejects.toThrow(/check constraint|draft_decisions/);
-  // a revision of another document project is a foreign-key refusal; a real one is accepted
-  await expect(decide(sourced,{document_revision_id:randomUUID()})).rejects.toThrow(/foreign key/);
+  // a revision that does not exist is refused by the guard (before the foreign key); a real revision of the draft's document is accepted
+  await expect(decide(sourced,{document_revision_id:randomUUID()})).rejects.toThrow(/attached to a draft about that very document/);
   expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[sourced])).toHaveLength(0);
   await expect(decide(sourced,{document_revision_id:fr.revisionId})).resolves.toBeTruthy();
   // one decision per draft, whatever the result
@@ -326,7 +372,7 @@ test('021 refuses an AI role that has a member, is a member of a role, or can lo
   const MESSAGE=/libetech_ai must have no members and be a member of no role/;
   await rolledBack(h.operator,async(_tx,probe)=>{expect(await probe(g)).toBeNull();});
   const ROLE='ALTER '+'ROLE';
-  for(const setup of [`${ROLE} libetech_ai LOGIN`,`${ROLE} libetech_ai SUPERUSER`,`${ROLE} libetech_ai BYPASSRLS`,`${ROLE} libetech_ai CREATEDB`,`${ROLE} libetech_ai CREATEROLE`])
+  for(const setup of [`${ROLE} libetech_ai LOGIN`,`${ROLE} libetech_ai SUPERUSER`,`${ROLE} libetech_ai BYPASSRLS`,`${ROLE} libetech_ai CREATEDB`,`${ROLE} libetech_ai CREATEROLE`,`${ROLE} libetech_ai REPLICATION`])
     await rolledBack(h.operator,async(tx,probe)=>{await tx.query(setup);expect(await probe(g),setup).toMatch(/libetech_ai must be NOLOGIN/);});
   await rolledBack(h.operator,async(tx,probe)=>{
     await tx.query(`CREATE ROLE ${DUAL} NOLOGIN`);

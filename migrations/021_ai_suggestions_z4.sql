@@ -10,15 +10,15 @@ SET LOCAL lock_timeout = '5s';
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='libetech_ai') THEN
-    CREATE ROLE libetech_ai NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+    CREATE ROLE libetech_ai NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
   END IF;
 END $$;
 -- A role that existed before this migration is checked, not trusted: nobody may act as the AI role (a member could SET ROLE to it and write Z4),
 -- and it may act as no other role. Migrations run as a superuser, which needs no membership.
 -- guard:ai-role begin
 DO $$ BEGIN
- IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='libetech_ai' AND (rolcanlogin OR rolsuper OR rolbypassrls OR rolcreatedb OR rolcreaterole)) THEN
-  RAISE EXCEPTION 'libetech_ai must be NOLOGIN, NOSUPERUSER, NOBYPASSRLS, NOCREATEDB and NOCREATEROLE';
+ IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='libetech_ai' AND (rolcanlogin OR rolsuper OR rolbypassrls OR rolcreatedb OR rolcreaterole OR rolreplication)) THEN
+  RAISE EXCEPTION 'libetech_ai must be NOLOGIN, NOSUPERUSER, NOBYPASSRLS, NOCREATEDB, NOCREATEROLE and NOREPLICATION';
  END IF;
  IF EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles a ON a.rolname='libetech_ai'
    WHERE m.roleid=a.oid OR m.member=a.oid) THEN
@@ -37,14 +37,19 @@ CREATE TABLE IF NOT EXISTS intelligence.ai_drafts (
   entity_type text NOT NULL CHECK(entity_type IN ('intake_candidate','document')),
   entity_id uuid NOT NULL,
   signal_type text NOT NULL CHECK(signal_type IN ('intake_analyst','ba_elicitation','pm_planning','technical_writer','doc_reviewer','release_librarian')),
-  skill_version text NOT NULL,
+  skill_version text NOT NULL CONSTRAINT ai_drafts_skill_version_length CHECK(length(skill_version) BETWEEN 1 AND 64),
   manifest_hash text NOT NULL CHECK(manifest_hash ~ '^[a-f0-9]{64}$'),
-  model_version text NOT NULL,
+  model_version text NOT NULL CONSTRAINT ai_drafts_model_version_length CHECK(length(model_version) BETWEEN 1 AND 64),
   -- backstop only: the 32 768-byte limit is measured by the application before the database is touched; the jsonb text form is wider than the JSON text (S42)
   value jsonb NOT NULL CONSTRAINT ai_drafts_value_size CHECK(octet_length(value::text) <= 49152),
   value_hash text NOT NULL CHECK(value_hash ~ '^[a-f0-9]{64}$'),
-  sources jsonb NOT NULL DEFAULT '[]' CONSTRAINT ai_drafts_sources_array CHECK(jsonb_typeof(sources) = 'array'),
-  questions jsonb NOT NULL DEFAULT '[]' CONSTRAINT ai_drafts_questions_array CHECK(jsonb_typeof(questions) = 'array'),
+  sources jsonb NOT NULL DEFAULT '[]' CONSTRAINT ai_drafts_sources_array CHECK(jsonb_typeof(sources) = 'array')
+    -- bounds are backstops (the application limits are tighter); CASE so that jsonb_array_length never sees a non-array
+    CONSTRAINT ai_drafts_sources_bounds CHECK(CASE WHEN jsonb_typeof(sources) = 'array'
+      THEN jsonb_array_length(sources) <= 100 AND octet_length(sources::text) <= 65536 ELSE false END),
+  questions jsonb NOT NULL DEFAULT '[]' CONSTRAINT ai_drafts_questions_array CHECK(jsonb_typeof(questions) = 'array')
+    CONSTRAINT ai_drafts_questions_bounds CHECK(CASE WHEN jsonb_typeof(questions) = 'array'
+      THEN jsonb_array_length(questions) <= 50 AND octet_length(questions::text) <= 16384 ELSE false END),
   confidence smallint NOT NULL CHECK(confidence BETWEEN 0 AND 100),
   input_hash text NOT NULL CHECK(input_hash ~ '^[a-f0-9]{64}$'),
   ai_principal_id uuid NOT NULL, trace_id uuid NOT NULL,
@@ -118,7 +123,7 @@ CREATE OR REPLACE FUNCTION public.draft_decisions_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE d record;
 BEGIN
-  SELECT t.value_hash,
+  SELECT t.value_hash, t.entity_type, t.entity_id,
          CASE WHEN pg_catalog.jsonb_typeof(t.sources) = 'array' THEN pg_catalog.jsonb_array_length(t.sources) ELSE 0 END AS source_count
     INTO d FROM intelligence.ai_drafts t
    WHERE t.id = NEW.draft_id AND t.tenant_id = NEW.tenant_id AND t.project_id = NEW.project_id;
@@ -130,6 +135,11 @@ BEGIN
   END IF;
   IF NEW.result = 'confirmed' AND d.source_count = 0 THEN
     RAISE EXCEPTION 'A draft that names no source cannot be confirmed';
+  END IF;
+  -- a revision attached to a confirmation belongs to the very document the draft is about (document_revisions has UNIQUE(id,document_id))
+  IF NEW.document_revision_id IS NOT NULL AND (d.entity_type <> 'document' OR NOT EXISTS (
+      SELECT 1 FROM public.document_revisions v WHERE v.id = NEW.document_revision_id AND v.document_id = d.entity_id)) THEN
+    RAISE EXCEPTION 'A revision can only be attached to a draft about that very document';
   END IF;
   RETURN NEW;
 END;

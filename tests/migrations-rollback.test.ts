@@ -341,6 +341,18 @@ test('rollback 021 refuses while a later migration is applied, drops the Z4 obje
     try { await refused(/later|022/i); }
     finally { await q("DELETE FROM schema_migrations WHERE version='022'"); }
     expect(await present()).toEqual(['intelligence.ai_drafts','draft_decisions']);expect(await objects()).toEqual(full);expect(await applied()).toBe(1);
+    // 1b. a person's recorded decision blocks it and nothing is dropped; drafts alone do not block it. The history trigger stops even the operational
+    // login from deleting the decision, so the row is cleared by TRUNCATE (not row-level) to reach a clean state.
+    const hash='c'.repeat(64);
+    const draftId=(await q<{id:string}>(`INSERT INTO intelligence.ai_drafts(tenant_id,project_id,entity_type,entity_id,signal_type,skill_version,manifest_hash,model_version,value,value_hash,confidence,input_hash,ai_principal_id,trace_id,dedupe_key)
+      VALUES($1,$2,'intake_candidate',$3,'intake_analyst','1',$4,'m','{}',$4,1,$4,$3,$3,'rollback-draft-0001') RETURNING id`,[ids.tenant,ids.sales,randomUUID(),hash]))[0].id;
+    await q(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,decided_by,command_key,request_id,trace_id)
+      VALUES($1,$2,$3,$4,'rejected','Lý do đủ dài',$5,'rollback-key',$6,$6)`,[ids.tenant,ids.sales,draftId,hash,pm.id,randomUUID()]);
+    await refused(/recorded decision of a person would be destroyed/i);
+    expect(await present()).toEqual(['intelligence.ai_drafts','draft_decisions']);expect(await objects()).toEqual(full);expect(await applied()).toBe(1);
+    await expect(q('DELETE FROM draft_decisions')).rejects.toThrow(/Append-only/);
+    await q('TRUNCATE draft_decisions');
+    expect(await q('SELECT 1 FROM intelligence.ai_drafts')).toHaveLength(1);
     // 2. clean: it drops both tables, the guard function and the schema, forgets 021, keeps the role and leaves 019 and 020 as they were
     await h.exec(rollback);
     expect(await present()).toEqual([null,null]);

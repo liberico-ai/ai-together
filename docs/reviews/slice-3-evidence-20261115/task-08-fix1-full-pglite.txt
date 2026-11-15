@@ -1,0 +1,14 @@
+npm run test   # PGlite, full suite
+
+> libetech-ai-os@0.7.1 test
+> vitest run
+
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  47 passed | 8 skipped (55)
+      Tests  665 passed | 35 skipped (700)
+   Start at  15:42:26
+   Duration  305.97s (tests 99%, import 1%)
+

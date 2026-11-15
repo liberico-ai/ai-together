@@ -1,0 +1,28 @@
+=== m1 guard without the document binding
+npx vitest run tests/z4-schema.test.ts   # PGlite, temporarily mutated
+   × a confirmation can only attach a revision of the very document the draft is about 528ms
+   × runtime cannot confirm a draft that names no source, nor with a wrong value hash; a decision is bound to the acting person; one decision per draft 542ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/z4-schema.test.ts > a confirmation can only attach a revision of the very document the draft is about
+ FAIL  tests/z4-schema.test.ts > runtime cannot confirm a draft that names no source, nor with a wrong value hash; a decision is bound to the acting person; one decision per draft
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 passed | 2 skipped (24)
+restored identical
+=== m2 GRANT UPDATE ON document_records TO libetech_ai
+npx vitest run tests/z4-schema.test.ts   # PGlite, temporarily mutated
+   × (4) the AI role cannot write any Z1 or Z2 table 698ms
+   × privilege query: libetech_ai holds no INSERT, UPDATE, DELETE or TRUNCATE on any table of public, identity or analytics 548ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/z4-schema.test.ts > (4) the AI role cannot write any Z1 or Z2 table
+ FAIL  tests/z4-schema.test.ts > privilege query: libetech_ai holds no INSERT, UPDATE, DELETE or TRUNCATE on any table of public, identity or analytics
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 passed | 2 skipped (24)
+restored identical
+=== m3 rollback without the decision-exists refusal
+npx vitest run tests/migrations-rollback.test.ts   # PGlite, temporarily mutated
+   × rollback 021 refuses while a later migration is applied, drops the Z4 objects, keeps the AI role and touches nothing of 019 or 020 508ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/migrations-rollback.test.ts > rollback 021 refuses while a later migration is applied, drops the Z4 objects, keeps the AI role and touches nothing of 019 or 020
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+restored identical
