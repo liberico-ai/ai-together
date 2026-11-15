@@ -20,6 +20,8 @@ const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
 const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năng không hợp lệ nên không được lưu.',422);
 const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã thao tác đã được dùng với nội dung khác.',409);
 const alreadyDecided=()=>new AppError('DRAFT_ALREADY_DECIDED','Nháp này đã có quyết định.',409);
+/** Namespace of the two-integer advisory lock «decision of one draft» (0x44524654, "DRFT"); intake.ts takes the one-bigint form, a different key space. */
+export const DRAFT_DECISION_LOCK=0x44524654;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const HEX64=/^[a-f0-9]{64}$/;
 const uuidIn=z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).transform(s=>s.toLowerCase());
@@ -73,7 +75,8 @@ export class SuggestionService {
  /** The pipeline's write: one insert under the AI role. Everything that can be refused is refused before the database is touched. */
  async submitDraft(ai:AiPrincipal,raw:unknown):Promise<{draftId:string;stored:boolean}> {
   if(!this.aiDb) throw new AppError('AI_PIPELINE_DISABLED','Đường ghi nháp AI chưa được bật.',503);
-  if(!ai||!UUID.test(String(ai.id).toLowerCase())||!UUID.test(String(ai.tenantId).toLowerCase())||!Array.isArray(ai.projectIds)) throw new AppError('UNAUTHENTICATED','Cần phạm vi dự án.',401);
+  if(!ai||!UUID.test(String(ai.id).toLowerCase())||!UUID.test(String(ai.tenantId).toLowerCase())||!Array.isArray(ai.projectIds)
+   ||ai.projectIds.some(x=>!UUID.test(String(x).toLowerCase()))) throw denied();
   const input=submitSchema.parse(raw);
   if(!ai.projectIds.some(x=>String(x).toLowerCase()===input.projectId)) throw denied();
   // a pair the context builder could never honour is never stored (it could never be confirmed)
@@ -135,7 +138,7 @@ export class SuggestionService {
    const projectId=located.project_id;
    await tx.query("SELECT set_config('app.project_ids',$1,true)",[projectId]);
    // two decisions of one draft take turns: the second reads the first's outcome instead of racing it
-   await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[id]);
+   await tx.query('SELECT pg_advisory_xact_lock($1::int,hashtext($2))',[DRAFT_DECISION_LOCK,id]);
    const d=(await tx.query<DraftRow>(`${DRAFT_SQL} WHERE d.id=$1::uuid`,[id])).rows[0];
    if(!d) throw denied();
    const input=decideSchema.parse(raw);
@@ -158,7 +161,11 @@ export class SuggestionService {
     const reasons=new Set<string>();
     if(d.manifest_hash!==manifest.hash) reasons.add('MANIFEST_MISMATCH');
     let recomputed='';
-    try {recomputed=sha256(d.value);} catch {recomputed='';}
+    try {recomputed=sha256(d.value);} catch(e) {
+     // canonicalJson throws TypeError for a value JSON cannot carry (not a plain object, non-finite number): a stored value that cannot be hashed does not match its hash.
+     // Anything else is not understood here and propagates.
+     if(!(e instanceof TypeError)) throw e;
+    }
     if(recomputed!==d.value_hash) reasons.add('VALUE_HASH_MISMATCH');
     let ctx:Awaited<ReturnType<typeof buildSkillContextIn>>|null=null;
     try {
@@ -173,7 +180,7 @@ export class SuggestionService {
     if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
     if(d.entity_type==='document') {
      if(!input.revision) throw new AppError('REVISION_REQUIRED','Nháp gắn tài liệu cần kèm nội dung bản đề xuất.',422);
-     revisionId=(await this.documents.proposeRevisionIn(tx,p,d.entity_id,input.revision,key)).record.latest_revision_id;
+     revisionId=(await this.documents.proposeRevisionIn(tx,p,d.entity_id,input.revision,key,{draftId:id})).record.latest_revision_id;
     } else if(input.revision) throw new AppError('INVALID_INPUT','Nháp gắn ứng viên không kèm bản đề xuất tài liệu.',422);
    }
    const row=(await tx.query<{id:string}>(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,document_revision_id,decided_by,command_key,request_id,trace_id)

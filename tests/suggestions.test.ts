@@ -15,6 +15,7 @@ import {canonicalJson,skillManifests} from '../src/server/skills';
 import {MAX_OUTPUT_BYTES,type SkillName} from '../src/server/skill-contracts';
 import {buildSkillContextIn} from '../src/server/skill-context';
 import {SuggestionService} from '../src/server/suggestions';
+import {aiScoped} from '../src/server/ai-scope';
 import type {AiPrincipal} from '../src/server/ai-scope';
 import type {Database,Queryable} from '../src/server/db';
 import type {DocumentDetail,Principal} from '../src/server/types';
@@ -400,6 +401,83 @@ describe('Z4 drafts: decide',()=>{
   expect(fired).toBe(true);
   await zeroDecisions();
   expect(await n('document_revisions')).toBe(revs);expect(await n('registry_events')).toBe(events);
+ });
+});
+
+describe('Z4 drafts: fix round 1',()=>{
+ test('F12-1 (i) one key for two drafts about one document, same revision body: the second is IDEMPOTENCY_CONFLICT and writes nothing',async()=>{
+  const d=await doc(),a=await docDraft({d}),b=await docDraft({d}),key=k();
+  const rev=revisionBody(d);
+  await decide(svc(),pm,a.draftId,body(a.valueHash,{revision:rev}),key);
+  const revs=await n('document_revisions'),events=await n('registry_events');
+  const e=await refused(decide(svc(),pm,b.draftId,body(b.valueHash,{revision:rev}),key),'IDEMPOTENCY_CONFLICT',409);
+  expect(e.message).toBe(CONFLICT);
+  expect(await n('draft_decisions')).toBe(1);expect(await n('document_revisions')).toBe(revs);expect(await n('registry_events')).toBe(events);
+  expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[b.draftId])).toHaveLength(0);
+ });
+ test('F12-1 (ii) a key first used by a manual proposal, then a draft confirmation with the same body: conflict, no decision',async()=>{
+  const d=await doc(),a=await docDraft({d}),key=k(),rev=revisionBody(d);
+  await new DocumentService(h.db).proposeRevision(pm,d.record.id,rev,key);
+  const revs=await n('document_revisions');
+  await refused(decide(svc(),pm,a.draftId,body(a.valueHash,{revision:rev}),key),'IDEMPOTENCY_CONFLICT',409);
+  expect(await n('draft_decisions')).toBe(0);expect(await n('document_revisions')).toBe(revs);
+ });
+ test('F12-1 (iii) a key first used by a draft confirmation, then a manual proposal with the same body: conflict, no second revision',async()=>{
+  const d=await doc(),a=await docDraft({d}),key=k(),rev=revisionBody(d);
+  await decide(svc(),pm,a.draftId,body(a.valueHash,{revision:rev}),key);
+  const revs=await n('document_revisions');
+  await refused(new DocumentService(h.db).proposeRevision(pm,d.record.id,rev,key),'IDEMPOTENCY_CONFLICT',409);
+  expect(await n('document_revisions')).toBe(revs);expect(await n('draft_decisions')).toBe(1);
+ });
+
+ test('F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are confirmed',async()=>{
+  const dd=await doc();
+  for(const via of ['sources','duplicateOf']) {
+   const c=await candidate();
+   const o=via==='sources'?out('intake_analyst',[c.sourceEventId])
+    :out('intake_analyst',[dd.record.id],{result:{classification:'incident',duplicateOf:c.sourceEventId,missingFields:[]}});
+   const r=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',o));
+   const e=await held(decide(svc(h.operator,[]),pm,r.draftId,body(sha(o))),'TEXT_NOT_VISIBLE');
+   expect(e.message).not.toContain(c.sourceEventId);
+   expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[r.draftId]),via).toHaveLength(0);
+   const ok=await decide(svc(),pm,r.draftId,body(sha(o)));
+   expect(ok.decision?.result,via).toBe('confirmed');
+  }
+ });
+
+ test('M12-2 a stored value that cannot be hashed is VALUE_HASH_MISMATCH; any other error is not swallowed',async()=>{
+  const d=await doc(),x=await rawDraft({entityType:'document',entityId:d.record.id,value:out('technical_writer',[d.record.id])});
+  const tamper=(make:(row:R)=>void):Database=>({query:h.db.query.bind(h.db),close:()=>h.db.close(),transaction:fn=>h.db.transaction(tx=>fn({query:async<T=R>(sql:string,params?:unknown[])=>{
+   const r=await tx.query<T>(sql,params);
+   if(/FROM intelligence\.ai_drafts d LEFT JOIN/.test(sql)&&/WHERE d\.id=/.test(sql)) for(const row of r.rows) make(row as R);
+   return r;
+  }}))});
+  // a value that is not a plain object (JSON cannot carry it): the hash does not match
+  await held(decide(new SuggestionService(tamper(row=>{row.value=Object.assign(Object.create({}),x.value);}),h.operator,chats),pm,x.id,body(sha(x.value),{revision:revisionBody(d)})),'VALUE_HASH_MISMATCH');
+  // an error that is not a TypeError is not swallowed: a toJSON-free value whose key getter throws a RangeError
+  const boom=new RangeError('unexpected');
+  const hostile=()=>{const o:R={};Object.defineProperty(o,'x',{enumerable:true,get(){throw boom;}});return o;};
+  await expect(decide(new SuggestionService(tamper(row=>{row.value=hostile();}),h.operator,chats),pm,x.id,body(sha(x.value),{revision:revisionBody(d)}))).rejects.toBe(boom);
+  await zeroDecisions();
+ });
+
+ test('M12-5 a malformed id of the AI principal is the module\'s 404, never a raw database error',async()=>{
+  const d=await doc(),good=env('document',d.record.id,'technical_writer',out('technical_writer',[d.record.id]));
+  for(const bad of [{...ai,id:'not-a-uuid'},{...ai,tenantId:'x'},{...ai,projectIds:[ids.sales,'bad']},{...ai,projectIds:[ids.sales,"x'--"]}])
+   await denied(svc().submitDraft(bad,good));
+  for(const bad of [{...ai,id:'not-a-uuid'},{...ai,tenantId:'x'},{...ai,projectIds:['bad']}]) await denied(aiScoped(handle,bad,async()=>1));
+  await refused(aiScoped(handle,{...ai,projectIds:[]},async()=>1),'UNAUTHENTICATED',401);
+  expect(await n('intelligence.ai_drafts')).toBe(0);
+ });
+
+ test('replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded view',async()=>{
+  const c=await candDraft(),key=k(),first=await decide(svc(),pm,c.draftId,body(c.valueHash),key);
+  const b=body(c.valueHash);
+  await denied(decide(svc(),{...pm,projectIds:[ids.transport]},c.draftId,b,key));
+  await denied(decide(svc(),{...pm,grants:[{projectId:ids.sales,role:'viewer',reportPermissions:[]}]},c.draftId,b,key));
+  const lowered:Principal={...pm,grants:[{projectId:ids.sales,role:'engineer',reportPermissions:[]},{projectId:ids.transport,role:'manager',reportPermissions:[]}]};
+  expect(await decide(svc(),lowered,c.draftId,b,key)).toEqual(first);
+  expect(await n('draft_decisions')).toBe(1);
  });
 });
 

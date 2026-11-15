@@ -147,14 +147,18 @@ export class DocumentService {
     return scoped(this.db, p, tx => this.proposeRevisionIn(tx, p, documentId, raw, key));
   }
   /** The body of proposeRevision inside the caller's scoped transaction (the AI-draft confirmation shares it): same checks, same order, same events. */
-  async proposeRevisionIn(tx: Queryable, p: Principal, documentId: string, raw: unknown, key: string): Promise<DocumentDetail> {
+  async proposeRevisionIn(tx: Queryable, p: Principal, documentId: string, raw: unknown, key: string, fromDraft?: { draftId: string }): Promise<DocumentDetail> {
     const input = proposeInput(p, documentId, raw);
     // the acting person for the database: flagging dependents writes review_events, whose insert policy binds actor_id to it (S40)
     await tx.query("SELECT set_config('app.person_id',$1,true)", [p.id]);
     const record = (await tx.query<RecordRow>('SELECT * FROM document_records WHERE id=$1 FOR UPDATE', [documentId])).rows[0];
     invariant(record, 'SCOPE_DENIED', NOT_FOUND, 404);
     invariant(mayWriteDocuments(projectRole(p, record.project_id)), 'READ_ONLY', READ_ONLY_MESSAGE, 403);
-    return claimDocumentCommand(tx, p, record.project_id, key, { op: 'document.propose_revision', documentId, ...input }, async () => {
+    // A confirmation of an AI draft is another command than a manual proposal: its claimed payload names the draft, so a key reused for another draft,
+    // or one first used by a manual proposal (or the reverse), is IDEMPOTENCY_CONFLICT and never replays a revision made for something else.
+    // The manual payload is unchanged.
+    const claimed = fromDraft ? { op: 'document.propose_revision.from_draft', draftId: fromDraft.draftId, documentId, ...input } : { op: 'document.propose_revision', documentId, ...input };
+    return claimDocumentCommand(tx, p, record.project_id, key, claimed, async () => {
       invariant(record.version === input.expectedVersion && input.basedOnRevisionId === record.latest_revision_id,
         'REVISION_CONFLICT', 'Tài liệu đã đổi. Đọc bản mới trước khi gửi lại.', 409);
       const no = (await tx.query<{ n: number }>('SELECT coalesce(max(revision_no),0)+1 AS n FROM document_revisions WHERE document_id=$1', [documentId])).rows[0].n;
