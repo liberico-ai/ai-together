@@ -1,0 +1,13 @@
+# Task 11 — mutation table (copied from the builder's report by the slice-3 session; each mutation was applied alone and reverted)
+
+## Mutations (each applied alone, reverted, suite green again afterwards)
+| # | Mutation | Cases that went red |
+|---|---|---|
+| m1 | one byte (a space) appended to `pm-planning/prompt.md`, hashes untouched | `prompt and eval hashes match the files on disk and the manifest hash matches its content` |
+| m2 | `"send_message"` in doc_reviewer `toolAllowlist`, hash recomputed | `no tool is allowed, no model is bound and no skill is enabled`; `doc_reviewer/injection: …`; `DOC-15 instructions …` |
+| m3 | doc_reviewer `enabled:true`, hash recomputed | `no tool is allowed, no model is bound and no skill is enabled` |
+| m4 | intake_analyst injection `bad` = `good` | `intake_analyst/injection: …`; `DOC-15 …`; also the hash case (eval bytes changed) |
+| m5 | `runEvalCase` checks loop emptied | six `<skill>/conflicting_sources: …` cases and `runEvalCase fills skill and manifestHash … runs the checks` |
+
+No gap found.
+

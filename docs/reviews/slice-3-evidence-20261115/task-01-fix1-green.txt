@@ -1,0 +1,10 @@
+npx vitest run tests/source-text.test.ts tests/inbox-service.test.ts tests/inbox-http.test.ts tests/inbox-ui.test.tsx tests/intake.test.ts tests/ledger-reconcile.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  6 passed (6)
+      Tests  125 passed | 1 skipped (126)
+   Start at  10:56:19
+   Duration  47.30s (tests 99%)
+

@@ -91,7 +91,8 @@ describe('item 2 column-level INSERT grants',()=>{
   };
   for(const c of cases) test(`${c.table}: the columns the service writes work, protected columns are denied`,async()=>{
     const d=c.table==='document_revisions'?(await docPromise()).record.id:undefined;
-    const ins=(cols:string,vals:unknown[])=>scoped(h.db,pm,tx=>tx.query(`INSERT INTO ${c.table}(${cols}) VALUES(${vals.map((_,i)=>'$'+(i+1)).join(',')})`,vals));
+    // the acting person is in the transaction, as the service puts it: the revision insert policy binds proposed_by to it (D4 of the Codex gate, round 2)
+    const ins=(cols:string,vals:unknown[])=>scoped(h.db,pm,async tx=>{await tx.query("SELECT set_config('app.person_id',$1,true)",[pm.id]);return tx.query(`INSERT INTO ${c.table}(${cols}) VALUES(${vals.map((_,i)=>'$'+(i+1)).join(',')})`,vals);});
     for(const [col,val] of extras[c.table])
       await expect(ins(`${c.cols},${col}`,[...c.vals(d),val]),`${c.table}.${col}`).rejects.toThrow(/permission denied/);
     await expect(ins(c.cols,c.vals(d)),c.table).resolves.toBeTruthy();

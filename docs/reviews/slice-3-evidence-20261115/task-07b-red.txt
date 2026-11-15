@@ -1,0 +1,111 @@
+npx vitest run tests/doc-approver-ui.test.tsx tests/doc-approver-flow.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/doc-approver-ui.test.tsx (7 tests | 5 failed) 12ms
+   ❯ document approval on the team screen (3)
+     × the team form offers document approval per type only for existing accounts, never in the registration form 3ms
+     × ticking a document type is a widening and offers Trình phiếu đổi quyền; unticking offers Lưu quyền 0ms
+     × saving an unrelated change keeps the document approval codes an account already holds 0ms
+   ❯ document approval on the ballot card (3)
+     × an approval card names each document type under duyệt bản chuẩn, next to the current grants 5ms
+   ❯ labels (1)
+     × every doc_approve label comes from TYPE_NAMES and an unknown code is shown as itself 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > document approval on the team screen > the team form offers document approval per type only for existing accounts, never in the registration form
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6446:15
+ ❯ retryNode node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6783:21
+ ❯ performWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:7919:19
+ ❯ startWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8807:7
+ ❯ renderToStringImpl node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8933:7
+ ❯ process.env.NODE_ENV.exports.renderToStaticMarkup node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:10426:14
+ ❯ accountForm tests/doc-approver-ui.test.tsx:43:50
+     41| };
+     42| const held = (permissions: string[]): ProjectGrant[] => [{ projectId: …
+     43| const accountForm = (initial: ProjectGrant[]) => renderToStaticMarkup(…
+       |                                                  ^
+     44| const sorted = (g: ProjectGrant[]) => g.map(x => ({ ...x, reportPermis…
+     45|
+ ❯ tests/doc-approver-ui.test.tsx:48:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > document approval on the team screen > ticking a document type is a widening and offers Trình phiếu đổi quyền; unticking offers Lưu quyền
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6446:15
+ ❯ retryNode node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6783:21
+ ❯ performWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:7919:19
+ ❯ startWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8807:7
+ ❯ renderToStringImpl node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8933:7
+ ❯ process.env.NODE_ENV.exports.renderToStaticMarkup node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:10426:14
+ ❯ accountForm tests/doc-approver-ui.test.tsx:43:50
+     41| };
+     42| const held = (permissions: string[]): ProjectGrant[] => [{ projectId: …
+     43| const accountForm = (initial: ProjectGrant[]) => renderToStaticMarkup(…
+       |                                                  ^
+     44| const sorted = (g: ProjectGrant[]) => g.map(x => ({ ...x, reportPermis…
+     45|
+ ❯ tests/doc-approver-ui.test.tsx:78:33
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > document approval on the team screen > saving an unrelated change keeps the document approval codes an account already holds
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6446:15
+ ❯ retryNode node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6783:21
+ ❯ performWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:7919:19
+ ❯ startWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8807:7
+ ❯ renderToStringImpl node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8933:7
+ ❯ process.env.NODE_ENV.exports.renderToStaticMarkup node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:10426:14
+ ❯ accountForm tests/doc-approver-ui.test.tsx:43:50
+     41| };
+     42| const held = (permissions: string[]): ProjectGrant[] => [{ projectId: …
+     43| const accountForm = (initial: ProjectGrant[]) => renderToStaticMarkup(…
+       |                                                  ^
+     44| const sorted = (g: ProjectGrant[]) => g.map(x => ({ ...x, reportPermis…
+     45|
+ ❯ tests/doc-approver-ui.test.tsx:102:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > document approval on the ballot card > an approval card names each document type under duyệt bản chuẩn, next to the current grants
+AssertionError: expected '<div class="action-form" data-kind="a…' to contain 'Quyền hiện tại: Dự án A (Thực hiện, q…'
+
+Expected: "Quyền hiện tại: Dự án A (Thực hiện, quyền báo cáo: Xem điểm nhân sự · duyệt bản chuẩn: Thiết kế)"
+Received: "<div class="action-form" data-kind="access_change"><p><strong>Phiếu đổi quyền</strong><br/><strong>Thành viên Thử</strong> · thu</p><p>Quyền hiện tại: Dự án A (Thực hiện, quyền báo cáo: Xem điểm nhân sự, doc_approve:design)<br/><span aria-hidden="true">→</span> Quyền đề nghị: Dự án A (Thực hiện, quyền báo cáo: Xem điểm nhân sự, doc_approve:design, doc_approve:plan); Dự án B (Thực hiện, quyền báo cáo: doc_approve:guide)</p><p class="muted">Căn cứ: Cần mở rộng phạm vi</p><div class="team-actions"><button class="primary">Yes · Duyệt</button><button class="secondary">No · Từ chối</button></div></div>"
+
+ ❯ tests/doc-approver-ui.test.tsx:140:18
+    138|       grant_details: [{ name: 'Dự án A', role: 'engineer', reportPermi…
+    139|         { name: 'Dự án B', role: 'engineer', reportPermissions: [docAp…
+    140|     expect(html).toContain('Quyền hiện tại: Dự án A (Thực hiện, quyền …
+       |                  ^
+    141|     expect(html).toContain('Quyền đề nghị: Dự án A (Thực hiện, quyền b…
+    142|     expect(html).not.toContain('doc_approve:');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > labels > every doc_approve label comes from TYPE_NAMES and an unknown code is shown as itself
+AssertionError: expected 'doc_approve:project_index' to be 'Duyệt bản chuẩn: Mục lục dự án' // Object.is equality
+
+Expected: "Duyệt bản chuẩn: Mục lục dự án"
+Received: "doc_approve:project_index"
+
+ ❯ tests/doc-approver-ui.test.tsx:178:91
+    176|   it('every doc_approve label comes from TYPE_NAMES and an unknown cod…
+    177|     expect(DOC_APPROVAL_TYPES).toHaveLength(8);
+    178|     for (const type of DOC_APPROVAL_TYPES) expect(permissionLabel('doc…
+       |                                                                                           ^
+    179|     expect(permissionLabel('doc_approve:zzz')).toBe('doc_approve:zzz');
+    180|     expect(permissionLabel('doc_approve:')).toBe('doc_approve:');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  5 failed | 9 passed (14)
+   Start at  14:41:47
+   Duration  3.99s (tests 97%, import 2%, transform 1%)
+

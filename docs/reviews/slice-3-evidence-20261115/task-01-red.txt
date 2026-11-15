@@ -1,0 +1,136 @@
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/source-text.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/source-text.test.ts [ tests/source-text.test.ts ]
+Error: Cannot find module '../src/server/source-text' imported from <worktree>/tests/source-text.test.ts
+ ❯ tests/source-text.test.ts:11:1
+      9| import {IntakeService} from '../src/server/intake';
+     10| import {InboxService} from '../src/server/inbox';
+     11| import {displayMode,listVisibleRevisions} from '../src/server/source-t…
+       | ^
+     12| import {scoped} from '../src/server/db';
+     13| import {ids} from '../src/server/identities';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  10:46:22
+   Duration  122ms (worker 97%, environment 3%)
+
+
+=== second run: source-text.ts present, inbox.ts not yet changed ===
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/source-text.test.ts (10 tests | 5 failed) 4778ms
+   ❯ source-text (10)
+     ❯ no row handed to the service carries hidden or pointer-only text or hash: the group flag is removed (1)
+       × hidden 463ms
+     ❯ no row handed to the service carries hidden or pointer-only text or hash: the project is mapped to IBS_HI (1)
+       × hidden 467ms
+     ❯ no row handed to the service carries hidden or pointer-only text or hash: the service is built without flags (1)
+       × hidden 453ms
+     ❯ no row handed to the service carries hidden or pointer-only text or hash: the message stored only a pointer (1)
+       × hidden 469ms
+     × only source-text.ts reads revision text 456ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the group flag is removed > hidden
+AssertionError: expected '[{"set_config":"11000000-0000-4000-80…' not to contain 'ZEBRA-MARKER-5521 nội dung'
+
+Expected: "ZEBRA-MARKER-5521 nội dung"
+Received: "[{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"n":1},{"id":"dacdd106-1a20-45cc-a3fd-dae3d347be5e","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:3","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:23.000Z","ingested_at":"2026-11-15T03:46:46.478Z","forwarded":false,"content_mode":"excerpt","text_excerpt":"ZEBRA-MARKER-5521 nội dung","dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"dacdd106-1a20-45cc-a3fd-dae3d347be5e","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:3","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:23.000Z","ingested_at":"2026-11-15T03:46:46.478Z","forwarded":false,"content_mode":"excerpt","text_excerpt":"ZEBRA-MARKER-5521 nội dung","dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"root_source_event_id":"6ed8b82b-0fea-4207-8eee-92e1171d719a","chat_id":"-1000000000001"},{"revision_no":1,"edited_at":null,"content_hash":"1144dbbfe83f5a8073481611925658a74036cc464fff10139132e2c2c90ea312","content_mode":"excerpt","text_excerpt":"ZEBRA-MARKER-5521 nội dung","text_truncated":false,"created_at":"2026-11-15T03:46:46.478Z"},{"id":"37599758-ad84-4753-971a-008086f60ae9","kind":"source_event.persisted","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:46:46.478Z","payload":{"revisionNo":1,"contentMode":"excerpt"}},{"id":"476f19a4-cf05-40f4-b0e3-3fcdcc9a16c0","kind":"candidate.created","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:46:46.478Z","payload":{}},{"id":"439ee18f-019a-4091-a382-f1ff3e7c2e65","template":"intake.received","state":"pending","attempt_no":0,"delivered_at":null,"acknowledged_at":null},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"30320f45-e52a-441c-81e2-14cd1d6474a5"},{"id":"dacdd106-1a20-45cc-a3fd-dae3d347be5e","state":"new","version":1,"classification":null,"duplicate_of":null,"missing_fields":[],"note":"","ticket_ref":null,"trace_id":"d0d166dd-46c4-4c4c-a5e7-bcbb7b1a7688"},{"id":"dacdd106-1a20-45cc-a3fd-dae3d347be5e"},{"id":"dacdd106-1a20-45cc-a3fd-dae3d347be5e","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"confirmed","classification":"incident","missing_fields":[],"ticket_ref":null,"version":2,"source_id":"telegram:-1000000000001:3","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:23.000Z","ingested_at":"2026-11-15T03:46:46.478Z","forwarded":false,"content_mode":"excerpt","text_excerpt":"ZEBRA-MARKER-5521 nội dung","dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null}]"
+
+ ❯ tests/source-text.test.ts:79:20
+     77|    const all=JSON.stringify(rec.rows());
+     78|    expect(rec.rows().length).toBeGreaterThan(0);
+     79|    expect(all).not.toContain(marker);
+       |                    ^
+     80|    expect(all).not.toContain(m.hash);
+     81|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the project is mapped to IBS_HI > hidden
+AssertionError: expected '[{"set_config":"11000000-0000-4000-80…' not to contain '1144dbbfe83f5a8073481611925658a74036c…'
+
+Expected: "1144dbbfe83f5a8073481611925658a74036cc464fff10139132e2c2c90ea312"
+Received: "[{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"n":1},{"id":"42edfe84-3ca9-4130-b3ee-fff33bb1213e","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:4","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:24.000Z","ingested_at":"2026-11-15T03:46:46.948Z","forwarded":false,"content_mode":"pointer_only","text_excerpt":null,"dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"domain_code":"IBS_HI"},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"42edfe84-3ca9-4130-b3ee-fff33bb1213e","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:4","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:24.000Z","ingested_at":"2026-11-15T03:46:46.948Z","forwarded":false,"content_mode":"pointer_only","text_excerpt":null,"dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"domain_code":"IBS_HI"},{"root_source_event_id":"55ccdf60-8dcd-4a41-90ca-e51a9bf88485","chat_id":"-1000000000001"},{"domain_code":"IBS_HI"},{"revision_no":1,"edited_at":null,"content_hash":"1144dbbfe83f5a8073481611925658a74036cc464fff10139132e2c2c90ea312","content_mode":"pointer_only","text_excerpt":null,"text_truncated":false,"created_at":"2026-11-15T03:46:46.948Z"},{"id":"48c129b8-15fd-4fa6-bdd5-e225ca2c6a30","kind":"candidate.created","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:46:46.948Z","payload":{}},{"id":"73742b25-abbe-476a-81f6-8471def1d763","kind":"source_event.persisted","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:46:46.948Z","payload":{"revisionNo":1,"contentMode":"pointer_only"}},{"id":"f972ff84-dd67-41ba-ad04-dfb7a1f56d05","template":"intake.received","state":"pending","attempt_no":0,"delivered_at":null,"acknowledged_at":null},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"f1eb75ea-4608-403f-a18e-e95dc25bafcb"},{"id":"42edfe84-3ca9-4130-b3ee-fff33bb1213e","state":"new","version":1,"classification":null,"duplicate_of":null,"missing_fields":[],"note":"","ticket_ref":null,"trace_id":"428481ce-8e99-4124-8ea9-cbf2d24f62c0"},{"id":"42edfe84-3ca9-4130-b3ee-fff33bb1213e"},{"id":"42edfe84-3ca9-4130-b3ee-fff33bb1213e","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"confirmed","classification":"incident","missing_fields":[],"ticket_ref":null,"version":2,"source_id":"telegram:-1000000000001:4","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:24.000Z","ingested_at":"2026-11-15T03:46:46.948Z","forwarded":false,"content_mode":"pointer_only","text_excerpt":null,"dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"domain_code":"IBS_HI"}]"
+
+ ❯ tests/source-text.test.ts:80:20
+     78|    expect(rec.rows().length).toBeGreaterThan(0);
+     79|    expect(all).not.toContain(marker);
+     80|    expect(all).not.toContain(m.hash);
+       |                    ^
+     81|   });
+     82|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the service is built without flags > hidden
+AssertionError: expected '[{"set_config":"11000000-0000-4000-80…' not to contain 'ZEBRA-MARKER-5521 nội dung'
+
+Expected: "ZEBRA-MARKER-5521 nội dung"
+Received: "[{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"n":1},{"id":"12c2ea02-5065-4827-a648-ac546411e4bc","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:5","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:25.000Z","ingested_at":"2026-11-15T03:46:47.402Z","forwarded":false,"content_mode":"excerpt","text_excerpt":"ZEBRA-MARKER-5521 nội dung","dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"12c2ea02-5065-4827-a648-ac546411e4bc","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:5","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:25.000Z","ingested_at":"2026-11-15T03:46:47.402Z","forwarded":false,"content_mode":"excerpt","text_excerpt":"ZEBRA-MARKER-5521 nội dung","dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"root_source_event_id":"422e7852-38f3-4c51-95f9-211de9fe83b7","chat_id":"-1000000000001"},{"revision_no":1,"edited_at":null,"content_hash":"1144dbbfe83f5a8073481611925658a74036cc464fff10139132e2c2c90ea312","content_mode":"excerpt","text_excerpt":"ZEBRA-MARKER-5521 nội dung","text_truncated":false,"created_at":"2026-11-15T03:46:47.402Z"},{"id":"61af17a9-f615-4e1f-93bc-58e9f1378fca","kind":"candidate.created","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:46:47.402Z","payload":{}},{"id":"ed40d85c-8ff8-4552-8224-429f2cf8c98f","kind":"source_event.persisted","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:46:47.402Z","payload":{"revisionNo":1,"contentMode":"excerpt"}},{"id":"3ddbcc43-554b-4a1d-8ad6-2f3154ad49df","template":"intake.received","state":"pending","attempt_no":0,"delivered_at":null,"acknowledged_at":null},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"5bb1ea75-de35-4995-a7d0-4a072a3cd96d"},{"id":"12c2ea02-5065-4827-a648-ac546411e4bc","state":"new","version":1,"classification":null,"duplicate_of":null,"missing_fields":[],"note":"","ticket_ref":null,"trace_id":"c50e1e02-5d20-4bb9-8aa3-f05242a4eec1"},{"id":"12c2ea02-5065-4827-a648-ac546411e4bc"},{"id":"12c2ea02-5065-4827-a648-ac546411e4bc","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"confirmed","classification":"incident","missing_fields":[],"ticket_ref":null,"version":2,"source_id":"telegram:-1000000000001:5","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:25.000Z","ingested_at":"2026-11-15T03:46:47.402Z","forwarded":false,"content_mode":"excerpt","text_excerpt":"ZEBRA-MARKER-5521 nội dung","dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null}]"
+
+ ❯ tests/source-text.test.ts:79:20
+     77|    const all=JSON.stringify(rec.rows());
+     78|    expect(rec.rows().length).toBeGreaterThan(0);
+     79|    expect(all).not.toContain(marker);
+       |                    ^
+     80|    expect(all).not.toContain(m.hash);
+     81|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the message stored only a pointer > hidden
+AssertionError: expected '[{"set_config":"11000000-0000-4000-80…' not to contain '1144dbbfe83f5a8073481611925658a74036c…'
+
+Expected: "1144dbbfe83f5a8073481611925658a74036cc464fff10139132e2c2c90ea312"
+Received: "[{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"n":1},{"id":"953546e4-8fd3-4c67-8796-a41969f2376b","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:6","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:26.000Z","ingested_at":"2026-11-15T03:46:47.871Z","forwarded":false,"content_mode":"pointer_only","text_excerpt":null,"dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"953546e4-8fd3-4c67-8796-a41969f2376b","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"new","classification":null,"missing_fields":[],"ticket_ref":null,"version":1,"source_id":"telegram:-1000000000001:6","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:26.000Z","ingested_at":"2026-11-15T03:46:47.871Z","forwarded":false,"content_mode":"pointer_only","text_excerpt":null,"dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null},{"root_source_event_id":"4994cc55-2e73-466e-8a24-5946cae8da70","chat_id":"-1000000000001"},{"revision_no":1,"edited_at":null,"content_hash":"1144dbbfe83f5a8073481611925658a74036cc464fff10139132e2c2c90ea312","content_mode":"pointer_only","text_excerpt":null,"text_truncated":false,"created_at":"2026-11-15T03:46:47.871Z"},{"id":"55641e6f-4c2e-4f1c-992b-739037b348b7","kind":"source_event.persisted","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:46:47.871Z","payload":{"revisionNo":1,"contentMode":"pointer_only"}},{"id":"8f7644e3-1a7a-4460-8a8e-8f06f97e10cc","kind":"candidate.created","actor_kind":"intake_service","actor_id":"22000000-0000-4000-8000-000000000001","created_at":"2026-11-15T03:46:47.871Z","payload":{}},{"id":"8454160e-9280-4e2e-8009-34148241155f","template":"intake.received","state":"pending","attempt_no":0,"delivered_at":null,"acknowledged_at":null},{"set_config":"11000000-0000-4000-8000-000000000001,11000000-0000-4000-8000-000000000002"},{"project_id":"11000000-0000-4000-8000-000000000001"},{"set_config":"11000000-0000-4000-8000-000000000001"},{"set_config":"14000000-0000-4000-8000-000000000001"},{"id":"44730c29-7e65-4499-bdf0-d443eadd998e"},{"id":"953546e4-8fd3-4c67-8796-a41969f2376b","state":"new","version":1,"classification":null,"duplicate_of":null,"missing_fields":[],"note":"","ticket_ref":null,"trace_id":"cf76e60e-b3f9-420b-a7fd-cb059cd10a9f"},{"id":"953546e4-8fd3-4c67-8796-a41969f2376b"},{"id":"953546e4-8fd3-4c67-8796-a41969f2376b","project_id":"11000000-0000-4000-8000-000000000001","project_label":"Cổng bán hàng mẫu","state":"confirmed","classification":"incident","missing_fields":[],"ticket_ref":null,"version":2,"source_id":"telegram:-1000000000001:6","chat_id":"-1000000000001","observed_at":"2025-10-09T08:53:26.000Z","ingested_at":"2026-11-15T03:46:47.871Z","forwarded":false,"content_mode":"pointer_only","text_excerpt":null,"dups":[],"attachments":[],"outbox_state":"pending","delivered_at":null,"acknowledged_at":null}]"
+
+ ❯ tests/source-text.test.ts:80:20
+     78|    expect(rec.rows().length).toBeGreaterThan(0);
+     79|    expect(all).not.toContain(marker);
+     80|    expect(all).not.toContain(m.hash);
+       |                    ^
+     81|   });
+     82|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/source-text.test.ts > source-text > only source-text.ts reads revision text
+AssertionError: expected [ 'src/server/inbox.ts', …(2) ] to deeply equal [ 'src/server/intake.ts', …(1) ]
+
+- Expected
++ Received
+
+  [
++   "src/server/inbox.ts",
+    "src/server/intake.ts",
+    "src/server/source-text.ts",
+  ]
+
+ ❯ tests/source-text.test.ts:127:34
+    125|   walk(path.join(process.cwd(),'src'));
+    126|   const having=(s:string)=>files.filter(f=>readFileSync(f,'utf8').incl…
+    127|   expect(having('text_excerpt')).toEqual(['src/server/intake.ts','src/…
+       |                                  ^
+    128|   expect(having('source_event_revisions')).toEqual(['src/server/intake…
+    129|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 5 passed (10)
+   Start at  10:46:44
+   Duration  4.89s (tests 99%, import 1%)
+

@@ -1,0 +1,22 @@
+== m9
+     × F12-1 (i) one key for two drafts about one document, same revision body: the second is IDEMPOTENCY_CONFLICT and writes nothing
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 34 passed | 1 skipped (36)
+== m11
+     × M12-2 a stored value that cannot be hashed is VALUE_HASH_MISMATCH; any other error is not swallowed
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 34 passed | 1 skipped (36)
+== m12
+     × M12-5 a malformed id of the AI principal is the module's 404, never a raw database error
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 34 passed | 1 skipped (36)
+== m10a
+     × two confirmations of one draft in parallel leave one decision and one revision
+     × a confirmation and a rejection of one draft in parallel leave one decision; the loser answers DRAFT_ALREADY_DECIDED and no revision is orphaned
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 1 passed (3)
+== m10b
+     × two confirmations of one draft in parallel leave one decision and one revision
+     × a confirmation and a rejection of one draft in parallel leave one decision; the loser answers DRAFT_ALREADY_DECIDED and no revision is orphaned
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 1 passed (3)

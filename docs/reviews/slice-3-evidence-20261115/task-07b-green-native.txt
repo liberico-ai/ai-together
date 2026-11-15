@@ -1,0 +1,14 @@
+npx vitest run tests/doc-approver-flow.test.ts tests/doc-approver-ui.test.tsx tests/inbox-ui.test.tsx tests/access-change.test.ts tests/rsc-boundary.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+(node:32769) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:32833) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  5 passed (5)
+      Tests  56 passed (56)
+   Start at  14:43:26
+   Duration  7.83s (tests 98%, import 2%)
+

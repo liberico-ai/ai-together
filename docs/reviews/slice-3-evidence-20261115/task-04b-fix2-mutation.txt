@@ -1,0 +1,28 @@
+npx vitest run tests/review-schema.test.ts   # m2 (N1): compare against NEW.latest_revision_id again
+   × the approved pointer cannot go back to an older approved revision, nor be moved by anyone but the approver 476ms
+      Tests  1 failed | 33 passed | 1 skipped (35)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-schema.test.ts > the approved pointer cannot go back to an older approved revision, nor be moved by anyone but the approver
+
+npx vitest run tests/review-schema.test.ts   # m3 (N3): remove the 'greater revision_no' condition
+   × a dependency cannot point a document at itself and is unique per pair 477ms
+   × runtime sets or advances a dependency flag but cannot clear it; the version moves by exactly one 471ms
+      Tests  2 failed | 32 passed | 1 skipped (35)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-schema.test.ts > a dependency cannot point a document at itself and is unique per pair
+ FAIL  tests/review-schema.test.ts > runtime sets or advances a dependency flag but cannot clear it; the version moves by exactly one
+
+npx vitest run tests/review-schema.test.ts   # m4 (N5): remove the forward-only condition
+   × the latest-revision pointer only moves forward for the runtime role 475ms
+      Tests  1 failed | 33 passed | 1 skipped (35)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-schema.test.ts > the latest-revision pointer only moves forward for the runtime role
+
+npx vitest run tests/review-schema.test.ts -t 'two raw concurrent'   # m1 (N2): guard lock back to FOR SHARE, native
+     × two raw concurrent decisions on one revision end with one row and no deadlock 1587ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-schema.test.ts > decision guard lock (native PostgreSQL) > two raw concurrent decisions on one revision end with one row and no deadlock
+AssertionError: expected [ '23505', 'P0001' ] to include '40P01'
+    773|   expect((lost.reason as Err).code).not.toBe('40P01');
+      Tests  1 failed | 34 skipped (35)
+

@@ -1,0 +1,10 @@
+npx vitest run tests/z4-schema.test.ts tests/migrations-rollback.test.ts tests/rls-catalog.test.ts tests/slice1-harness.test.ts tests/outbox-schema.test.ts   # native PostgreSQL
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  5 passed (5)
+      Tests  80 passed (80)
+   Start at  15:06:38
+   Duration  28.47s (tests 99%, import 1%)
+

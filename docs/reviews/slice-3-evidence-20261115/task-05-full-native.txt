@@ -1,0 +1,14 @@
+npx vitest run   # native: SLICE1_* variables from $SLICE3_ENV_FILE exported
+
+ RUN  v5.1.0 <worktree>
+
+(node:2449) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:2457) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  49 passed (49)
+      Tests  616 passed (616)
+   Start at  13:40:25
+   Duration  175.32s (tests 99%, import 1%)
+

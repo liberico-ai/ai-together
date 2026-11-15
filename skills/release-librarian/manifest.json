@@ -1,0 +1,35 @@
+{
+  "name": "release_librarian",
+  "version": "0.1.0",
+  "owner": "BoM Tech",
+  "attribution": [
+    {
+      "ref": "docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:97-104",
+      "note": "viết mới theo bảng năng lực; không chép từ khung ngoài"
+    }
+  ],
+  "prompt": {
+    "path": "skills/release-librarian/prompt.md",
+    "sha256": "0e173c04eaced0f632f0f35ff6803a9e698420b0766d7dc74b18c9b823f4fb45"
+  },
+  "inputContract": "SkillContext/v1",
+  "outputContract": "SkillOutput/release_librarian/v1",
+  "toolAllowlist": [],
+  "dataScope": {
+    "projectScope": "single",
+    "kinds": [
+      "document",
+      "document_revision"
+    ],
+    "ibsHi": "pointer_hash_metadata_only",
+    "hiddenText": "never"
+  },
+  "evalSet": {
+    "path": "skills/release-librarian/eval.json",
+    "sha256": "bc7d4dd53861a826ecca5e368ccad54e2ef340d7a3dfc437d0df1f80d09ee300",
+    "cases": 5
+  },
+  "modelBinding": "none",
+  "enabled": false,
+  "hash": "afb51b1c3a3968c9449b832471885818de5e8608fb683e535426ae3f0e51d86e"
+}

@@ -1,0 +1,38 @@
+=== m1: grant: remove database re-read of the caller role
+npx vitest run tests/review-delegations.test.ts
+     × F-1a the service itself re-reads the caller role: a demoted caller who designates themself gets the 404, not the self-designation answer 463ms
+ FAIL  tests/review-delegations.test.ts > stale session role and the database guards > F-1a the service itself re-reads the caller role: a demoted caller who designates themself gets the 404, not the self-designation answer
+AssertionError: expected Error: Không tự chỉ định chính mình. { …(2) } to match object { code: 'SCOPE_DENIED', status: 404 }
+     51|  expect(e,'expected a refusal').toBeTruthy();
+      Tests  1 failed | 27 passed (28)
+
+=== m2: revoke: remove database re-read of the caller role
+npx vitest run tests/review-delegations.test.ts
+     × F-1b the service itself re-reads the caller role: a demoted caller with a stale version gets the 404, not DELEGATION_CONFLICT 470ms
+ FAIL  tests/review-delegations.test.ts > stale session role and the database guards > F-1b the service itself re-reads the caller role: a demoted caller with a stale version gets the 404, not DELEGATION_CONFLICT
+AssertionError: expected Error: Uỷ quyền này đã thay đổi. Tải lại … { …(2) } to match object { code: 'SCOPE_DENIED', status: 404 }
+     51|  expect(e,'expected a refusal').toBeTruthy();
+      Tests  1 failed | 27 passed (28)
+
+=== m3: grant: remove the self-designation check
+npx vitest run tests/review-delegations.test.ts
+     × OQ-31 (1) (a) a manager cannot designate themself 484ms
+     × a failed grant leaves no delegation, no event and no command row 477ms
+     × an id in upper case is the same person (h), for designation and for revocation 496ms
+ FAIL  tests/review-delegations.test.ts > designating a commenter > OQ-31 (1) (a) a manager cannot designate themself
+AssertionError: expected error: new row for relation "review_deleg… { …(18) } to match object { code: 'DELEGATION_INVALID', …(1) }
+     51|  expect(e,'expected a refusal').toBeTruthy();
+ FAIL  tests/review-delegations.test.ts > designating a commenter > a failed grant leaves no delegation, no event and no command row
+AssertionError: expected error: new row for relation "review_deleg… { …(18) } to match object { code: 'DELEGATION_INVALID', …(1) }
+ FAIL  tests/review-delegations.test.ts > designating a commenter > an id in upper case is the same person (h), for designation and for revocation
+AssertionError: expected error: new row for relation "review_deleg… { …(18) } to match object { code: 'DELEGATION_INVALID', …(1) }
+     51|  expect(e,'expected a refusal').toBeTruthy();
+      Tests  3 failed | 25 passed (28)
+
+=== m4: grant: accept an empty docTypes list at the service
+npx vitest run tests/review-delegations.test.ts
+     × OQ-31 (4) (c) a designation without document types, with an empty list, an unknown type or a repeat is rejected 509ms
+ FAIL  tests/review-delegations.test.ts > designating a commenter > OQ-31 (4) (c) a designation without document types, with an empty list, an unknown type or a repeat is rejected
+AssertionError: expected error: new row for relation "review_deleg… { …(18) } to be an instance of ZodError
+      Tests  1 failed | 27 passed (28)
+

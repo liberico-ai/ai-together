@@ -1,10 +1,12 @@
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { scoped, type Database, type Queryable } from './db';
+import { randomUUID } from 'node:crypto';
+import { claimDocumentCommand } from './document-commands';
+import { flagDependents } from './document-dependencies';
 import { AppError, invariant } from './errors';
 import { sourceHostProblem } from './source-hosts';
 import { projectRole } from './types';
-import type { DocumentDetail, DocumentRecord, DocumentRevision, Principal, RegistryEvent, SourceLink, SourceState, SourceType } from './types';
+import type { DocumentDetail, DocumentRecord, DocumentRevision, Principal, Role, RegistryEvent, SourceLink, SourceState, SourceType } from './types';
 
 const DOC_TYPES = ['project_index', 'change_brief', 'requirements', 'design', 'plan', 'verification', 'guide', 'other'] as const;
 const NOT_FOUND = 'Không tìm thấy tài liệu trong phạm vi được cấp.';
@@ -67,7 +69,7 @@ const sourceRef = z.object({ kind: z.enum(['git_sha', 'url', 'z2_source_ref']), 
   const c = checkPointer(r.value);
   return c.ok ? { ...r, value: c.href } : r;
 });
-const proposeSchema = z.object({
+export const proposeSchema = z.object({
   expectedVersion: z.number().int().positive(),
   basedOnRevisionId: z.string().uuid().nullable(),
   sourceRevision: z.string().max(200).nullable(),
@@ -77,29 +79,9 @@ const proposeSchema = z.object({
   sourceRefs: z.array(sourceRef).max(20),
 }).strict();
 
-/** Document idempotency: unique per person across projects (OQ-24 b). A key owned by a project hidden by RLS also conflicts. */
-async function claimDocumentCommand<T>(tx: Queryable, p: Principal, projectId: string, key: string, input: unknown, action: () => Promise<T>): Promise<T> {
-  invariant(/^[A-Za-z0-9_-]{8,100}$/.test(key), 'IDEMPOTENCY_REQUIRED', 'Cần mã thao tác hợp lệ để chống ghi lặp.', 400);
-  const conflict = () => new AppError('IDEMPOTENCY_CONFLICT', 'Mã thao tác đã được dùng với nội dung khác.', 409);
-  const hash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
-  let created: { id: string } | undefined;
-  try {
-    created = (await tx.query<{ id: string }>(`INSERT INTO document_commands(tenant_id,project_id,actor_id,command_key,request_hash) VALUES($1,$2,$3,$4,$5)
-      ON CONFLICT(tenant_id,actor_id,command_key) DO NOTHING RETURNING id`, [p.tenantId, projectId, p.id, key, hash])).rows[0];
-  } catch (e) {
-    if ((e as { code?: string })?.code === '23505') throw conflict();
-    throw e;
-  }
-  if (!created) {
-    const old = (await tx.query<{ request_hash: string; response: T }>('SELECT request_hash,response FROM document_commands WHERE tenant_id=$1 AND actor_id=$2 AND command_key=$3',
-      [p.tenantId, p.id, key])).rows[0];
-    if (!old || old.request_hash !== hash) throw conflict();
-    return old.response;
-  }
-  const result = await action();
-  await tx.query('UPDATE document_commands SET response=$1, updated_at=now() WHERE id=$2', [JSON.stringify(result), created.id]);
-  return result;
-}
+export const READ_ONLY_MESSAGE = 'Vai này không được ghi sổ tài liệu.';
+/** The one rule for who may write the document ledger in a project (proposing a revision, confirming an AI draft about a document). */
+export const mayWriteDocuments = (role: Role) => role !== 'viewer' && role !== 'bot';
 
 const iso = (v: unknown) => v == null ? null : new Date(v as string).toISOString();
 type RecordRow = Omit<DocumentRecord, 'created_at' | 'updated_at' | 'source_checked_at' | 'review_due_at'> & { created_at: unknown; updated_at: unknown; source_checked_at: unknown; review_due_at: unknown };
@@ -128,6 +110,13 @@ async function load(tx: Queryable, documentId: string): Promise<DocumentDetail> 
   return { record: toRecord(rec, refs), revisions, events };
 }
 
+/** The checks of a revision proposal that need no database: a bot is read-only, the id is a uuid, the body fits the strict schema. */
+function proposeInput(p: Principal, documentId: string, raw: unknown) {
+  invariant(p?.role !== 'bot', 'READ_ONLY', READ_ONLY_MESSAGE, 403);
+  invariant(z.string().uuid().safeParse(documentId).success, 'SCOPE_DENIED', NOT_FOUND, 404);
+  return proposeSchema.parse(raw);
+}
+
 export class DocumentService {
   constructor(private db: Database) {}
   async register(p: Principal, raw: unknown, key: string): Promise<DocumentDetail> {
@@ -154,30 +143,42 @@ export class DocumentService {
     }));
   }
   async proposeRevision(p: Principal, documentId: string, raw: unknown, key: string): Promise<DocumentDetail> {
-    invariant(p?.role !== 'bot', 'READ_ONLY', 'Vai này không được ghi sổ tài liệu.', 403);
-    invariant(z.string().uuid().safeParse(documentId).success, 'SCOPE_DENIED', NOT_FOUND, 404);
-    const input = proposeSchema.parse(raw);
-    return scoped(this.db, p, async tx => {
-      const record = (await tx.query<RecordRow>('SELECT * FROM document_records WHERE id=$1 FOR UPDATE', [documentId])).rows[0];
-      invariant(record, 'SCOPE_DENIED', NOT_FOUND, 404);
-      const role = projectRole(p, record.project_id);
-      invariant(role !== 'viewer' && role !== 'bot', 'READ_ONLY', 'Vai này không được ghi sổ tài liệu.', 403);
-      return claimDocumentCommand(tx, p, record.project_id, key, { op: 'document.propose_revision', documentId, ...input }, async () => {
-        invariant(record.version === input.expectedVersion && input.basedOnRevisionId === record.latest_revision_id,
-          'REVISION_CONFLICT', 'Tài liệu đã đổi. Đọc bản mới trước khi gửi lại.', 409);
-        const no = (await tx.query<{ n: number }>('SELECT coalesce(max(revision_no),0)+1 AS n FROM document_revisions WHERE document_id=$1', [documentId])).rows[0].n;
-        const rev = (await tx.query<{ id: string }>(`INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,based_on_revision_id,source_id,source_type,
-          source_revision,source_hash,source_modified_at,changes,source_refs,proposed_by)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-          [p.tenantId, record.project_id, documentId, no, input.basedOnRevisionId, record.canonical_uri, record.source_type, input.sourceRevision, input.sourceHash,
-            input.sourceModifiedAt, JSON.stringify(input.changes), JSON.stringify(input.sourceRefs), p.id])).rows[0];
-        await tx.query('UPDATE document_records SET latest_revision_id=$1, version=version+1, updated_at=now() WHERE id=$2', [rev.id, documentId]);
-        await tx.query(`INSERT INTO registry_events(tenant_id,project_id,entity_type,entity_id,actor_id,kind,command_key,payload) VALUES($1,$2,'document_revision',$3,$4,'revision_proposed',$5,$6)`,
-          [p.tenantId, record.project_id, rev.id, p.id, key, JSON.stringify({ revisionNo: no, basedOnRevisionId: input.basedOnRevisionId, expectedVersion: input.expectedVersion,
-            sourceHash: input.sourceHash, hashVerification: 'self_declared', versionBefore: record.version, versionAfter: record.version + 1 })]);
-        return load(tx, documentId);
-      });
-    });
+    proposeInput(p, documentId, raw); // refused before the database is touched
+    return scoped(this.db, p, tx => this.proposeRevisionIn(tx, p, documentId, raw, key));
+  }
+  /** The body of proposeRevision inside the caller's scoped transaction (the AI-draft confirmation shares it): same checks, same order, same events.
+ *  `requestId` is the caller's request id for the dependency.flagged events; the manual path passes none and gets one generated id for the transaction. */
+  async proposeRevisionIn(tx: Queryable, p: Principal, documentId: string, raw: unknown, key: string, fromDraft?: { draftId: string }, requestId?: string,
+    opts?: { claimHeld?: boolean }): Promise<DocumentDetail> {
+    const input = proposeInput(p, documentId, raw);
+    // the acting person for the database: flagging dependents writes review_events, whose insert policy binds actor_id to it (S40)
+    await tx.query("SELECT set_config('app.person_id',$1,true)", [p.id]);
+    const record = (await tx.query<RecordRow>('SELECT * FROM document_records WHERE id=$1 FOR UPDATE', [documentId])).rows[0];
+    invariant(record, 'SCOPE_DENIED', NOT_FOUND, 404);
+    invariant(mayWriteDocuments(projectRole(p, record.project_id)), 'READ_ONLY', READ_ONLY_MESSAGE, 403);
+    // A confirmation of an AI draft is another command than a manual proposal: its claimed payload names the draft, so a key reused for another draft,
+    // or one first used by a manual proposal (or the reverse), is IDEMPOTENCY_CONFLICT and never replays a revision made for something else.
+    // The manual payload is unchanged.
+    // `claimHeld`: the caller (the draft decision) already holds this key's claim in this transaction, with its own fingerprint (operation, draft id and the whole
+    // parsed command); the body then runs under that claim and claims nothing, since a second claim of one key with another fingerprint would conflict with the first.
+    const claimed = fromDraft ? { op: 'document.propose_revision.from_draft', draftId: fromDraft.draftId, documentId, ...input } : { op: 'document.propose_revision', documentId, ...input };
+    const body = async () => {
+      invariant(record.version === input.expectedVersion && input.basedOnRevisionId === record.latest_revision_id,
+        'REVISION_CONFLICT', 'Tài liệu đã đổi. Đọc bản mới trước khi gửi lại.', 409);
+      const no = (await tx.query<{ n: number }>('SELECT coalesce(max(revision_no),0)+1 AS n FROM document_revisions WHERE document_id=$1', [documentId])).rows[0].n;
+      const rev = (await tx.query<{ id: string }>(`INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,based_on_revision_id,source_id,source_type,
+        source_revision,source_hash,source_modified_at,changes,source_refs,proposed_by)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+        [p.tenantId, record.project_id, documentId, no, input.basedOnRevisionId, record.canonical_uri, record.source_type, input.sourceRevision, input.sourceHash,
+          input.sourceModifiedAt, JSON.stringify(input.changes), JSON.stringify(input.sourceRefs), p.id])).rows[0];
+      await tx.query('UPDATE document_records SET latest_revision_id=$1, version=version+1, updated_at=now() WHERE id=$2', [rev.id, documentId]);
+      await flagDependents(tx, p, { projectId: record.project_id, upstreamDocumentId: documentId, newRevisionId: rev.id, requestId: requestId ?? randomUUID() });
+      await tx.query(`INSERT INTO registry_events(tenant_id,project_id,entity_type,entity_id,actor_id,kind,command_key,payload) VALUES($1,$2,'document_revision',$3,$4,'revision_proposed',$5,$6)`,
+        [p.tenantId, record.project_id, rev.id, p.id, key, JSON.stringify({ revisionNo: no, basedOnRevisionId: input.basedOnRevisionId, expectedVersion: input.expectedVersion,
+          sourceHash: input.sourceHash, hashVerification: 'self_declared', versionBefore: record.version, versionAfter: record.version + 1 })]);
+      return load(tx, documentId);
+    };
+    return opts?.claimHeld ? body() : claimDocumentCommand(tx, p, record.project_id, key, claimed, body);
   }
   async detail(p: Principal, documentId: string): Promise<DocumentDetail> {
     invariant(p?.role !== 'bot', 'READ_ONLY', 'Vai này không được dùng sổ tài liệu.', 403);

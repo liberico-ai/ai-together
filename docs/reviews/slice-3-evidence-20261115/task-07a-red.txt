@@ -1,0 +1,26 @@
+npx vitest run tests/review-delegations.test.ts tests/review-schema.test.ts tests/document-review.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/review-delegations.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/review-delegations.test.ts [ tests/review-delegations.test.ts ]
+Error: Cannot find module '../src/server/review-delegations' imported from <worktree>/tests/review-delegations.test.ts
+ ❯ tests/review-delegations.test.ts:8:1
+      6| import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtu…
+      7| import {approver,delegate,frozenRevision,grantDocApproval,registerDoc,…
+      8| import {DelegationService} from '../src/server/review-delegations';
+       | ^
+      9| import {ReviewService} from '../src/server/document-review';
+     10| import type {Database,Queryable} from '../src/server/db';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  60 passed | 1 skipped (61)
+   Start at  14:08:44
+   Duration  28.52s (tests 100%)
+

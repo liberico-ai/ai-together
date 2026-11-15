@@ -1,0 +1,29 @@
+Query plan of the reader's statement in DelegationService.list after the Codex round-3 fix.
+Run by the controlling session on native PostgreSQL through the repository test harness (one-off, not part of the suite): EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, SUMMARY OFF), as the operator login with app.tenant_id and app.project_ids set for the transaction.
+Reading: «hashed SubPlan 2» holds one «Function Scan on bom_eligible_members» with loops=1 while the outer scan visits 300 rows; «InitPlan 1» (the candidate array) also runs once. The function is called once per statement, not once per row.
+
+server_version 16.15 (Debian 16.15-1.pgdg13+2)
+rows in review_delegations: 300 dormant (no membership), reader = a member of the project
+
+Limit (actual rows=0 loops=1)
+  ->  Sort (actual rows=0 loops=1)
+        Sort Key: ((review_delegations.delegate_id <> '14000000-0000-4000-8000-000000000002'::uuid)), (CASE WHEN (review_delegations.delegate_id = '14000000-0000-4000-8000-000000000002'::uuid) THEN review_delegations.created_at ELSE NULL::timestamp with time zone END) DESC, review_delegations.delegate_id, review_delegations.id
+        Sort Method: quicksort  Memory: 25kB
+        ->  Bitmap Heap Scan on review_delegations (actual rows=0 loops=1)
+              Recheck Cond: (project_id = '11000000-0000-4000-8000-000000000001'::uuid)
+              Filter: ((delegate_id = '14000000-0000-4000-8000-000000000002'::uuid) OR ((revoked_at IS NULL) AND (hashed SubPlan 2)))
+              Rows Removed by Filter: 300
+              Heap Blocks: exact=9
+              ->  Bitmap Index Scan on idx_review_delegations_project_fk (actual rows=300 loops=1)
+                    Index Cond: (project_id = '11000000-0000-4000-8000-000000000001'::uuid)
+              SubPlan 2
+                ->  Function Scan on bom_eligible_members e (actual rows=0 loops=1)
+                      Filter: (project_role = ANY ('{manager,engineer,technical,business}'::text[]))
+                      InitPlan 1 (returns $0)
+                        ->  Unique (actual rows=300 loops=1)
+                              ->  Sort (actual rows=300 loops=1)
+                                    Sort Key: d.delegate_id
+                                    Sort Method: quicksort  Memory: 32kB
+                                    ->  Index Only Scan using uq_review_delegations_active on review_delegations d (actual rows=300 loops=1)
+                                          Index Cond: (project_id = '11000000-0000-4000-8000-000000000001'::uuid)
+                                          Heap Fetches: 300

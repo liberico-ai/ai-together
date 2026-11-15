@@ -1,0 +1,25 @@
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/skill-context.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-context.test.ts [ tests/skill-context.test.ts ]
+Error: Cannot find module '../src/server/skill-context' imported from <worktree>/tests/skill-context.test.ts
+ ❯ tests/skill-context.test.ts:14:1
+     12| import {visibleThreadMessages} from '../src/server/source-text';
+     13| import {contextSchema,SKILLS,type SkillContext,type SkillName} from '.…
+     14| import {buildSkillContext,buildSkillContextIn,CONTEXT_KINDS} from '../…
+       | ^
+     15| import type {Principal} from '../src/server/types';
+     16|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  16:19:08
+   Duration  106ms (worker 97%, environment 3%)
+

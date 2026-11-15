@@ -1,0 +1,5 @@
+ Test Files  58 passed | 9 skipped (67)
+      Tests  932 passed | 39 skipped (971)
+   Start at  19:09:48
+   Duration  347.66s (tests 99%, import 1%)
+typecheck: npm run typecheck (tsc --noEmit) exit 0, no output

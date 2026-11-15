@@ -1,0 +1,35 @@
+{
+  "name": "intake_analyst",
+  "version": "0.1.0",
+  "owner": "BoM Tech",
+  "attribution": [
+    {
+      "ref": "docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:97-104",
+      "note": "viết mới theo bảng năng lực; không chép từ khung ngoài"
+    }
+  ],
+  "prompt": {
+    "path": "skills/intake-analyst/prompt.md",
+    "sha256": "d7c8abd70533c467c55e2191b8f5d6da07b40097504e0dd9750db234eb51493b"
+  },
+  "inputContract": "SkillContext/v1",
+  "outputContract": "SkillOutput/intake_analyst/v1",
+  "toolAllowlist": [],
+  "dataScope": {
+    "projectScope": "single",
+    "kinds": [
+      "source_event",
+      "document"
+    ],
+    "ibsHi": "pointer_hash_metadata_only",
+    "hiddenText": "never"
+  },
+  "evalSet": {
+    "path": "skills/intake-analyst/eval.json",
+    "sha256": "046b0c56882406274242fcf440cf2e5f86033aad6b66f71495dfdfacf21e022f",
+    "cases": 5
+  },
+  "modelBinding": "none",
+  "enabled": false,
+  "hash": "e007b1885b091fe0386f8ce3970d916c02436b0cd362511c8992d3e3e7f989f7"
+}

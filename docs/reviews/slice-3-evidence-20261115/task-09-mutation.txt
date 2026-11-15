@@ -1,0 +1,143 @@
+=== m1
+mutation: s/if \(out\.sources\.length === 0\) reasons\.push\('SOURCE_REQUIRED'\);//
+npx vitest run tests/skill-contracts.test.ts
+     × an output without sources is held 4ms
+     × reasons are complete and ordered 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/skill-contracts.test.ts > skill contracts > an output without sources is held
+AssertionError: expected { Object (verdict, reasons, ...) } to deeply equal { verdict: 'hold', …(2) }
+ FAIL  tests/skill-contracts.test.ts > skill contracts > reasons are complete and ordered
+AssertionError: expected [ 'MANIFEST_MISMATCH', …(1) ] to deeply equal [ 'MANIFEST_MISMATCH', …(2) ]
+      Tests  2 failed | 17 passed (19)
+reverted: identical
+
+=== m2
+mutation: s/if \(out\.toolRequests\.some[^
+]*
+//
+npx vitest run tests/skill-contracts.test.ts
+     × DOC-15 a tool request outside the allowlist is held and the manifest object is unchanged 4ms
+     × reasons are complete and ordered 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/skill-contracts.test.ts > skill contracts > DOC-15 a tool request outside the allowlist is held and the manifest object is unchanged
+AssertionError: expected { Object (verdict, reasons, ...) } to deeply equal { verdict: 'hold', …(2) }
+ FAIL  tests/skill-contracts.test.ts > skill contracts > reasons are complete and ordered
+AssertionError: expected [ 'MANIFEST_MISMATCH', …(1) ] to deeply equal [ 'MANIFEST_MISMATCH', …(2) ]
+      Tests  2 failed | 17 passed (19)
+reverted: identical
+
+=== m3
+mutation: s/s\?\.kind === 'source_event' && s\.mode !== 'excerpt'/false/
+npx vitest run tests/skill-contracts.test.ts
+     × a claim based on a hidden or pointer-only message is held 4ms
+     × reasons are complete and ordered 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/skill-contracts.test.ts > skill contracts > a claim based on a hidden or pointer-only message is held
+AssertionError: e2: expected { Object (verdict, reasons, ...) } to deeply equal { verdict: 'hold', …(2) }
+ FAIL  tests/skill-contracts.test.ts > skill contracts > reasons are complete and ordered
+AssertionError: expected [ 'MANIFEST_MISMATCH', …(5) ] to deeply equal [ 'MANIFEST_MISMATCH', …(6) ]
+      Tests  2 failed | 17 passed (19)
+reverted: identical
+
+=== m4
+mutation: s/if \(!storable\(v\)\) return false;/if (!v.includes('\u0000')) {}/
+npx vitest run tests/skill-contracts.test.ts
+     × outputFits refuses text PostgreSQL cannot store 3ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/skill-contracts.test.ts > skill contracts > outputFits refuses text PostgreSQL cannot store
+AssertionError: expected true to be false // Object.is equality
+      Tests  1 failed | 18 passed (19)
+reverted: identical
+
+=== m5
+mutation: s/(doc_reviewer: )so\(/$1z.object(/
+npx vitest run tests/skill-contracts.test.ts
+     × every skill has a strict output contract; unknown keys are rejected 7ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/skill-contracts.test.ts > skill contracts > every skill has a strict output contract; unknown keys are rejected
+AssertionError: doc_reviewer result policy: expected { Object (verdict, reasons, ...) } to deeply equal { verdict: 'hold', …(2) }
+      Tests  1 failed | 18 passed (19)
+reverted: identical
+
+
+##### Round 0 (rulings R-a..R-g): m4 replaced by m4a/m4b; m1-m3, m5 re-run on the final code; m6-m8 added
+=== m1
+file: src/server/skill-contracts.ts  mutation: s/if \(out\.sources\.length === 0\) reasons\.push\('SOURCE_REQUIRED'\);//
+npx vitest run tests/skill-contracts.test.ts
+     × an output without sources is held 5ms
+     × reasons are complete and ordered 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 25 passed (27)
+reverted: identical
+
+=== m2
+file: src/server/skill-contracts.ts  mutation: s/  if \(out\.toolRequests\.some[^
+]*
+//
+npx vitest run tests/skill-contracts.test.ts
+     × DOC-15 a tool request outside the allowlist is held and the manifest object is unchanged 5ms
+     × reasons are complete and ordered 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 25 passed (27)
+reverted: identical
+
+=== m3
+file: src/server/skill-contracts.ts  mutation: s/s\?\.kind === 'source_event' && s\.mode !== 'excerpt'/false/
+npx vitest run tests/skill-contracts.test.ts
+     × a claim based on a hidden or pointer-only message is held 4ms
+     × reasons are complete and ordered 1ms
+     × R-b a statement cannot rest on text that was not shown 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed | 24 passed (27)
+reverted: identical
+
+=== m4a
+file: src/server/text-safety.ts  mutation: s/!s\.includes\('\u0000'\) && //
+npx vitest run tests/skill-contracts.test.ts
+     × outputFits refuses U+0000 in a value or a key 3ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 26 passed (27)
+reverted: identical
+
+=== m4b
+file: src/server/text-safety.ts  mutation: s/ && !LONE_SURROGATE\.test\(s\)//
+npx vitest run tests/skill-contracts.test.ts
+     × outputFits refuses a lone surrogate in a value or a key 3ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 26 passed (27)
+reverted: identical
+
+=== m5
+file: src/server/skill-contracts.ts  mutation: s/(doc_reviewer: )so\(/$1z.object(/
+npx vitest run tests/skill-contracts.test.ts
+     × every skill has a strict output contract; unknown keys are rejected 8ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 26 passed (27)
+reverted: identical
+
+=== m6
+file: src/server/skill-contracts.ts  mutation: s/(conflicts\.\*\.sourceIds\.\*', supports: )true/$1false/
+npx vitest run tests/skill-contracts.test.ts
+     × R-b a statement cannot rest on text that was not shown 3ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 26 passed (27)
+reverted: identical
+
+=== m7
+file: src/server/skill-contracts.ts  mutation: s/, 
+?\s*\{ path: 'result\.staleReminders\.\*\.documentId', supports: false \}//
+npx vitest run tests/skill-contracts.test.ts
+     × R-c every id-bearing field is checked against the context, and the table covers every id in a clean output 6ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 26 passed (27)
+reverted: identical
+
+=== m8
+file: src/server/skill-contracts.ts  mutation: s/ \|\| !listed\)/)/
+npx vitest run tests/skill-contracts.test.ts
+     × a cited id outside the context is held 4ms
+     × R-d the release librarian only names approved revisions 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 25 passed (27)
+reverted: identical
+

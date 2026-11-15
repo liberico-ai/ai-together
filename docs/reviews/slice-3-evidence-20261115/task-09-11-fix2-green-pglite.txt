@@ -1,0 +1,8 @@
+GREEN fix round 2 (PGlite). Focused: npx vitest run tests/skill-contracts.test.ts tests/skills-manifest.test.ts tests/skills-eval.test.ts tests/skill-context.test.ts tests/suggestions.test.ts --reporter=verbose
+{"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
+ Test Files  5 passed (5)
+      Tests  144 passed | 1 skipped (145)
+Full suite PGlite, no exclusions (before: 884 passed + 39 skipped):
+ Test Files  56 passed | 9 skipped (65)
+      Tests  886 passed | 39 skipped (925)
+typecheck: npm run typecheck -> no errors

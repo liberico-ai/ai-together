@@ -1,0 +1,11 @@
+npx vitest run
+
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  41 passed | 6 skipped (47)
+      Tests  559 passed | 26 skipped (585)
+   Start at  13:14:57
+   Duration  251.76s (tests 99%, import 1%)
+

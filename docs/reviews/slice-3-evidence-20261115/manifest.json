@@ -1,0 +1,155 @@
+{
+  "slice": 3,
+  "branch": "slice-3-review-skills",
+  "codeHead": "007cdedd05aa6bb20c278a703e2125fe2109331a",
+  "headAtRun": "2654abf5062f2dc0d399b506aeb17d4a10878ba7",
+  "headNote": "HEAD 2654abf is documentation only; git diff --stat 007cded HEAD -- src tests migrations skills bot-plugin vitest.config.ts package.json was empty before the run",
+  "base": "ec3b5e7498013d3ba7c19116735b40e2118f0e22",
+  "observedAt": "2026-11-16T05:25:00+07:00",
+  "runner": "builder agent (Task 18, third run: commands only, no source, test, migration or skill file changed), local machine",
+  "nativeDatabase": "PostgreSQL 16.15, Docker container on loopback only, synthetic data",
+  "redaction": "worktree/home/scratchpad paths replaced; connection strings replaced by <redacted-url>; no environment values stored",
+  "commands": [
+    {
+      "name": "vitest-pglite",
+      "command": "npx vitest run --reporter=verbose",
+      "exit": 0,
+      "result": "58 files passed | 10 skipped (68); 973 passed | 41 skipped (1014); every skip is a native-only block (skipIf on the native flag); the seven new cases G-1..G-7 ran and passed on PGlite",
+      "log": "logs/vitest-pglite-007cded.log"
+    },
+    {
+      "name": "vitest-native",
+      "command": "set -a; . $SLICE3_ENV_FILE; set +a; npx vitest run --reporter=verbose",
+      "exit": 0,
+      "result": "68 files passed (68); 1014 passed (1014); 0 skipped",
+      "log": "logs/vitest-native-007cded.log"
+    },
+    {
+      "name": "coverage",
+      "command": "npx vitest run --coverage",
+      "exit": 0,
+      "result": "statements 96.17, branches 91.04, functions 97.71, lines 97.39; threshold 60 holds; per-file figures in the report",
+      "log": "logs/coverage-007cded.log",
+      "engine": "native PostgreSQL (1014 cases, 0 skipped). Note added by the controlling session: the coverage run at ee990b4 used PGlite (966 passed, 41 skipped), so the two sets of figures are not directly comparable."
+    },
+    {
+      "name": "pytest",
+      "command": "python3 -m pytest tests/test_bot_bridge.py -q",
+      "exit": 0,
+      "result": "67 passed, 69 subtests passed",
+      "log": "logs/pytest-007cded.log"
+    },
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "exit": 0,
+      "result": "tsc --noEmit, no output",
+      "log": "logs/typecheck-007cded.log"
+    },
+    {
+      "name": "build",
+      "command": "rm -rf .next && npm run build",
+      "exit": 0,
+      "result": "routes present: /review, /review/[documentId], /decisions, /api/reviews/[[...path]], /api/decisions; .next/static files with fabrication_when_missing: 0; with the injection sentence: 0; next-env.d.ts not modified",
+      "log": "logs/build-007cded.log"
+    },
+    {
+      "name": "ai-privileges",
+      "command": "privilege query of task-8-brief.md lines 25-31 run in a one-off vitest run that opens the repository harness (applies the migrations); environment file loaded from $SLICE3_ENV_FILE in the same shell, not echoed",
+      "exit": 0,
+      "result": "0 rows write; 0 rows SELECT on public/identity/analytics; intelligence.ai_drafts SELECT + INSERT only; schema intelligence USAGE true, CREATE false",
+      "log": "task-18-ai-privileges.txt"
+    },
+    {
+      "name": "static-checks",
+      "command": "four git diff checks against base ec3b5e7; chat-id leak check on added lines (raw and amended); untracked-files leak check; network grep of five src/server files",
+      "exit": 0,
+      "result": "4 diff checks empty; amended leak check empty; untracked leak check empty; network grep empty; raw leak check printed 2 lines, both regular-expression literals in tests/skills-eval.test.ts and tests/skills-manifest.test.ts",
+      "log": "task-18-static-checks.txt"
+    },
+    {
+      "name": "absent-7c",
+      "command": "ls tests/doc-approval-proposal*.test.ts src/app/api/team/doc-approvals",
+      "exit": 1,
+      "result": "No such file or directory for both, as expected (run in bash)",
+      "log": "task-18-static-checks.txt"
+    }
+  ],
+  "previousRun": {
+    "codeHead": "ee990b43caa900af990a33a3a387b1fa8a44387b",
+    "observedAt": "2026-11-15T21:18:00+07:00",
+    "commands": [
+      {
+        "name": "vitest-pglite",
+        "command": "npx vitest run --reporter=verbose",
+        "exit": 0,
+        "result": "58 files passed | 10 skipped (68); 966 passed | 41 skipped (1007); every skip is a native-only block",
+        "log": "logs/vitest-pglite-ee990b4.log"
+      },
+      {
+        "name": "vitest-native",
+        "command": "set -a; . $SLICE3_ENV_FILE; set +a; npx vitest run --reporter=verbose",
+        "exit": 0,
+        "result": "68 files passed (68); 1007 passed (1007); 0 skipped",
+        "log": "logs/vitest-native-ee990b4.log",
+        "note": "run while HEAD moved from ee990b4 to 3eee1c5 (a docs-only commit adding codex-round-3.md and codex-context-round-3.md); code identical; log named by the code head"
+      },
+      {
+        "name": "coverage",
+        "command": "npx vitest run --coverage",
+        "exit": 0,
+        "result": "statements 96.04, branches 90.84, functions 97.71, lines 97.26; threshold 60 holds; per-file figures in the report",
+        "log": "logs/coverage-ee990b4.log"
+      },
+      {
+        "name": "pytest",
+        "command": "python3 -m pytest tests/test_bot_bridge.py -q",
+        "exit": 0,
+        "result": "67 passed, 69 subtests passed",
+        "log": "logs/pytest-ee990b4.log"
+      },
+      {
+        "name": "typecheck",
+        "command": "npm run typecheck",
+        "exit": 0,
+        "result": "tsc --noEmit, no output",
+        "log": "logs/typecheck-ee990b4.log"
+      },
+      {
+        "name": "build",
+        "command": "rm -rf .next && npm run build",
+        "exit": 0,
+        "result": "routes present: /review, /review/[documentId], /decisions, /api/reviews/[[...path]], /api/decisions; .next/static files with fabrication_when_missing: 0; with the injection sentence: 0; next-env.d.ts not modified",
+        "log": "logs/build-ee990b4.log"
+      },
+      {
+        "name": "ai-privileges",
+        "command": "privilege query of task-8-brief.md lines 25-31 run in a one-off vitest run that opens the repository harness (applies the migrations); environment file loaded from $SLICE3_ENV_FILE in the same shell, not echoed",
+        "exit": 0,
+        "result": "0 rows write; 0 rows SELECT on public/identity/analytics; intelligence.ai_drafts SELECT + INSERT only; schema intelligence USAGE true, CREATE false",
+        "log": "task-18-ai-privileges.txt"
+      },
+      {
+        "name": "static-checks",
+        "command": "four git diff checks against base ec3b5e7; chat-id leak check on added lines (raw and amended); untracked-files leak check; network grep of five src/server files",
+        "exit": 0,
+        "result": "4 diff checks empty; amended leak check empty; untracked leak check empty; network grep empty; raw leak check printed 2 lines, both regular-expression literals in tests/skills-eval.test.ts and tests/skills-manifest.test.ts",
+        "log": "task-18-static-checks.txt"
+      },
+      {
+        "name": "absent-7c",
+        "command": "ls tests/doc-approval-proposal*.test.ts src/app/api/team/doc-approvals",
+        "exit": 1,
+        "result": "No such file or directory for both, as expected (run in bash: zsh aborts on the unmatched glob)",
+        "log": "task-18-case-table.md"
+      }
+    ],
+    "previousRun": {
+      "codeHead": "2a267c590cedd9283a9217b6a804cb8f83e8229e",
+      "logs": "kept under logs/ (*-2a267c5.log)"
+    },
+    "logs": "kept under logs/ (*-ee990b4.log)"
+  },
+  "workingTreeNote": "no tracked file was modified when the commands ran (git status showed only untracked files of the controlling session and of this run); the files task-18-*.txt/md and this manifest are tracked and were overwritten afterwards",
+  "caseTable": "task-18-case-table.md"
+}

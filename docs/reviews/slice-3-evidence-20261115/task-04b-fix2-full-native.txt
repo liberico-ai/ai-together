@@ -1,0 +1,15 @@
+npx vitest run
+
+
+ RUN  v5.1.0 <worktree>
+
+(node:90636) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:90738) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  47 passed (47)
+      Tests  585 passed (585)
+   Start at  13:19:09
+   Duration  162.35s (tests 99%, import 1%)
+

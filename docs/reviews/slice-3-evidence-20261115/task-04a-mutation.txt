@@ -1,0 +1,38 @@
+python3 -m pytest tests/test_bot_bridge.py -q -k test_a_ballot_with_a_document_approval_code
+mutation: add "doc_approve:design" to REPORT_PERMISSIONS in bot-plugin/__init__.py (line 81-82)
+git diff -- bot-plugin (during mutation):
+diff --git a/bot-plugin/__init__.py b/bot-plugin/__init__.py
+index 5fcbebe..df460c8 100644
+--- a/bot-plugin/__init__.py
++++ b/bot-plugin/__init__.py
+@@ -82 +82 @@ REPORT_PERMISSIONS = {"people_read": "Xem điểm nhân sự", "quality_review":
+-                      "report_approve": "Chốt kết quả"}
++                      "report_approve": "Chốt kết quả", "doc_approve:design": "Duyệt bản chuẩn"}
+
+python3 -m pytest tests/test_bot_bridge.py -q -k test_a_ballot_with_a_document_approval_code
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ DocumentApprovalCodeTests.test_a_ballot_with_a_document_approval_code_is_never_asked_by_the_current_plugin _
+
+self = <test_bot_bridge.DocumentApprovalCodeTests testMethod=test_a_ballot_with_a_document_approval_code_is_never_asked_by_the_current_plugin>
+
+    def test_a_ballot_with_a_document_approval_code_is_never_asked_by_the_current_plugin(self):
+        row=access_row(
+            grants=[{'projectId':'50000000-0000-4000-8000-000000000001','role':'engineer','reportPermissions':['doc_approve:design']}],
+            grant_details=[{'name':'Dự án mẫu A','role':'engineer','reportPermissions':['doc_approve:design']}],
+            previous_grant_details=[{'name':'Dự án mẫu A','role':'viewer','reportPermissions':[]}])
+>       with self.assertRaisesRegex(ValueError,'^APPROVAL_SCOPE_UNAVAILABLE$'):bridge.approval_question(row)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: ValueError not raised
+
+tests/test_bot_bridge.py:1597: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_bot_bridge.py::DocumentApprovalCodeTests::test_a_ballot_with_a_document_approval_code_is_never_asked_by_the_current_plugin
+1 failed, 66 deselected in 0.06s
+
+reverted: git checkout -- bot-plugin
+git diff --stat -- bot-plugin
+(empty above = no change)
+python3 -m pytest tests/test_bot_bridge.py -q -k test_a_ballot_with_a_document_approval_code
+.                                                                        [100%]
+1 passed, 66 deselected in 0.04s

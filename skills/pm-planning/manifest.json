@@ -1,0 +1,36 @@
+{
+  "name": "pm_planning",
+  "version": "0.1.0",
+  "owner": "BoM Tech",
+  "attribution": [
+    {
+      "ref": "docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:97-104",
+      "note": "viết mới theo bảng năng lực; không chép từ khung ngoài"
+    }
+  ],
+  "prompt": {
+    "path": "skills/pm-planning/prompt.md",
+    "sha256": "0c886c328967b839b664d9f36f8dd498e2cceb933a4f953691b54c344e54f980"
+  },
+  "inputContract": "SkillContext/v1",
+  "outputContract": "SkillOutput/pm_planning/v1",
+  "toolAllowlist": [],
+  "dataScope": {
+    "projectScope": "single",
+    "kinds": [
+      "source_event",
+      "document",
+      "document_revision"
+    ],
+    "ibsHi": "pointer_hash_metadata_only",
+    "hiddenText": "never"
+  },
+  "evalSet": {
+    "path": "skills/pm-planning/eval.json",
+    "sha256": "a2c00c7c58feef4eefc7dc2c45a51258a7d9ab1ee0083499594148076146a558",
+    "cases": 5
+  },
+  "modelBinding": "none",
+  "enabled": false,
+  "hash": "32dec3b6526f6b77af74ce0bbb40525cf1d9d335a6eb5dc394d6e28a70b9280d"
+}

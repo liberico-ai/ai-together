@@ -1,0 +1,40 @@
+npx vitest run tests/slice3-harness.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/slice3-harness.test.ts (3 tests | 2 failed) 1554ms
+   × seedBom builds an enabled three-seat scope and a first proposal reaches pending 614ms
+   × frozenRevision creates a verified, snapshotted revision and advances the document 465ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/slice3-harness.test.ts > seedBom builds an enabled three-seat scope and a first proposal reaches pending
+TypeError: seedBom is not a function
+ ❯ tests/slice3-harness.test.ts:15:17
+     13|
+     14| test('seedBom builds an enabled three-seat scope and a first proposal …
+     15|   const s=await seedBom(h);
+       |                 ^
+     16|   expect(s.roster).toHaveLength(3);
+     17|   const scope=(await h.operator.query<{seat_ids:string[];enabled:boole…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/slice3-harness.test.ts > frozenRevision creates a verified, snapshotted revision and advances the document
+TypeError: registerDoc is not a function
+ ❯ tests/slice3-harness.test.ts:34:19
+     32|
+     33| test('frozenRevision creates a verified, snapshotted revision and adva…
+     34|   const doc=await registerDoc(h,reviewer);
+       |                   ^
+     35|   const frozen=await frozenRevision(h,doc.record.id,reviewer.id);
+     36|   const read=await scoped(h.operator,reviewer,async tx=>({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  11:00:23
+   Duration  1.65s (tests 97%, import 2%, transform 1%)
+

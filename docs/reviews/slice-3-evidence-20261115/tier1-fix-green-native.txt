@@ -1,0 +1,4 @@
+ Test Files  67 passed (67)
+      Tests  971 passed (971)
+   Start at  19:15:51
+   Duration  264.32s (tests 99%, import 1%)

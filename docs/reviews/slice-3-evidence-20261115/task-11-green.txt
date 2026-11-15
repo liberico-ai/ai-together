@@ -1,0 +1,6 @@
+GREEN run: npx vitest run tests/skills-manifest.test.ts tests/skills-eval.test.ts tests/skill-contracts.test.ts tests/skill-context.test.ts --reporter=verbose (PGlite default; summary, passing case lines of the two new files elided to counts)
+{"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
+ Test Files  4 passed (4)
+      Tests  94 passed (94)
+new-file cases: manifest 11 passed, eval 36 passed, failed lines: 0
+typecheck: npm run typecheck -> no errors

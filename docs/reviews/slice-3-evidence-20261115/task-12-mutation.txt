@@ -1,0 +1,14 @@
+# Task 12 — mutation table (copied from the builder's report by the slice-3 session; each mutation was applied alone and reverted)
+
+## Mutation table (each applied alone, red confirmed, reverted; file diffed to the original afterwards)
+| # | Mutation | Case that went red |
+|---|---|---|
+| m1 | skip `checkSkillOutput` on confirm | `DOC-05 an AI output without sources stays a draft...`; `the confirmer's own scope decides...` |
+| m2 | context built with a manager principal instead of the confirmer | `the context is built under the confirming person, not a wider principal` (added; see concern 3) |
+| m3 | no row after ON CONFLICT insert treated as success | `step 6 a decision that lost the race answers DRAFT_ALREADY_DECIDED and rolls back the revision it created` (added) |
+| m4 | non-strict decide body | `forged fields are rejected` |
+| m5 | skip pointer-only hold | `a draft of an IBS HI project cannot be confirmed` |
+| m6 | DB call before `outputFits` | NUL, lone surrogate and one-byte-over cases (3 cases) |
+| m7 | nothing inserted + nothing visible = stored:false | `R12-a a key used in another project is a conflict, never a success` |
+| m8 | skip authority for `rejected` | `R12-e authority: ...` |
+

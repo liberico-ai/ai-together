@@ -1,0 +1,10 @@
+npx vitest run tests/document-dependencies.test.ts tests/documents.test.ts tests/document-cases.test.ts tests/document-review.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  4 passed (4)
+      Tests  71 passed (71)
+   Start at  13:53:12
+   Duration  34.25s (tests 99%)
+

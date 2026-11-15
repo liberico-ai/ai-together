@@ -1,0 +1,26 @@
+npx vitest run tests/document-dependencies.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/document-dependencies.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-dependencies.test.ts [ tests/document-dependencies.test.ts ]
+Error: Cannot find module '../src/server/document-dependencies' imported from <worktree>/tests/document-dependencies.test.ts
+ ❯ tests/document-dependencies.test.ts:7:1
+      5| import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtu…
+      6| import {proposeRev,registerDoc,reviewer,seedMembers,transportApprover}…
+      7| import {DependencyService} from '../src/server/document-dependencies';
+       | ^
+      8| import {DocumentService} from '../src/server/documents';
+      9| import {ids} from '../src/server/identities';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  13:52:03
+   Duration  108ms (worker 97%, environment 3%)
+

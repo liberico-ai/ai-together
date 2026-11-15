@@ -1,0 +1,14 @@
+npx vitest run  (native PostgreSQL, SLICE3_ENV_FILE loaded)
+
+ RUN  v5.1.0 <worktree>
+
+(node:12757) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:12784) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  50 passed (50)
+      Tests  624 passed (624)
+   Start at  13:58:33
+   Duration  180.38s (tests 99%, import 1%)
+

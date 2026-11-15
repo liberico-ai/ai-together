@@ -1,0 +1,6 @@
+Codex gate fix round 2 (with corrections E1, E2, N-1) - PGlite. Worktree: <worktree>.
+Focused (skills-eval, skills-manifest, skill-contracts, suggestions): 139 passed, 1 skipped
+Full: npx vitest run
+ Test Files  58 passed | 10 skipped (68)
+      Tests  966 passed | 41 skipped (1007)
+npm run typecheck: exit 0, no diagnostics

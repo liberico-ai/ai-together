@@ -1,0 +1,183 @@
+npx vitest run tests/review-schema.test.ts
+
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/review-schema.test.ts (25 tests | 25 failed) 11855ms
+   × review tables return nothing without RLS context 657ms
+   × runtime cannot read or write another project or tenant 488ms
+   × a decision, a comment, a delegation and an event are bound to the acting person 480ms
+   × a delegation cannot name its own granter 468ms
+   × a delegation must list document types and only known ones 447ms
+   × only a manager of that very project designates: an engineer, and a manager of project A who is only a member of project B, are refused in B 476ms
+   × the delegate must be an active member of the project with a reading role 476ms
+   × any manager of that very project revokes, also one who did not designate; the trigger stamps the time and bumps the version 481ms
+   × runtime changes the revoke columns only 453ms
+   × a revoke cannot be undone or repeated 482ms
+   × a member who is not a manager of the project is refused 453ms
+   × a manager of another project changes nothing and learns nothing 464ms
+   × a revoke names the acting person and carries a basis 461ms
+   × decisions and comments written before a revoke are unchanged, and a new designation of the same person is accepted after it 462ms
+   × the author cannot decide the own revision, also by raw SQL 462ms
+   × a review-delegation decision needs an active delegation of the same person, project and document type 459ms
+   × a reviewer cannot record an approval by raw SQL 456ms
+   × a decision must name the latest revision, its hash and the current record version 438ms
+   × approval needs the approval grant and a frozen revision 449ms
+   × runtime can move the approved pointer only to a revision that has an approval decision 463ms
+   × one decision per revision 479ms
+   × history tables reject update and delete; delegations and dependencies reject delete 484ms
+   × a dependency cannot point a document at itself and is unique per pair 483ms
+   × no review table has a bytes or file content column 463ms
+   × column-level grants: INSERT leaves ids, timestamps and decided_at to defaults; UPDATE covers only the named columns; nothing else is granted 470ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 25 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/review-schema.test.ts > review tables return nothing without RLS context
+ FAIL  tests/review-schema.test.ts > runtime cannot read or write another project or tenant
+ FAIL  tests/review-schema.test.ts > a decision, a comment, a delegation and an event are bound to the acting person
+ FAIL  tests/review-schema.test.ts > any manager of that very project revokes, also one who did not designate; the trigger stamps the time and bumps the version
+ FAIL  tests/review-schema.test.ts > runtime changes the revoke columns only
+ FAIL  tests/review-schema.test.ts > a revoke cannot be undone or repeated
+ FAIL  tests/review-schema.test.ts > a member who is not a manager of the project is refused
+ FAIL  tests/review-schema.test.ts > a manager of another project changes nothing and learns nothing
+ FAIL  tests/review-schema.test.ts > a revoke names the acting person and carries a basis
+ FAIL  tests/review-schema.test.ts > decisions and comments written before a revoke are unchanged, and a new designation of the same person is accepted after it
+ FAIL  tests/review-schema.test.ts > the author cannot decide the own revision, also by raw SQL
+ FAIL  tests/review-schema.test.ts > a review-delegation decision needs an active delegation of the same person, project and document type
+ FAIL  tests/review-schema.test.ts > a reviewer cannot record an approval by raw SQL
+ FAIL  tests/review-schema.test.ts > a decision must name the latest revision, its hash and the current record version
+ FAIL  tests/review-schema.test.ts > approval needs the approval grant and a frozen revision
+ FAIL  tests/review-schema.test.ts > runtime can move the approved pointer only to a revision that has an approval decision
+ FAIL  tests/review-schema.test.ts > one decision per revision
+ FAIL  tests/review-schema.test.ts > history tables reject update and delete; delegations and dependencies reject delete
+ FAIL  tests/review-schema.test.ts > a dependency cannot point a document at itself and is unique per pair
+error: relation "review_delegations" does not exist
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/25]⎯
+
+ FAIL  tests/review-schema.test.ts > a delegation cannot name its own granter
+AssertionError: expected 'relation "review_delegations" does no…' to match /review_delegations_no_self_grant/
+
+- Expected:
+/review_delegations_no_self_grant/
+
++ Received:
+"relation \"review_delegations\" does not exist"
+
+ ❯ tests/review-schema.test.ts:166:39
+    164| test('a delegation cannot name its own granter',async()=>{
+    165|  const own=insDel(h.operator,{delegate:pm.id,granted:pm.id});
+    166|  expect((await failure(own)).message).toMatch(/review_delegations_no_s…
+       |                                       ^
+    167|  // a manager designating themselves through the runtime role passes t…
+    168|  expect((await failure(as(pm.id,S,tx=>insDel(tx,{delegate:pm.id,grante…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/25]⎯
+
+ FAIL  tests/review-schema.test.ts > a delegation must list document types and only known ones
+AssertionError: []: expected 'relation "review_delegations" does no…' to match /review_delegations_doc_types_check/
+
+- Expected:
+/review_delegations_doc_types_check/
+
++ Received:
+"relation \"review_delegations\" does not exist"
+
+ ❯ tests/review-schema.test.ts:176:118
+    174|   [['design','unknown'],/review_delegations_doc_types_check/],[Array(9…
+    175|  ];
+    176|  for(const [types,pattern] of bad) expect((await failure(insDel(h.oper…
+       |                                                                                                                      ^
+    177|  await insDel(h.operator,{types:['project_index','change_brief','requi…
+    178| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/25]⎯
+
+ FAIL  tests/review-schema.test.ts > only a manager of that very project designates: an engineer, and a manager of project A who is only a member of project B, are refused in B
+AssertionError: engineer: expected '42P01' to be 'LTR02' // Object.is equality
+
+Expected: "LTR02"
+Received: "42P01"
+
+ ❯ tests/review-schema.test.ts:187:24
+    185|  for(const [who,label] of [[member.id,'engineer'],[reviewer.id,'techni…
+    186|   const e=await failure(as(who,both,tx=>insDel(tx,{delegate:reviewer.i…
+    187|   expect(e.code,label).toBe('LTR02');
+       |                        ^
+    188|   expect(e.message,label).toContain(message);
+    189|  }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/25]⎯
+
+ FAIL  tests/review-schema.test.ts > the delegate must be an active member of the project with a reading role
+error: new row for relation "memberships" violates check constraint "memberships_project_role_check"
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/25]⎯
+
+ FAIL  tests/review-schema.test.ts > no review table has a bytes or file content column
+AssertionError: expected Set{} to deeply equal Set{ 'review_delegations', …(4) }
+
+- Expected
++ Received
+
+- Set {
+-   "document_dependencies",
+-   "review_comments",
+-   "review_decisions",
+-   "review_delegations",
+-   "review_events",
+- }
++ Set {}
+
+ ❯ tests/review-schema.test.ts:506:45
+    504|  const cols=await rows<{table_name:string;column_name:string;data_type…
+    505|   `SELECT table_name,column_name,data_type FROM information_schema.col…
+    506|  expect(new Set(cols.map(c=>c.table_name))).toEqual(new Set(tables));
+       |                                             ^
+    507|  expect(cols.filter(c=>c.data_type==='bytea'||/bytes|blob|binary|file|…
+    508|  expect(new Set(cols.map(c=>c.data_type))).toEqual(new Set(['uuid','ti…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/25]⎯
+
+ FAIL  tests/review-schema.test.ts > column-level grants: INSERT leaves ids, timestamps and decided_at to defaults; UPDATE covers only the named columns; nothing else is granted
+AssertionError: review_delegations INSERT: expected [] to deeply equal [ 'basis', 'delegate_id', …(4) ]
+
+- Expected
++ Received
+
+- [
+-   "basis",
+-   "delegate_id",
+-   "doc_types",
+-   "granted_by",
+-   "project_id",
+-   "tenant_id",
+- ]
++ []
+
+ ❯ tests/review-schema.test.ts:525:66
+    523|   document_dependencies:['flagged_at','flagged_revision_id','needs_rev…
+    524|  for(const t of tables){
+    525|   expect(await allow('libetech_runtime',t,'INSERT'),t+' INSERT').toEqu…
+       |                                                                  ^
+    526|   expect(await allow('libetech_runtime',t,'UPDATE'),t+' UPDATE').toEqu…
+    527|   for(const priv of ['DELETE','TRUNCATE','REFERENCES','TRIGGER'])
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/25]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  25 failed (25)
+   Start at  12:30:31
+   Duration  11.99s (tests 99%)
+

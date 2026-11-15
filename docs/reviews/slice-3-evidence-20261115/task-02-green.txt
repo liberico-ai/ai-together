@@ -1,0 +1,10 @@
+npx vitest run tests/slice3-harness.test.ts tests/migrations-rollback.test.ts tests/slice1-harness.test.ts tests/rls-catalog.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  4 passed (4)
+      Tests  9 passed | 2 skipped (11)
+   Start at  11:00:51
+   Duration  4.34s (tests 97%, import 2%, transform 1%)
+

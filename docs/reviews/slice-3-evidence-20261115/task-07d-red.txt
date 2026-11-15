@@ -1,0 +1,166 @@
+npx vitest run tests/review-delegations.test.ts tests/review-delegations-concurrency.test.ts tests/document-review.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/review-delegations.test.ts (35 tests | 7 failed) 16971ms
+   ❯ OQ-39, OQ-40, OQ-41 indicators and who sees what in list (7)
+     × OQ-41 a reader who is not a coordinator gets no basis text of another person's rows, live or revoked 480ms
+     × OQ-41 a delegate reads the basis and the revoke basis of their own rows 477ms
+     × OQ-41 a coordinator reads everything 481ms
+     × OQ-41 the caller's coordinator status comes from the database 486ms
+     × OQ-39 a designation outlives its designator's role and is labelled 482ms
+     × OQ-40 a dormant designation is labelled, gives nothing, and revives when the person returns 489ms
+     × indicators are for coordinators only 478ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a reader who is not a coordinator gets no basis text of another person's rows, live or revoked
+AssertionError: expected '{"reviewers":[{"id":"b916d384-8d61-4e…' not to contain 'MARKER-'
+
+Expected: "MARKER-"
+Received: "{"reviewers":[{"id":"b916d384-8d61-4e05-8805-89b89b5410ae","projectId":"11000000-0000-4000-8000-000000000001","delegateId":"14000000-0000-4000-8000-000000000003","docTypes":["plan"],"grantedBy":"14000000-0000-4000-8000-000000000001","basis":"MARKER-GRANT-reviewer-căn cứ chỉ định mẫu","revokedAt":null,"revokedBy":null,"revokeBasis":null,"version":1,"createdAt":"2026-11-15T08:20:31.886Z"},{"id":"dc88130d-befd-4902-877c-2974cc2ed8f9","projectId":"11000000-0000-4000-8000-000000000001","delegateId":"14000000-0000-4000-8000-000000000002","docTypes":["design"],"grantedBy":"14000000-0000-4000-8000-000000000001","basis":"MARKER-GRANT-member-căn cứ chỉ định mẫu","revokedAt":null,"revokedBy":null,"revokeBasis":null,"version":1,"createdAt":"2026-11-15T08:20:31.883Z"},{"id":"5f55dd7a-ecec-4b5f-a96c-72534bd89d37","projectId":"11000000-0000-4000-8000-000000000001","delegateId":"14000000-0000-4000-8000-000000000004","docTypes":["guide"],"grantedBy":"14000000-0000-4000-8000-000000000001","basis":"MARKER-GRANT-approver-căn cứ chỉ định mẫu","revokedAt":"2026-11-15T08:20:31.889Z","revokedBy":"14000000-0000-4000-8000-000000000001","revokeBasis":"Thu hồi MARKER-REVOKE-approver-xyz","version":2,"createdAt":"2026-11-15T08:20:31.888Z"}],"approvers":[],"canDesignate":false}"
+
+ ❯ tests/review-delegations.test.ts:388:20
+    386|   const l=await svc().list(business2,{projectId:ids.sales});
+    387|   const text=JSON.stringify(l);
+    388|   expect(text).not.toContain('MARKER-');
+       |                    ^
+    389|   expect(text).not.toContain(pm.id);
+    390|   expect(l.reviewers.map(x=>x.id).sort()).toEqual([d.member,d.reviewer…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a delegate reads the basis and the revoke basis of their own rows
+AssertionError: expected '{"reviewers":[{"id":"8f9120b3-dceb-47…' not to contain 'MARKER-GRANT-other-'
+
+Expected: "MARKER-GRANT-other-"
+Received: "{"reviewers":[{"id":"8f9120b3-dceb-47be-b248-0361b01d12a3","projectId":"11000000-0000-4000-8000-000000000001","delegateId":"14000000-0000-4000-8000-000000000003","docTypes":["plan"],"grantedBy":"14000000-0000-4000-8000-000000000001","basis":"MARKER-GRANT-other-căn cứ chỉ định mẫu","revokedAt":null,"revokedBy":null,"revokeBasis":null,"version":1,"createdAt":"2026-11-15T08:20:32.368Z"},{"id":"dff6f5e7-7eeb-4ede-9808-ee8834b44759","projectId":"11000000-0000-4000-8000-000000000001","delegateId":"14000000-0000-4000-8000-000000000002","docTypes":["design"],"grantedBy":"14000000-0000-4000-8000-000000000001","basis":"MARKER-GRANT-own-căn cứ chỉ định mẫu","revokedAt":null,"revokedBy":null,"revokeBasis":null,"version":1,"createdAt":"2026-11-15T08:20:32.365Z"}],"approvers":[],"canDesignate":false}"
+
+ ❯ tests/review-delegations.test.ts:404:35
+    402|   const own=(await svc().list(member,{projectId:ids.sales}));
+    403|   expect(own.reviewers.find(x=>x.id===live.id)).toMatchObject({basis:m…
+    404|   expect(JSON.stringify(own)).not.toContain(MARK_G+'other-');
+       |                                   ^
+    405|   expect(own.reviewers.find(x=>x.id===other.id)).toMatchObject({basis:…
+    406|   await revoke(pm,live.id,V(1,{basis:'Thu hồi '+MARK_R+'own-xyz'}));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a coordinator reads everything
+AssertionError: expected { …(11) } to match object { …(6) }
+(7 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "basis": "MARKER-GRANT-approver-căn cứ chỉ định mẫu",
+-   "designatorIsCoordinator": true,
+-   "dormant": false,
+    "grantedBy": "14000000-0000-4000-8000-000000000001",
+    "revokeBasis": "Thu hồi MARKER-REVOKE-approver-xyz",
+    "revokedBy": "14000000-0000-4000-8000-000000000001",
+  }
+
+ ❯ tests/review-delegations.test.ts:418:16
+    416|    expect(l.reviewers).toHaveLength(3);
+    417|    const rev=l.reviewers.find(x=>x.id===d.approver)!;
+    418|    expect(rev).toMatchObject({basis:mkBasis(MARK_G+'approver-'),revoke…
+       |                ^
+    419|    expect(l.reviewers.find(x=>x.id===d.member)).toMatchObject({basis:m…
+    420|    expect(l.canDesignate).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 the caller's coordinator status comes from the database
+AssertionError: expected '{"reviewers":[{"id":"6ccb834a-ab7b-4f…' not to contain 'MARKER-'
+
+Expected: "MARKER-"
+Received: "{"reviewers":[{"id":"6ccb834a-ab7b-4ff6-b7a7-793915a3c2a0","projectId":"11000000-0000-4000-8000-000000000001","delegateId":"14000000-0000-4000-8000-000000000003","docTypes":["plan"],"grantedBy":"14000000-0000-4000-8000-000000000001","basis":"MARKER-GRANT-reviewer-căn cứ chỉ định mẫu","revokedAt":null,"revokedBy":null,"revokeBasis":null,"version":1,"createdAt":"2026-11-15T08:20:33.333Z"},{"id":"eb51f1d6-6bb2-4e54-9279-f77f94d73f08","projectId":"11000000-0000-4000-8000-000000000001","delegateId":"14000000-0000-4000-8000-000000000002","docTypes":["design"],"grantedBy":"14000000-0000-4000-8000-000000000001","basis":"MARKER-GRANT-member-căn cứ chỉ định mẫu","revokedAt":null,"revokedBy":null,"revokeBasis":null,"version":1,"createdAt":"2026-11-15T08:20:33.330Z"},{"id":"79160b3d-d19a-4ab9-b5ed-53f17dd45a9f","projectId":"11000000-0000-4000-8000-000000000001","delegateId":"14000000-0000-4000-8000-000000000004","docTypes":["guide"],"grantedBy":"14000000-0000-4000-8000-000000000001","basis":"MARKER-GRANT-approver-căn cứ chỉ định mẫu","revokedAt":"2026-11-15T08:20:33.336Z","revokedBy":"14000000-0000-4000-8000-000000000001","revokeBasis":"Thu hồi MARKER-REVOKE-approver-xyz","version":2,"createdAt":"2026-11-15T08:20:33.334Z"}],"approvers":[],"canDesignate":false}"
+
+ ❯ tests/review-delegations.test.ts:428:20
+    426|   const l=await svc().list(pm2,{projectId:ids.sales});
+    427|   const text=JSON.stringify(l);
+    428|   expect(text).not.toContain('MARKER-');
+       |                    ^
+    429|   expect(l.canDesignate).toBe(false);
+    430|   expect(l.reviewers.map(x=>x.id).sort()).toEqual([d.member,d.reviewer…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-39 a designation outlives its designator's role and is labelled
+AssertionError: expected { …(11) } to match object { …(2) }
+(10 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "designatorIsCoordinator": true,
+    "id": "ed6d048b-c82e-4c4c-b854-c98ea30303fe",
+  }
+
+ ❯ tests/review-delegations.test.ts:441:69
+    439|   const cmt=()=>({kind:'comment',revisionId:f.revisionId,anchor:'Mục 1…
+    440|   const v=await grant(pm2,G({delegateId:reviewer.id,docTypes:['design'…
+    441|   expect((await svc().list(pm,{projectId:ids.sales})).reviewers[0]).to…
+       |                                                                     ^
+    442|   await setDbRole(pm2.id,ids.sales,'engineer');
+    443|   const l=await svc().list(pm,{projectId:ids.sales});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-40 a dormant designation is labelled, gives nothing, and revives when the person returns
+AssertionError: expected { …(11) } to match object { dormant: true, …(2) }
+(9 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "docTypes": [
+      "design",
+    ],
+-   "dormant": true,
+    "revokedAt": null,
+  }
+
+ ❯ tests/review-delegations.test.ts:460:44
+    458|   await setDbRole(reviewer.id,ids.sales,'viewer');await setDbRole(appr…
+    459|   const l=await svc().list(pm,{projectId:ids.sales});
+    460|   expect(l.reviewers.find(x=>x.id===v.id)).toMatchObject({dormant:true…
+       |                                            ^
+    461|   expect(l.reviewers.find(x=>x.id===gone.id)).toMatchObject({dormant:f…
+    462|   expect(await codeOf(review.comment(reviewer,doc.record.id,cmt(),k(),…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > indicators are for coordinators only
+AssertionError: expected [ undefined, undefined ] to deeply equal [ null, null ]
+
+- Expected
++ Received
+
+  [
+-   null,
+-   null,
++   undefined,
++   undefined,
+  ]
+
+ ❯ tests/review-delegations.test.ts:472:78
+    470|   for(const p of [member,reviewer,business2,technical2]) {
+    471|    const l=await svc().list(p,{projectId:ids.sales});
+    472|    for(const r of l.reviewers) expect([r.designatorIsCoordinator,r.dor…
+       |                                                                              ^
+    473|   }
+    474|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed | 1 passed | 1 skipped (3)
+      Tests  7 failed | 54 passed | 2 skipped (63)
+   Start at  15:20:19
+   Duration  30.25s (tests 99%)
+

@@ -1,0 +1,23 @@
+### native: migrations-rollback (fresh database, applies 001-018)
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  10:51:36
+   Duration  1.17s (tests 97%, import 2%, transform 1%)
+
+exit=0
+
+### native: Task 1 set
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  6 passed (6)
+      Tests  126 passed (126)
+   Start at  10:51:43
+   Duration  28.04s (tests 99%, import 1%)
+
+exit=0

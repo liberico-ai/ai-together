@@ -1,0 +1,169 @@
+npx vitest run tests/z4-schema.test.ts tests/migrations-rollback.test.ts   # PGlite, before migrations/021_ai_suggestions_z4.sql exists
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/z4-schema.test.ts (21 tests | 19 failed | 2 skipped) 9070ms
+   × (4) the AI role cannot write any Z1 or Z2 table 635ms
+   × privilege query: libetech_ai holds no INSERT, UPDATE, DELETE or TRUNCATE on any table of public, identity or analytics 506ms
+   × no SECURITY DEFINER function is executable by libetech_ai 504ms
+   × the role exists as NOLOGIN, without elevated attributes, with no member and in no role 473ms
+   × the AI role writes drafts only inside its tenant, project and principal 457ms
+   × drafts return nothing without RLS context 465ms
+   × the table is a backstop at 49 152 bytes of stored text: the densest value that fits the application limit is stored, a larger one is refused 458ms
+   × draft columns carry their own bounds: closed vocabularies, hash and key formats, array types, confidence 0 to 100 467ms
+   × drafts and draft decisions reject update and delete 461ms
+   × runtime reads drafts but cannot insert, update or delete them 458ms
+   × column-level grants: ids and timestamps come from defaults; nothing is granted outside the named columns 469ms
+   × the AI role has no privilege on draft_decisions at all 461ms
+   × runtime cannot confirm a draft that names no source, nor with a wrong value hash; a decision is bound to the acting person; one decision per draft 456ms
+   × a decision is refused for a draft of another project even when the decision names the right ids 473ms
+   × the decision guard also stops the operational login 453ms
+   × 021 refuses an AI role that has a member, is a member of a role, or can log in 477ms
+   × a restricted login that can reach libetech_ai refuses to start 475ms
+   × running 021 again changes nothing: one trigger, one function, the same policies and grants 458ms
+   × the migration file pins the search_path of its function and creates no login 464ms
+ ❯ tests/migrations-rollback.test.ts (6 tests | 1 failed) 2977ms
+   × rollback 021 refuses while a later migration is applied, drops the Z4 objects, keeps the AI role and touches nothing of 019 or 020 470ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 20 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 021 refuses while a later migration is applied, drops the Z4 objects, keeps the AI role and touches nothing of 019 or 020
+Error: ENOENT: no such file or directory, open '<worktree>/migrations/021_ai_suggestions_z4.sql'
+ ❯ tests/migrations-rollback.test.ts:308:17
+    306| test('rollback 021 refuses while a later migration is applied, drops t…
+    307|   const h=await openHarness();
+    308|   const forward=await readFile(dir('migrations/021_ai_suggestions_z4.s…
+       |                 ^
+    309|   const rollback=await readFile(dir('migrations/rollback/021_ai_sugges…
+    310|   expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+R…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/20]⎯
+
+ FAIL  tests/z4-schema.test.ts > (4) the AI role cannot write any Z1 or Z2 table
+AssertionError: named table missing from the catalog: public.draft_decisions: expected [ 'analytics.document_index', …(59) ] to include 'public.draft_decisions'
+ ❯ tests/z4-schema.test.ts:68:88
+     66|     WHERE c.relkind IN ('r','p') AND n.nspname IN ('public','identity'…
+     67|   const names=all.map(r=>r.t);
+     68|   for(const t of Z1_Z2_NAMED) expect(names,'named table missing from t…
+       |                                                                                        ^
+     69|   expect(names.length).toBeGreaterThanOrEqual(Z1_Z2_NAMED.length);
+     70|   await rolledBack(h.operator,async(tx,probe)=>{
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/20]⎯
+
+ FAIL  tests/z4-schema.test.ts > privilege query: libetech_ai holds no INSERT, UPDATE, DELETE or TRUNCATE on any table of public, identity or analytics
+ FAIL  tests/z4-schema.test.ts > no SECURITY DEFINER function is executable by libetech_ai
+ FAIL  tests/z4-schema.test.ts > the AI role writes drafts only inside its tenant, project and principal
+ FAIL  tests/z4-schema.test.ts > the table is a backstop at 49 152 bytes of stored text: the densest value that fits the application limit is stored, a larger one is refused
+ FAIL  tests/z4-schema.test.ts > a restricted login that can reach libetech_ai refuses to start
+error: role "libetech_ai" does not exist
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/20]⎯
+
+ FAIL  tests/z4-schema.test.ts > the role exists as NOLOGIN, without elevated attributes, with no member and in no role
+AssertionError: expected undefined to match object { rolcanlogin: false, …(6) }
+
+- Expected:
+{
+  "has_member": false,
+  "is_member": false,
+  "rolbypassrls": false,
+  "rolcanlogin": false,
+  "rolcreatedb": false,
+  "rolcreaterole": false,
+  "rolsuper": false,
+}
+
++ Received:
+undefined
+
+ ❯ tests/z4-schema.test.ts:126:13
+    124|     rolpassword IS NULL AS no_password_hash
+    125|     FROM pg_roles r WHERE rolname='libetech_ai'`))[0];
+    126|   expect(r).toMatchObject({rolcanlogin:false,rolsuper:false,rolbypassr…
+       |             ^
+    127|   // no login can reach it, whatever its name
+    128|   expect(await rows(`SELECT m.member FROM pg_auth_members m JOIN pg_ro…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/20]⎯
+
+ FAIL  tests/z4-schema.test.ts > drafts return nothing without RLS context
+ FAIL  tests/z4-schema.test.ts > drafts and draft decisions reject update and delete
+ FAIL  tests/z4-schema.test.ts > runtime reads drafts but cannot insert, update or delete them
+ FAIL  tests/z4-schema.test.ts > column-level grants: ids and timestamps come from defaults; nothing is granted outside the named columns
+ FAIL  tests/z4-schema.test.ts > the AI role has no privilege on draft_decisions at all
+ FAIL  tests/z4-schema.test.ts > runtime cannot confirm a draft that names no source, nor with a wrong value hash; a decision is bound to the acting person; one decision per draft
+ FAIL  tests/z4-schema.test.ts > a decision is refused for a draft of another project even when the decision names the right ids
+ FAIL  tests/z4-schema.test.ts > the decision guard also stops the operational login
+error: relation "intelligence.ai_drafts" does not exist
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/20]⎯
+
+ FAIL  tests/z4-schema.test.ts > draft columns carry their own bounds: closed vocabularies, hash and key formats, array types, confidence 0 to 100
+AssertionError: {"entity_type":"work_item"}: expected [Function] to throw error matching /check constraint|violates|invalid inp…/ but got 'role "libetech_ai" does not exist'
+
+- Expected:
+/check constraint|violates|invalid input/
+
++ Received:
+"role \"libetech_ai\" does not exist"
+
+ ❯ refused tests/z4-schema.test.ts:189:110
+    187|
+    188| test('draft columns carry their own bounds: closed vocabularies, hash …
+    189|   const refused=async(over:R)=>{await expect(asAi(tx=>insertDraft(tx,o…
+       |                                                                                                              ^
+    190|   await refused({entity_type:'work_item'});
+    191|   await refused({signal_type:'other_skill'});
+ ❯ tests/z4-schema.test.ts:190:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/20]⎯
+
+ FAIL  tests/z4-schema.test.ts > 021 refuses an AI role that has a member, is a member of a role, or can log in
+Error: ENOENT: no such file or directory, open '<worktree>/migrations/021_ai_suggestions_z4.sql'
+ ❯ guardBlock tests/slice2-fixtures.ts:73:13
+     71| /** Body of the `-- guard:<name> begin/end` block of a migration file,…
+     72| export const guardBlock=async(file:string,name:string)=>{
+     73|   const src=await readFile(path.join(process.cwd(),'migrations',file),…
+       |             ^
+     74|   const m=new RegExp(`-- guard:${name} begin\\n([\\s\\S]*?)\\n-- guard…
+     75|   if(!m) throw new Error(`no guard ${name} in ${file}`);
+ ❯ tests/z4-schema.test.ts:323:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/20]⎯
+
+ FAIL  tests/z4-schema.test.ts > running 021 again changes nothing: one trigger, one function, the same policies and grants
+Error: ENOENT: no such file or directory, open '<worktree>/migrations/021_ai_suggestions_z4.sql'
+ ❯ tests/z4-schema.test.ts:394:13
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/20]⎯
+
+ FAIL  tests/z4-schema.test.ts > the migration file pins the search_path of its function and creates no login
+Error: ENOENT: no such file or directory, open '<worktree>/migrations/021_ai_suggestions_z4.sql'
+ ❯ tests/z4-schema.test.ts:414:14
+    412|
+    413| test('the migration file pins the search_path of its function and crea…
+    414|   const sql=(await readFile(path.join(process.cwd(),'migrations',F),'u…
+       |              ^
+    415|   expect(sql).toMatch(/CREATE ROLE libetech_ai NOLOGIN NOSUPERUSER NOB…
+    416|   expect(sql).not.toMatch(/CREATE ROLE (?!libetech_ai\b)/i);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/20]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  20 failed | 5 passed | 2 skipped (27)
+   Start at  15:02:47
+   Duration  12.27s (tests 99%, import 1%)
+

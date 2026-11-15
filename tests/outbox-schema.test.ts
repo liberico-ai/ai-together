@@ -1,6 +1,6 @@
 import {afterEach,beforeEach,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
-import {readFile} from 'node:fs/promises';
+import {readdir,readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {native,openHarness,type Harness} from './slice1-db';
 import {outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
@@ -9,7 +9,7 @@ import {ids} from '../src/server/identities';
 import {intakeScoped} from '../src/server/bridge-io';
 import {IdentityService} from '../src/server/identity';
 import {applyOutboxSignal,type OutboxState} from '../src/server/outbox';
-import {chatSales,intakePrincipalId} from './slice2-fixtures';
+import {chatSales,guardBlock as sharedGuardBlock,intakePrincipalId,rolledBack as sharedRolledBack,type Probe} from './slice2-fixtures';
 
 let h:Harness,srcSales:string;
 const TG='900000001'; // telegram id linked to pm (synthetic)
@@ -214,11 +214,14 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
   const rb18=await readFile(dir('migrations/rollback/018_access_change_approval.sql'),'utf8');
   const fw18=await readFile(dir('migrations/018_access_change_approval.sql'),'utf8');
   const hasKind=async()=>(await h.operator.query("SELECT 1 FROM information_schema.columns WHERE table_schema='identity' AND table_name='account_approvals' AND column_name='kind'")).rows.length===1;
+  // migrations after 018 sit on top of it: take them off in reverse order before 018's rollback, put them back in the finally
+  const later=(await readdir(dir('migrations'))).filter(f=>/^\d+.*\.sql$/.test(f)&&Number(f.match(/^\d+/)![0])>18).sort();
   try {
     expect(await hasKind()).toBe(true);
     await expect(h.exec(rb)).rejects.toThrow('Roll back 018 before 017');
     await h.exec('ROLLBACK').catch(()=>{});
     expect(await reg('public.outbox_messages')).toBe('outbox_messages');
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
     await h.exec(rb18);
     expect(await hasKind()).toBe(false);
     await h.exec(rb);
@@ -234,6 +237,7 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
     await h.exec('ROLLBACK').catch(()=>{});
     await h.exec(fw);
     await h.exec(fw18);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
   }
   expect(await reg('public.outbox_messages')).toBe('outbox_messages');
   expect(await hasKind()).toBe(true);
@@ -724,28 +728,8 @@ test('payload cap counts bytes, envelope constants and error codes are closed',a
 // ---- Database review I-1: the role-membership invariant the proof by privilege depends on ----
 // Every probe runs in one operator transaction that is always rolled back: no role, grant or attribute change outlives the test.
 const DUAL='libetech_test_dual_member';
-const guardBlock=async(file:string,name:string)=>{
-  const src=await readFile(path.join(process.cwd(),'migrations',file),'utf8');
-  const m=new RegExp(`-- guard:${name} begin\\n([\\s\\S]*?)\\n-- guard:${name} end`).exec(src);
-  if(!m) throw new Error(`no guard ${name} in ${file}`);
-  return m[1];
-};
-type Probe=(sql:string,params?:unknown[])=>Promise<string|null>;
-async function rolledBack(fn:(tx:Queryable,probe:Probe)=>Promise<void>):Promise<void>{
-  const done=new Error('rolled back');
-  await h.operator.transaction(async tx=>{
-    let n=0;
-    // null when the statement succeeds, else its error message; a savepoint keeps the outer transaction usable
-    const probe:Probe=async(sql,params=[])=>{
-      const sp='probe_'+(++n);
-      await tx.query('SAVEPOINT '+sp);
-      try {await tx.query(sql,params);await tx.query('RELEASE SAVEPOINT '+sp);return null;}
-      catch(e){await tx.query('ROLLBACK TO SAVEPOINT '+sp);return (e as Error).message;}
-    };
-    await fn(tx,probe);
-    throw done;
-  }).catch(e=>{if(e!==done) throw e;});
-}
+const guardBlock=sharedGuardBlock;
+const rolledBack=(fn:(tx:Queryable,probe:Probe)=>Promise<void>):Promise<void>=>sharedRolledBack(h.operator,fn);
 
 test('DB I-1 016 and 017 refuse a role that can act as both libetech_runtime and libetech_intake, directly or through another role',async()=>{
   const g16=await guardBlock('016_intake_inbox.sql','role-separation'),g17=await guardBlock('017_outbox.sql','role-separation');

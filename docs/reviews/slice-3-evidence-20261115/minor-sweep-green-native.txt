@@ -1,0 +1,3 @@
+ Test Files  65 passed (65)
+      Tests  929 passed (929)
+   Duration  239.82s (tests 99%, import 1%)

@@ -1,0 +1,10 @@
+npx vitest run tests/skill-contracts.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  1 passed (1)
+      Tests  27 passed (27)
+   Start at  15:55:20
+   Duration  133ms (tests 57%, import 34%, transform 7%, worker 3%)
+

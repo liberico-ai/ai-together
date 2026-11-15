@@ -1,0 +1,10 @@
+npx vitest run tests/doc-approver-flow.test.ts tests/doc-approver-ui.test.tsx tests/inbox-ui.test.tsx tests/access-change.test.ts tests/rsc-boundary.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  5 passed (5)
+      Tests  56 passed (56)
+   Start at  14:43:15
+   Duration  11.32s (tests 99%, import 1%)
+

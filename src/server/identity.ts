@@ -3,7 +3,7 @@ import { hash, verify } from '@node-rs/argon2';
 import { z } from 'zod';
 import { pooledDatabase, type Database, type Queryable } from './db';
 import { invariant } from './errors';
-import type { Principal, ProjectGrant, ReportPermission, Role } from './types';
+import type { GrantPermission, Principal, ProjectGrant, Role } from './types';
 
 export const SESSION_COOKIE='libetech_session';
 export const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
@@ -36,7 +36,7 @@ export class IdentityService {
   invariant(attempts<=limit,'RATE_LIMITED','Thử lại sau ít phút.',429);
  }
  async grants(tx:Queryable,id:string):Promise<ProjectGrant[]> {
-  const rows=(await tx.query<{project_id:string;role:ProjectGrant['role'];report_permissions:ReportPermission[]}>(`SELECT m.project_id,coalesce(m.project_role,u.role) AS role,m.report_permissions
+  const rows=(await tx.query<{project_id:string;role:ProjectGrant['role'];report_permissions:GrantPermission[]}>(`SELECT m.project_id,coalesce(m.project_role,u.role) AS role,m.report_permissions
     FROM identity.memberships m JOIN identity.users u ON (u.id,u.tenant_id)=(m.user_id,m.tenant_id)
     WHERE m.user_id=$1 ORDER BY m.project_id`,[id])).rows;
   return rows.map(row=>({projectId:row.project_id,role:row.role,reportPermissions:row.report_permissions}));

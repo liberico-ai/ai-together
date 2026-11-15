@@ -1,0 +1,12 @@
+GREEN focused (PGlite): npx vitest run tests/skill-contracts.test.ts tests/skills-manifest.test.ts tests/skills-eval.test.ts tests/skill-context.test.ts tests/suggestions.test.ts --reporter=verbose
+{"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
+ Test Files  5 passed (5)
+      Tests  135 passed | 1 skipped (136)
+FULL PGlite (npx vitest run --exclude tests/decisions-ui.test.tsx), final run:
+     × review CSS keeps one column below 950px, wraps long strings and gives actions 44px 5ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-ui.test.tsx > review UI > review CSS keeps one column below 950px, wraps long strings and gives actions 44px
+ Test Files  1 failed | 54 passed | 9 skipped (64)
+      Tests  1 failed | 861 passed | 37 skipped (899)
+note: the one failure is tests/review-ui.test.tsx (CSS case), not a file of this task; Task 17 was editing globals.css at the time. Earlier full run before F9-8 and an intermediate run (review-ui excluded): 834 passed + 37 skipped, then 835 passed + 37 skipped, no failure.
+typecheck: npm run typecheck -> no errors

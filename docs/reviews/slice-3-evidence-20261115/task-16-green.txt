@@ -1,0 +1,360 @@
+
+ RUN  v5.1.0 <worktree>
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > a new card offers the three human choices first; picking a type writes nothing and only then shows its inputs
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > incident: the optional impact/recovery note goes with confirm
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > request: missing fields go to need_info, and «Xác nhận đủ thông tin» confirms the request
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > document: «Xác nhận tài liệu» confirms and the source registration link stays
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > a needs_info card always shows what was asked, whatever the type, and can be confirmed or asked again
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+stderr | tests/inbox-ui.test.tsx > inbox UI > a confirmed card shows its type read-only and only offers reopen with a reason
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+Invalid hook call. Hooks can only be called inside of the body of a function component. This could happen for one of the following reasons:
+1. You might have mismatching versions of React and the renderer (such as React DOM)
+2. You might be breaking the Rules of Hooks
+3. You might have more than one copy of React in the same app
+See https://react.dev/link/invalid-hook-call for tips about how to debug and fix this problem.
+
+ ✓ tests/inbox-ui.test.tsx > inbox UI > renders the four states: empty, error, loading and denied, with different wording for empty and denied 5ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > fixtures use only card states the server produces 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a new card offers the three human choices first; picking a type writes nothing and only then shows its inputs 14ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > incident: the optional impact/recovery note goes with confirm 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > request: missing fields go to need_info, and «Xác nhận đủ thông tin» confirms the request 3ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > document: «Xác nhận tài liệu» confirms and the source registration link stays 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a needs_info card always shows what was asked, whatever the type, and can be confirmed or asked again 9ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a confirmed card shows its type read-only and only offers reopen with a reason 4ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > the project picker lists only permitted projects and the denied view leaks no name or count 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a new group shows Chưa xác minh khả năng nhận tin and never Đã kết nối đầy đủ; the first receipt time is formatted, not raw ISO 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > PM-07 a persisted but undelivered receipt reads Đã ghi, chưa gửi 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > failure rows keep uncertain and dead apart, never say delivered, and name the message in Vietnamese with its card 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > pointer-only cards show no message text 2ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > OQ-30 hidden cards show the hidden copy and no text; text renders only for excerpt 2ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > OQ-30 the detail view shows text per revision only when that revision is excerpt 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > gateway-declared hashes are never shown as verified 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a viewer of the card without manager role sees no action button, with the reason 5ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > I-1 InboxBody needs no command handler for loading and read-only use 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > m-3 after a command the page, the sources and the failures are read again together 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > a stale version shows the conflict sentence and keeps the choice 0ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > approvals show the ballot kind and current → proposed grants 1ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > one shared predicate decides whether a grant change widens access, for the team screen and the server 2ms
+ ✓ tests/inbox-ui.test.tsx > inbox UI > team accounts offer Trình phiếu đổi quyền only when access expands 0ms
+ ✓ tests/inbox-ui.test.tsx > UI-6 request failures > a command whose fetch rejects with TypeError shows the Vietnamese copy and never «Failed to fetch» 7ms
+ ✓ tests/inbox-ui.test.tsx > UI-6 request failures > an error the server answered (AppError through api()) is shown as is; a version conflict keeps the conflict copy 1ms
+ ✓ tests/inbox-ui.test.tsx > UI-6 request failures > a card detail that fails to load shows the copy and «Thử lại»; pressing it loads again and shows the detail 1ms
+ ✓ tests/review-ui.test.tsx > review UI > renders the four states: empty, error, loading and denied, with different wording for empty and denied 5ms
+ ✓ tests/review-ui.test.tsx > review UI > the denied view leaks no project name and no count 1ms
+ ✓ tests/review-ui.test.tsx > review UI > Conflict: a stale decision shows the source-changed banner with Đọc bản mới and keeps the typed note 1ms
+ ✓ tests/review-ui.test.tsx > review UI > an already decided revision shows its own conflict sentence 0ms
+ ✓ tests/review-ui.test.tsx > review UI > a queue item without approver shows Chờ xác định người duyệt 0ms
+ ✓ tests/review-ui.test.tsx > review UI > each eligibility reason renders its sentence and hides the buttons it forbids 2ms
+ ✓ tests/review-ui.test.tsx > review UI > buttons follow the service's eligibility and nothing else 2ms
+ ✓ tests/review-ui.test.tsx > review UI > a decision sends the revision, hash and version shown; a short note is refused in place 1ms
+ ✓ tests/review-ui.test.tsx > review UI > request bodies carry only the fields the service takes and never an actor, tenant, authority or request id 1ms
+ ✓ tests/review-ui.test.tsx > review UI > one Idempotency-Key per user action, reused on a retry and renewed after a success 1ms
+ ✓ tests/review-ui.test.tsx > review UI > error copy: the 404 sentence offers a reload, an unknown code shows the server message as text, never an object 0ms
+ ✓ tests/review-ui.test.tsx > review UI > a decided revision offers no new comment and no decision, but keeps the follow-up actions on existing comments 8ms
+ ✓ tests/review-ui.test.tsx > review UI > a queue row names the decision state and a requested change reads as a used decision slot 1ms
+ ✓ tests/review-ui.test.tsx > review UI > RevisionDiff labels every change with Thêm, Xóa or Sửa and shows base and candidate revision numbers 1ms
+ ✓ tests/review-ui.test.tsx > review UI > changed-only mode hides unchanged fields and full mode shows them 1ms
+ ✓ tests/review-ui.test.tsx > review UI > flagged dependents are listed under Tài liệu phụ thuộc cần xem lại 1ms
+ ✓ tests/review-ui.test.tsx > review UI > self-declared hashes are never shown as verified 1ms
+ ✓ tests/review-ui.test.tsx > review UI > comment bodies with markup are rendered as text 1ms
+ ✓ tests/review-ui.test.tsx > review UI > the reviewers panel lets only a project manager designate, never offers the viewer themself or a read-only member, and requires a document type 3ms
+ ✓ tests/review-ui.test.tsx > review UI > the approver list shows the types read from document_approvers 0ms
+ ✓ tests/review-ui.test.tsx > review UI > OQ-34 only a project manager sees Thu hồi, and a revoke needs a basis 7ms
+ ✓ tests/review-ui.test.tsx > review UI > the reviewers panel has no control that touches document approval 1ms
+ ✓ tests/review-ui.test.tsx > review UI > a reader who is not a coordinator sees other reviewers as person and document types only 0ms
+ ✓ tests/review-ui.test.tsx > review UI > only a coordinator sees người chỉ định không còn là điều phối and đang ngủ, and only for the strict booleans 2ms
+ ✓ tests/review-ui.test.tsx > review UI > a basis with markup or bidirectional characters is rendered as text inside bdi 1ms
+ ✓ tests/review-ui.test.tsx > review UI > shows another person's basis to nobody but a coordinator, even when the component is handed one 1ms
+ ✓ tests/review-ui.test.tsx > review UI > review CSS keeps one column below 950px, wraps long strings and gives actions 44px 2ms
+ ✓ tests/documents-ui.test.tsx > documents UI > pageState ranks loading, denied, error, empty, ready 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > each of the four non-ready states renders its own copy 4ms
+ ✓ tests/documents-ui.test.tsx > documents UI > empty and denied are different text 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > all six source states render distinct labels 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > an empty approved pointer renders the neutral Chưa có tag 7ms
+ ✓ tests/documents-ui.test.tsx > documents UI > a self-declared hash is never shown as verified 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > a stale projection is labelled from the Z1 version check, not from the Z2 row itself 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > a stale row shows the text, a fresh row does not 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > pending registrations survive a reload as a notice, in the list and in the empty state 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > denied source hides source metadata and the open action 1ms
+ ✓ tests/documents-ui.test.tsx > documents UI > long hashes and URLs do not force a fixed width 3ms
+ ✓ tests/documents-ui.test.tsx > documents UI > mobile (<=700px) stacks pointers and columns without a 200px flex-basis as height 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > pageState: no-results only when a term is applied and rows=0 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > no-results shows the term and a clear button, not the empty-project copy 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > empty state mentions that the index has not been projected yet 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > register notice is a status with the title escaped 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > source link: https renders a safe anchor with host, other schemes render none 0ms
+ ✓ tests/documents-ui.test.tsx > documents UI > no component or view copy says đã duyệt, and window.open is gone 0ms
+ ✓ tests/documents-ui.test.tsx > document detail > LBRC014-like: two revisions newest first, three SHAs, neutral approved tag, self-declared hash, no approval wording 1ms
+ ✓ tests/documents-ui.test.tsx > document detail > XECA006-like: seven missing fields, unreconciled links, a gone source row 1ms
+ ✓ tests/documents-ui.test.tsx > document detail > a document with no revision shows Chưa có and no open button when denied source 0ms
+ ✓ tests/documents-ui.test.tsx > document detail > denied block is generic and carries no title or code 0ms
+ ✓ tests/documents-ui.test.tsx > document detail > the list card links to the detail page 0ms
+ ✓ tests/documents-ui.test.tsx > document detail url refs (OQ-25) > a url source ref is shown as text, never as a link, so the host allowlist does not need to cover it 1ms
+ ✓ tests/rsc-boundary.test.ts > I-1 no server file under src/app passes a function prop to a Client Component 9ms
+ ✓ tests/rsc-boundary.test.ts > the scan flags an inline handler and a local function on a client component, and ignores client files 1ms
+
+ Test Files  4 passed (4)
+      Tests  79 passed (79)
+   Start at  17:24:17
+   Duration  443ms (tests 58%, import 23%, transform 16%, worker 2%)
+

@@ -1,0 +1,36 @@
+{
+  "name": "ba_elicitation",
+  "version": "0.1.0",
+  "owner": "BoM Tech",
+  "attribution": [
+    {
+      "ref": "docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:97-104",
+      "note": "viết mới theo bảng năng lực; không chép từ khung ngoài"
+    }
+  ],
+  "prompt": {
+    "path": "skills/ba-elicitation/prompt.md",
+    "sha256": "a6d26986e1ab33975c8cd74054c483e8a98cb5e4671c5feab80761dc6e61c83a"
+  },
+  "inputContract": "SkillContext/v1",
+  "outputContract": "SkillOutput/ba_elicitation/v1",
+  "toolAllowlist": [],
+  "dataScope": {
+    "projectScope": "single",
+    "kinds": [
+      "source_event",
+      "document",
+      "document_revision"
+    ],
+    "ibsHi": "pointer_hash_metadata_only",
+    "hiddenText": "never"
+  },
+  "evalSet": {
+    "path": "skills/ba-elicitation/eval.json",
+    "sha256": "7b46c3e8461be3b2212be47c720738b373d41d8490ab12ee0995a7fdaa932920",
+    "cases": 5
+  },
+  "modelBinding": "none",
+  "enabled": false,
+  "hash": "aaf71b8d39989d4713b305355c112c2abd7ecccc1b01ff1d58fc48a824352d74"
+}

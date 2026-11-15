@@ -1,0 +1,14 @@
+# Task 10 — mutation table (copied from the builder's report by the slice-3 session; each mutation was applied alone and reverted)
+
+## Mutations (each reverted; `git diff -- src/` shows only the intended change)
+| Mutation | Case that went red |
+|---|---|
+| m1 drop project filter of document query | first run: none (RLS scoped to one project hides it). Added case "every statement filters by project even when the transaction is scoped to two projects" -> red. Same case catches dropping the filter of the named-document and candidate queries |
+| m2 title/summary nulling removed (SQL) | `(7) a record of an IBS HI project never enters...` |
+| m2 IBS_HI clause removed from `isIbsHiSql` | `(7)…`, `hidden` (mapped-to-IBS_HI), `defence in depth` |
+| m2 JS text guard removed (`shown=true`) | `defence in depth: a row that wrongly carries text…` (added; stub tx returns leaking rows) |
+| m3 viewer let through | `revoked access…`, `viewer and bot are refused` |
+| m4 approved restriction removed / inverted | `R10-g…`, `each skill receives only its kinds…` (inverted also `(7)`) |
+| m5 drop `chat_id` equality | first run: none. Added case "the thread is the candidate's own chat…" (second chat of the same project, same message id, so same `thread_key`) -> red |
+| m1d drop `project_id` from the revisions query | uncaught: equivalent mutant, the `document_id` was already verified to be in the project and ids are unique. Kept the filter as defence in depth |
+
