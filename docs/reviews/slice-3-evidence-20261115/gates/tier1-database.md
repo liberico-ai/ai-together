@@ -550,3 +550,94 @@ Standing trust boundary (applies to every «same person» row below, not counted
 Counts for this sweep: P0 0 · P1 0 · P2 1 · P3 6 (A-0, A-2, A-4, A-5, A-6, B-2).
 
 VERDICT after the class sweep: READY WITH FIXES (one P2, A-1/B-1; the P3s may be deferred with receipts)
+
+## Review of the Codex fix round 2 (5a75ce9)
+
+Scope: the `migrations/` part of `bf4c0e2..5a75ce9` and the tests `review-schema`, `migrations-rollback`, `documents` and `fix-wave-db` in that diff, plus the implementer's report and the mutation log. Read-only. The implementer's run (native 1006 passed, 0 skipped; PGlite 965 passed, 41 skipped) was not re-run here. The facts about PostgreSQL internals below (`pg_xact_status`, `TransactionIdIsInProgress`, raw `xmin`) are from my knowledge of the PostgreSQL 13–16 source, not from a test on this cluster (#inference, high confidence).
+
+### D1 (gate P1): the approved pointer moves only in the transaction that inserted the approval — ADDRESSED
+
+Text: `migrations/020_document_review.sql:304-312` (comment), `:313-339` (function). `cur` is computed at :319. The `xmin` condition is at :328, and the trigger at :337-339 is `BEFORE UPDATE OF approved_revision_id`.
+
+**1. Correctness, case by case.** `pg_current_xact_id()` returns the top-level full id. `pg_xact_status` returns NULL for an id older than the clog horizon, raises «transaction ID … is in the future» for an id ≥ the next full id, and otherwise checks `TransactionIdIsInProgress` first. That check covers the backend's own top-level id and its sub-transaction ids, including released ones.
+
+| Case | `xmin` of the decision | Candidate | Status | Guard |
+|---|---|---|---|---|
+| (a) same top-level transaction | top id | `cur` | in progress | passes |
+| (b) released savepoint | sub id, a little above `cur` (possibly wrapped past 2^32) | `cur + Δ`, Δ < 2^31; the wrap case also lands in the next epoch, correctly | in progress (own sub id) | passes |
+| (c) rolled-back savepoint | — | row not visible to the caller's snapshot | — | refused (NOT EXISTS) |
+| (d) earlier committed transaction | old id < `cur` | the exact full id: an unfrozen visible row is less than 2^31 behind, by wraparound protection | committed, or NULL if older than the clog horizon | refused |
+| (e) previous epoch | high low-half | `cur − Δ` in the previous epoch, exact for the same reason | committed / NULL | refused |
+| (f) special ids 1, 2 (bootstrap, frozen) | — | the `CASE` yields NULL below 3; `pg_xact_status(NULL)` is NULL | — | refused |
+| (f′) a row frozen by VACUUM | the `xmin` column shows the **raw** id (the frozen state lives in the infomask) | exact while the row is less than 2^31 old | committed / NULL | refused |
+| (f″) a row more than 2^31 transactions old (necessarily frozen) | raw low half | the «nearest» id can lie up to 2^31 in the future | either an error («in the future»), or, if it coincides with the id of a concurrently running transaction, «in progress» | refusal as an error; a false pass only by coincidence, see below |
+| (g) hot standby | — | the trigger cannot fire (read-only) | — | n/a |
+| (g′) `pg_upgrade` | raw ids and epoch carried over | as (d)/(e) | committed / NULL | refused |
+| (g″) dump and restore | the restore transaction's id | as (d) | committed | refused |
+
+- **Can a legitimate caller reach the error?** No. `review_decisions` has `UNIQUE(document_revision_id)`, so the only decision the guard can match for `NEW.approved_revision_id` is the one row of that revision. On the legitimate path that row was inserted in this transaction: case (a) or (b).
+- **When can f″ happen at all?** Only for a revision whose single decision is more than 2^31 transactions old. At this deployment's write rate that is not reachable in any planning horizon. A false pass would need that and an exact 32-bit coincidence with a concurrently running transaction, and the pass would still need the same `decided_by` and the frozen revision as the current latest. Recorded as a receipt (P3), not a defect.
+- **In progress but not the caller's own?** Not possible:
+  - Rows of another running transaction, including a prepared one, are invisible to the caller's snapshot.
+  - A transaction that has committed in the clog but is still in the proc array is invisible to a snapshot taken while it is listed. Once it leaves the list, `pg_xact_status` says committed.
+  - The guard's `EXISTS` is a separate plpgsql statement and takes its own snapshot under READ COMMITTED. Re-evaluation of the outer UPDATE does not change what it reads.
+  - The guard reads `d.xmin` only, not `v.xmin`.
+
+**2. Other ways to satisfy the condition.** None found. A row's `xmin` is the current transaction's only if the row was inserted, or a new row version written, in this transaction. `review_decisions` has no UPDATE grant and its BEFORE UPDATE/DELETE trigger rejects every role, so the only way is a fresh INSERT. That INSERT passes the decision guard's authority, author, hash and frozen checks. `SELECT … FOR UPDATE` and `FOR SHARE` set `xmax`, not `xmin`. A data-modifying CTE that inserts and moves in one statement can only fail safe.
+
+**3. Cost.** `cur` and `cm` are computed inside `IF NEW.approved_revision_id IS DISTINCT FROM OLD.approved_revision_id` (:318-319). The trigger fires only for an UPDATE that names the column, so other updates of `document_records` do no extra work. The move is itself a write and already has an id, so `pg_current_xact_id()` assigns nothing new. The `EXISTS` matches at most one decision (unique per revision).
+
+**4. Comment (:304-312).** It now says what the code checks: the decision is by `app.person_id` and inserted in this transaction, `xmin` cannot be written, savepoints are covered, there is no clock, the nearest-id rule applies, and ids below 3 are no transaction. One sentence is missing: «a decision older than 2^31 transactions is outside this argument» (f″). P3, wording only.
+
+**5. Tests.** Two of them changed expectations rather than adding steps:
+- `review-schema.test.ts:575-577` was flipped: a later transaction with the right person is now refused.
+- `:648-665`: the approval and the move are in one transaction, the approver's later move is refused, and the operational login sets the starting state. This is a changed expectation, not a weakened one.
+
+New steps, all adequate:
+- one transaction (:579-584);
+- released savepoint (:586-590);
+- rolled-back savepoint (:592-596);
+- later transaction (:598-600);
+- operational login (:606-610).
+
+E1 (:613-625) is a commented mirror of the arithmetic on hand-made numbers, plus a check that the deployed function text contains the constants. This is an honest level of evidence for a property that no test cluster exhibits, provided the receipt says so. Two cheap additions to the mirror would help (P3):
+- `cur = 2·2^32 + 4294967290, xmin = 5 → 3·2^32 + 5`: a sub id that wrapped past the epoch;
+- a case for the `< 3` branch.
+
+Suggested receipt wording: «Same-transaction binding of the approved pointer: behaviour proved on PGlite and native PostgreSQL for one transaction, released and rolled-back savepoints, a later transaction and the operational login. Epoch reconstruction: verified only by a mirrored expression on hand-made numbers and a textual check that the deployed function carries the formula's constants. No test runs the deployed guard across an epoch boundary. Mutation m6 (the epoch-0 cast) is caught only by that textual check. A decision older than 2^31 transactions is outside the argument.»
+
+### D4 (my P2, A-1/B-1): the revision author is bound to `app.person_id` — ADDRESSED
+
+- **Policy.** `020:341-349` re-creates `scope_insert` on `document_revisions`. It keeps 014's three conditions verbatim (014:124-127) and adds `proposed_by = nullif(current_setting('app.person_id',true),'')::uuid`.
+- **Idempotent on every path.**
+  - The configured server (`scripts/migrate.ts:8-12`) skips applied versions, so 014 never re-runs there.
+  - The embedded start (`src/server/db.ts:11`) runs every top-level `NNN_*.sql` in sorted order on each start. The `rollback/` directory does not match the pattern. 014 therefore installs the weak policy and 020 replaces it with the strict one, so every start ends strict. Both are DROP IF EXISTS / CREATE, so a re-run is safe.
+  - The `migrations-rollback` test asserts the strict policy after forward, forward, rollback, forward (:513-514, :549).
+- **Rollback.** `rollback/020:116-121` restores 014's text exactly (compared clause by clause), inside the file's BEGIN and after the refusals. It is asserted at `migrations-rollback.test.ts:536-539`.
+- **Catalog test.** `tests/rls-catalog.test.ts:35-41` still holds: one INSERT policy with a non-null WITH CHECK.
+- **No service path inserts a revision for another person.** The only inserter is `src/server/documents.ts:169`, and it sets `app.person_id` to `p.id` at :155 in the same transaction before inserting `proposed_by = p.id`. The AI-draft confirmation goes through the same `proposeRevisionIn`.
+- **Test set-up.** `tests/documents.test.ts:388, :397-400, :440` and `tests/fix-wave-db.test.ts:466-468` add only the `set_config('app.person_id',…)` line. Their assertions are unchanged.
+- **New negative case.** `documents.test.ts:412-427` covers A naming B, no person, and B naming A, all refused with 42501 and RLS. It also checks the row count and the one allowed insert. Mutation m4 is listed as caught.
+- **Residual (P3).** A manual re-application of 014 alone on the configured server would silently restore the weak policy until 020 is re-applied. The runner never does this. Note it in the stop-point instructions.
+
+### New breakage in the fix diff (migrations and the four test files)
+
+No P0, P1 or P2 found.
+
+### Deployment note for 020: amendments to section 5
+
+- **PostgreSQL 13 or later** is required: the guard uses `xid8`, `pg_current_xact_id()` and `pg_xact_status()`.
+  - These are `pg_catalog` functions that PUBLIC can execute by default. No migration here revokes them (grep of `REVOKE … FROM PUBLIC` in `migrations/`).
+  - A hardened server that revoked PUBLIC execute on them would make every non-superuser approved-pointer move fail, which fails closed. Check `has_function_privilege('libetech_runtime','pg_catalog.pg_xact_status(xid8)','EXECUTE')` and the same for `pg_current_xact_id()` at the stop point.
+- **The service must move the approved pointer in the same transaction as the approval.** A separate later call is now refused. That is the service shape this round introduced; it is not rechecked here beyond the tests.
+- **014's insert policy on `document_revisions` is replaced by 020's stricter one.** Any tool or script that inserts revisions as `libetech_runtime` must set `app.person_id` to the author first. Do not re-apply 014 alone.
+- **Rollback 020** restores 014's policy and still refuses while any review table holds rows.
+
+### For the receipt: additions
+
+- **D1.** Bound by `xmin` plus `pg_xact_status`, with the epoch reconstructed around the current id. Use the evidence wording above and the 2^31-age caveat.
+- **D4.** The author is bound at the database. A-1/B-1 is closed. The remaining P3s of the class sweep (A-0, A-2, A-4, A-5, A-6, B-2) are unchanged.
+
+Counts for this round: P0 0 · P1 0 · P2 0 · P3 3 (a comment sentence for f″, two mirror cases, the 014 re-apply note), plus one receipt (f″).
+
+VERDICT for re-gating: READY

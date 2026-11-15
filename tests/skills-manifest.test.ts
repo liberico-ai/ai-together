@@ -10,7 +10,7 @@ import { canonicalJson, manifestHash, skillEvalSets, skillManifests } from '../s
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** A 64-character lower-hex token (sha256) can contain a digit run by chance; it is removed before the personal-data scan, and nothing else is. */
-const withoutHashes = (t: string) => t.replace(/(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])/g, '');
+const withoutHashes = (t: string) => t.replace(/(?<![0-9a-f])(?=[0-9]*[a-f])[0-9a-f]{64}(?![0-9a-f])/g, '');   // lower-hex with at least one letter a-f: 64 decimal digits are not a hash
 /** The patterns of the scan on skills/; returns the names of those that match. */
 function personalPatterns(text: string): string[] {
   const hits: string[] = [];
@@ -198,6 +198,9 @@ describe('skill manifests', () => {
     expect(personalPatterns(withoutHashes(`{"hash":"${hash}","sha256":"${hash}","manifestHash":"${hash}"}`))).toEqual([]);
     for (const text of ['Gọi 0912345678 để hỏi.', '{"text":"Số của anh Nam: 0987654321"}', `${hash} và 0901234567`, 'liên hệ 09012345678'])
       expect(personalPatterns(withoutHashes(text)), text).toContain('phone');
+    // 64 decimal digits are a number, not a hash: not removed
+    const digits64 = '-' + '100' + '1'.repeat(61);   // a minus sign and 64 decimal digits, built at run time
+    expect(personalPatterns(withoutHashes('chat ' + digits64)), '64 decimal digits are not a hash').toContain('chat id');
     // a hex token that is not exactly 64 characters is not removed
     expect(personalPatterns(withoutHashes('x' + 'f'.repeat(30) + '0123456789' + 'f'.repeat(30))), 'a 70-character token is not a hash').toContain('phone');
     expect(personalPatterns(withoutHashes(hash + 'f'))).toContain('phone');

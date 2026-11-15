@@ -284,3 +284,53 @@ The two known cases (release_librarian and doc_reviewer `conflicting_sources`) a
 - `DependencyService.link` (`document-dependencies.ts:74`) and `SuggestionService.decide` (`suggestions.ts:155-157`) take the manager / write role from the session's `projectRole`. `DelegationService` and `ReviewService` re-read the role in the transaction. I found no guard in 020 for the dependency insert or the draft decision (DB reviewer to confirm). Rated P3 if the session principal is rebuilt from memberships on each request, P2 if it is not.
 
 **Counts:** P0 0 · P1 0 · P2 6 (C1-1, C2-1, C3-1, C3-4, C4-1, C4-2) · P3 7.
+
+## Review of the Codex fix round 2 (5a75ce9)
+
+Scope: the application part of `bf4c0e2..5a75ce9` (src, tests, `skills/*/eval.json`), read from the commit. I ran nothing; green runs are as the implementer reports them (#hypothesis for me). D1 and D4 belong to the database reviewer.
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| D2 service | ADDRESSED | `src/server/decisions.ts:30-33`. `applied` needs the stored state `applied` + a receipt + 3 agreeing votes; any other stored `applied` → `reconcile`; a receipt on any other state → `reconcile`; `quorum_met` only for `pending` with ≥3 agree and no receipt; an unknown state → `reconcile`. I walked the table again: no cell claims more than its facts. Terminal states are shown as stored, and a terminal row with 3 agree reads as its stored terminal label, which is what the store says. `tests/decisions.test.ts` covers the whole grid (10 states × 0..3 × receipt) plus a DB case (applied + receipt + 2 votes → reconcile). Note that the grid test computes its expectation with a copy of the rule, so it guards against drift, not against a rule that is wrong. The named literal cases next to it do pin the rule. #fact |
+| D2 component (C3-1, C3-4) | ADDRESSED | `src/components/decisions.tsx:40` maps applied without a receipt or with fewer than 3 votes to reconcile. `:47` prints «Đã áp dụng» only when the shown state is `applied`; a receipt beside any other state prints the mismatch sentence. P3 residual for a hand-built card (the service never emits these): `quorum_met` with fewer than 3 votes still prints «Đủ phiếu», and `quorum_met` with a receipt prints «Đủ phiếu, chưa áp dụng» above the mismatch line. Fix: extend the belt so that a `quorum_met` card with `have<3` or a receipt is shown as `reconcile`. #fact |
+| D5 (C2-1) | ADDRESSED | `src/server/suggestions.ts:101-107` compares project, skill, entity type and id, value hash, input hash, model version, and the row's skill_version/manifest_hash against the current manifest. The trace id is left out by design. `tests/suggestions.test.ts` has a D5 case for each field and shows that a trace-id-only change replays. #fact |
+| D3 intake `duplicateOf` (C4-2) | ADDRESSED | `skills/intake-analyst/eval.json:6`: null in both samples. The new test in `tests/skills-eval.test.ts` checks it. #fact |
+| D3 `conflicting_sources` (C4-1 + gate) | **NOT ADDRESSED for three skills**: each is now a real conflict, but in a context the builder cannot produce (N-1 below) | per-case notes below |
+| E2 scan | ADDRESSED, one P3 | see below |
+
+`conflicting_sources` as committed. For each case: is it a real conflict, would a careful person accept the good output, and does the bad output fail only for its stated reason.
+- **ba_elicitation**: real (two current messages state two rounding rules). Good acceptable. The bad fails only on the missing conflict, though it admits the disagreement in `unknowns`.
+- **intake_analyst**: real (the customer says 20/11 and the owner says 25/11, both now). Good acceptable. Bad fails for its stated reason only.
+- **pm_planning** (reworded): real (two estimates for the same item). Good acceptable. Bad fails for its stated reason only.
+- **technical_writer**: real (two current approved documents say 30 and 90 days). Good acceptable. Bad fails for its stated reason only. **But see N-1.**
+- **doc_reviewer**: real (a proposed release plan says 20/12 and an approved customer notice says 15/12). Good is mostly acceptable. P3: its diff note says «Bản đầu» for a revision numbered 2 whose revision 1 is not in context. Bad fails for its stated reason only. **But see N-1.**
+- **release_librarian**: real (the index's approved revision says the baseline of DOC-0054 is revision 1, while the record points at revision 2). Good acceptable (`approvedRevisionId` null, only the uncontested entry listed). Bad fails for its stated reason only. **But see N-1.**
+
+**N-1 (P2, new in this diff).** The three rewritten contexts carry revisions of a **second** document, and the release_librarian context also carries a **non-approved** revision. `buildSkillContextIn` never builds either (`src/server/skill-context.ts:75-86`): revisions come only for the one named document (`v.document_id=$2`), and the release librarian gets only that document's approved revision.
+- technical_writer, eval.json conflicting case: the 90-day value sits in `#…326`, a revision of DOC-0034. A real context for DOC-0033 holds only DOC-0034's record (title, ids), not its summary. The fact the conflict needs is therefore never shown to the model.
+- doc_reviewer: `#…427` is a revision of DOC-0044.
+- release_librarian: `#…526` and `#…527` are revisions of DOC-0054; `#…527` is not approved, and only one document's approved revision can appear.
+- So the evals now test inputs the product cannot give. The new eval test checks «two owners» but not «a shape the builder can emit».
+- Smallest fix, per case:
+  - technical_writer, doc_reviewer: the second assertion has to come from a source the builder does show. For doc_reviewer and technical_writer that means another revision of the same named document can never conflict (it is a change). So the realistic conflict is a revision's `summary` against a document **record** field the builder does carry (`title` / `approvedRevisionId`), as release_librarian does.
+  - Or: if the builder is meant to carry cross-document revisions for these skills, change the builder (and its tests) first.
+  - release_librarian: drop `#…527` and `#…526` from its context. The record's `approvedRevisionId` alone carries the conflict.
+  - Add an eval-level test that every context is a shape `buildSkillContextIn` can emit: revisions only of one document, and for release_librarian only that document's approved one.
+
+E2 (`tests/skills-manifest.test.ts`):
+- A phone next to a hash is not weakened. A hash followed directly by a hex digit is not stripped (look-ahead), and a hash separated by any non-hex character is stripped while the phone stays. The case `${hash} và 0901234567` pins this.
+- Upper-case hex is not stripped at all, so the scan is stricter there.
+- A 64-digit decimal run **is** stripped, because digits are hex. The phone pattern could not match inside such a run before either (digit look-arounds). The chat-id pattern did match `-100` + 61 digits, and that is now hidden. This is P3, since the token would need exactly 64 digits.
+- Fix: strip only 64-hex tokens that contain at least one `a-f` letter, or only values of fields named `*Hash`/`sha256`.
+- The negative chat-id sample is assembled at run time and the source holds no literal (#fact).
+
+New P0/P1/P2 in the fix diff: **N-1 only** (P2). Nothing else in src changed behaviour beyond D2/D5. The removed expectation `applied,3,no receipt → quorum_met` is the intended rule change and was replaced by the stricter one, not weakened.
+
+Deferred:
+- (P3) The hand-built `quorum_met` belt (above).
+- (P3) The doc_reviewer «Bản đầu» note.
+- (P3) The 64-digit run in E2.
+- The report's own note: the scan may still fire by chance on a future hash with a ten-digit run starting with 0 beside a non-hex character. It cannot now, since such hashes are stripped. Recorded so nobody rewords a sample again to dodge it.
+- C1-1 (draft input staleness) and the C3/C4 P3s from the class sweep are not in this round.
+
+VERDICT for re-gating: NEEDS FIXES

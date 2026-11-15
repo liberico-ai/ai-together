@@ -26,10 +26,10 @@
   },
   "evalSet": {
     "path": "skills/release-librarian/eval.json",
-    "sha256": "847dd1b7beda47fe72b59d76e5ba26036fbd04365d91ece2582bc3792db49049",
+    "sha256": "bc7d4dd53861a826ecca5e368ccad54e2ef340d7a3dfc437d0df1f80d09ee300",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "500ee92a5647010b84d9ae7f46235a8bf1e69a4350aa67266d14ad92018a1aea"
+  "hash": "afb51b1c3a3968c9449b832471885818de5e8608fb683e535426ae3f0e51d86e"
 }

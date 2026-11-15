@@ -30,6 +30,30 @@ beforeAll(async () => {
   }
 });
 
+/** What `buildSkillContextIn` (src/server/skill-context.ts) can emit, as rules over a context: revisions are of the ONE named document, which is also present as a `document` record;
+ *  the release librarian gets at most that document's approved revision; messages are one thread (one chat); counts stay within MAX_MESSAGES 20, MAX_DOCUMENTS 50, MAX_REVISIONS 30, MAX_SOURCES 100;
+ *  a pointer-only context carries no title, summary, list or message text. Returns the broken rules. */
+function emitProblems(skill: SkillName, ctx: { pointerOnly: boolean; sources: readonly Record<string, unknown>[] }): string[] {
+  const out: string[] = [];
+  const of = (k: string) => ctx.sources.filter(s => s.kind === k);
+  const revs = of('document_revision'), docs = of('document'), msgs = of('source_event');
+  const owners = new Set(revs.map(r => r.documentId));
+  if (owners.size > 1) out.push('revisions of more than one document');
+  for (const o of owners) if (!docs.some(d => d.id === o)) out.push('the document of the revisions is not a document source');
+  if (skill === 'release_librarian' && revs.length > 0) {
+    const owner = docs.find(d => d.id === revs[0].documentId);
+    if (revs.length > 1 || !owner || owner.approvedRevisionId !== revs[0].id) out.push('the librarian gets only the approved revision of the named document');
+  }
+  if (new Set(msgs.map(m => String(m.ref).split(':')[1])).size > 1) out.push('messages of more than one chat');
+  if (msgs.length > 20 || docs.length > 50 || revs.length > 30 || ctx.sources.length > 100) out.push('over the caps');
+  if (ctx.pointerOnly) {
+    if (docs.some(d => d.title !== null)) out.push('pointer-only: a title');
+    if (revs.some(r => r.summary !== null || (r.present as unknown[]).length > 0 || (r.missing as unknown[]).length > 0)) out.push('pointer-only: a summary or list');
+    if (msgs.some(m => m.text !== null || m.hash !== null)) out.push('pointer-only: message text');
+  }
+  return out;
+}
+
 describe('skill eval sets', () => {
   it('every skill has exactly one case per category', () => {
     for (const name of SKILLS) {
@@ -94,6 +118,26 @@ describe('skill eval sets', () => {
     expect(seen).toBeGreaterThan(100);
   });
 
+  it('every eval context is a shape the context builder can emit', () => {
+    for (const name of SKILLS) for (const c of sets[name]) {
+      expect(emitProblems(name, c.context), `${name}/${c.category}`).toEqual([]);
+    }
+    // the rule bites: a revision of a second document, a second revision for the release librarian, mixed chats, an over-cap list, text in a pointer-only context
+    const base = structuredClone(sets.technical_writer.find(x => x.category === 'conflicting_sources')!.context);
+    const second = { id: '00000000-0000-4000-8000-000000000999', kind: 'document_revision' as const, documentId: '00000000-0000-4000-8000-000000000998', revisionNo: 1,
+      summary: 'Bản của tài liệu khác.', present: [], missing: [], sourceHash: null, hashVerification: 'self_declared' as const };
+    expect(emitProblems('technical_writer', { ...base, sources: [...base.sources, second] }).length).toBeGreaterThan(0);
+    const rl = structuredClone(sets.release_librarian.find(x => x.category === 'conflicting_sources')!.context);
+    const extra = { ...second, documentId: (rl.sources.find(s => s.kind === 'document_revision') as { documentId: string }).documentId, revisionNo: 2 };
+    expect(emitProblems('release_librarian', { ...rl, sources: [...rl.sources, extra] }).length).toBeGreaterThan(0);
+    const ev = (i: number, chat: string) => ({ id: `00000000-0000-4000-8000-${String(7000 + i).padStart(12, '0')}`, kind: 'source_event' as const, ref: `telegram:${chat}:${i}`, mode: 'excerpt' as const,
+      text: 'x', hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
+    const sixty = Array.from({ length: 21 }, (_, i) => ev(i, '-1000000000001'));
+    expect(emitProblems('intake_analyst', { pointerOnly: false, sources: sixty }).length).toBeGreaterThan(0);
+    expect(emitProblems('intake_analyst', { pointerOnly: false, sources: [ev(1, '-1000000000001'), ev(2, '-1000000000002')] }).length).toBeGreaterThan(0);
+    expect(emitProblems('intake_analyst', { pointerOnly: true, sources: [ev(1, '-1000000000001')] }).length).toBeGreaterThan(0);
+  });
+
   it('each conflicting_sources case checks that the good output cites two distinct sources', () => {
     for (const name of SKILLS) {
       const c = sets[name].find(x => x.category === 'conflicting_sources')!;
@@ -115,8 +159,8 @@ describe('skill eval sets', () => {
       expect(new Set(owners).size, `${name}: both cited sources are revisions of one document`).toBe(2);
       // both are statements that can be read: neither is a bare record, and the two differ
       const text = (x: typeof cited[number]) => x.kind === 'document_revision' ? x.summary : x.kind === 'source_event' ? (x.text ?? '') : '';
-      expect(cited.every(x => x.kind !== 'document'), `${name}: a document record is cited with its own statement only through a revision, except the release librarian's record-vs-index case`).toBe(name === 'release_librarian' ? false : true);
-      if (name !== 'release_librarian') expect(new Set(cited.map(text)).size, name).toBe(2);
+      // when both are statements of revisions or messages, the two differ
+      if (cited.every(x => x.kind !== 'document')) expect(new Set(cited.map(text)).size, name).toBe(2);
     }
   });
 

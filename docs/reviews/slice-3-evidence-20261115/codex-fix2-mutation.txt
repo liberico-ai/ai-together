@@ -29,3 +29,7 @@ m6 epoch-0 cast again (pg_xact_status((xmin::text)::xid8))
 × E1 the guard builds the full transaction id around the current epoch (formula of the guard, applied to hand-made numbers) 474ms
 Tests  1 failed | 41 passed | 1 skipped (43)
 m6 note: every behavioural case of D1 (same transaction, released and rolled-back savepoint, later transaction, operational login) stays GREEN under the epoch-0 cast, because the test clusters have not wrapped: no existing case can catch it. Only the E1 case goes red, and only through its check that the deployed function still contains the formula's constants; the arithmetic itself is documented by the mirror.
+
+m7 a revision of a second document put into the technical_writer conflicting_sources context
+× every eval context is a shape the context builder can emit 3ms
+Tests  1 failed | 40 passed (41)
