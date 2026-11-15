@@ -45,16 +45,18 @@ function reviewCard(item: ReviewItem): ReviewCard {
   };
 }
 
-function reassignmentCard(p: Principal, c: PendingCard, now: number): ReassignmentCard {
+/** Pure; exported so the viewer-id handling can be tested without a database. */
+export function reassignmentCard(p: Principal, c: PendingCard, now: number): ReassignmentCard {
   const agree = c.votes.filter(v => v.choice === 'agree').length;
-  const mine = c.votes.some(v => v.voter_id === p.id.toLowerCase() || v.voter_id === p.id);
+  const me = p.id.toLowerCase();   // one normalised id for the vote check and the seat check
+  const mine = c.votes.some(v => v.voter_id.toLowerCase() === me);
   const reason: ReassignmentCard['actorEligibility']['reason'] =
     c.proposal.state !== 'pending' ? 'CLOSED' : new Date(c.proposal.expires_at).getTime() <= now ? 'EXPIRED' : mine ? 'ALREADY_VOTED' : null;
   return {
     kind: 'reassignment', decisionId: c.proposal.id, projectId: c.proposal.project_id, workId: c.work.id, workCode: c.work.code, title: c.work.title,
     revision: { workVersion: c.proposal.work_version }, summary: c.proposal.reason, quorum: { needed: 3, have: agree },
     votes: c.votes.map(v => ({ actorId: v.voter_id, choice: v.choice, at: v.created_at })),
-    actorEligibility: { canVote: reason === null && c.proposal.seat_ids.includes(p.id), reason }, expiresAt: c.proposal.expires_at,
+    actorEligibility: { canVote: reason === null && c.proposal.seat_ids.includes(me), reason }, expiresAt: c.proposal.expires_at,
     appliedReceipt: c.receipt ? { workVersion: c.receipt.work_version, at: c.receipt.created_at } : null,
     state: reassignmentState({ state: c.proposal.state, agree, hasReceipt: c.receipt !== null }),
   };

@@ -100,7 +100,9 @@ export class BomService {
   }
 
   /** Read-only: the newest 30 proposals of a project for a seat holder (the Decisions screen). Same seat and Telegram checks as read(); no write, no lock. */
-  pending(p:Principal,projectId:string):Promise<PendingCard[]> {
+  async pending(p:Principal,projectId:string):Promise<PendingCard[]> {
+    // a malformed project id gets the same 404 assertSeat gives, not a database error
+    invariant(uuid.safeParse(projectId).success,'SCOPE_DENIED','Không tìm thấy hồ sơ BoM trong phạm vi được cấp.',404);
     return scoped(this.db,p,async tx=>{
       const scope=await scopeFor(tx,projectId);
       assertSeat(p,scope);
@@ -111,7 +113,9 @@ export class BomService {
       const cards:PendingCard[]=[];
       for(const proposal of proposals) {
         const work=works.get(proposal.work_id);
-        if(work) cards.push({...await card(tx,proposal),work});
+        // a proposal cannot outlive its work row (composite foreign key, same project scope): a missing row is an inconsistency, so fail closed instead of dropping the ballot
+        invariant(work,'BOM_INCONSISTENT','Phiếu BoM không có đầu việc trong phạm vi được cấp.',500);
+        cards.push({...await card(tx,proposal),work});
       }
       return cards;
     });

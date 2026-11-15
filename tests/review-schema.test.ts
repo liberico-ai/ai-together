@@ -500,6 +500,8 @@ test('a dependency cannot point a document at itself and is unique per pair',asy
  expect((await failure(h.operator.query('UPDATE document_dependencies SET needs_review=true,version=version+1 WHERE dependent_document_id=$1',[down.record.id]))).message).toMatch(/document_dependencies_flag_pair/);
  const foreign=await frozenRevision(h,(await registerDoc(h,pm)).record.id,member.id);
  expect((await failure(flag(foreign.revisionId,true))).message).toBe('A dependency flag moves to a newer revision of the upstream document');
+ // the guard refuses first for the runtime role, so the foreign key on (flagged_revision_id, upstream_document_id) is shown through the operational login, which the guard lets through
+ expect((await failure(h.operator.query('UPDATE document_dependencies SET needs_review=true,flagged_revision_id=$2,flagged_at=now(),version=version+1 WHERE dependent_document_id=$1',[down.record.id,foreign.revisionId]))).code).toBe('23503');
  expect((await failure(flag(up.revisionId,true))).message).toBe('A dependency flag moves to a newer revision of the upstream document');
  const newerUp=await frozenRevision(h,up.docId,member.id);
  expect((await flag(newerUp.revisionId,true)).rows).toEqual([{version:2}]);

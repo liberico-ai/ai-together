@@ -94,7 +94,7 @@ test('end to end: proposed by the admin, approved by one BoM, applied by the adm
  expect(await rows('SELECT authority,decided_by FROM review_decisions')).toEqual([{authority:'approval_grant',decided_by:subject.id}]);
  expect(await count('review_events',"kind='review.approved'")).toBe(1);
  // a second decision on the same revision changes nothing
- await failure(decide(person,doc));
+ expect(await failure(decide(person,doc))).toEqual({code:'REVIEW_ALREADY_DECIDED',status:409});
  expect(await pointer(doc)).toEqual({approved_revision_id:doc.revisionId,version:doc.version+1});
  expect(await count('review_decisions')).toBe(1);
 });
@@ -123,7 +123,7 @@ test('a pending, rejected or expired ballot grants nothing; Chairman agreement a
  const late=await proposeId(grants('engineer',design));
  await say(2,late);
  await h.operator.query("UPDATE identity.account_approvals SET expires_at=now()-interval '1 hour' WHERE id=$1",[late]);
- await expect(apply(grants('engineer',design))).rejects.toThrow();
+ await expect(apply(grants('engineer',design))).rejects.toMatchObject({code:'TELEGRAM_APPROVAL_REQUIRED'});
  await nothing();
  await h.operator.query("UPDATE identity.account_approvals SET state='expired' WHERE id=$1",[late]);
  await expect(apply(grants('engineer',design))).rejects.toMatchObject({code:'TELEGRAM_APPROVAL_REQUIRED'});

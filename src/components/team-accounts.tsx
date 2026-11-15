@@ -25,7 +25,7 @@ export function Grants({projects,initial=[],withDocApproval=false}:{projects:Pro
       {Object.entries(permissions).map(([key,label])=><label key={key} className="team-check">
         <input type="checkbox" name={project.id+'-report'} value={key} defaultChecked={previous?.reportPermissions.includes(key as ReportPermission)}/>{label}
       </label>)}
-      {withDocApproval&&<fieldset className="team-doc-approval"><legend>Duyệt bản chuẩn theo loại tài liệu</legend>
+      {withDocApproval&&<fieldset className="team-doc-approval"><legend>{`Duyệt bản chuẩn theo loại tài liệu — ${project.name}`}</legend>
         {DOC_APPROVAL_TYPES.map(type=><label key={type} className="team-check">
           <input type="checkbox" name={project.id+'-report'} value={docApprovalCode(type)} defaultChecked={previous?.reportPermissions.includes(docApprovalCode(type))}/>{TYPE_NAMES[type]}
         </label>)}

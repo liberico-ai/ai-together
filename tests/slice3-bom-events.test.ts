@@ -141,7 +141,9 @@ test('PM-06 technical and business acceptance are separate events by different p
   expect(tech.payload).toMatchObject({revision:d.work.revision,sourceSha:demoSha});
   expect(biz.payload).toMatchObject({revision:d.work.revision,sourceSha:demoSha});
   expect(tech.created_at).toBeTruthy();expect(biz.created_at).toBeTruthy();
-  expect(new Date(tech.created_at).getTime()).not.toBe(new Date(biz.created_at).getTime());
+  // two separate events, not one row read twice; the business one was written after the technical one (not asserted unequal: both may share a millisecond)
+  expect(tech.id).not.toBe(biz.id);
+  expect(new Date(tech.created_at).getTime()).toBeLessThanOrEqual(new Date(biz.created_at).getTime());
   expect(both.events.filter(e=>e.kind==='close_ticket')).toHaveLength(1);
 });
 
@@ -150,6 +152,7 @@ test('DOC-08/T17 the implementer cannot accept own work, also after reassignment
   const bom=new BomService(h.db),work=new WorkService(h.db);
   const {proposal:{id}}=await propose(bom,s);
   for(const seat of [s.roster[1],s.roster[0],s.roster[2]]) await agree(bom,id,seat);
+  // revision:1 and the random evidenceId are never reached: the self-acceptance refusal comes before either is checked
   const accept=(kind:'technical_accept'|'business_accept')=>({kind,expectedVersion:2,sourceSha:sha,revision:1,evidenceId:randomUUID(),confirmed:true,note:'Thử nghiệm thu sau khi đổi vai'});
   expect((await work.detail(pm,s.workId)).work).toMatchObject({assignee_id:pm.id,version:2});
   // the new assignee and the previous assignee (a participant on the receipt) are both the implementer side

@@ -335,7 +335,7 @@ test('runtime cannot confirm a draft that names no source, nor with a wrong valu
   // shape: a rejection needs a reason, a rejection names no revision
   await expect(decide(sourced,{result:'rejected',reason:'ngắn'})).rejects.toThrow(/check constraint|draft_decisions/);
   await expect(decide(sourced,{result:'rejected',reason:'     ',document_revision_id:null})).rejects.toThrow(/check constraint|draft_decisions/);
-  await expect(decide(sourced,{result:'rejected',reason:'Lý do đủ dài',document_revision_id:fr.revisionId})).rejects.toThrow(/check constraint|draft_decisions|attached to a draft about that very document/);
+  await expect(decide(sourced,{result:'rejected',reason:'Lý do đủ dài',document_revision_id:fr.revisionId})).rejects.toThrow(/draft_decisions_revision_only_confirmed/);
   await expect(decide(sourced,{result:'maybe'})).rejects.toThrow(/check constraint|draft_decisions/);
   await expect(decide(sourced,{reason:'x'.repeat(1001)})).rejects.toThrow(/check constraint|draft_decisions/);
   // a revision that does not exist is refused by the guard (before the foreign key); a real revision of the draft's document is accepted

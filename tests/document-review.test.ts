@@ -263,9 +263,11 @@ describe('document review decisions',()=>{
   await delegate(h,ids.sales,reviewer.id);await grantDocApproval(h,approver.id,ids.sales,['design']);
   const used=k();
   await decide(reviewer,await world(),{},used);
+  let sibling=''; // a real, frozen revision of another document of the same project
   const cases:{name:string;prepare:()=>Promise<W>;call:(w:W)=>Promise<unknown>;code:string;status:number}[]=[
    {name:'stale version',prepare:()=>world(),call:w=>decide(reviewer,w,{expectedVersion:w.version+3}),code:'REVISION_CONFLICT',status:409},
    {name:'foreign revision id',prepare:()=>world(),call:w=>decide(reviewer,w,{revisionId:randomUUID()}),code:'REVISION_CONFLICT',status:409},
+   {name:'revision of another document of the same project',prepare:async()=>{sibling=(await world()).revisionId;return world();},call:w=>decide(reviewer,w,{revisionId:sibling}),code:'REVISION_CONFLICT',status:409},
    {name:'no authority',prepare:()=>world(),call:w=>decide(member,w),code:'APPROVER_NOT_AUTHORIZED',status:403},
    {name:'author',prepare:()=>world({author:reviewer}),call:w=>decide(reviewer,w),code:'APPROVER_NOT_AUTHORIZED',status:403},
    {name:'delegate approves',prepare:()=>world(),call:w=>decide(reviewer,w,{result:'approved'}),code:'APPROVER_NOT_AUTHORIZED',status:403},

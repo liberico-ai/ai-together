@@ -52,6 +52,9 @@ describe('document approval on the team screen', () => {
       expect(boxes, project.id).toEqual([...DOC_APPROVAL_TYPES]);
     }
     for (const type of DOC_APPROVAL_TYPES) expect(html).toContain('>' + TYPE_NAMES[type] + '</label>');
+    // each nested group is named after its project, as text, so a screen reader can tell which project a box grants
+    const legends = [...html.matchAll(/<legend>(Duyệt bản chuẩn theo loại tài liệu[^<]*)<\/legend>/g)].map(m => m[1]);
+    expect(legends).toEqual(projects.map(p => 'Duyệt bản chuẩn theo loại tài liệu — ' + p.name));
     // the three old permissions are still there beside them
     for (const key of Object.keys(PERMISSION_LABELS)) expect(html).toContain('value="' + key + '"');
     // the plain Grants (the registration form, the proposal that has no account yet) has none of it
@@ -93,9 +96,27 @@ describe('document approval on the team screen', () => {
     const narrow = renderToStaticMarkup(<AccessActions expands={expandsAccess(have, afterUntick)} busy={false} />);
     expect(narrow).toContain('>Lưu quyền<');
     expect(narrow).not.toContain('Trình phiếu đổi quyền');
-    // a code on another project is another widening
+    // a box ticked on a project where no role is chosen is not a grant at all: readGrants skips that project
     const other = readGrants(retick(submitted(accountForm(have)), 'p-transport-report', design, true), projects);
-    expect(other).toEqual(held([design, plan])); // no role chosen for that project: it is not a grant at all
+    expect(other).toEqual(held([design, plan]));
+  });
+
+  it('codes held on two projects round-trip untouched, and a code ticked on a second project that has a role is a widening', () => {
+    const both: ProjectGrant[] = [
+      { projectId: 'p-sales', role: 'engineer', reportPermissions: [design] as ProjectGrant['reportPermissions'] },
+      { projectId: 'p-transport', role: 'manager', reportPermissions: [plan, 'people_read'] as ProjectGrant['reportPermissions'] }];
+    const form = submitted(accountForm(both));
+    const same = readGrants(form, projects);
+    expect(sorted(same)).toEqual(sorted(both));
+    expect(expandsAccess(both, same)).toBe(false);
+    // ticking another type on the second project keeps both sets and is a widening
+    const added = readGrants(retick(form, 'p-transport-report', design, true), projects);
+    expect(sorted(added)).toEqual(sorted([both[0], { ...both[1], reportPermissions: [plan, 'people_read', design] as ProjectGrant['reportPermissions'] }]));
+    expect(expandsAccess(both, added)).toBe(true);
+    // unticking on one project leaves the other untouched
+    const dropped = readGrants(retick(form, 'p-sales-report', design, false), projects);
+    expect(sorted(dropped)).toEqual(sorted([{ ...both[0], reportPermissions: [] }, both[1]]));
+    expect(expandsAccess(both, dropped)).toBe(false);
   });
 
   it('saving an unrelated change keeps the document approval codes an account already holds', () => {

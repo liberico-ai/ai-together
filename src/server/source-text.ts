@@ -38,7 +38,8 @@ export const latestRevisionCte=(chats:string)=>
   FROM intake_candidates c JOIN source_events e ON e.id=c.root_source_event_id JOIN source_event_revisions r ON r.source_event_id=e.id
   WHERE c.project_id=$1 ORDER BY c.id, ${LATEST_REVISION_ORDER}`;
 
-/** «Cùng nội dung» hint as before: equal stored hash inside the project, compared in SQL; the hash itself is not returned. */
+/** «Cùng nội dung» hint as before: equal stored hash inside the project, compared in SQL; the hash itself is not returned.
+ * Relies on the caller's aliases: `lat` (latest revisions), `l` (the current row of `lat`) and `c` (the candidate row). */
 export const DUPLICATE_HINT_SQL=`(SELECT coalesce(json_agg(l2.cid ORDER BY l2.cid),'[]'::json) FROM lat l2 WHERE l2.match_hash=l.match_hash AND l2.cid<>c.id)`;
 
 export type VisibleRevision={revisionNo:number;editedAt:string|null;displayMode:DisplayMode;text:string|null;contentHash:string|null;textTruncated:boolean;recordedAt:string};

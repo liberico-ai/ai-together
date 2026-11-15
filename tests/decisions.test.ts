@@ -5,7 +5,7 @@ import {openHarness,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
 import {approver,beforeStatement,delegate,frozenRevision,grantDocApproval,proposeRev,registerDoc,reviewer,seedBom,seedMembers,transportApprover} from './slice3-fixtures';
 import {BomService} from '../src/server/bom';
-import {DecisionService,reassignmentState,type DecisionCard,type ReassignmentCard,type ReviewCard} from '../src/server/decisions';
+import {DecisionService,reassignmentCard,reassignmentState,type DecisionCard,type ReassignmentCard,type ReviewCard} from '../src/server/decisions';
 import {ReviewService} from '../src/server/document-review';
 import {DocumentService} from '../src/server/documents';
 import {ids} from '../src/server/identities';
@@ -89,13 +89,36 @@ describe('reassignment cards',()=>{
   expect(typeof card.appliedReceipt!.at).toBe('string');
  });
 
+ test('EXPIRED wins over ALREADY_VOTED: a seat that voted and looks at an expired proposal reads EXPIRED',async()=>{
+  const s=await seedBom(h);
+  const bom=new BomService(h.db);
+  const id=(await propose(bom,s)).proposal.id;
+  const voter=s.roster[0];
+  await agree(bom,id,voter);
+  expect(reassignments(await list(voter))[0].actorEligibility).toEqual({canVote:false,reason:'ALREADY_VOTED'});
+  await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '2 days',expires_at=now()-interval '1 second' WHERE id=$1",[id]);
+  const card=reassignments(await list(voter))[0];
+  expect(card.votes.map(v=>v.actorId)).toContain(voter.id);
+  expect(card.actorEligibility).toEqual({canVote:false,reason:'EXPIRED'});
+ });
+
+ test('reassignmentCard reads the viewer id in one normalised form: an upper-case id still holds its seat and its vote',()=>{
+  const seat=randomUUID(),other=randomUUID(),at='2026-11-15T00:00:00.000Z';
+  const card=(votes:{voter_id:string}[])=>({proposal:{id:randomUUID(),project_id:ids.sales,work_id:randomUUID(),work_version:1,state:'pending',reason:'Lý do',seat_ids:[seat,other],
+   expires_at:new Date(Date.now()+3600e3).toISOString()},votes:votes.map(v=>({...v,choice:'agree',note:'',created_at:at})),receipt:null,
+   work:{id:randomUUID(),code:'STT-1',title:'Việc',version:1}}) as unknown as Parameters<typeof reassignmentCard>[1];
+  const viewerUpper={...pm,id:seat.toUpperCase()};
+  expect(reassignmentCard(viewerUpper,card([]),Date.now()).actorEligibility).toEqual({canVote:true,reason:null});
+  expect(reassignmentCard(viewerUpper,card([{voter_id:seat}]),Date.now()).actorEligibility).toEqual({canVote:false,reason:'ALREADY_VOTED'});
+  expect(reassignmentCard({...pm,id:randomUUID()},card([]),Date.now()).actorEligibility).toEqual({canVote:false,reason:null});
+ });
+
  test('a card explains why the viewer cannot act: closed, expired, already voted',async()=>{
   const s=await seedBom(h);
   const bom=new BomService(h.db);
   const id=(await propose(bom,s)).proposal.id;
-  await h.operator.query("UPDATE bom_proposals SET expires_at=now()-interval '1 second' WHERE id=$1",[id]).catch(async()=>{
-   await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '2 days',expires_at=now()-interval '1 second' WHERE id=$1",[id]);
-  });
+  // created_at moves back with expires_at: a proposal cannot expire before it was created
+  await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '2 days',expires_at=now()-interval '1 second' WHERE id=$1",[id]);
   expect(reassignments(await list(pm))[0].actorEligibility).toEqual({canVote:false,reason:'EXPIRED'});
   const id2=(await rows<{id:string}>('SELECT id FROM bom_proposals'))[0].id;
   await h.operator.query("UPDATE bom_proposals SET state='rejected',finished_at=now() WHERE id=$1",[id2]);
@@ -115,6 +138,23 @@ describe('reassignment cards',()=>{
    expect(reviews(cards)[0].revision.id).toBe(w.revisionId);
    expect(JSON.stringify(cards)).not.toMatch(/reassignment|STT-5|Hermes/);
   }
+ });
+
+ test('pending fails closed when the work row of a proposal is not returned, and answers a malformed project id as not found',async()=>{
+  // a proposal cannot outlive its work row (composite foreign key), so a missing row is an inconsistency, never a card to leave out
+  const s=await seedBom(h);
+  const bom=new BomService(h.db);
+  await propose(bom,s);
+  const hide=(q:{query:Function}) =>({query:(sql:string,params?:unknown[])=>/FROM work_items WHERE id=ANY/.test(sql)?Promise.resolve({rows:[],rowCount:0}):q.query(sql,params)});
+  const hiding={...hide(h.db),transaction:(fn:Function)=>h.db.transaction(tx=>fn(hide(tx))),close:()=>h.db.close()} as unknown as typeof h.db;
+  await refused(new BomService(hiding).pending(pm,ids.sales),'BOM_INCONSISTENT',500);
+  await refused(new DecisionService(hiding).list(pm,{projectId:ids.sales}),'BOM_INCONSISTENT',500);
+  // control: the same call without the hiding returns the card
+  expect(await bom.pending(pm,ids.sales)).toHaveLength(1);
+  // a project id that is not a uuid is the same 404 assertSeat gives, before any query
+  const e=await refused(bom.pending(pm,'not-a-uuid'),'SCOPE_DENIED',404);
+  expect(e.message).toBe('Không tìm thấy hồ sơ BoM trong phạm vi được cấp.');
+  await refused(bom.pending(pm,''),'SCOPE_DENIED',404);
  });
 
  test('pending answers a non-seat and an unlinked seat as read() does, and writes nothing',async()=>{

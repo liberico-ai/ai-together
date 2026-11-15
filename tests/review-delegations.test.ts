@@ -199,6 +199,8 @@ describe('designating a commenter',()=>{
   const body=src.slice(start,end);
   expect(body).toMatch(/INSERT INTO review_delegations/);
   expect(body).not.toMatch(/\b(from|join)\s+(?:"?[a-z_]+"?\s*\.\s*)?"?review_delegations\b/i);
+  // and the table is named nowhere else in grant: not as a later item of a FROM list (`FROM a, review_delegations`), not after ONLY, not in a subquery
+  expect(body.replace(/INSERT INTO review_delegations\b/,'')).not.toMatch(/review_delegations/i);
   expect((await rows('SELECT 1 FROM pg_indexes WHERE indexname=$1',['uq_review_delegations_active'])).length).toBe(1);
   await grant(pm,G());
   await refused(grant(pm2,G({docTypes:['plan']})),'DELEGATION_EXISTS',409);
