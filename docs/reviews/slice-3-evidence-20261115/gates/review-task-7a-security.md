@@ -140,3 +140,40 @@ None of the findings is exploitable. M1 is a gap in test teeth. M2 and M4 follow
 - `canDesignate` is also the right to revoke.
 - The UI must not offer «approve» for a designation.
 - The UI should show that a commenter's «changes requested» uses the revision's only decision slot (schema notes).
+
+## Re-review of fix round 1 (ca45c3f)
+
+Scope: the diff `.superpowers/sdd/slice-3-review-skills/review-7a-fix1-5c8cc3c..ca45c3f.diff` and the «Fix round 1» section of the implementer's report. `git diff --stat 828158a ca45c3f -- src migrations bot-plugin` is empty: only tests and logs changed. No test was run. Line numbers below refer to the hunks in the diff file.
+
+### Verdict per item
+
+- **F-1 (M1): ADDRESSED.**
+  - F-1a (diff `:142-149`): the database demotes the caller to `engineer` while the session still says `manager`. Designating themself must get `SCOPE_DENIED` 404 with the exact not-found text. A second call, designating a non-member, must also get 404. Without the service's own re-read, these calls would reach the self check and the delegate check and answer `DELEGATION_INVALID`. So the case can tell whether the re-read is there.
+  - F-1b (diff `:150-157`): a demoted caller sends `expectedVersion` 99 and must get 404. Without the re-read, the UPDATE matches 0 rows, the trigger never runs, and the answer would be `DELEGATION_CONFLICT`. So this case also tells.
+  - Both cases compare the full `snap()` (all delegation columns, events, commands, decisions, comments) before and after.
+- **F-2: ADDRESSED.** Diff `:108-120`: every refusal now asserts `{code,status}` (422, 422, 409, 403, 404, 400), with the snapshot checked after each one.
+- **F-3: ADDRESSED.**
+  - New behavioural case at diff `:179-191`. It probes the approvers from `document_approvers`, every membership's `report_permissions` and `project_role`, the count of `identity.account_approvals`, the `version`, `approved_revision_id` and `latest_revision_id` of every `document_records` row, and the count of `review_decisions`. The probe is taken before, after a grant of three types, and after the revoke, and must be identical each time.
+  - `identity.account_approvals` is the right table: it is the access-change ballot table (`migrations/018_access_change_approval.sql:1,12`).
+  - The report maps each grep case to the property it guards and to its behavioural backing:
+    - «uniqueness by the index»: backed by `DELEGATION_EXISTS` and the native concurrency test.
+    - «no path to approval»: backed by the new F-3 case.
+    - «stamped columns not written»: backed by the version going up by exactly 1 and the stamps the trigger owns.
+  - Small gap, no finding: the probe counts ballots but not `identity.account_approval_votes`. This service has no voting code, so the gap does not matter.
+- **Mutation evidence: SUPPORTED** (`task-07a-fix1-mutation.txt`).
+  - **m1 and m2:** each makes exactly one case fail, «1 failed | 27 passed». The failure messages show the answer the re-read prevents: «Không tự chỉ định chính mình.» for m1, and the `DELEGATION_CONFLICT` text for m2.
+  - **m3:** three cases fail, each with the raw `new row for relation "review_deleg…"` CHECK error.
+  - **m4:** one case fails, also with a raw CHECK error.
+  - This shows the database still refuses a self-designation (`review_delegations_no_self_grant`) and an empty type list (`review_delegations_doc_types_check`) when the service check is removed. The statement aborts and the transaction rolls back, so nothing is stored.
+  - It also shows why the service checks still matter: the raw error text names the relation, and the HTTP layer must never show it (see the notes for Task 15).
+  - The log truncates the constraint names, so which constraint fired is inferred from the mutation, not read from the log.
+  - The log does not reach the snapshot assertions, because the code assertion fails first. That nothing is stored under m3 and m4 therefore follows from PostgreSQL's statement-abort behaviour, not from the log.
+
+### New breakage in the fix diff
+None.
+
+### Out-of-scope observations
+None new. M2–M6 and Q1–Q4 from the first review stay as recorded. No secrets, absolute paths or personal data are in the new logs or tests.
+
+### Round verdict
+**All items addressed, no new Critical/Important breakage.**
