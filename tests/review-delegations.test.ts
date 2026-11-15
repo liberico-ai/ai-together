@@ -609,3 +609,70 @@ describe('W9 the delegation list says when it was cut',()=>{
   expect(l.reviewersTruncated).toBe(true);
  },60000);
 });
+
+describe('Codex round 3 (P2): «in effect» is decided in the SQL, before the limit',()=>{
+ /** Dormant rows of other people: not revoked, delegate unknown to the project (no membership), fixed ids that sort below every real user id. Operator login, as in F-3. */
+ const dormantBulk=(count:number)=>h.operator.query(`INSERT INTO review_delegations(tenant_id,project_id,delegate_id,doc_types,granted_by,basis)
+  SELECT $1,$2,('00000000-0000-4000-8000-'||lpad(g::text,12,'0'))::uuid,ARRAY['plan'],$3,'Chỉ định ngủ hàng loạt mẫu' FROM generate_series(1,${count}) g`,[ids.tenant,ids.sales,pm.id]);
+ test('G-1 (A, C) a reader sees the one row in effect behind 1001 dormant rows of other people; the cut flag does not count hidden rows',async()=>{
+  expect(reviewer.id>'00000000-0000-4000-8000-000000001100').toBe(true);                // the live delegate sorts after every dormant one: the order is certain, not lucky
+  await dormantBulk(1100);
+  const live=await delegate(h,ids.sales,reviewer.id);
+  const l=await svc().list(member,{projectId:ids.sales});
+  expect(l.reviewers.map(x=>x.id)).toEqual([live]);
+  expect(l.reviewers[0]).toMatchObject({delegateId:reviewer.id,docTypes:['design'],basis:null,grantedBy:null,dormant:null});
+  expect(l.reviewersTruncated).toBe(false);
+  const c=await svc().list(pm,{projectId:ids.sales});                                  // the coordinator's view is not touched: it still labels the dormant rows
+  expect(c.reviewers.filter(x=>x.dormant===true).length).toBeGreaterThan(0);
+ },120000);
+ test('G-2 (C) with more than 200 rows in effect the flag is true and exactly 200 rows come back, even behind 1001 dormant rows',async()=>{
+  await dormantBulk(1100);
+  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) SELECT ('1500abcd-0000-4000-8000-'||lpad(g::text,12,'0'))::uuid,$1,'live-'||g,'Thành viên hàng loạt','engineer','fixture-only' FROM generate_series(1,205) g`,[ids.tenant]);
+  await h.operator.query(`INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) SELECT $1,id,$2,'engineer' FROM identity.users WHERE username LIKE 'live-%'`,[ids.tenant,ids.sales]);
+  await h.operator.query(`INSERT INTO review_delegations(tenant_id,project_id,delegate_id,doc_types,granted_by,basis) SELECT $1,$2,id,ARRAY['design'],$3,'Chỉ định hàng loạt mẫu' FROM identity.users WHERE username LIKE 'live-%'`,[ids.tenant,ids.sales,pm.id]);
+  const l=await svc().list(member,{projectId:ids.sales});
+  expect(l.reviewers).toHaveLength(200);
+  expect(l.reviewersTruncated).toBe(true);
+  for(const r of l.reviewers) expect(r).toMatchObject({docTypes:['design'],basis:null,revokedAt:null});
+ },120000);
+ test('G-3 (B) a delegate whose role is now viewer, and one whose account is inactive, never reach a reader; both reach a coordinator labelled dormant',async()=>{
+  const toViewer=await delegate(h,ids.sales,approver.id);await setDbRole(approver.id,ids.sales,'viewer');
+  const inactive=await delegate(h,ids.sales,disabled.id);
+  const live=await delegate(h,ids.sales,reviewer.id);
+  const l=await svc().list(member,{projectId:ids.sales});
+  expect(l.reviewers.map(x=>x.id)).toEqual([live]);
+  const c=await svc().list(pm,{projectId:ids.sales});
+  expect(c.reviewers.find(x=>x.id===toViewer)).toMatchObject({dormant:true});
+  expect(c.reviewers.find(x=>x.id===inactive)).toMatchObject({dormant:true});
+  expect(c.reviewers.find(x=>x.id===live)).toMatchObject({dormant:false});
+ });
+ test('G-6 (B) 1001 delegates who are still active members but now viewers do not hide the one row in effect',async()=>{
+  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash,active) SELECT ('0000abcd-0000-4000-8000-'||lpad(g::text,12,'0'))::uuid,$1,'dorm-'||g,'Thành viên hàng loạt','viewer','fixture-only',true FROM generate_series(1,1100) g`,[ids.tenant]);
+  await h.operator.query(`INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) SELECT $1,id,$2,'viewer' FROM identity.users WHERE username LIKE 'dorm-%'`,[ids.tenant,ids.sales]);
+  await h.operator.query(`INSERT INTO review_delegations(tenant_id,project_id,delegate_id,doc_types,granted_by,basis) SELECT $1,$2,id,ARRAY['plan'],$3,'Chỉ định ngủ hàng loạt mẫu' FROM identity.users WHERE username LIKE 'dorm-%'`,[ids.tenant,ids.sales,pm.id]);
+  const live=await delegate(h,ids.sales,reviewer.id);
+  const l=await svc().list(member,{projectId:ids.sales});
+  expect(l.reviewers.map(x=>x.id)).toEqual([live]);
+  expect(l.reviewersTruncated).toBe(false);
+ },120000);
+ test('G-4 a delegate in effect with any one of the four reading roles reaches a reader',async()=>{
+  const want=await Promise.all([member,business2,technical2,pm2].map(async p=>[p.id,await delegate(h,ids.sales,p.id)] as const));
+  const l=await svc().list(reviewer,{projectId:ids.sales});
+  expect(l.reviewers.map(x=>x.delegateId).sort()).toEqual(want.map(w=>w[0]).sort());
+  expect(l.reviewersTruncated).toBe(false);
+ });
+ test('G-5 (D) a reader\'s own rows come back in every state and first, ahead of other people\'s rows in effect',async()=>{
+  const old=(await h.operator.query<{id:string}>(`INSERT INTO review_delegations(tenant_id,project_id,delegate_id,doc_types,granted_by,basis,created_at)
+   VALUES($1,$2,$3,ARRAY['design'],$4,'Chỉ định mẫu cho bản thử',now()-interval '1 day') RETURNING id`,[ids.tenant,ids.sales,member.id,pm.id])).rows[0].id;       // older on purpose: a clock tie must not decide the order
+  await revokeDelegation(h,old);
+  const mine=await delegate(h,ids.sales,member.id,['plan']);
+  await delegate(h,ids.sales,reviewer.id);
+  await dormantBulk(1100);
+  const l=await svc().list(member,{projectId:ids.sales});
+  expect(l.reviewers.map(x=>x.id).slice(0,2).sort()).toEqual([old,mine].sort());
+  expect(l.reviewers[0].id).toBe(mine);                                                 // newest own row first
+  expect(l.reviewers).toHaveLength(3);
+  expect(l.reviewers.find(x=>x.id===old)).toMatchObject({revokeBasis:'Thu hồi mẫu'});
+  expect(l.reviewers.find(x=>x.id===mine)).toMatchObject({basis:'Chỉ định mẫu cho bản thử'});
+ },120000);
+});

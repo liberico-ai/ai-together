@@ -1,0 +1,18 @@
+== m1: eligibility sub-select removed; 'revoked_at IS NULL' alone ($3 kept referenced so the failure is the behaviour, not a parameter error)
+ FAIL  tests/review-delegations.test.ts G-1 (A, C) a reader sees the one row in effect behind 1001 dormant rows of other
+ FAIL  tests/review-delegations.test.ts G-2 (C) with more than 200 rows in effect the flag is true and exactly 200 rows 
+ FAIL  tests/review-delegations.test.ts G-5 (D) a reader's own rows come back in every state and first, ahead of other p
+      Tests  3 failed | 2 passed | 40 skipped (45)
+== m2: role list also contains viewer
+      Tests  5 passed | 40 skipped (45)
+== m3: literal list omitting business (parameter still bound, unused by the filter)
+ FAIL  tests/review-delegations.test.ts G-4 a delegate in effect with any one of the four reading roles reaches a reader
+      Tests  1 failed | 4 passed | 40 skipped (45)
+== m2 (rerun after adding G-6): role list also contains viewer
+      Tests  6 passed | 40 skipped (46)
+== m2 (final, with G-6 holding 1100 active viewer-role delegates): role list also contains viewer
+ FAIL  tests/review-delegations.test.ts G-6 (B) 1001 delegates who are still active members but now viewers do not hide 
+      Tests  1 failed | 5 passed | 40 skipped (46)
+
+Notes: the first m2 run (before G-6 existed) stayed green because the JS «dormant» check hides viewers anyway; G-6 (1100 active viewer-role delegates behind which the live row hides) was added and m2 then went red.
+m1 and m3 were run before G-5 was made clock-independent (its fixture changed afterwards, its assertions did not). Every mutation was reverted; the source equals the fixed version.

@@ -108,9 +108,11 @@ export class DelegationService {
       // coordinator: every row, live first, newest first. Others: own rows first (newest first), then other people's rows in effect by delegate id (the order tells nothing about when).
       const rows = (await tx.query<Row>(isCoordinator
         ? `SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 ORDER BY (revoked_at IS NOT NULL), created_at DESC, id LIMIT 1001`
-        : `SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 AND (delegate_id = $2::uuid OR revoked_at IS NULL)
+        // «in effect» is decided here, before the limit: another person's row is fetched only when not revoked and its delegate holds a reading role now (one call of the reader over all candidates, not one per row)
+        : `SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 AND (delegate_id = $2::uuid OR (revoked_at IS NULL AND delegate_id IN
+             (SELECT e.user_id FROM public.bom_eligible_members($1::uuid, ARRAY(SELECT DISTINCT d.delegate_id FROM review_delegations d WHERE d.project_id=$1::uuid AND d.revoked_at IS NULL)) e WHERE e.project_role = ANY($3::text[]))))
            ORDER BY (delegate_id <> $2::uuid), (CASE WHEN delegate_id = $2::uuid THEN created_at END) DESC, delegate_id, id LIMIT 1001`,
-        isCoordinator ? [q.projectId] : [q.projectId, me])).rows;
+        isCoordinator ? [q.projectId] : [q.projectId, me, [...READ_ROLES]])).rows;
       const fetchedCut = wasCut({ fetched: rows.length, cap: 1000 });
       rows.length = Math.min(rows.length, 1000);
       const people = [...new Set(rows.flatMap(r => [r.delegate_id, r.granted_by]))];

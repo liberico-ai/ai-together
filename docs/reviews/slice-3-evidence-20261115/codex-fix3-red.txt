@@ -1,0 +1,71 @@
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/review-delegations.test.ts (45 tests | 3 failed | 40 skipped) 2644ms
+   ❯ Codex round 3 (P2): «in effect» is decided in the SQL, before the limit (5)
+     × G-1 (A, C) a reader sees the one row in effect behind 1001 dormant rows of other people; the cut flag does not count hidden rows 667ms
+     × G-2 (C) with more than 200 rows in effect the flag is true and exactly 200 rows come back, even behind 1001 dormant rows 551ms
+     × G-5 (D) a reader's own rows come back in every state and first, ahead of other people's rows in effect 497ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-1 (A, C) a reader sees the one row in effect behind 1001 dormant rows of other people; the cut flag does not count hidden rows
+AssertionError: expected [] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+- [
+-   "c67317be-49ca-4e6f-a56f-89b1005a8712",
+- ]
++ []
+
+ ❯ tests/review-delegations.test.ts:622:36
+    620|   const live=await delegate(h,ids.sales,reviewer.id);
+    621|   const l=await svc().list(member,{projectId:ids.sales});
+    622|   expect(l.reviewers.map(x=>x.id)).toEqual([live]);
+       |                                    ^
+    623|   expect(l.reviewers[0]).toMatchObject({delegateId:reviewer.id,docType…
+    624|   expect(l.reviewersTruncated).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-2 (C) with more than 200 rows in effect the flag is true and exactly 200 rows come back, even behind 1001 dormant rows
+AssertionError: expected [] to have a length of 200 but got +0
+
+- Expected
++ Received
+
+- 200
++ 0
+
+ ❯ tests/review-delegations.test.ts:634:23
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/review-delegations.test.ts > Codex round 3 (P2): «in effect» is decided in the SQL, before the limit > G-5 (D) a reader's own rows come back in every state and first, ahead of other people's rows in effect
+AssertionError: expected [ { …(13) }, { …(13) } ] to have a length of 3 but got 2
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ tests/review-delegations.test.ts:663:23
+    661|   expect(l.reviewers.map(x=>x.id).slice(0,2).sort()).toEqual([old,mine…
+    662|   expect(l.reviewers[0].id).toBe(mine);                               …
+    663|   expect(l.reviewers).toHaveLength(3);
+       |                       ^
+    664|   expect(l.reviewers.find(x=>x.id===old)).toMatchObject({revokeBasis:'…
+    665|   expect(l.reviewers.find(x=>x.id===mine)).toMatchObject({basis:'Chỉ đ…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 2 passed | 40 skipped (45)
+   Start at  04:52:39
+   Duration  2.80s (tests 96%, import 2%, transform 2%)
+
