@@ -1,0 +1,61 @@
+MUTATION 1: end-to-end case with the apply step skipped (line 'await apply(grants("engineer",design));' removed)
+ RUN  v5.1.0 <worktree>
+ ❯ tests/doc-approver-flow.test.ts (7 tests | 1 failed | 6 skipped) 675ms
+   × end to end: proposed by the admin, approved by one BoM, applied by the admin, and only then the member approves a frozen design revision 674ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/doc-approver-flow.test.ts > end to end: proposed by the admin, approved by one BoM, applied by the admin, and only then the member approves a frozen design revision
+AssertionError: expected [ { …(3) } ] to deeply equal [ { …(3) } ]
+- Expected
++ Received
+  [
+    {
+      "project_id": "11000000-0000-4000-8000-000000000001",
+      "project_role": "engineer",
+-     "report_permissions": [
+-       "doc_approve:design",
+-     ],
++     "report_permissions": [],
+    },
+  ]
+ ❯ tests/doc-approver-flow.test.ts:88:30
+     86|  await untouched(doc);
+     87|  // applied by the admin: now the member can approve, and the pointer …
+     88|  expect(await memberships()).toEqual([{project_id:ids.sales,project_ro…
+       |                              ^
+     89|  expect((await review.queue(person,{projectId:ids.sales})).items[0]).t…
+     90|  const detail=await decide(person,doc);
+
+MUTATION 2: Grants draws only the three old permissions (doc approval boxes not rendered) -- the S84 silent reduction
+ RUN  v5.1.0 <worktree>
+ ❯ tests/doc-approver-ui.test.tsx (7 tests | 3 failed) 24ms
+   ❯ document approval on the team screen (3)
+     × the team form offers document approval per type only for existing accounts, never in the registration form 8ms
+     × ticking a document type is a widening and offers Trình phiếu đổi quyền; unticking offers Lưu quyền 9ms
+     × saving an unrelated change keeps the document approval codes an account already holds 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/doc-approver-ui.test.tsx > document approval on the team screen > the team form offers document approval per type only for existing accounts, never in the registration form
+AssertionError: expected '<fieldset><legend>Phạm vi dự án</lege…' to contain 'Duyệt bản chuẩn theo loại tài liệu'
+Expected: "Duyệt bản chuẩn theo loại tài liệu"
+Received: "<fieldset><legend>Phạm vi dự án</legend><div class="team-grant"><label>Dự án Bán hàng<select name="p-sales"><option value="" selected="">Chưa cấp</option><option value="viewer">Chỉ đọc</option><option value="engineer">Thực hiện</option><option value="manager">Điều phối</option><option value="technical">Nghiệm thu kỹ thuật</option><option value="business">Nghiệm thu nghiệp vụ</option></select></label><label class="team-check"><input type="checkbox" name="p-sales-report" value="people_read"/>Xem điểm nhân sự</label><label class="team-check"><input type="checkbox" name="p-sales-report" value="quality_review"/>Đánh giá phản hồi</label><label class="team-check"><input type="checkbox" name="p-sales-report" value="report_approve"/>Chốt kết quả</label></div><div class="team-grant"><label>Dự án Vận tải<select name="p-transport"><option value="" selected="">Chưa cấp</option><option value="viewer">Chỉ đọc</option><option value="engineer">Thực hiện</option><option value="manager">Điều phối</option><option value="technical">Nghiệm thu kỹ thuật</option><option value="business">Nghiệm thu nghiệp vụ</option></select></label><label class="team-check"><input type="checkbox" name="p-transport-report" value="people_read"/>Xem điểm nhân sự</label><label class="team-check"><input type="checkbox" name="p-transport-report" value="quality_review"/>Đánh giá phản hồi</label><label class="team-check"><input type="checkbox" name="p-transport-report" value="report_approve"/>Chốt kết quả</label></div></fieldset>"
+ ❯ tests/doc-approver-ui.test.tsx:49:18
+     47|   it('the team form offers document approval per type only for existin…
+     48|     const html = accountForm([]);
+     49|     expect(html).toContain('Duyệt bản chuẩn theo loại tài liệu');
+       |                  ^
+     50|     for (const project of projects) {
+     51|       const boxes = [...html.matchAll(new RegExp('<input[^>]*type="che…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+ FAIL  tests/doc-approver-ui.test.tsx > document approval on the team screen > ticking a document type is a widening and offers Trình phiếu đổi quyền; unticking offers Lưu quyền
+AssertionError: expected [ { projectId: 'p-sales', …(2) } ] to deeply equal [ { projectId: 'p-sales', …(2) } ]
+- Expected
++ Received
+  [
+    {
+      "projectId": "p-sales",
+-     "reportPermissions": [
+-       "doc_approve:plan",
+-     ],
++     "reportPermissions": [],
+
+REVERTED: both files restored; diff against backups:
+identical

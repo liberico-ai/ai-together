@@ -1,13 +1,22 @@
 'use client';
 import {useState} from 'react';
 import {api} from './api';
+import {docApprovalTypes} from '../server/access-grants';
 import {permissionLabel,roleLabel} from './grant-labels';
+import {TYPE_NAMES} from './documents-view';
 
 type Grant={name:string;role:string;reportPermissions:string[]};
 export type Pending={id:string;kind?:'registration'|'access_change';name:string;username:string;project_interest:string|null;reason:string;
   grant_details:Grant[];previous_grant_details?:Grant[]|null;expires_at:string};
+/** Two groups: the report permissions (and any code this screen does not know, shown as itself) and, apart, the document types the person may approve. */
+const permissionText=(permissions:string[]|undefined)=>{
+ const all=permissions??[],docTypes=docApprovalTypes(all);
+ const report=all.filter(p=>docApprovalTypes([p]).length===0).map(permissionLabel).join(', ');
+ const approve=docTypes.map(t=>TYPE_NAMES[t]).join(', ');
+ return (report?', quyền báo cáo: '+report:'')+(approve?(report?' · ':', ')+'duyệt bản chuẩn: '+approve:'');
+};
 const grantText=(grants:Grant[]|null|undefined,empty:string)=>grants?.length?grants.map(g=>
-  `${g.name} (${roleLabel(g.role)}${g.reportPermissions?.length?', quyền báo cáo: '+g.reportPermissions.map(permissionLabel).join(', '):''})`).join('; '):empty;
+  `${g.name} (${roleLabel(g.role)}${permissionText(g.reportPermissions)})`).join('; '):empty;
 
 /** A ballot shows what it is. An access change names the account and puts the frozen current grants next to the proposed ones, so a voter never approves a widening they cannot see. */
 export function ApprovalItem({item,busy,onVote}:{item:Pending;busy:boolean;onVote:(id:string,choice:'agree'|'reject')=>void|Promise<void>}) {

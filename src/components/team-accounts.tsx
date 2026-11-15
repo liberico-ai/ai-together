@@ -1,9 +1,10 @@
 'use client';
 import { useState,type FormEvent } from 'react';
 import { api } from './api';
-import type { Project,ProjectGrant,ReportPermission } from '@/server/types';
-import { widensAccess } from '../server/access-grants';
+import type { GrantPermission,Project,ProjectGrant,ReportPermission } from '@/server/types';
+import { DOC_APPROVAL_TYPES,docApprovalCode,widensAccess } from '../server/access-grants';
 import { PERMISSION_LABELS,ROLE_LABELS } from './grant-labels';
+import { TYPE_NAMES } from './documents-view';
 
 type Account={id:string;username:string;name:string;active:boolean;activated:boolean;version:number;grants:ProjectGrant[];githubId:string|null};
 type Result={invitation?:{token:string;expiresInHours:number};pendingTelegramApproval?:boolean;approvalId?:string};
@@ -11,7 +12,9 @@ type RegistrationRequest={id:string;username:string;name:string;project_interest
   approval_id:string|null;approval_state:string|null;approval_agreed:number;chairman_agreed:boolean;bom_agreed:number;approval_grants:ProjectGrant[]|null};
 const roles=ROLE_LABELS,permissions=PERMISSION_LABELS;
 
-function Grants({projects,initial=[]}:{projects:Project[];initial?:ProjectGrant[]}) {
+/** `withDocApproval` draws the eight per-type approval boxes, ticked from the account's current grants. Only the form of an account that already exists
+ * turns it on: a registration cannot carry the right, and nobody ticks it for themselves here. */
+export function Grants({projects,initial=[],withDocApproval=false}:{projects:Project[];initial?:ProjectGrant[];withDocApproval?:boolean}) {
   return <fieldset><legend>Phạm vi dự án</legend>{projects.map(project=>{
     const previous=initial.find(grant=>grant.projectId===project.id);
     return <div className="team-grant" key={project.id}>
@@ -22,6 +25,11 @@ function Grants({projects,initial=[]}:{projects:Project[];initial?:ProjectGrant[
       {Object.entries(permissions).map(([key,label])=><label key={key} className="team-check">
         <input type="checkbox" name={project.id+'-report'} value={key} defaultChecked={previous?.reportPermissions.includes(key as ReportPermission)}/>{label}
       </label>)}
+      {withDocApproval&&<fieldset className="team-doc-approval"><legend>Duyệt bản chuẩn theo loại tài liệu</legend>
+        {DOC_APPROVAL_TYPES.map(type=><label key={type} className="team-check">
+          <input type="checkbox" name={project.id+'-report'} value={docApprovalCode(type)} defaultChecked={previous?.reportPermissions.includes(docApprovalCode(type))}/>{TYPE_NAMES[type]}
+        </label>)}
+      </fieldset>}
     </div>;
   })}</fieldset>;
 }
@@ -37,10 +45,11 @@ export function AccessActions({expands,busy}:{expands:boolean;busy:boolean}) {
   </>:<button type="submit" className="primary" disabled={busy} value="access">Lưu quyền</button>;
 }
 
-function readGrants(form:FormData,projects:Project[]):ProjectGrant[] {
+/** Every checked box of a project, old report permissions and doc_approve codes alike (they share the field name). */
+export function readGrants(form:FormData,projects:Project[]):ProjectGrant[] {
   return projects.flatMap(({id})=>{
     const role=form.get(id) as ProjectGrant['role']|'';
-    return role?[{projectId:id,role,reportPermissions:form.getAll(id+'-report') as ReportPermission[]}]:[];
+    return role?[{projectId:id,role,reportPermissions:form.getAll(id+'-report') as GrantPermission[]}]:[];
   });
 }
 
@@ -123,7 +132,7 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
         {user?<form key={user.id+':'+user.version} className="action-form" onSubmit={event=>submit(event,false)}
           onChange={event=>setExpands(expandsAccess(user.grants,readGrants(new FormData(event.currentTarget),projects)))}>
           <p>{!user.active?'Đã khóa':user.activated?'Đang hoạt động':'Chờ kích hoạt'}</p>
-          <Grants projects={projects} initial={user.grants}/>
+          <Grants projects={projects} initial={user.grants} withDocApproval/>
           {user.active&&user.activated&&<details><summary>Xác minh tài khoản GitHub</summary>
             <label>ID GitHub bất biến<input name="githubId" inputMode="numeric" defaultValue={user.githubId??''}/></label>
             <label>Đường dẫn căn cứ đã kiểm<input name="sourceId" type="url"/></label>
