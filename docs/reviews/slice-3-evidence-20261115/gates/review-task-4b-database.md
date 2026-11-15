@@ -191,3 +191,102 @@ Same as above, plus:
 - A reply must carry its parent's `document_id` and `document_revision_id` (FK-enforced). "Parent is a `comment`" remains a service rule.
 - A commenter's `changes_requested` takes the revision's only decision slot (S3).
 - Self-revocation by a delegate who is also a manager is allowed (S62, pending confirmation).
+
+## Re-review of fix round 2 (4c6ba98)
+
+Scope: the fix diff `bd8128b..4c6ba98` (`review-bd8128b..4c6ba98.diff`) and the «Fix round 2» section of the implementer's report. No database was touched and no test was run. One focused check outside the diff: `src/server/documents.ts:166-174`, to see how `proposeRevision` numbers a revision and moves `latest_revision_id`. Line numbers below are at `4c6ba98`.
+
+### Verdict per finding
+
+| Id | Verdict | Evidence |
+|---|---|---|
+| N1 | **ADDRESSED** | `020:313` now compares with `OLD.latest_revision_id`. The case (diff, «the approved pointer cannot go back…») has two parts. Part one: one `UPDATE` moves both pointers back, as the approver, and is refused with the row unchanged. Part two isolates the pointer guard: revision 3 is approved, the operational login puts latest back on revision 2, then one runtime `UPDATE` sets both pointers to 3. The latest-pointer guard (N5) allows that move; the approved-pointer guard refuses it, and the row is unchanged. Mutation m2 turns the case red. Part one asserts no message, but that is acceptable here: both guards would refuse that statement, and part two pins the reason. |
+| N5 | **ADDRESSED** | `020:330-350`, `document_records_latest_guard`. It fires `BEFORE UPDATE OF latest_revision_id`. Superusers pass. NULL is refused. The target must belong to the same document and have a higher `revision_no` than the old latest; when the old value is NULL, any revision of this document is accepted. The rollback drops it: `rollback/020`, trigger before function. Case at `tests/review-schema.test.ts:630`: an older revision, another document's revision and NULL are each refused, with latest unchanged; `proposeRev` still works and the operational login still sets the pointer directly. Mutation m4 turns it red. No slice-1 test was edited, and the full suite is green on both engines (logs). |
+| N3 | **ADDRESSED** | `020:368-385`. For non-superusers, a changed `flagged_revision_id` must be a revision of the upstream document numbered above `coalesce(OLD.flagged_revision_id, OLD.upstream_revision_id)`. The trigger stamps `updated_at` every time. It stamps `flagged_at` when the flag changes and keeps the old stamp when it does not. Case: the confirmed revision, an older revision and the same revision are refused; stamps the caller backdates are overwritten. Mutation m3 turns two cases red. |
+| N2 | **ADDRESSED** | `tests/review-schema.test.ts:764`. Each decider now runs `UPDATE document_records SET version=version+1` after its insert, as the service will. The loser must fail with `23505`, or with `P0001` carrying the exact freshness sentence. The mutation log shows the guard reverted to `FOR SHARE` failing natively with `40P01`. The test now detects the deadlock. |
+| N4 | **ADDRESSED** | `020:69-70` now uses `CASE WHEN jsonb_typeof(exceptions)='array' THEN … ELSE false END`, so evaluation order is guaranteed. The column is `NOT NULL`, so there is no NULL path. |
+
+### Checks requested beyond the verdicts
+
+- **`proposeRevision`.** It numbers a new revision `coalesce(max(revision_no),0)+1` (`documents.ts:168`), inserts it, then sets latest (`:174`) in the same transaction. The new revision is visible to the guard under RLS. Its number is above max, so it is above the current latest, even if the operator once moved latest back.
+  - `UNIQUE(document_id, revision_no)` (`014:42`) makes ties impossible. Gaps are harmless.
+  - First revision (old latest NULL): accepted.
+  - If the old latest row could not be read, the guard would refuse the move rather than allow it.
+  - Operator paths (`registerDoc`, `frozenRevision`, `rawRevision`) run as superuser and are unaffected.
+- **Locks.** The latest-pointer guard only does plain `SELECT`s on `document_revisions`; it takes no row lock, so it cannot deadlock with the decision guard's `FOR NO KEY UPDATE`.
+  - A proposal holds `FOR UPDATE` on the row first, and the decision guard waits on it as before.
+  - The `UPDATE` in the planned `decide` reuses the lock its own transaction already holds.
+- **Planned `decide` under N1 + N5.** The transaction locks the row, inserts the approval, then runs one `UPDATE … SET approved_revision_id=<rev>, version=version+1`.
+  - `OLD.latest` equals the decided revision, because the decision guard required it to be latest.
+  - `latest_revision_id` is not in the SET list, so the N5 trigger does not fire.
+  - If a service ever lists it with the same value, `IS DISTINCT FROM` is false and the move passes.
+- **N3 stamping.** The first set and every advance get a new `flagged_at`. An unchanged flag keeps `OLD.flagged_at`, which is non-NULL because the pair CHECK held on the old row.
+  - When the operational login clears the flag, `flagged_at` is left as supplied, so the pair CHECK still forces it to NULL.
+  - The `version = OLD+1` check runs before stamping and is unaffected.
+  - The planned `flagDependents` sets the new upstream latest in the same transaction as `proposeRevision`. That revision is strictly newer under N5, so every repeated flag advances. A later "clear" transition only needs `CREATE OR REPLACE FUNCTION`.
+- **Rollback.** It drops 6 triggers and 6 functions (`document_records_latest_guard` added), each trigger before its function, then the tables. The rollback test counts 6 and 6.
+- **The two changed expectations in `tests/review-schema.test.ts`.**
+  - (1) The uniqueness/flag case now flags to a newer revision. This does not weaken it: what it proves (flag pair, unique pair, no `note` update) is the same, and the forward rule is now proven too.
+  - (2) A foreign document's revision now hits the guard sentence before the FK. For the runtime role it is still refused. However, the FK `(flagged_revision_id, upstream_document_id)` itself is no longer exercised by any case, because the guard always runs first for runtime. That is a slight loss of evidence, recorded as P1 below.
+
+### New breakage introduced by the fix
+
+None Critical or Important.
+
+- **P1 — Minor. No test now exercises the FK `(flagged_revision_id, upstream_document_id)` on its own.** One assertion through the operational login would restore it: `UPDATE … SET needs_review=true, flagged_revision_id=<revision of another document>, version=version+1` should fail with `23503`. It is not needed before the services are built.
+
+### Out-of-scope observations
+
+- The operational login (superuser) can still move either pointer anywhere, backwards included. That is the slice-1 path the plan keeps (S7). Every such repair should be recorded by the operator outside these tables.
+
+### Round verdict
+
+All findings addressed, no new Critical/Important breakage.
+
+**Database verdict for Task 4b after fix round 2:** Approved.
+
+### Deployment notes for 020 (final)
+
+- **Prerequisites.**
+  - Migration `019` is recorded.
+  - Roles `libetech_runtime` and `libetech_identity` exist.
+  - `bom_eligible_members(uuid,uuid[],boolean)`, `document_approvers(uuid)` and `reject_history_mutation()` are present.
+  - The runtime login is neither superuser nor BYPASSRLS.
+- **Locks.**
+  - Everything runs in one transaction with `lock_timeout = 5s`.
+  - The FKs take `SHARE ROW EXCLUSIVE` on `projects`, `document_records` and `document_revisions`.
+  - Two triggers are created on `document_records` (approved pointer, latest pointer), and each takes `SHARE ROW EXCLUSIVE`. Writes to those tables wait briefly; on timeout the whole file rolls back and can be retried.
+  - New tables only; no rewrite of existing data.
+- **Behaviour change for existing paths.**
+  - The runtime role can no longer move `latest_revision_id` backwards or to NULL. `proposeRevision` is unaffected.
+  - Every decision takes `FOR NO KEY UPDATE` on its document row, so decisions and revision proposals on one document serialise.
+  - The operational login must be a superuser for the slice-1 direct pointer path and for the fixtures.
+  - Any operator repair of `document_dependencies` must bump `version` by exactly one, and the guard overwrites `updated_at` (and `flagged_at`, when the flag changes) with the transaction time.
+- **Rollback preconditions.**
+  - Nothing above 020 is recorded (order 021 → 020 → 019).
+  - No `approved` decision exists.
+  - It irrecoverably drops every delegation, comment, `changes_requested` decision, dependency and review event. It also removes the runtime's UPDATE on `approved_revision_id` and both pointer guards, which re-opens backward moves of `latest_revision_id`. Export first; Chairman approval is required.
+
+### What Task 5 and Task 6 must know (final)
+
+- Set `app.person_id` in every writing transaction; `scoped()` does not set it.
+- Task 5 `decide`, in one transaction:
+  - `SELECT … FROM document_records … FOR UPDATE`;
+  - insert the decision;
+  - for an approval, one `UPDATE` setting `approved_revision_id` and `version=version+1`, as the approver. Do not change `latest_revision_id`.
+- Map `LTR01` on that insert to `APPROVER_NOT_AUTHORIZED`. A delegate whose role was lowered or whose account was deactivated also gets `LTR01`.
+- Only the approver moves the approved pointer, only to the revision that was latest before the statement, never to NULL or backwards. There is no separate "publish" command.
+- The runtime role moves `latest_revision_id` only forward, to a higher `revision_no` of the same document. `proposeRevision`'s `max+1` numbering satisfies this.
+- Task 6 `flagDependents`, in the `proposeRevision` transaction:
+  - `UPDATE document_dependencies SET needs_review=true, flagged_revision_id=<new upstream revision>, version=version+1`;
+  - the revision must be newer than the current flag, or than the confirmed revision;
+  - the database stamps `flagged_at` and `updated_at`;
+  - a flag cannot be cleared in this slice;
+  - insert the `review_events` row with `app.person_id` set (S40).
+- A reply carries its parent's `document_id` and `document_revision_id` (FK-enforced). "The parent is a `comment`" remains a service rule.
+- Limits the services should validate before the database does:
+  - `review_events.kind` is 1–64 characters;
+  - `payload` is at most 8192 bytes;
+  - `exceptions` is an array of at most 10 items and 16384 bytes.
+- A commenter's `changes_requested` takes the revision's only decision slot (S3).
+- Self-revocation by a delegate who is also a manager is allowed (S62, pending confirmation).
