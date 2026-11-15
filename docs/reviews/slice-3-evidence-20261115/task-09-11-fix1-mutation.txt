@@ -1,0 +1,14 @@
+Mutations on src/server/skill-contracts.ts, each alone, reverted (script in session scratchpad):
+R-a skill mismatch not checked -> R-a the context must be for the same skill as the manifest
+pointer-only walk skipped -> R-e pointer-only; F9-2 six skills; F9-2 recursive walk
+R-d approvedRevisionId branch skipped -> release_librarian can only name the approved revision; reasons are complete and ordered; R-d
+confidence upper bound removed -> confidence is an integer from 0 to 100
+sources limit removed -> sources are at most 100 references
+questions limit removed -> questions are at most 50 items and 16384 bytes
+F9-1 two distinct relaxed to one -> F9-1
+F9-1 distinctness dropped (length<2) -> F9-1
+F9-3 text !== null dropped -> F9-3; F9-8
+F9-5 listing dropped -> F9-5; reasons are complete and ordered
+F9-6 kind check dropped -> F9-6
+F9-4 parsed raw instead of measured -> F9-4
+F9-8 visibility restricted to supports paths -> R-b; F9-8

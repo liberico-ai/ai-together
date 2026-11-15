@@ -54,7 +54,10 @@ export function canonicalJson(v: unknown): string {
       if (!Number.isFinite(v)) throw new TypeError('canonicalJson: non-finite number');
       return JSON.stringify(v);
     case 'object': {
-      if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
+      if (Array.isArray(v)) {
+        if (Object.keys(v).length !== v.length) throw new TypeError('canonicalJson: sparse array');
+        return `[${v.map(canonicalJson).join(',')}]`;
+      }
       const proto = Object.getPrototypeOf(v);
       if (proto !== Object.prototype && proto !== null) throw new TypeError('canonicalJson: not a plain object');
       const o = v as Record<string, unknown>;

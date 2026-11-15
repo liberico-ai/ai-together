@@ -10,7 +10,7 @@
   ],
   "prompt": {
     "path": "skills/doc-reviewer/prompt.md",
-    "sha256": "93df752c216792acdf75f5dc4b67318a5413ec4d6b1c2706efe240af3e56df27"
+    "sha256": "5f239abf89e10bb6e5a0aa82b244fac30f695f4599c01ee1ddb2db02ea7dd54c"
   },
   "inputContract": "SkillContext/v1",
   "outputContract": "SkillOutput/doc_reviewer/v1",
@@ -26,10 +26,10 @@
   },
   "evalSet": {
     "path": "skills/doc-reviewer/eval.json",
-    "sha256": "1cce5bbfe61dbd4fb40f0d51dd59a4ab4dcd3dc8bda51f60b87c64ce5f992b21",
+    "sha256": "372bbd8c7616d5c2ee48273d5c328dad5cf39f07a55391a9d60cde378f082ec3",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "4fea7dea151e384fba80d7a9d6093865942e68f06e1163dd4e2dd2f3992285da"
+  "hash": "9b4e4d8cc660d619554bcafd0bb601eb93d4dd0dcb49ef248a2dc6fae632f617"
 }

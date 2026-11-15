@@ -57,23 +57,27 @@ export const outputSchemas: Record<SkillName, z.ZodType<SkillOutput>> = {
   technical_writer: outputOf(results.technical_writer), doc_reviewer: outputOf(results.doc_reviewer), release_librarian: outputOf(results.release_librarian),
 };
 
-/** True when Buffer.byteLength(JSON.stringify(value),'utf8') <= MAX_OUTPUT_BYTES and no string, key or value, at any depth, holds U+0000 or a lone surrogate. */
-export function outputFits(value: unknown): boolean {
+type Measured = { fits: boolean; parsed: unknown };
+// One measurement: the JSON round-tripped value is what is size-checked, character-checked and (by the gate) parsed and returned.
+function measure(value: unknown): Measured {
+  const no: Measured = { fits: false, parsed: undefined };
   let json: unknown;
-  try { json = JSON.stringify(value); } catch { return false; }
-  if (typeof json !== 'string' || Buffer.byteLength(json, 'utf8') > MAX_OUTPUT_BYTES) return false;
+  try { json = JSON.stringify(value); } catch { return no; }
+  if (typeof json !== 'string' || Buffer.byteLength(json, 'utf8') > MAX_OUTPUT_BYTES) return no;
   // Re-read the JSON itself (toJSON already applied); JSON.stringify escapes NUL and lone surrogates, so only decoded strings show them. Iterative: no recursion limit.
   let parsed: unknown;
-  try { parsed = JSON.parse(json); } catch { return false; }
+  try { parsed = JSON.parse(json); } catch { return no; }
   const stack: unknown[] = [parsed];
   while (stack.length) {
     const v = stack.pop();
-    if (typeof v === 'string') { if (!storable(v)) return false; }
+    if (typeof v === 'string') { if (!storable(v)) return no; }
     else if (Array.isArray(v)) for (const x of v) stack.push(x);
-    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { if (!storable(k)) return false; stack.push(x); }
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { if (!storable(k)) return no; stack.push(x); }
   }
-  return true;
+  return { fits: true, parsed };
 }
+/** True when Buffer.byteLength(JSON.stringify(value),'utf8') <= MAX_OUTPUT_BYTES and no string, key or value, at any depth, holds U+0000 or a lone surrogate. */
+export function outputFits(value: unknown): boolean { return measure(value).fits; }
 
 export type HoldReason = 'SCHEMA_INVALID' | 'MANIFEST_MISMATCH' | 'SOURCE_REQUIRED' | 'SOURCE_OUT_OF_CONTEXT' | 'UNSOURCED_CLAIM' | 'TOOL_NOT_ALLOWED' | 'TEXT_NOT_VISIBLE' | 'NOT_APPROVED_REVISION';
 const ORDER: readonly HoldReason[] = ['SCHEMA_INVALID', 'MANIFEST_MISMATCH', 'SOURCE_REQUIRED', 'SOURCE_OUT_OF_CONTEXT', 'UNSOURCED_CLAIM', 'TOOL_NOT_ALLOWED', 'TEXT_NOT_VISIBLE', 'NOT_APPROVED_REVISION'];
@@ -83,21 +87,24 @@ const hold = (...r: HoldReason[]): Verdict => ({ verdict: 'hold', reasons: ORDER
 type Item = { basis: string[] };
 type R = { [K in keyof typeof results]: z.infer<typeof results[K]> };
 
-// ONE table of every id-bearing field of an output, per skill. Paths use `*` for an array index. `supports` marks the fields that back a statement
-// (their target must be a visible excerpt); the plain `sources` list may point at any context source. A new id field must be added here:
+// ONE table of every id-bearing field of an output, per skill. Paths use `*` for an array index. Every id here must be a context source, and a message among them must have been shown.
+// `supports` marks the fields that back a statement: those ids must also be listed in `sources` (UNSOURCED_CLAIM). A new id field must be added here:
 // the gate reads only this table, and the tests fail if a clean output holds a context id at a path that is not listed.
-type IdField = { path: string; supports: boolean };
+type Kind = ContextSource['kind'];
+// `kind`, when set, is the kind the id must have in the context (a wrong kind is SOURCE_OUT_OF_CONTEXT).
+type IdField = { path: string; supports: boolean; kind?: Kind };
 const COMMON_IDS: readonly IdField[] = [
   { path: 'sources.*.id', supports: false }, { path: 'claims.*.basis.*', supports: true }, { path: 'conflicts.*.sourceIds.*', supports: true },
 ];
 const SKILL_IDS: Record<SkillName, readonly IdField[]> = {
-  intake_analyst: [{ path: 'result.duplicateOf', supports: false }],
+  // duplicateOf: another message of the context (a source_event); a document or revision is not a duplicate of an incoming message.
+  intake_analyst: [{ path: 'result.duplicateOf', supports: false, kind: 'source_event' }],
   ba_elicitation: ['userStories', 'rules', 'acceptance'].map(k => ({ path: `result.${k}.*.basis.*`, supports: true })),
   pm_planning: ['milestones', 'actions'].map(k => ({ path: `result.${k}.*.basis.*`, supports: true })),
   technical_writer: ['sections', 'terms'].map(k => ({ path: `result.${k}.*.basis.*`, supports: true })),
-  doc_reviewer: [{ path: 'result.baseRevisionId', supports: false }, { path: 'result.candidateRevisionId', supports: false }],
-  release_librarian: [{ path: 'result.approvedRevisionId', supports: false }, { path: 'result.index.*.documentId', supports: false },
-    { path: 'result.index.*.revisionId', supports: false }, { path: 'result.staleReminders.*.documentId', supports: false }],
+  doc_reviewer: [{ path: 'result.baseRevisionId', supports: false, kind: 'document_revision' }, { path: 'result.candidateRevisionId', supports: false, kind: 'document_revision' }],
+  release_librarian: [{ path: 'result.approvedRevisionId', supports: false }, { path: 'result.index.*.documentId', supports: false, kind: 'document' },
+    { path: 'result.index.*.revisionId', supports: false }, { path: 'result.staleReminders.*.documentId', supports: false, kind: 'document' }],
 };
 export const ID_FIELDS: Readonly<Record<SkillName, readonly IdField[]>> = Object.freeze(Object.fromEntries(SKILLS.map(k => [k, Object.freeze([...COMMON_IDS, ...SKILL_IDS[k]])])) as Record<SkillName, readonly IdField[]>);
 
@@ -108,7 +115,20 @@ function collect(value: unknown, path: readonly string[]): string[] {
   return value && typeof value === 'object' && !Array.isArray(value) ? collect((value as Record<string, unknown>)[head], rest) : [];
 }
 const idsOf = (out: SkillOutput, skill: SkillName, supportsOnly: boolean) =>
-  ID_FIELDS[skill].filter(f => !supportsOnly || f.supports).flatMap(f => collect(out, f.path.split('.')));
+  ID_FIELDS[skill].filter(f => !supportsOnly || f.supports).flatMap(f => collect(out, f.path.split('.')).map(id => ({ id, kind: f.kind })));
+
+// True when every leaf of a parsed value is empty: null, '', false, an empty array, or an object whose leaves are all empty. Iterative.
+function onlyEmptyLeaves(value: unknown): boolean {
+  const stack: unknown[] = [value];
+  while (stack.length) {
+    const v = stack.pop();
+    if (v === null || v === '' || v === false) continue;
+    if (Array.isArray(v)) { for (const x of v) stack.push(x); continue; }
+    if (v && typeof v === 'object') { for (const x of Object.values(v)) stack.push(x); continue; }
+    return false;
+  }
+  return true;
+}
 
 // Every item of `result` that carries a basis (for the empty-basis and pointer-only rules).
 function basisItems(skill: SkillName, result: unknown): Item[] {
@@ -121,8 +141,9 @@ function basisItems(skill: SkillName, result: unknown): Item[] {
 }
 
 export function checkSkillOutput(m: { name: SkillName; hash: string; toolAllowlist: readonly string[] }, ctx: SkillContext, raw: unknown): Verdict {
-  if (!outputFits(raw)) return hold('SCHEMA_INVALID');
-  const parsed = outputSchemas[m.name].safeParse(raw);
+  const measured = measure(raw);
+  if (!measured.fits) return hold('SCHEMA_INVALID');
+  const parsed = outputSchemas[m.name].safeParse(measured.parsed);
   if (!parsed.success) return hold('SCHEMA_INVALID');
   const out = parsed.data;
   const reasons: HoldReason[] = [];
@@ -130,18 +151,24 @@ export function checkSkillOutput(m: { name: SkillName; hash: string; toolAllowli
   if (out.skill !== m.name || out.manifestHash !== m.hash || ctx.skill !== m.name) reasons.push('MANIFEST_MISMATCH');
   if (out.sources.length === 0) reasons.push('SOURCE_REQUIRED');
   const items: Item[] = [...out.claims, ...basisItems(m.name, out.result)];
-  if (idsOf(out, m.name, false).some(id => !known.has(id))) reasons.push('SOURCE_OUT_OF_CONTEXT');
-  if (items.some(i => i.basis.length === 0)) reasons.push('UNSOURCED_CLAIM');
+  if (idsOf(out, m.name, false).some(({ id, kind }) => { const s = known.get(id); return !s || (kind !== undefined && s.kind !== kind); })) reasons.push('SOURCE_OUT_OF_CONTEXT');
+  // A statement needs a source: a basis, and for a conflict two distinct sources. What a statement cites must also be listed in `sources`.
+  const listed = new Set(out.sources.map(s => s.id));
+  const supporting = idsOf(out, m.name, true);
+  if (items.some(i => i.basis.length === 0) || out.conflicts.some(c => new Set(c.sourceIds).size < 2)
+    || supporting.some(({ id }) => known.has(id) && !listed.has(id))) reasons.push('UNSOURCED_CLAIM');
   if (out.toolRequests.some(t => !m.toolAllowlist.includes(t.tool))) reasons.push('TOOL_NOT_ALLOWED');
-  const notShown = idsOf(out, m.name, true).some(id => { const s = known.get(id); return s?.kind === 'source_event' && s.mode !== 'excerpt'; });
-  const statements = out.claims.length > 0 || out.conflicts.length > 0 || items.some(i => i.basis.length > 0);
+  // Any id the output names, in any id field (the plain `sources` list included), must not be a message whose text was not shown: a draft that cites one is held.
+  const notShown = idsOf(out, m.name, false).some(({ id }) => { const s = known.get(id); return s?.kind === 'source_event' && !(s.mode === 'excerpt' && s.text !== null); });
+  // In a pointer-only context nothing may be said: no claim, no conflict, and every leaf of `result` empty. No per-skill list: a new field is covered by the walk.
+  const statements = out.claims.length > 0 || out.conflicts.length > 0 || !onlyEmptyLeaves(out.result);
   if (notShown || (ctx.pointerOnly && statements)) reasons.push('TEXT_NOT_VISIBLE');
   if (m.name === 'release_librarian') {
     const r = out.result as R['release_librarian'];
     const docs = new Map(ctx.sources.flatMap(s => s.kind === 'document' ? [[s.id, s.approvedRevisionId] as const] : []));
     const approvedIds = new Set([...docs.values()].filter((v): v is string => v !== null));
-    const listed = r.index.every(i => { const a = docs.get(i.documentId); return a !== undefined && a !== null && a === i.revisionId; });
-    if ((r.approvedRevisionId !== null && !approvedIds.has(r.approvedRevisionId)) || !listed) reasons.push('NOT_APPROVED_REVISION');
+    const listedApproved = r.index.every(i => { const a = docs.get(i.documentId); return a !== undefined && a !== null && a === i.revisionId; });
+    if ((r.approvedRevisionId !== null && !approvedIds.has(r.approvedRevisionId)) || !listedApproved) reasons.push('NOT_APPROVED_REVISION');
   }
   return reasons.length ? hold(...reasons) : { verdict: 'accept', reasons: [], output: out };
 }

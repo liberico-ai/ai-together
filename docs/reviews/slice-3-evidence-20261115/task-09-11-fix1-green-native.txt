@@ -1,0 +1,4 @@
+FULL native PostgreSQL (npx vitest run --exclude tests/decisions-ui.test.tsx), 0 skipped:
+ Test Files  64 passed (64)
+      Tests  899 passed (899)
+focused native: suggestions, suggestions-concurrency, skill-context: 3 files, 50 passed

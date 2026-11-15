@@ -10,7 +10,7 @@
   ],
   "prompt": {
     "path": "skills/intake-analyst/prompt.md",
-    "sha256": "62de26bef986f82bb1cc16cbab6ff96638c64ee5764eff1b4b5291dece2cfc7d"
+    "sha256": "008c96b5c4194ed8423261ae09bd7651d3ea6cce099aa1b9cba91ed3bcfc9e16"
   },
   "inputContract": "SkillContext/v1",
   "outputContract": "SkillOutput/intake_analyst/v1",
@@ -26,10 +26,10 @@
   },
   "evalSet": {
     "path": "skills/intake-analyst/eval.json",
-    "sha256": "969c11a0c2224e09d3a28cfa5e8762ad3005634577c615af676dea0873ac555e",
+    "sha256": "fef13b4e7e44cca7a72b8a3c53f675b7d08a571b401598a769334d058cc867a9",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "567fe637d703831e896d6ddf59a402ece443aab99a06370ccd3925604a3d8f7f"
+  "hash": "73bbb7a98ee6a9e0439f934c4eba5913b63968c0fc4560047673a3543b7f95d9"
 }

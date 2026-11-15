@@ -10,7 +10,7 @@
   ],
   "prompt": {
     "path": "skills/release-librarian/prompt.md",
-    "sha256": "99973d04137851951902c74b453f681c0cfe5e97eb03669b43cf7871a74abd71"
+    "sha256": "4b460b4cb6cc07f46f1126c4bf93c3689a0e6d6b765349d3a298af759a0b1d52"
   },
   "inputContract": "SkillContext/v1",
   "outputContract": "SkillOutput/release_librarian/v1",
@@ -26,10 +26,10 @@
   },
   "evalSet": {
     "path": "skills/release-librarian/eval.json",
-    "sha256": "0d8a72e7f1e52e6b6f678dbd7cd32ef635c4679d52ad1010dfb2c17c831c6b18",
+    "sha256": "c8debf6a9f4b7f164e6c6fec0812a1a073e9178982544ede48ca4132d8651c1d",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "b1eec6764700b173822256612e6464f45f97bb03fc5d00d73aae5901b4bc2511"
+  "hash": "f6df21e3a43cc15b3719a3348ccff3e33db9e7da55b64bddccf0a3d5f3402a46"
 }

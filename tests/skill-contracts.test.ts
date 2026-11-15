@@ -20,7 +20,7 @@ const HASH = 'manifest-hash-1';
 const manifest = (name: SkillName, toolAllowlist: readonly string[] = []) => ({ name, hash: HASH, toolAllowlist });
 
 const base = (skill: SkillName, result: unknown) => ({
-  skill, manifestHash: HASH, sources: [{ id: 'e1' }], claims: [{ field: 'f', value: 'v', basis: ['e1'] }],
+  skill, manifestHash: HASH, sources: [{ id: 'e1' }, { id: 'r1' }], claims: [{ field: 'f', value: 'v', basis: ['e1'] }],
   questions: [{ field: 'f', question: 'q?' }], conflicts: [{ field: 'f', sourceIds: ['e1', 'r1'], note: 'n' }], confidence: 80, toolRequests: [] as { tool: string }[], result,
 });
 // Every array holds an element and every nullable string is filled, so each string leaf can be probed.
@@ -73,7 +73,7 @@ describe('skill contracts', () => {
   });
 
   it('an output without sources is held', () => {
-    const r = check('intake_analyst', { ...clean('intake_analyst'), sources: [] });
+    const r = check('intake_analyst', { ...clean('intake_analyst'), sources: [], claims: [], conflicts: [] });
     expect(r).toEqual({ verdict: 'hold', reasons: ['SOURCE_REQUIRED'], output: null });
   });
 
@@ -88,9 +88,9 @@ describe('skill contracts', () => {
 
   it('a cited id outside the context is held', () => {
     const where: [string, (o: ReturnType<typeof clean>) => void][] = [
-      ['sources', o => { o.sources = [{ id: 'zzz' }]; }],
+      ['sources', o => { o.sources = [{ id: 'e1' }, { id: 'r1' }, { id: 'zzz' }]; }],
       ['claim basis', o => { o.claims[0].basis = ['zzz']; }],
-      ['conflict sourceIds', o => { o.conflicts[0].sourceIds = ['zzz']; }],
+      ['conflict sourceIds', o => { o.conflicts[0].sourceIds = ['e1', 'zzz']; }],
       ['result basis', o => { ((o.result as { userStories: { basis: string[] }[] }).userStories ?? [{ basis: [] }])[0].basis = ['zzz']; }],
     ];
     for (const [name, f] of where) {
@@ -111,9 +111,9 @@ describe('skill contracts', () => {
 
   it('a claim based on a hidden or pointer-only message is held', () => {
     for (const id of ['e2', 'e3']) {
-      const o = clean('intake_analyst'); o.claims[0].basis = [id];
+      const o = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, { id }] }; o.claims[0].basis = [id];
       expect(check('intake_analyst', o), id).toEqual({ verdict: 'hold', reasons: ['TEXT_NOT_VISIBLE'], output: null });
-      const p = clean('pm_planning'); (p.result as { actions: { basis: string[] }[] }).actions[0].basis = [id];
+      const p = { ...clean('pm_planning'), sources: [{ id: 'e1' }, { id: 'r1' }, { id }] }; (p.result as { actions: { basis: string[] }[] }).actions[0].basis = [id];
       expect(check('pm_planning', p).reasons, `result ${id}`).toEqual(['TEXT_NOT_VISIBLE']);
     }
   });
@@ -144,7 +144,7 @@ describe('skill contracts', () => {
 
   it('reasons are complete and ordered', () => {
     const o = { ...clean('intake_analyst'), manifestHash: 'other', sources: [], toolRequests: [{ tool: 'x' }] };
-    expect(check('intake_analyst', o).reasons).toEqual(['MANIFEST_MISMATCH', 'SOURCE_REQUIRED', 'TOOL_NOT_ALLOWED']);
+    expect(check('intake_analyst', o).reasons).toEqual(['MANIFEST_MISMATCH', 'SOURCE_REQUIRED', 'UNSOURCED_CLAIM', 'TOOL_NOT_ALLOWED']);
     const all = clean('release_librarian');
     all.manifestHash = 'other'; all.sources = [];
     all.claims = [{ field: 'a', value: 'v', basis: ['zzz'] }, { field: 'b', value: 'v', basis: [] }, { field: 'c', value: 'v', basis: ['e2'] }];
@@ -223,7 +223,7 @@ describe('skill contracts', () => {
   });
 
   it('sources are at most 100 references', () => {
-    const mk = (n: number) => ({ ...clean('intake_analyst'), sources: Array.from({ length: n }, () => ({ id: 'e1' })) });
+    const mk = (n: number) => ({ ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, ...Array.from({ length: n - 2 }, () => ({ id: 'e1' }))] });
     expect(check('intake_analyst', mk(100)).verdict).toBe('accept');
     expect(check('intake_analyst', mk(101))).toEqual({ verdict: 'hold', reasons: ['SCHEMA_INVALID'], output: null });
     expect(check('intake_analyst', { ...clean('intake_analyst'), sources: [{ id: 'e1', text: 'quoted' }] }).reasons).toEqual(['SCHEMA_INVALID']);
@@ -250,12 +250,13 @@ describe('skill contracts', () => {
   });
 
   it('R-b a statement cannot rest on text that was not shown', () => {
-    const c = clean('intake_analyst'); c.conflicts[0].sourceIds = ['e2'];
+    const c = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'e2' }] }; c.claims = []; c.conflicts[0].sourceIds = ['e1', 'e2'];
     expect(check('intake_analyst', c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
-    const p = clean('technical_writer'); (p.result as { sections: { basis: string[] }[] }).sections[0].basis = ['e3'];
+    const p = { ...clean('technical_writer'), sources: [{ id: 'e1' }, { id: 'r1' }, { id: 'e3' }] }; (p.result as { sections: { basis: string[] }[] }).sections[0].basis = ['e3'];
     expect(check('technical_writer', p).reasons).toEqual(['TEXT_NOT_VISIBLE']);
-    const listed = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'e2' }, { id: 'e3' }] };
-    expect(check('intake_analyst', listed)).toMatchObject({ verdict: 'accept', reasons: [] });
+    const listed = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, { id: 'e2' }, { id: 'e3' }] };
+    // ruled change (F9-8): a pointer listed only in sources[] used to be accepted; it is now held
+    expect(check('intake_analyst', listed)).toEqual({ verdict: 'hold', reasons: ['TEXT_NOT_VISIBLE'], output: null });
   });
 
   it('R-c every id-bearing field is checked against the context, and the table covers every id in a clean output', () => {
@@ -304,8 +305,117 @@ describe('skill contracts', () => {
     expect(check('intake_analyst', onlyConflict, [], c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
     const ba = { ...clean('ba_elicitation'), claims: [], conflicts: [] };
     expect(check('ba_elicitation', ba, [], ctx({ skill: 'ba_elicitation', pointerOnly: true })).reasons).toEqual(['TEXT_NOT_VISIBLE']);
-    const empty = { ...clean('ba_elicitation'), claims: [], conflicts: [], result: { userStories: [], rules: [], acceptance: [], unknowns: ['u'] } };
+    const empty = { ...clean('ba_elicitation'), claims: [], conflicts: [], result: { userStories: [], rules: [], acceptance: [], unknowns: [] } };
     expect(check('ba_elicitation', empty, [], ctx({ skill: 'ba_elicitation', pointerOnly: true }))).toMatchObject({ verdict: 'accept', reasons: [] });
+  });
+
+  it('F9-1 a conflict names at least two distinct sources', () => {
+    for (const ids of [[], ['e1'], ['e1', 'e1']]) {
+      const o = clean('intake_analyst'); o.conflicts[0].sourceIds = ids;
+      expect(check('intake_analyst', o), JSON.stringify(ids)).toEqual({ verdict: 'hold', reasons: ['UNSOURCED_CLAIM'], output: null });
+    }
+    const two = clean('intake_analyst'); two.conflicts[0].sourceIds = ['e1', 'r1'];
+    expect(check('intake_analyst', two).verdict).toBe('accept');
+  });
+
+  // Result with every leaf empty (null, '', empty array), per skill; `fields` give one non-empty leaf per statement-bearing field.
+  const emptyOf: Record<SkillName, unknown> = {
+    intake_analyst: { classification: null, duplicateOf: null, missingFields: [] },
+    ba_elicitation: { userStories: [], rules: [], acceptance: [], unknowns: [] },
+    pm_planning: { milestones: [], actions: [], decisionsNeeded: [] },
+    technical_writer: { sections: [], terms: [] },
+    doc_reviewer: { baseRevisionId: null, candidateRevisionId: '', diff: [], impacts: [], missing: [], scopeRead: '' },
+    release_librarian: { approvedRevisionId: null, index: [], staleReminders: [] },
+  };
+  const leafOf: Record<SkillName, Record<string, unknown>> = {
+    intake_analyst: { classification: 'incident', duplicateOf: 'e1', missingFields: ['x'] },
+    ba_elicitation: { userStories: [{ text: 's', basis: ['e1'] }], rules: [{ text: 'r', basis: ['e1'] }], acceptance: [{ text: 'a', basis: ['e1'] }], unknowns: ['u'] },
+    pm_planning: { milestones: [{ title: 't', basis: ['e1'], estimate: null }], actions: [{ text: 'a', basis: ['e1'] }], decisionsNeeded: ['d'] },
+    technical_writer: { sections: [{ heading: 'h', text: 't', basis: ['e1'] }], terms: [{ term: 't', meaning: 'm', basis: ['e1'] }] },
+    doc_reviewer: { baseRevisionId: 'r1', candidateRevisionId: 'r2', diff: [{ section: 's', change: 'added', note: 'n' }], impacts: ['i'], missing: ['m'], scopeRead: 'all' },
+    release_librarian: { approvedRevisionId: 'r1', index: [{ documentId: 'd1', revisionId: 'r1' }], staleReminders: [{ documentId: 'd1', note: 'n' }] },
+  };
+  it('F9-2 in a pointer-only context any non-empty leaf of result is held, for all six skills', () => {
+    for (const s of SKILLS) {
+      const c = ctx({ skill: s, pointerOnly: true });
+      const wrap = (result: unknown) => ({ ...clean(s), claims: [], conflicts: [], result });
+      for (const [field, value] of Object.entries(leafOf[s])) {
+        const r = check(s, wrap({ ...(emptyOf[s] as object), [field]: value }), [], c);
+        expect(r.reasons, `${s}.${field}`).toContain('TEXT_NOT_VISIBLE');
+        expect(r.verdict, `${s}.${field}`).toBe('hold');
+      }
+      const empty = check(s, wrap(emptyOf[s]), [], c);
+      if (s === 'doc_reviewer') {
+        // candidateRevisionId is a required id of a context revision, so an all-empty result is also out of context: this skill is always held here.
+        expect(empty.reasons).toEqual(['SOURCE_OUT_OF_CONTEXT']);
+      } else expect(empty, s).toMatchObject({ verdict: 'accept', reasons: [] });
+    }
+  });
+
+  it('F9-2 the empty-leaf walk is recursive and reaches into nested objects', () => {
+    const c = ctx({ skill: 'doc_reviewer', pointerOnly: true });
+    const base = { ...clean('doc_reviewer'), claims: [], conflicts: [] };
+    const empty = { ...(emptyOf.doc_reviewer as object), candidateRevisionId: 'r2' };
+    // candidateRevisionId is a non-empty id here, so this proves only that the id leaf itself counts
+    expect(check('doc_reviewer', { ...base, result: empty }, [], c).reasons).toContain('TEXT_NOT_VISIBLE');
+    const pm = { ...clean('pm_planning'), claims: [], conflicts: [] };
+    const deep = { milestones: [], actions: [], decisionsNeeded: [] };
+    expect(check('pm_planning', { ...pm, result: deep }, [], ctx({ skill: 'pm_planning', pointerOnly: true })).verdict).toBe('accept');
+    expect(check('pm_planning', { ...pm, result: { ...deep, milestones: [{ title: '', basis: [], estimate: null }] } }, [], ctx({ skill: 'pm_planning', pointerOnly: true })).reasons).toEqual(['UNSOURCED_CLAIM']); // nested all-empty object: no TEXT_NOT_VISIBLE
+    expect(check('pm_planning', { ...pm, result: { ...deep, milestones: [{ title: 'x', basis: [], estimate: null }] } }, [], ctx({ skill: 'pm_planning', pointerOnly: true })).reasons).toContain('TEXT_NOT_VISIBLE');
+  });
+
+  it('F9-3 an excerpt without text does not support a statement', () => {
+    const c = ctx();
+    c.sources.push({ id: 'e4', kind: 'source_event', ref: 'ref-4', mode: 'excerpt', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
+    const o = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, { id: 'e4' }] }; o.claims[0].basis = ['e4'];
+    expect(check('intake_analyst', o, [], c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
+  });
+
+  it('F9-4 the value that is measured is the value that is parsed and returned', () => {
+    const plain = clean('intake_analyst');
+    const wrapped = { toJSON: () => plain };
+    const r = check('intake_analyst', wrapped);
+    expect(r.verdict).toBe('accept');
+    expect(r.output).toEqual(plain);
+    expect(r.output).not.toBe(plain);
+    const getter = { ...plain, get confidence() { return 50; } };
+    expect(check('intake_analyst', getter).output?.confidence).toBe(50);
+  });
+
+  it('F9-5 whatever a statement cites is also listed in sources', () => {
+    const claim = { ...clean('intake_analyst'), sources: [{ id: 'r1' }] };
+    expect(check('intake_analyst', claim).reasons).toEqual(['UNSOURCED_CLAIM']);
+    const item = { ...clean('ba_elicitation'), sources: [{ id: 'e1' }, { id: 'r1' }] }; (item.result as { rules: { basis: string[] }[] }).rules[0].basis = ['d1'];
+    expect(check('ba_elicitation', item).reasons).toEqual(['UNSOURCED_CLAIM']);
+    const conflict = { ...clean('intake_analyst'), sources: [{ id: 'e1' }] };
+    expect(check('intake_analyst', conflict).reasons).toEqual(['UNSOURCED_CLAIM']);
+  });
+
+  it('F9-6 an id of the wrong kind is out of context', () => {
+    const set = (s: SkillName, mut: (r: any) => void) => { const o = clean(s); mut(o.result); return check(s, o).reasons; };
+    expect(set('doc_reviewer', r => { r.baseRevisionId = 'e1'; })).toEqual(['SOURCE_OUT_OF_CONTEXT']);
+    expect(set('doc_reviewer', r => { r.candidateRevisionId = 'd1'; })).toEqual(['SOURCE_OUT_OF_CONTEXT']);
+    expect(set('intake_analyst', r => { r.duplicateOf = 'd1'; })).toEqual(['SOURCE_OUT_OF_CONTEXT']);
+    expect(set('release_librarian', r => { r.index[0].documentId = 'r1'; })).toEqual(['SOURCE_OUT_OF_CONTEXT', 'NOT_APPROVED_REVISION']);
+    expect(set('release_librarian', r => { r.staleReminders[0].documentId = 'e1'; })).toEqual(['SOURCE_OUT_OF_CONTEXT']);
+    // approvedRevisionId and index.*.revisionId keep their own rule: they need not be a source of the context
+    expect(set('release_librarian', r => { r.approvedRevisionId = null; })).toEqual([]);
+  });
+
+  it('F9-8 a hidden or pointer-only message named in any id field, sources[] and duplicateOf included, is held', () => {
+    for (const id of ['e2', 'e3']) {
+      const onlyListed = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, { id }] };
+      expect(check('intake_analyst', onlyListed), `sources ${id}`).toEqual({ verdict: 'hold', reasons: ['TEXT_NOT_VISIBLE'], output: null });
+      const dup = clean('intake_analyst'); (dup.result as { duplicateOf: string }).duplicateOf = id;
+      expect(check('intake_analyst', dup).reasons, `duplicateOf ${id}`).toEqual(['TEXT_NOT_VISIBLE']);
+    }
+    // an excerpt without text counts as not shown here too
+    const c = ctx();
+    c.sources.push({ id: 'e4', kind: 'source_event', ref: 'ref-4', mode: 'excerpt', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
+    expect(check('intake_analyst', { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, { id: 'e4' }] }, [], c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
+    // documents and revisions carry no visibility rule
+    expect(check('intake_analyst', { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, { id: 'd1' }, { id: 'r2' }] }).verdict).toBe('accept');
   });
 
   it('R-f the gate imports nothing that reaches the database', () => {

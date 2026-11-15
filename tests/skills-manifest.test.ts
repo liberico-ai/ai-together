@@ -3,10 +3,10 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { MINIMUM_DOSSIER, SKILLS } from '../src/server/skill-contracts';
+import { MINIMUM_DOSSIER, SKILLS, contextSchema, outputSchemas } from '../src/server/skill-contracts';
 import type { SkillName } from '../src/server/skill-contracts';
 import { CONTEXT_KINDS } from '../src/server/skill-context';
-import { canonicalJson, manifestHash, skillManifests } from '../src/server/skills';
+import { canonicalJson, manifestHash, skillEvalSets, skillManifests } from '../src/server/skills';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sha = (b: Uint8Array | string) => createHash('sha256').update(b).digest('hex');
@@ -89,8 +89,57 @@ describe('skill manifests', () => {
 
   it('the prompts of ba_elicitation, pm_planning and technical_writer carry the minimum dossier of all six work types', async () => {
     for (const name of ['ba_elicitation', 'pm_planning', 'technical_writer'] as const) {
+      const lines = (await readFile(path.join(ROOT, skillManifests[name].prompt.path), 'utf8')).split('\n');
+      for (const [type, items] of Object.entries(MINIMUM_DOSSIER)) {
+        // each work type is one line of its own, and that line carries every item of the type
+        const own = lines.filter(l => l.startsWith(`- ${type}:`));
+        expect(own.length, `${name} ${type}`).toBe(1);
+        for (const item of items) expect(own[0], `${name} ${type} ${item}`).toContain(item);
+      }
+    }
+  });
+
+  it('every bare identifier a prompt puts in backticks is a field of that skill', async () => {
+    const keysOf = (node: any, acc = new Set<string>()): Set<string> => {
+      const def = node?._zod?.def;
+      if (!def) return acc;
+      if (def.shape) for (const [k, v] of Object.entries(def.shape)) { acc.add(k); keysOf(v, acc); }
+      if (def.element) keysOf(def.element, acc);
+      if (def.innerType) keysOf(def.innerType, acc);
+      return acc;
+    };
+    const contextKeys = new Set(Object.keys((contextSchema as any)._zod.def.shape));
+    for (const name of SKILLS) {
+      const fields = keysOf(outputSchemas[name]);
+      expect(fields.has('result'), name).toBe(true);
+      const own = (fields.size > 0 ? [...fields] : []);
+      expect(own.length, name).toBeGreaterThan(10);
       const text = await readFile(path.join(ROOT, skillManifests[name].prompt.path), 'utf8');
-      for (const [type, items] of Object.entries(MINIMUM_DOSSIER)) for (const item of items) expect(text, `${name} ${type} ${item}`).toContain(item);
+      // A backticked word that is only letters and digits is read as a field name; `SkillContext/v1`, `[]` and the like are not.
+      const used = [...text.matchAll(/`([A-Za-z][A-Za-z0-9]*)`/g)].map(m => m[1]);
+      expect(used.length, name).toBeGreaterThan(5);
+      for (const id of used) expect(fields.has(id) || contextKeys.has(id), `${name}: \`${id}\` is not a field of ${name}`).toBe(true);
+    }
+    // the check can fail: a field of another skill is not accepted
+    const pmFields = keysOf(outputSchemas.pm_planning);
+    expect(pmFields.has('unknowns')).toBe(false);
+    expect(keysOf(outputSchemas.technical_writer).has('decisionsNeeded')).toBe(false);
+  });
+
+  it('prompts say the system fills skill and manifestHash, and technical_writer promises no examples', async () => {
+    for (const name of SKILLS) {
+      const text = await readFile(path.join(ROOT, skillManifests[name].prompt.path), 'utf8');
+      expect(text, name).toContain('`skill` và `manifestHash` do hệ thống điền; không viết hai trường đó');
+    }
+    expect(await readFile(path.join(ROOT, skillManifests.technical_writer.prompt.path), 'utf8')).not.toMatch(/ví dụ/i);
+  });
+
+  it('skillEvalSets is frozen at every depth', () => {
+    expect(isFrozenDeep(skillEvalSets)).toBe(true);
+    for (const name of SKILLS) {
+      expect(() => (skillEvalSets[name].cases as unknown[]).push({})).toThrow();
+      expect(() => { (skillEvalSets[name].cases[0].good as { confidence: number }).confidence = 1; }).toThrow();
+      expect(() => (skillEvalSets[name].cases[0].context.sources as unknown[]).pop()).toThrow();
     }
   });
 
@@ -147,5 +196,8 @@ describe('canonicalJson', () => {
     expect(() => canonicalJson({ a: Number.NaN })).toThrow();
     expect(() => canonicalJson({ a: Infinity })).toThrow();
     expect(() => canonicalJson({ a: 1n })).toThrow();
+    // eslint-disable-next-line no-sparse-arrays
+    expect(() => canonicalJson([1, , 3])).toThrow();
+    expect(() => canonicalJson({ a: new Array(2) })).toThrow();
   });
 });

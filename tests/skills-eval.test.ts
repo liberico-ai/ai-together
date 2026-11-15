@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { SKILLS, contextSchema } from '../src/server/skill-contracts';
+import { ID_FIELDS, SKILLS, contextSchema } from '../src/server/skill-contracts';
 import type { SkillName } from '../src/server/skill-contracts';
 import { CONTEXT_KINDS } from '../src/server/skill-context';
 import { EVAL_CATEGORIES, manifestHash, runEvalCase, skillManifests } from '../src/server/skills';
@@ -82,6 +82,28 @@ describe('skill eval sets', () => {
       counts.bad_caught++;
     });
   }
+
+  it('every id inside good and bad has uuid shape', () => {
+    const collect = (value: unknown, p: string[]): string[] => p.length === 0 ? (typeof value === 'string' ? [value] : [])
+      : p[0] === '*' ? (Array.isArray(value) ? value.flatMap(v => collect(v, p.slice(1))) : [])
+        : value && typeof value === 'object' && !Array.isArray(value) ? collect((value as Record<string, unknown>)[p[0]], p.slice(1)) : [];
+    let seen = 0;
+    for (const name of SKILLS) for (const c of sets[name]) for (const [which, o] of [['good', c.good], ['bad', c.bad]] as const) {
+      for (const f of ID_FIELDS[name]) for (const id of collect(o, f.path.split('.'))) { seen++; expect(id, `${name}/${c.category}/${which} ${f.path}`).toMatch(UUID); }
+    }
+    expect(seen).toBeGreaterThan(100);
+  });
+
+  it('each conflicting_sources case checks that the good output cites two distinct sources', () => {
+    for (const name of SKILLS) {
+      const c = sets[name].find(x => x.category === 'conflicting_sources')!;
+      expect(c.checks, name).toEqual([{ path: 'conflicts', minLength: 1 }, { path: 'conflicts.0.sourceIds', minLength: 2 }]);
+      const ids = (c.good as { conflicts: { sourceIds: string[] }[] }).conflicts[0].sourceIds;
+      expect(new Set(ids).size, name).toBe(2);
+      // one omission fails both checks, so both reasons belong to the class
+      expect([...c.badReasons].sort(), name).toEqual(['CHECK_FAILED:conflicts', 'CHECK_FAILED:conflicts.0.sourceIds']);
+    }
+  });
 
   it('runEvalCase fills skill and manifestHash from the manifest and runs the checks', () => {
     const c = structuredClone(sets.intake_analyst.find(x => x.category === 'conflicting_sources')!);
