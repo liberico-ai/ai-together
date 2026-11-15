@@ -105,11 +105,14 @@ Không phần tử nào rộng cố định >328px; nút và liên kết hành �
 **Chưa kiểm được ở chế độ mô phỏng** — chỉ dựa trên test dựng tĩnh và test dịch vụ: khối «Người nhận xét của dự án» (chỉ định, thu hồi, hai nhãn của điều phối), vì dịch vụ đọc vai của người gọi từ bảng danh tính mà các vai mô phỏng không có nên khối không hiện; biểu mẫu quyết định và nhận xét, banner Conflict, thông báo `role="status"`, thử hai tab (chế độ mô phỏng không có người duyệt hay người nhận xét nào); vòng focus khi dùng bàn phím; trình đọc màn hình. Các mục tương ứng dưới đây còn để trống.
 
 Phát hiện khi kiểm tay, đã sửa: tài liệu không có mã hiện dấu ngăn thừa trước tiêu đề.
-- [ ] `npm run build` liệt kê `/review`, `/review/[documentId]`, `/api/reviews/[[...path]]`.
+
+Ô được đánh dấu dưới đây là mục phiên lát 3 đã kiểm đủ (phiên tự báo; không lưu ảnh chụp hay log máy chủ). Mục chỉ kiểm được một phần vẫn để trống. Kiểm một phần: chọn dự án (mới thấy trường hợp nhiều dự án), 360×740 (khối người nhận xét không hiện ở chế độ mô phỏng), chuỗi `<script>` (mới thấy ở tiêu đề và tóm tắt).
+
+- [x] `npm run build` liệt kê `/review`, `/review/[documentId]`, `/api/reviews/[[...path]]`.
 - [ ] `/review` không có `projectId`: một dự án chuyển thẳng; nhiều dự án hiện danh sách chọn.
-- [ ] `/review?projectId=<dự án ngoài quyền>`: chỉ khối từ chối, không tên, không số.
+- [x] `/review?projectId=<dự án ngoài quyền>`: chỉ khối từ chối, không tên, không số.
 - [ ] 360×740: không cuộn ngang ở hàng review, chi tiết, khối người nhận xét; nút ≥44×44; chuỗi dài không dấu cách (tiêu đề, nhận xét, căn cứ) xuống dòng.
-- [ ] 1280×800: `.review-diff` hai cột «Trước» / «Sau»; ở 949px một cột.
+- [x] 1280×800: `.review-diff` hai cột «Trước» / «Sau»; ở 949px một cột.
 - [ ] Chuỗi `<script>alert(1)</script>` trong tiêu đề, nhận xét, căn cứ hiện nguyên chữ.
 - [ ] Căn cứ có ký tự RTL không làm đảo bố cục dòng (nằm trong `<bdi>`).
 - [ ] Bàn phím: Tab qua nút, ô; vòng focus thấy rõ; bấm «Thu hồi» rồi gõ căn cứ, lỗi thì chữ vẫn còn.

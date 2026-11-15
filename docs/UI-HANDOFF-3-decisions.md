@@ -87,7 +87,10 @@ Không phần tử nào rộng cố định >328px; nút và liên kết hành �
 **Chưa kiểm được ở chế độ mô phỏng** — chỉ dựa trên test dựng tĩnh và test dịch vụ: thẻ 3/3 và luồng bỏ phiếu thật (cần người giữ ghế đã ghép Telegram), câu Conflict sau một lệnh, vòng focus, trình đọc màn hình. Các mục tương ứng dưới đây còn để trống.
 
 Phát hiện khi kiểm tay, đã sửa: tài liệu không có mã hiện dấu ngăn thừa trước tiêu đề.
-- [ ] `npm run build` liệt kê `/decisions` và `/api/decisions`.
+
+Ô được đánh dấu dưới đây là mục phiên lát 3 đã kiểm đủ (phiên tự báo; không lưu ảnh chụp hay log máy chủ). Mục chỉ kiểm được một phần vẫn để trống. Kiểm một phần: khối từ chối (chưa ghi lại việc vắng câu `/approvals`), 360×740 (chưa có nút bỏ phiếu để đo), hai dòng tách riêng (mới thấy trên thẻ review), thẻ review (thấy nút «Mở để review»; chưa ghi lại đích của liên kết).
+
+- [x] `npm run build` liệt kê `/decisions` và `/api/decisions`.
 - [ ] `/decisions` không có `projectId`: một dự án chuyển thẳng; nhiều dự án hiện danh sách chọn.
 - [ ] `/decisions?projectId=<dự án ngoài quyền>`: chỉ khối từ chối, không tên, không số, không câu `/approvals`.
 - [ ] 360×740: không cuộn ngang; nút ≥44×44 và rộng hết hàng; chuỗi dài không dấu cách (tiêu đề, tóm tắt, tên) xuống dòng.
@@ -97,7 +100,7 @@ Phát hiện khi kiểm tay, đã sửa: tài liệu không có mã hiện dấu
 - [ ] Bỏ phiếu thành công: thẻ chuyển trạng thái; sau 3/3 thẻ đọc «Đã áp dụng · biên nhận …» chỉ khi có biên nhận.
 - [ ] Hai tab: tab A bỏ phiếu đủ 3/3 hoặc huỷ phiếu, tab B bấm bỏ phiếu ⇒ câu Conflict + «Tải lại», ghi chú còn.
 - [ ] Thẻ review: chỉ có «Mở để review», dẫn tới `/review/<documentId>`; không nút «Chấp thuận».
-- [ ] Chuỗi `<script>alert(1)</script>` trong tiêu đề hiện nguyên chữ.
+- [x] Chuỗi `<script>alert(1)</script>` trong tiêu đề hiện nguyên chữ.
 - [ ] Bàn phím: Tab qua ô và nút, vòng focus rõ.
 - [ ] Trình đọc màn hình: `role="alert"` đọc lỗi; `role="status"` đọc «n thẻ».
 - [ ] Liên kết «Quyết định» ở thanh bên cạnh «Review».

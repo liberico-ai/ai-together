@@ -1,6 +1,6 @@
-# Task 18 — bảng ca → test (slice 3), HEAD 2a267c5
+# Task 18 — bảng ca → test (slice 3), code head ee990b4 (tree at 3eee1c5, docs-only commit on top)
 
-Nguồn: log `logs/vitest-native-2a267c5.log` (native, 65 tệp, 929 ca, 0 bỏ qua). Mỗi dòng ca là «tệp > tên ca đầy đủ». Dấu «…» của brief được khớp theo tiền tố hoặc đoạn tên; không đổi tên test nào.
+Nguồn: log `logs/vitest-native-ee990b4.log` (native, 68 tệp, 1007 ca, 0 bỏ qua). Mỗi dòng ca là «tệp > tên ca đầy đủ». Dấu «…» của brief được khớp theo tiền tố hoặc đoạn tên; không đổi tên test nào.
 
 ## DOC-05
 Mức: Mức mã, đầu ra giả lập
@@ -18,6 +18,7 @@ Mức: Mức mã, dữ liệu tổng hợp (concurrency: native)
 - `document-review-concurrency` «document review concurrency (native PostgreSQL) > an approval and a changes_requested on the same revision store exactly one decision» — passed
 - `document-review-concurrency` «document review concurrency (native PostgreSQL) > a decision racing a new revision proposal never lands on the newer revision» — passed
 - `document-review-concurrency` «document review concurrency (native PostgreSQL) > authority lost between the read and the insert is answered APPROVER_NOT_AUTHORIZED and nothing is stored» — passed
+- `document-review-concurrency` «document review concurrency (native PostgreSQL) > two resolved on one thread sent together store one row and one event; the other answers COMMENT_RESOLVED» — passed
 
 ## DOC-08
 Mức: Mức mã
@@ -85,7 +86,7 @@ Mức: Bộ chấm với đầu ra giả lập; chưa nối mô hình
 - `skills-eval` «skill eval sets > every skill has exactly one case per category» — passed
 - `skills-eval` «skill eval sets > every eval context is valid, belongs to its skill and holds only the kinds that skill receives» — passed
 - `skills-eval` «skill eval sets > the injection sentence sits in a source text or a title/summary of the injection case only» — passed
-- `skills-eval`: 38 cases match «(whole file)», all passed; first three shown
+- `skills-eval`: 41 cases match «(whole file)», all passed; first three shown
 
 ## Quyền âm (1)(3)(5)(6)
 Mức: Mức mã
@@ -219,6 +220,7 @@ Mức: PostgreSQL thật, dữ liệu tổng hợp
 - `document-review-concurrency` «document review concurrency (native PostgreSQL) > an approval and a changes_requested on the same revision store exactly one decision» — passed
 - `document-review-concurrency` «document review concurrency (native PostgreSQL) > a decision racing a new revision proposal never lands on the newer revision» — passed
 - `document-review-concurrency` «document review concurrency (native PostgreSQL) > authority lost between the read and the insert is answered APPROVER_NOT_AUTHORIZED and nothing is stored» — passed
+- `document-review-concurrency` «document review concurrency (native PostgreSQL) > two resolved on one thread sent together store one row and one event; the other answers COMMENT_RESOLVED» — passed
 - `review-delegations-concurrency` «delegation concurrency (native PostgreSQL) > two managers designating the same member at once store one active delegation» — passed
 - `review-delegations-concurrency` «delegation concurrency (native PostgreSQL) > two managers revoking the same delegation at once store one revoke» — passed
 - `suggestions-concurrency` «draft decision concurrency (native PostgreSQL) > two confirmations of one draft in parallel leave one decision and one revision» — passed
@@ -232,7 +234,7 @@ Mức: 0 dòng; xem task-18-ai-privileges.txt
 
 ## Phiếu ghi chú test_bot_bridge.py
 
-- `tests/test_bot_bridge.py::…::test_a_ballot_with_a_document_approval_code_is_never_asked_by_the_current_plugin` — có trong mã nguồn (dòng 1592); `pytest -q` không in từng ca, tệp chạy `67 passed, 69 subtests passed` (exit 0), nên ca nằm trong số đó. Không chạy lại riêng.
+- `tests/test_bot_bridge.py::…::test_a_ballot_with_a_document_approval_code_is_never_asked_by_the_current_plugin` — có trong mã nguồn (tìm thấy bằng grep trong tệp); `pytest -q` không in từng ca, tệp chạy `67 passed, 69 subtests passed` (exit 0), nên ca nằm trong số đó. Không chạy lại riêng.
 
 ## Hàng chưa làm hoặc không coi đạt
 
@@ -247,6 +249,31 @@ Mức: 0 dòng; xem task-18-ai-privileges.txt
 ```
 {"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
 ```
+
+## Tệp test thêm kể từ lần chạy đầu (2a267c5 → ee990b4; so hai log native)
+
+- `tests/review-page.test.ts`: 7 ca
+- `tests/list-cut.test.ts`: 2 ca
+- `tests/document-dependencies-concurrency.test.ts`: 1 ca
+
+Tổng: 10 ca trong 3 tệp mới.
+
+## Tệp có số ca thay đổi
+
+- `tests/suggestions.test.ts`: 36 → 47
+- `tests/review-delegations.test.ts`: 39 → 40
+- `tests/review-schema.test.ts`: 35 → 37
+- `tests/document-review.test.ts`: 26 → 32
+- `tests/documents.test.ts`: 27 → 28
+- `tests/z4-schema.test.ts`: 24 → 25
+- `tests/decisions.test.ts`: 17 → 20
+- `tests/review-http.test.ts`: 17 → 19
+- `tests/document-dependencies.test.ts`: 8 → 13
+- `tests/review-ui.test.tsx`: 27 → 53
+- `tests/decisions-ui.test.tsx`: 15 → 20
+- `tests/skills-eval.test.ts`: 38 → 41
+- `tests/skills-manifest.test.ts`: 15 → 16
+- `tests/document-review-concurrency.test.ts`: 5 → 6
 
 ## ls (bước i)
 
