@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { scoped, type Database, type Queryable } from './db';
 import { claimDocumentCommand } from './document-commands';
 import { AppError } from './errors';
+import { storable } from './text-safety';
 import { projectRole } from './types';
 import type { DocType, Principal, SourceRef } from './types';
 
@@ -30,8 +31,7 @@ export type DiffEntry = { field: 'summary' | 'present' | 'missing' | 'source_ref
 export type ReviewDetail = { item: ReviewItem; base: ReviewRevision | null; diff: DiffEntry[]; comments: CommentView[] };
 
 // ---- input: strict schemas, identifiers lower-cased at parse time, free text PostgreSQL can store ----
-const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
-export const storable = (s: string) => !s.includes('\u0000') && !LONE_SURROGATE.test(s);
+export { storable };
 export const text = (min: number, max: number) => z.string().min(min).max(max).refine(storable, 'Chữ chứa ký tự không lưu được.');
 export const uuid = z.string().uuid().transform(s => s.toLowerCase());
 const queueSchema = z.object({ projectId: uuid, limit: z.number().int().min(1).max(200).default(50), offset: z.number().int().min(0).default(0) }).strict();

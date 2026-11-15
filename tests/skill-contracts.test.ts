@@ -1,0 +1,320 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { ID_FIELDS, MAX_OUTPUT_BYTES, MINIMUM_DOSSIER, SKILLS, checkSkillOutput, contextSchema, outputFits, outputSchemas } from '../src/server/skill-contracts';
+import type { SkillContext, SkillName } from '../src/server/skill-contracts';
+
+// Synthetic fixtures only. Ids are short labels, not real identifiers.
+const ctx = (over: Partial<SkillContext> = {}): SkillContext => ({
+  skill: 'intake_analyst', projectId: 'p1', pointerOnly: false,
+  sources: [
+    { id: 'e1', kind: 'source_event', ref: 'ref-1', mode: 'excerpt', text: 'synthetic text', hash: 'h1', observedAt: '2026-11-15T00:00:00.000Z', forwarded: false },
+    { id: 'e2', kind: 'source_event', ref: 'ref-2', mode: 'hidden', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false },
+    { id: 'e3', kind: 'source_event', ref: 'ref-3', mode: 'pointer_only', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: true },
+    { id: 'd1', kind: 'document', refCode: 'DOC-1', docType: 'guide', title: 'Synthetic guide', latestRevisionId: 'r2', approvedRevisionId: 'r1' },
+    { id: 'r1', kind: 'document_revision', documentId: 'd1', revisionNo: 1, summary: 'first', present: ['a'], missing: [], sourceHash: null, hashVerification: 'self_declared' },
+    { id: 'r2', kind: 'document_revision', documentId: 'd1', revisionNo: 2, summary: 'second', present: ['a', 'b'], missing: ['c'], sourceHash: 'h2', hashVerification: 'verified' },
+  ],
+  ...over,
+});
+const HASH = 'manifest-hash-1';
+const manifest = (name: SkillName, toolAllowlist: readonly string[] = []) => ({ name, hash: HASH, toolAllowlist });
+
+const base = (skill: SkillName, result: unknown) => ({
+  skill, manifestHash: HASH, sources: [{ id: 'e1' }], claims: [{ field: 'f', value: 'v', basis: ['e1'] }],
+  questions: [{ field: 'f', question: 'q?' }], conflicts: [{ field: 'f', sourceIds: ['e1', 'r1'], note: 'n' }], confidence: 80, toolRequests: [] as { tool: string }[], result,
+});
+// Every array holds an element and every nullable string is filled, so each string leaf can be probed.
+const results: Record<SkillName, unknown> = {
+  intake_analyst: { classification: 'incident', duplicateOf: 'e1', missingFields: ['owner'] },
+  ba_elicitation: { userStories: [{ text: 's', basis: ['e1'] }], rules: [{ text: 'r', basis: ['e1'] }], acceptance: [{ text: 'a', basis: ['e1'] }], unknowns: ['u'] },
+  pm_planning: { milestones: [{ title: 't', basis: ['e1'], estimate: '2 weeks' }], actions: [{ text: 'a', basis: ['e1'] }], decisionsNeeded: ['d'] },
+  technical_writer: { sections: [{ heading: 'h', text: 't', basis: ['e1'] }], terms: [{ term: 't', meaning: 'm', basis: ['e1'] }] },
+  doc_reviewer: { baseRevisionId: 'r1', candidateRevisionId: 'r2', diff: [{ section: 's', change: 'modified', note: 'n' }], impacts: ['i'], missing: ['m'], scopeRead: 'all' },
+  release_librarian: { approvedRevisionId: 'r1', index: [{ documentId: 'd1', revisionId: 'r1' }], staleReminders: [{ documentId: 'd1', note: 'n' }] },
+};
+const clean = (skill: SkillName) => base(skill, structuredClone(results[skill]));
+const check = (skill: SkillName, raw: unknown, allow: readonly string[] = [], c?: SkillContext) => checkSkillOutput(manifest(skill, allow), c ?? ctx({ skill }), raw);
+
+describe('skill contracts', () => {
+  it('a clean output of each of the six skills is accepted', () => {
+    expect(SKILLS).toHaveLength(6);
+    for (const s of SKILLS) {
+      const r = check(s, clean(s));
+      expect(r, s).toMatchObject({ verdict: 'accept', reasons: [] });
+      expect(r.output).not.toBeNull();
+    }
+  });
+
+  it('every skill has a strict output contract; unknown keys are rejected', () => {
+    for (const s of SKILLS) for (const k of ['policy', 'assignee', 'dueAt', 'approve', 'delivered']) {
+      const top = { ...clean(s), [k]: 'x' };
+      expect(check(s, top), `${s} top ${k}`).toEqual({ verdict: 'hold', reasons: ['SCHEMA_INVALID'], output: null });
+      const inner = clean(s); (inner.result as Record<string, unknown>)[k] = 'x';
+      expect(check(s, inner), `${s} result ${k}`).toEqual({ verdict: 'hold', reasons: ['SCHEMA_INVALID'], output: null });
+      expect(outputSchemas[s].safeParse(inner).success).toBe(false);
+    }
+    const nested = clean('release_librarian'); (nested.result as { index: Record<string, unknown>[] }).index[0].delivered = true;
+    expect(check('release_librarian', nested).reasons).toEqual(['SCHEMA_INVALID']);
+    const claim = clean('intake_analyst'); (claim.claims[0] as Record<string, unknown>).assignee = 'x';
+    expect(check('intake_analyst', claim).reasons).toEqual(['SCHEMA_INVALID']);
+  });
+
+  it('the context schema is strict', () => {
+    expect(contextSchema.safeParse(ctx()).success).toBe(true);
+    expect(contextSchema.safeParse({ ...ctx(), extra: 1 }).success).toBe(false);
+    const c = ctx(); (c.sources[0] as Record<string, unknown>).extra = 1;
+    expect(contextSchema.safeParse(c).success).toBe(false);
+    expect(contextSchema.safeParse({ ...ctx(), sources: [{ id: 'x', kind: 'other' }] }).success).toBe(false);
+  });
+
+  it('a manifest mismatch of skill or hash is held', () => {
+    expect(check('intake_analyst', { ...clean('intake_analyst'), skill: 'pm_planning' }).reasons).toEqual(['MANIFEST_MISMATCH']);
+    expect(check('intake_analyst', { ...clean('intake_analyst'), manifestHash: 'other' }).reasons).toEqual(['MANIFEST_MISMATCH']);
+  });
+
+  it('an output without sources is held', () => {
+    const r = check('intake_analyst', { ...clean('intake_analyst'), sources: [] });
+    expect(r).toEqual({ verdict: 'hold', reasons: ['SOURCE_REQUIRED'], output: null });
+  });
+
+  it('a claim or section without basis is held', () => {
+    const c = clean('intake_analyst'); c.claims[0].basis = [];
+    expect(check('intake_analyst', c).reasons).toEqual(['UNSOURCED_CLAIM']);
+    for (const [s, path] of [['ba_elicitation', 'userStories'], ['ba_elicitation', 'rules'], ['ba_elicitation', 'acceptance'], ['pm_planning', 'milestones'], ['pm_planning', 'actions'], ['technical_writer', 'sections'], ['technical_writer', 'terms']] as const) {
+      const o = clean(s); ((o.result as Record<string, { basis: string[] }[]>)[path])[0].basis = [];
+      expect(check(s, o).reasons, `${s}.${path}`).toEqual(['UNSOURCED_CLAIM']);
+    }
+  });
+
+  it('a cited id outside the context is held', () => {
+    const where: [string, (o: ReturnType<typeof clean>) => void][] = [
+      ['sources', o => { o.sources = [{ id: 'zzz' }]; }],
+      ['claim basis', o => { o.claims[0].basis = ['zzz']; }],
+      ['conflict sourceIds', o => { o.conflicts[0].sourceIds = ['zzz']; }],
+      ['result basis', o => { ((o.result as { userStories: { basis: string[] }[] }).userStories ?? [{ basis: [] }])[0].basis = ['zzz']; }],
+    ];
+    for (const [name, f] of where) {
+      const o = clean('ba_elicitation'); f(o);
+      expect(check('ba_elicitation', o).reasons, name).toEqual(['SOURCE_OUT_OF_CONTEXT']);
+    }
+    const dup = clean('intake_analyst'); (dup.result as { duplicateOf: string }).duplicateOf = 'zzz';
+    expect(check('intake_analyst', dup).reasons).toEqual(['SOURCE_OUT_OF_CONTEXT']);
+    for (const k of ['baseRevisionId', 'candidateRevisionId']) {
+      const o = clean('doc_reviewer'); (o.result as Record<string, string>)[k] = 'zzz';
+      expect(check('doc_reviewer', o).reasons, k).toEqual(['SOURCE_OUT_OF_CONTEXT']);
+    }
+    for (const k of ['documentId', 'revisionId']) {
+      const o = clean('release_librarian'); (o.result as { index: Record<string, string>[] }).index[0][k] = 'zzz';
+      expect(check('release_librarian', o).reasons, k).toEqual(['SOURCE_OUT_OF_CONTEXT', 'NOT_APPROVED_REVISION']);
+    }
+  });
+
+  it('a claim based on a hidden or pointer-only message is held', () => {
+    for (const id of ['e2', 'e3']) {
+      const o = clean('intake_analyst'); o.claims[0].basis = [id];
+      expect(check('intake_analyst', o), id).toEqual({ verdict: 'hold', reasons: ['TEXT_NOT_VISIBLE'], output: null });
+      const p = clean('pm_planning'); (p.result as { actions: { basis: string[] }[] }).actions[0].basis = [id];
+      expect(check('pm_planning', p).reasons, `result ${id}`).toEqual(['TEXT_NOT_VISIBLE']);
+    }
+  });
+
+  it('DOC-15 a tool request outside the allowlist is held and the manifest object is unchanged', () => {
+    const m = Object.freeze({ name: 'intake_analyst' as const, hash: HASH, toolAllowlist: Object.freeze([] as string[]) });
+    const o = { ...clean('intake_analyst'), toolRequests: [{ tool: 'shell.exec' }] };
+    const r = checkSkillOutput(m, ctx(), o);
+    expect(r).toEqual({ verdict: 'hold', reasons: ['TOOL_NOT_ALLOWED'], output: null });
+    expect(m.toolAllowlist).toEqual([]);
+    expect(check('intake_analyst', o, ['shell.exec']).verdict).toBe('accept');
+  });
+
+  it('release_librarian can only name the approved revision of a document in context', () => {
+    const wrong = clean('release_librarian'); (wrong.result as { approvedRevisionId: string }).approvedRevisionId = 'r2';
+    expect(check('release_librarian', wrong).reasons).toEqual(['NOT_APPROVED_REVISION']);
+    const none = clean('release_librarian'); (none.result as { approvedRevisionId: string | null }).approvedRevisionId = null;
+    expect(check('release_librarian', none).verdict).toBe('accept');
+    expect(check('release_librarian', clean('release_librarian')).verdict).toBe('accept');
+  });
+
+  it('the minimum dossier lists six work types with the items of SPEC-009', () => {
+    expect(Object.keys(MINIMUM_DOSSIER).sort()).toEqual(['document_support', 'feature', 'incident', 'new_product', 'small_bug', 'technical_upgrade']);
+    for (const v of Object.values(MINIMUM_DOSSIER)) expect(v.length).toBeGreaterThan(0);
+    expect(MINIMUM_DOSSIER.incident).toEqual(['Intake', 'impact', 'hành động khôi phục', 'cách kiểm', 'receipt', 'phần còn nợ']);
+    expect(MINIMUM_DOSSIER.new_product).toHaveLength(6);
+  });
+
+  it('reasons are complete and ordered', () => {
+    const o = { ...clean('intake_analyst'), manifestHash: 'other', sources: [], toolRequests: [{ tool: 'x' }] };
+    expect(check('intake_analyst', o).reasons).toEqual(['MANIFEST_MISMATCH', 'SOURCE_REQUIRED', 'TOOL_NOT_ALLOWED']);
+    const all = clean('release_librarian');
+    all.manifestHash = 'other'; all.sources = [];
+    all.claims = [{ field: 'a', value: 'v', basis: ['zzz'] }, { field: 'b', value: 'v', basis: [] }, { field: 'c', value: 'v', basis: ['e2'] }];
+    all.toolRequests = [{ tool: 'x' }, { tool: 'y' }];
+    (all.result as { approvedRevisionId: string }).approvedRevisionId = 'r2';
+    const r = check('release_librarian', all);
+    expect(r.reasons).toEqual(['MANIFEST_MISMATCH', 'SOURCE_REQUIRED', 'SOURCE_OUT_OF_CONTEXT', 'UNSOURCED_CLAIM', 'TOOL_NOT_ALLOWED', 'TEXT_NOT_VISIBLE', 'NOT_APPROVED_REVISION']);
+    expect(r).toMatchObject({ verdict: 'hold', output: null });
+  });
+
+  it('an oversized or deeply nested output is rejected by size, not by a crash', () => {
+    const big = { ...clean('intake_analyst'), claims: [{ field: 'f', value: 'x'.repeat(MAX_OUTPUT_BYTES), basis: ['e1'] }] };
+    expect(check('intake_analyst', big)).toEqual({ verdict: 'hold', reasons: ['SCHEMA_INVALID'], output: null });
+    let deep: unknown = 'x'; for (let i = 0; i < 200000; i++) deep = [deep];
+    expect(check('intake_analyst', { ...clean('intake_analyst'), result: deep }).reasons).toEqual(['SCHEMA_INVALID']);
+    const cyc: Record<string, unknown> = {}; cyc.self = cyc;
+    expect(check('intake_analyst', cyc).reasons).toEqual(['SCHEMA_INVALID']);
+    expect(check('intake_analyst', { ...clean('intake_analyst'), result: 10n }).reasons).toEqual(['SCHEMA_INVALID']);
+    expect(check('intake_analyst', undefined).reasons).toEqual(['SCHEMA_INVALID']);
+    expect(check('intake_analyst', null).reasons).toEqual(['SCHEMA_INVALID']);
+  });
+
+  it('outputFits measures UTF-8 bytes of the compact JSON', () => {
+    const at = (n: number) => ({ s: 'x'.repeat(n) });
+    expect(Buffer.byteLength(JSON.stringify(at(32760)), 'utf8')).toBe(32768);
+    expect(outputFits(at(32760))).toBe(true);
+    expect(outputFits(at(32761))).toBe(false);
+    const vi = { s: 'ệ'.repeat(15000) };
+    expect(vi.s.length).toBeLessThan(MAX_OUTPUT_BYTES);
+    expect(outputFits(vi)).toBe(false);
+    expect(outputFits(undefined)).toBe(false);
+    expect(outputFits(() => 1)).toBe(false);
+    expect(outputFits(Symbol('x'))).toBe(false);
+  });
+
+  const through = (bad: string) => { const o = clean('intake_analyst'); o.claims[0].value = bad; return check('intake_analyst', o).reasons; };
+  it('outputFits refuses U+0000 in a value or a key', () => {
+    expect(outputFits({ a: ['x\u0000y'] })).toBe(false);
+    expect(outputFits({ a: { b: [{ c: { ['k\u0000']: 'v' } }] } })).toBe(false);
+    expect(through('x\u0000y')).toEqual(['SCHEMA_INVALID']);
+  });
+  it('outputFits refuses a lone surrogate in a value or a key', () => {
+    expect(outputFits({ a: '\ud800' })).toBe(false);
+    expect(outputFits({ a: '\udc00' })).toBe(false);
+    expect(outputFits({ a: { b: [{ c: { ['k\ud800']: 'v' } }] } })).toBe(false);
+    expect(through('\ud800')).toEqual(['SCHEMA_INVALID']);
+    expect(through('\udc00')).toEqual(['SCHEMA_INVALID']);
+  });
+  it('outputFits accepts a valid surrogate pair and the six letters backslash-u0000', () => {
+    expect(outputFits({ a: '\ud83d\ude00' })).toBe(true);
+    expect(outputFits({ a: '\\u0000' })).toBe(true);
+  });
+
+  it('confidence is an integer from 0 to 100', () => {
+    for (const c of [0.5, -1, 101, '80']) expect(check('intake_analyst', { ...clean('intake_analyst'), confidence: c }).reasons, String(c)).toEqual(['SCHEMA_INVALID']);
+    for (const c of [0, 100]) expect(check('intake_analyst', { ...clean('intake_analyst'), confidence: c }).verdict).toBe('accept');
+  });
+
+  it('no contract admits another number, and parsing returns the value unchanged', () => {
+    const leaves = (v: unknown, path: (string | number)[] = []): (string | number)[][] =>
+      typeof v === 'string' ? [path] : Array.isArray(v) ? v.flatMap((x, i) => leaves(x, [...path, i])) : v && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => leaves(x, [...path, k])) : [];
+    for (const s of SKILLS) {
+      const good = clean(s);
+      const parsed = outputSchemas[s].safeParse(good);
+      expect(parsed.success, s).toBe(true);
+      if (parsed.success) expect(parsed.data).toEqual(good);
+      const paths = leaves(good);
+      expect(paths.length).toBeGreaterThan(8);
+      for (const p of paths) {
+        const o = clean(s) as unknown as Record<string, unknown>;
+        let t: any = o; for (const k of p.slice(0, -1)) t = t[k];
+        t[p[p.length - 1]] = 7;
+        expect(check(s, o).reasons, `${s} ${p.join('.')}`).toEqual(['SCHEMA_INVALID']);
+      }
+    }
+  });
+
+  it('sources are at most 100 references', () => {
+    const mk = (n: number) => ({ ...clean('intake_analyst'), sources: Array.from({ length: n }, () => ({ id: 'e1' })) });
+    expect(check('intake_analyst', mk(100)).verdict).toBe('accept');
+    expect(check('intake_analyst', mk(101))).toEqual({ verdict: 'hold', reasons: ['SCHEMA_INVALID'], output: null });
+    expect(check('intake_analyst', { ...clean('intake_analyst'), sources: [{ id: 'e1', text: 'quoted' }] }).reasons).toEqual(['SCHEMA_INVALID']);
+  });
+
+  it('questions are at most 50 items and 16384 bytes', () => {
+    const mk = (n: number) => ({ ...clean('intake_analyst'), questions: Array.from({ length: n }, () => ({ field: 'f', question: 'q' })) });
+    expect(check('intake_analyst', mk(50)).verdict).toBe('accept');
+    expect(check('intake_analyst', mk(51)).reasons).toEqual(['SCHEMA_INVALID']);
+    const sized = (bytes: number) => {
+      const probe = [{ field: 'f', question: '' }];
+      const pad = bytes - Buffer.byteLength(JSON.stringify(probe), 'utf8');
+      const questions = [{ field: 'f', question: 'x'.repeat(pad) }];
+      expect(Buffer.byteLength(JSON.stringify(questions), 'utf8')).toBe(bytes);
+      return { ...clean('intake_analyst'), questions };
+    };
+    expect(check('intake_analyst', sized(16384)).verdict).toBe('accept');
+    expect(check('intake_analyst', sized(16385))).toEqual({ verdict: 'hold', reasons: ['SCHEMA_INVALID'], output: null });
+  });
+
+  it('R-a the context must be for the same skill as the manifest', () => {
+    const r = check('ba_elicitation', clean('ba_elicitation'), [], ctx({ skill: 'pm_planning' }));
+    expect(r).toEqual({ verdict: 'hold', reasons: ['MANIFEST_MISMATCH'], output: null });
+  });
+
+  it('R-b a statement cannot rest on text that was not shown', () => {
+    const c = clean('intake_analyst'); c.conflicts[0].sourceIds = ['e2'];
+    expect(check('intake_analyst', c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
+    const p = clean('technical_writer'); (p.result as { sections: { basis: string[] }[] }).sections[0].basis = ['e3'];
+    expect(check('technical_writer', p).reasons).toEqual(['TEXT_NOT_VISIBLE']);
+    const listed = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'e2' }, { id: 'e3' }] };
+    expect(check('intake_analyst', listed)).toMatchObject({ verdict: 'accept', reasons: [] });
+  });
+
+  it('R-c every id-bearing field is checked against the context, and the table covers every id in a clean output', () => {
+    const setAll = (o: any, path: string[], value: string): number => {
+      if (path.length === 0) return 0;
+      const [h, ...rest] = path;
+      if (h === '*') { let n = 0; for (let i = 0; i < o.length; i++) { if (rest.length === 0) { o[i] = value; n++; } else n += setAll(o[i], rest, value); } return n; }
+      if (rest.length === 0) { if (o[h] === null) return 0; o[h] = value; return 1; }
+      return setAll(o[h], rest, value);
+    };
+    const leaves = (v: unknown, path: string[] = []): string[][] =>
+      typeof v === 'string' ? [path] : Array.isArray(v) ? v.flatMap((x, i) => leaves(x, [...path, String(i)])) : v && typeof v === 'object' ? Object.entries(v).flatMap(([k, x]) => leaves(x, [...path, k])) : [];
+    const known = new Set(ctx().sources.map(x => x.id));
+    for (const s of SKILLS) {
+      // 1. each table entry, replaced by a foreign id, is refused
+      for (const f of ID_FIELDS[s]) {
+        const o = clean(s); expect(setAll(o, f.path.split('.'), 'zzz'), `${s} ${f.path} present in fixture`).toBeGreaterThan(0);
+        expect(check(s, o).reasons, `${s} ${f.path}`).toContain('SOURCE_OUT_OF_CONTEXT');
+      }
+      // 2. every leaf of the clean output that holds a context id sits at a path of the table
+      const patterns = ID_FIELDS[s].map(f => new RegExp('^' + f.path.replace(/\./g, '\\.').replace(/\*/g, '\\d+') + '$'));
+      for (const p of leaves(clean(s))) {
+        const v = p.reduce((x: any, k) => x[k], clean(s) as any) as string;
+        if (known.has(v)) expect(patterns.some(r => r.test(p.join('.'))), `${s} ${p.join('.')} holds an id but is not in ID_FIELDS`).toBe(true);
+      }
+    }
+  });
+
+  it('R-d the release librarian only names approved revisions', () => {
+    const latest = clean('release_librarian'); (latest.result as { approvedRevisionId: string }).approvedRevisionId = 'r2';
+    expect(check('release_librarian', latest).reasons).toEqual(['NOT_APPROVED_REVISION']);
+    const idx = clean('release_librarian'); (idx.result as { index: { revisionId: string }[] }).index[0].revisionId = 'r2';
+    expect(check('release_librarian', idx).reasons).toEqual(['NOT_APPROVED_REVISION']);
+    const c = ctx({ skill: 'release_librarian' });
+    c.sources = c.sources.map(x => x.kind === 'document' ? { ...x, approvedRevisionId: null } : x);
+    const none = clean('release_librarian'); (none.result as { approvedRevisionId: string | null }).approvedRevisionId = null;
+    expect(check('release_librarian', none, [], c).reasons).toEqual(['NOT_APPROVED_REVISION']);
+    (none.result as { index: unknown[] }).index = [];
+    expect(check('release_librarian', none, [], c).verdict).toBe('accept');
+  });
+
+  it('R-e a pointer-only context carries no text to reason from', () => {
+    const c = ctx({ skill: 'intake_analyst', pointerOnly: true });
+    expect(check('intake_analyst', clean('intake_analyst'), [], c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
+    const onlyConflict = { ...clean('intake_analyst'), claims: [] };
+    expect(check('intake_analyst', onlyConflict, [], c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
+    const ba = { ...clean('ba_elicitation'), claims: [], conflicts: [] };
+    expect(check('ba_elicitation', ba, [], ctx({ skill: 'ba_elicitation', pointerOnly: true })).reasons).toEqual(['TEXT_NOT_VISIBLE']);
+    const empty = { ...clean('ba_elicitation'), claims: [], conflicts: [], result: { userStories: [], rules: [], acceptance: [], unknowns: ['u'] } };
+    expect(check('ba_elicitation', empty, [], ctx({ skill: 'ba_elicitation', pointerOnly: true }))).toMatchObject({ verdict: 'accept', reasons: [] });
+  });
+
+  it('R-f the gate imports nothing that reaches the database', () => {
+    const imports = (file: string) => [...readFileSync(file, 'utf8').matchAll(/^\s*(?:import|export)\s+(type\s+)?[^;]*?from\s+'([^']+)'/gm)].map(m => ({ typeOnly: !!m[1], spec: m[2] }));
+    const own = imports('src/server/skill-contracts.ts');
+    expect(own.length).toBeGreaterThan(0);
+    for (const i of own.filter(x => !x.typeOnly)) expect(['zod', './text-safety'], i.spec).toContain(i.spec);
+    for (const i of own.filter(x => x.typeOnly)) expect(['./source-text', './types'], i.spec).toContain(i.spec);
+    expect(imports('src/server/text-safety.ts')).toEqual([]);
+    expect(readFileSync('src/server/text-safety.ts', 'utf8')).not.toMatch(/\brequire\(|\bimport\(/);
+  });
+});

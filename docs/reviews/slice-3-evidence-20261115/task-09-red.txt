@@ -1,0 +1,247 @@
+npx vitest run tests/skill-contracts.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/skill-contracts.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-contracts.test.ts [ tests/skill-contracts.test.ts ]
+Error: Cannot find module '../src/server/skill-contracts' imported from <worktree>/tests/skill-contracts.test.ts
+ ❯ tests/skill-contracts.test.ts:2:1
+      1| import { describe, expect, it } from 'vitest';
+      2| import { MAX_OUTPUT_BYTES, MINIMUM_DOSSIER, SKILLS, checkSkillOutput, …
+       | ^
+      3| import type { SkillContext, SkillName } from '../src/server/skill-cont…
+      4|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  15:52:26
+   Duration  92ms (worker 97%, environment 3%)
+
+
+=== Round 0 (rulings R-a..R-f), tests before the change
+npx vitest run tests/skill-contracts.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/skill-contracts.test.ts (27 tests | 7 failed) 40ms
+   ❯ skill contracts (27)
+     × a cited id outside the context is held 3ms
+     × R-a the context must be for the same skill as the manifest 1ms
+     × R-b a statement cannot rest on text that was not shown 0ms
+     × R-c every id-bearing field is checked against the context, and the table covers every id in a clean output 0ms
+     × R-d the release librarian only names approved revisions 0ms
+     × R-e a pointer-only context carries no text to reason from 0ms
+     × R-f the gate imports nothing that reaches the database 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > a cited id outside the context is held
+AssertionError: documentId: expected [ 'SOURCE_OUT_OF_CONTEXT' ] to deeply equal [ 'SOURCE_OUT_OF_CONTEXT', …(1) ]
+
+- Expected
++ Received
+
+  [
+    "SOURCE_OUT_OF_CONTEXT",
+-   "NOT_APPROVED_REVISION",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:108:56
+    106|     for (const k of ['documentId', 'revisionId']) {
+    107|       const o = clean('release_librarian'); (o.result as { index: Reco…
+    108|       expect(check('release_librarian', o).reasons, k).toEqual(['SOURC…
+       |                                                        ^
+    109|     }
+    110|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-a the context must be for the same skill as the manifest
+AssertionError: expected { Object (verdict, reasons, ...) } to deeply equal { verdict: 'hold', …(2) }
+
+- Expected
++ Received
+
+  {
+-   "output": null,
+-   "reasons": [
+-     "MANIFEST_MISMATCH",
++   "output": {
++     "claims": [
++       {
++         "basis": [
++           "e1",
++         ],
++         "field": "f",
++         "value": "v",
++       },
++     ],
++     "confidence": 80,
++     "conflicts": [
++       {
++         "field": "f",
++         "note": "n",
++         "sourceIds": [
++           "e1",
++           "r1",
++         ],
++       },
++     ],
++     "manifestHash": "manifest-hash-1",
++     "questions": [
++       {
++         "field": "f",
++         "question": "q?",
++       },
+      ],
+-   "verdict": "hold",
++     "result": {
++       "acceptance": [
++         {
++           "basis": [
++             "e1",
++           ],
++           "text": "a",
++         },
++       ],
++       "rules": [
++         {
++           "basis": [
++             "e1",
++           ],
++           "text": "r",
++         },
++       ],
++       "unknowns": [
++         "u",
++       ],
++       "userStories": [
++         {
++           "basis": [
++             "e1",
++           ],
++           "text": "s",
++         },
++       ],
++     },
++     "skill": "ba_elicitation",
++     "sources": [
++       {
++         "id": "e1",
++       },
++     ],
++     "toolRequests": [],
++   },
++   "reasons": [],
++   "verdict": "accept",
+  }
+
+ ❯ tests/skill-contracts.test.ts:249:15
+    247|   it('R-a the context must be for the same skill as the manifest', () …
+    248|     const r = check('ba_elicitation', clean('ba_elicitation'), [], ctx…
+    249|     expect(r).toEqual({ verdict: 'hold', reasons: ['MANIFEST_MISMATCH'…
+       |               ^
+    250|   });
+    251|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-b a statement cannot rest on text that was not shown
+AssertionError: expected [] to deeply equal [ 'TEXT_NOT_VISIBLE' ]
+
+- Expected
++ Received
+
+- [
+-   "TEXT_NOT_VISIBLE",
+- ]
++ []
+
+ ❯ tests/skill-contracts.test.ts:254:48
+    252|   it('R-b a statement cannot rest on text that was not shown', () => {
+    253|     const c = clean('intake_analyst'); c.conflicts[0].sourceIds = ['e2…
+    254|     expect(check('intake_analyst', c).reasons).toEqual(['TEXT_NOT_VISI…
+       |                                                ^
+    255|     const p = clean('technical_writer'); (p.result as { sections: { ba…
+    256|     expect(check('technical_writer', p).reasons).toEqual(['TEXT_NOT_VI…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-c every id-bearing field is checked against the context, and the table covers every id in a clean output
+TypeError: Cannot read properties of undefined (reading 'intake_analyst')
+ ❯ tests/skill-contracts.test.ts:274:23
+    272|     for (const s of SKILLS) {
+    273|       // 1. each table entry, replaced by a foreign id, is refused
+    274|       for (const f of ID_FIELDS[s]) {
+       |                       ^
+    275|         const o = clean(s); expect(setAll(o, f.path.split('.'), 'zzz')…
+    276|         expect(check(s, o).reasons, `${s} ${f.path}`).toContain('SOURC…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-d the release librarian only names approved revisions
+AssertionError: expected [] to deeply equal [ 'NOT_APPROVED_REVISION' ]
+
+- Expected
++ Received
+
+- [
+-   "NOT_APPROVED_REVISION",
+- ]
++ []
+
+ ❯ tests/skill-contracts.test.ts:291:53
+    289|     expect(check('release_librarian', latest).reasons).toEqual(['NOT_A…
+    290|     const idx = clean('release_librarian'); (idx.result as { index: { …
+    291|     expect(check('release_librarian', idx).reasons).toEqual(['NOT_APPR…
+       |                                                     ^
+    292|     const c = ctx({ skill: 'release_librarian' });
+    293|     c.sources = c.sources.map(x => x.kind === 'document' ? { ...x, app…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-e a pointer-only context carries no text to reason from
+AssertionError: expected [] to deeply equal [ 'TEXT_NOT_VISIBLE' ]
+
+- Expected
++ Received
+
+- [
+-   "TEXT_NOT_VISIBLE",
+- ]
++ []
+
+ ❯ tests/skill-contracts.test.ts:302:77
+    300|   it('R-e a pointer-only context carries no text to reason from', () =…
+    301|     const c = ctx({ skill: 'intake_analyst', pointerOnly: true });
+    302|     expect(check('intake_analyst', clean('intake_analyst'), [], c).rea…
+       |                                                                             ^
+    303|     const onlyConflict = { ...clean('intake_analyst'), claims: [] };
+    304|     expect(check('intake_analyst', onlyConflict, [], c).reasons).toEqu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-f the gate imports nothing that reaches the database
+AssertionError: ./document-review: expected [ 'zod', './text-safety' ] to include './document-review'
+ ❯ tests/skill-contracts.test.ts:315:92
+    313|     const own = imports('src/server/skill-contracts.ts');
+    314|     expect(own.length).toBeGreaterThan(0);
+    315|     for (const i of own.filter(x => !x.typeOnly)) expect(['zod', './te…
+       |                                                                                            ^
+    316|     for (const i of own.filter(x => x.typeOnly)) expect(['./source-tex…
+    317|     expect(imports('src/server/text-safety.ts')).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 20 passed (27)
+   Start at  15:54:54
+   Duration  184ms (import 38%, tests 35%, transform 26%, worker 2%)
+
