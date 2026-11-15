@@ -1,0 +1,177 @@
+# RED — the final test files against the three source files as they are at the base (git show HEAD:<file>, HEAD = 0560a4f5cbe88096e0d524fb19b2ed79d1081976; the same three files are identical at 08322d3). PGlite.
+# Command: npx vitest run tests/decisions.test.ts tests/decisions-ui.test.tsx -t "P2 the"
+# Five of the six cases are red because the behaviour is missing. The sixth («the seat and Telegram checks come before any ballot is read») guards a property this change
+# must not alter: at the base it is red only because pending() still returns an array, not {cards,truncated}; its proof is mutation M6 in mutation.txt.
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/decisions.test.ts (25 tests | 5 failed | 20 skipped) 2625ms
+   ❯ P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut (5)
+     × a live ballot older than thirty-one newer closed ballots is still listed, first, and the list says it was cut 656ms
+     × reassignmentCardsTruncated is false at exactly thirty ballots and true at thirty-one; the cap stays thirty 496ms
+     × live ballots come first, newest first; a ballot past its expiry that is still stored as pending keeps its place by creation time among the closed ones 485ms
+     × a person who holds no seat, a former seat, and a seat without its Telegram link learn nothing about the cut: the same answer with one ballot and with thirty-two 500ms
+     × the seat and Telegram checks come before any ballot is read: a refused caller causes no statement on a ballot table 488ms
+ ❯ tests/decisions-ui.test.tsx (21 tests | 1 failed | 20 skipped) 18ms
+   ❯ decisions UI (20)
+     × P2 the screen shows the same single sentence when the 3/3 cards were cut, and never two 18ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/decisions-ui.test.tsx > decisions UI > P2 the screen shows the same single sentence when the 3/3 cards were cut, and never two
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/decisions-ui.test.tsx:339:65
+    337|       renderToStaticMarkup(<Decisions projects={[{ id: PROJECT, name: …
+    338|     const times = (markup: string) => markup.split(SENTENCE).length - …
+    339|     expect(times(screen({ reassignmentCardsTruncated: true }))).toBe(1…
+       |                                                                 ^
+    340|     expect(times(screen({ reviewCardsTruncated: false, reassignmentCar…
+    341|     expect(times(screen({ reviewCardsTruncated: true, reassignmentCard…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a live ballot older than thirty-one newer closed ballots is still listed, first, and the list says it was cut
+AssertionError: expected { kind: 'reassignment', …(13) } to match object { …(3) }
+(14 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "actorEligibility": {
+-     "canVote": true,
+-     "reason": null,
++     "canVote": false,
++     "reason": "CLOSED",
+    },
+-   "decisionId": "539a1d58-cb2b-45bb-8ec0-413592a2eb31",
+-   "state": "pending",
++   "decisionId": "1ac6a172-240a-43df-a6d8-b97870251797",
++   "state": "rejected",
+  }
+
+ ❯ tests/decisions.test.ts:418:20
+    416|   const cards=reassignments(r.cards);
+    417|   expect(cards).toHaveLength(30);
+    418|   expect(cards[0]).toMatchObject({decisionId:open,state:'pending',acto…
+       |                    ^
+    419|   expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFir…
+    420|   expect(cards.slice(1).every(c=>c.state==='rejected')).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > reassignmentCardsTruncated is false at exactly thirty ballots and true at thirty-one; the cap stays thirty
+AssertionError: expected { cards: [ { …(14) } ], …(1) } to match object { reassignmentCardsTruncated: false }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "reassignmentCardsTruncated": false,
++   "cards": [
++     {
++       "actorEligibility": {
++         "canVote": true,
++         "reason": null,
++       },
++       "appliedReceipt": null,
++       "decisionId": "7b961751-c70f-4ad2-978e-c25e7f5de421",
++       "expiresAt": "2026-11-22T23:34:12.168Z",
++       "kind": "reassignment",
++       "projectId": "11000000-0000-4000-8000-000000000001",
++       "quorum": {
++         "have": 0,
++         "needed": 3,
++       },
++       "revision": {
++         "workVersion": 1,
++       },
++       "state": "pending",
++       "summary": "Phân công mô phỏng trong bản thử",
++       "title": "Triển khai bot Hermes",
++       "votes": [],
++       "workCode": "STT-5",
++       "workId": "19c27e9d-28e5-4b22-924b-cc608240d418",
++     },
++   ],
++   "reviewCardsTruncated": false,
+  }
+
+ ❯ tests/decisions.test.ts:426:26
+    424|  test('reassignmentCardsTruncated is false at exactly thirty ballots a…
+    425|   const open=await liveBallot();
+    426|   expect(await full(pm)).toMatchObject({reassignmentCardsTruncated:fal…
+       |                          ^
+    427|   await copies(open,29,'rejected');
+    428|   let r=await full(pm);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > live ballots come first, newest first; a ballot past its expiry that is still stored as pending keeps its place by creation time among the closed ones
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+-   "303d5e68-7bc7-4512-8741-c08d03b606f9",
+-   "d613517d-ae7e-4436-95af-27ab9e2e4032",
++   "5292ffed-6667-446f-8019-3c9c668d5f8f",
++   "2b82463e-ef0e-46c9-81aa-2c20e7b3781e",
+  ]
+
+ ❯ tests/decisions.test.ts:449:49
+    447|   const cards=reassignments(r.cards);
+    448|   expect(cards).toHaveLength(30);
+    449|   expect(cards.slice(0,2).map(c=>c.decisionId)).toEqual([newer,older]);
+       |                                                 ^
+    450|   expect(cards.slice(0,2).every(c=>c.actorEligibility.canVote)).toBe(t…
+    451|   // 33 proposals: two live, then one group of thirty-one (thirty clos…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a person who holds no seat, a former seat, and a seat without its Telegram link learn nothing about the cut: the same answer with one ballot and with thirty-two
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/decisions.test.ts:475:55
+    473|   for(const p of outside) before.push(await full(p));
+    474|   await copies(open,31,'rejected');
+    475|   expect((await full(pm)).reassignmentCardsTruncated).toBe(true);   //…
+       |                                                       ^
+    476|   for(const [i,p] of outside.entries()) {
+    477|    const r=await full(p);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > the seat and Telegram checks come before any ballot is read: a refused caller causes no statement on a ballot table
+AssertionError: Target cannot be null or undefined.
+ ❯ tests/decisions.test.ts:508:82
+    506|   // control: for a linked seat the same spy does see the ballot read,…
+    507|   seen.length=0;
+    508|   expect((await new BomService(spyDb).pending(seats.roster[0],ids.sale…
+       |                                                                                  ^
+    509|   const at=(re:RegExp)=>seen.findIndex(q=>re.test(q));
+    510|   expect(at(/FROM bom_scopes/)).toBeGreaterThanOrEqual(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 40 skipped (46)
+   Start at  06:34:10
+   Duration  2.86s (tests 96%, import 2%, transform 2%)
+

@@ -1,0 +1,6 @@
+# Typecheck. Command: npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit code of npm run typecheck: 0

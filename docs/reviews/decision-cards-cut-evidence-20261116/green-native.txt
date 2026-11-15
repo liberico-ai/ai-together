@@ -1,0 +1,20 @@
+# Full suite, real PostgreSQL (container libetech-slice1-pg, synthetic data only). Command: npm run test, with the three SLICE1_*_DATABASE_URL variables set
+
+> libetech-ai-os@0.7.1 test
+> vitest run
+
+
+ RUN  v5.1.0 <repo>
+
+(node:53186) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:53217) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:53308) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  68 passed (68)
+      Tests  1020 passed (1020)
+   Start at  06:36:22
+   Duration  286.84s (tests 99%, import 1%)
+

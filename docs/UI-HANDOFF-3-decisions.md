@@ -19,7 +19,7 @@ Tín hiệu không chỉ bằng màu: «đủ phiếu» và «đã áp dụng» 
 // decisions-view.ts (hàm thuần): reassignmentLabel, reviewLabels, voteBlockCopy, voteBody, voteCommand, describeVoteError, voteFailure, voteRecorded, choiceLabel, decisionsPageState (= reviewPageState)
 DecisionsBody({state:'loading'|'error'|'denied'|'empty'|'ready'; cards:DecisionCard[]; error:string|null; people:{id;name}[]; truncated?:boolean; onRetry?:()=>void; renderCard?:(c)=>ReactNode})   // renderCard tuỳ chọn: màn có trạng thái dùng nó để gắn thẻ có ô ghi chú
 DecisionCardView({card; people; busy; error; onVote?:(choice)=>void; note?; onNote?; reloadable?; onReload?})   // không hook; nút theo canVote
-Decisions({projects; projectId; initial:{cards}|null; denied; people:{id;name}[]})   // 'use client'; giữ ghi chú và trạng thái gửi của từng thẻ 3/3
+Decisions({projects; projectId; initial:{cards; reviewCardsTruncated?; reassignmentCardsTruncated?}|null; denied; people:{id;name}[]})   // 'use client'; giữ ghi chú và trạng thái gửi của từng thẻ 3/3
 // trang máy chủ KHÔNG truyền hàm xuống thành phần client (tests/rsc-boundary.test.ts); loading.tsx và error.tsx chỉ truyền `onRetry={reset}` từ tệp client.
 ```
 Dữ liệu: trang gọi `DecisionService.list(principal, {projectId})` và `WorkService.workspace(principal).people`; chỉ chuyển xuống `id` và `name` của thành viên dự án (không vai bot). Đọc lại: `GET /api/decisions?projectId=`.
@@ -70,9 +70,10 @@ Không phần tử nào rộng cố định >328px; nút và liên kết hành �
 - Không giữ ghế: không có thẻ 3/3 nào và không có số đếm (dịch vụ nuốt `SCOPE_DENIED`); chỉ còn thẻ review nếu đọc được.
 - Người xem không thuộc các ghế đã chốt của phiếu: `{canVote:false, reason:null}` (đang giữ ghế nhưng không nằm trong các ghế đóng băng trên phiếu): không nút và không câu nào.
 - Thẻ đổi khi đang mở: bấm bỏ phiếu thì dịch vụ trả mã xung đột, hiện câu Conflict + «Tải lại»; ghi chú đang gõ còn.
-- Hai giới hạn của danh sách: thẻ review có cho bản mới nhất của mỗi tài liệu, kể cả đã có quyết định, cắt ở 200 tài liệu; thẻ 3/3 là 30 phiếu mới nhất của dự án, kể cả phiếu đã đóng. Dự án vượt giới hạn thì phần cũ hơn không hiện.
+- Hai giới hạn của danh sách: thẻ review có cho bản mới nhất của mỗi tài liệu, kể cả đã có quyết định, cắt ở 200 tài liệu; thẻ 3/3 tối đa 30 phiếu của dự án, theo thứ tự: phiếu còn bỏ phiếu được (lưu `pending` và chưa quá hạn) đứng trước, mới nhất trước; rồi các phiếu còn lại (đã đóng, hoặc đã quá hạn mà chưa ai đóng), mới nhất trước. Dự án vượt giới hạn thì phần cuối của thứ tự đó không hiện; phiếu đã đóng không bao giờ chiếm chỗ của phiếu còn bỏ phiếu được (sửa ngày 16/11/2026, `DELIVERY-014`; trước đó là 30 phiếu mới nhất, phiếu đã đóng cũng tính).
 - Thẻ review có `quorum.have` chỉ đếm chấp thuận: «Yêu cầu sửa» cho `have:0`, `state:'changes_requested'` và một dòng trong danh sách phiếu; dòng bản chuẩn không đổi.
 - Danh sách thẻ review bị cắt (tổng tài liệu lớn hơn 200): dịch vụ trả `reviewCardsTruncated: true`; màn hiện đúng một câu «Danh sách dài hơn phần đang hiện.».
+- Danh sách thẻ 3/3 bị cắt (dự án có hơn 30 phiếu): dịch vụ trả `reassignmentCardsTruncated: true` cho người giữ ghế; người không giữ ghế, hoặc ghế chưa ghép Telegram, luôn nhận `false` (không lộ số phiếu). Một hay cả hai cờ bật thì màn vẫn hiện đúng một câu đó, không nói danh sách nào bị cắt.
 - Sau một phiếu: ghi nhận thì xoá ghi chú và đọc lại; thất bại thì giữ ghi chú; phiếu đã đóng hoặc đổi phiên bản thì câu Conflict kèm «Tải lại» (`voteFailure`, `voteRecorded` trong `decisions-view.ts`; thành phần chỉ gọi chúng).
 - Tên, tiêu đề, tóm tắt do người viết: `dir="auto"`.
 - Người không có trong danh sách thành viên dự án: «Thành viên chưa rõ tên», không bao giờ id thô.

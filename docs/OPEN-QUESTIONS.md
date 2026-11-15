@@ -685,3 +685,16 @@ Lời Chairman 12/11/2026 (nguyên văn):
   - (c) Giữ nháp khi **ngữ cảnh dựng lại không còn y hệt**: định nghĩa `input_hash` là hash của toàn bộ ngữ cảnh và so lúc xác nhận. Chặt nhất; hệ quả là mọi thay đổi trong dự án (kể cả đăng ký một tài liệu không liên quan) làm mọi nháp đang chờ của dự án hết hiệu lực.
 - **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn (cùng lúc với OQ-14 và OQ-45).
 - **Hành vi hiện tại (không phải phương án được chọn):** trùng (a). `input_hash` được lưu và, từ vòng sửa cuối của lát 3, được so khi cùng một khoá khử trùng gửi lại; nó chưa được so lúc xác nhận.
+
+## OQ-47 — Phiếu 3/3 vừa đóng có giữ chỗ trên màn Quyết định không
+
+- **Lát:** sau lát 3; nêu ra khi sửa mục 44 của `docs/DELIVERY-012-review-skills-20261115.md` (PR #14, nhánh `fix/decision-cards-cut`, biên nhận `docs/DELIVERY-014-decision-cards-cut-20261116.md`). **Không chặn PR đó:** PR chỉ đưa phiếu còn bỏ phiếu được lên trước trần, theo đề bài; thứ tự của phiếu đã đóng giữ nguyên như trước (theo thời điểm tạo).
+- **Phía A:** màn Quyết định hiện tối đa 30 thẻ 3/3. Từ PR nói trên, phiếu còn bỏ phiếu được (lưu `pending`, chưa quá hạn) đứng trước; các phiếu còn lại theo sau, mới tạo trước (`src/server/bom.ts`, hàm `pending`). Nhờ vậy người giữ ghế bỏ phiếu được cho một phiếu cũ mà trước đây web không hiện.
+- **Phía B:** phản hồi duy nhất sau khi bỏ phiếu là thẻ được đọc lại (`docs/UI-HANDOFF-3-decisions.md`, mục «Kiểm tay»: «Bỏ phiếu thành công: thẻ chuyển trạng thái; sau 3/3 thẻ đọc «Đã áp dụng · biên nhận …»»). Một phiếu cũ vừa đóng (lá «Từ chối», «Yêu cầu sửa», hoặc lá «Đồng ý» thứ ba) trở về chỗ của nó theo thời điểm tạo; nếu dự án có đủ phiếu mới hơn để lấp các chỗ còn lại, thẻ rời danh sách ngay ở lần đọc lại. Người vừa bỏ phiếu chỉ thấy câu «Danh sách dài hơn phần đang hiện.», không thấy kết quả của phiếu mình. Reviewer mã tầng 1 dựng lại được tình huống này bằng chính dịch vụ của repo (một phiếu còn mở cũ hơn 31 phiếu đã đóng). SPEC không nêu thứ tự của danh sách thẻ, cũng không nêu phiếu vừa đóng có được ưu tiên hay không (`docs/SPEC-008-PM-operating-loop-20261111.md:218`, `docs/DESIGN-SYSTEM-PM-DOCUMENTS.md:68-72` chỉ nêu nội dung một thẻ).
+- **Phương án:**
+  - (a) Giữ như hiện nay: phiếu đã đóng xếp theo thời điểm tạo; thẻ vừa đóng có thể rời danh sách; câu «đã cắt» là dấu hiệu duy nhất. Biên nhận và phân công vẫn được ghi đúng; người dùng xem kết quả ở hồ sơ BoM của đầu việc.
+  - (b) Xếp phiếu đã đóng theo thời điểm đóng (`finished_at`), mới đóng trước: thẻ vừa đóng luôn đứng ngay sau các phiếu còn bỏ phiếu được. Đổi thứ tự của mọi phiếu đã đóng; phiếu quá hạn chưa ai đóng không có `finished_at` nên phải định chỗ riêng.
+  - (c) Giữ thứ tự, thêm một dòng xác nhận tại chỗ khi phiếu đã ghi mà thẻ không còn trong danh sách (câu chữ do người có thẩm quyền đặt).
+  - (d) Bỏ trần: phân trang danh sách thẻ 3/3, hoặc tách «đang chờ» và «đã đóng» thành hai danh sách. Việc lớn hơn; gần với hàng chờ của `docs/SPEC-004-bom-tech-phan-cong.md` P1-01.
+- **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn.
+- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a). Tình huống chỉ xảy ra khi số phiếu không còn bỏ phiếu được và mới hơn phiếu đó đủ lấp các chỗ còn lại của 30 (ví dụ một phiếu còn mở duy nhất cùng 30 phiếu đã đóng mới hơn).
