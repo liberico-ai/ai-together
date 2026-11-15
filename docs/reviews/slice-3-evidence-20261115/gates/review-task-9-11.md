@@ -176,3 +176,34 @@ Spec compliance: ✅ (Task 9)
 Task quality: Needs fixes (Task 9, only N-1, a decision on the pointer-only rule and prompt wording)
 Spec compliance: ✅ (Task 11)
 Task quality: Approved (Task 11, subject to the one-line prompt addition in N-1)
+
+---
+
+## Re-review of fix round 2 (5c24826)
+
+Read from the commit diff and the implementer's evidence. The suite was not re-run. The evidence shows the focused PGlite run at 144 passed, the native full run at 925 passed with no exclusions and typecheck clean.
+
+**N-1: ADDRESSED.**
+- All six prompts gain the same two lines. The first forbids putting the id of a message without shown text (not excerpt, or text null) into `sources`, `basis`, `sourceIds` or any other field. The second says that with no shown-text source and no document the model writes only `questions` with `sources` empty, and that such an output stays a draft and is not offered for confirmation. This agrees with the gate, which is unchanged: SOURCE_REQUIRED for empty `sources`, TEXT_NOT_VISIBLE for a listed pointer.
+- The intake sentence "every relevant message must be cited" is now limited to messages with shown text. Messages without shown text may be mentioned only as a question, with no id in `sources`. No sentence asking for the impossible remains in any prompt that I could find in the diff.
+- The new case `a context with no shown text and no document yields only held outputs` builds contexts from two source_events (one hidden, one pointer_only) and nothing else, so there is no document and no revision. It loops over both values of `pointerOnly` and all six skills.
+  - For five skills it pins exactly `SOURCE_REQUIRED` for questions-only with empty `sources`.
+  - It pins exactly `TEXT_NOT_VISIBLE` when either message is listed.
+  - For `doc_reviewer` it asserts only `hold`, without a reason code, because the required `candidateRevisionId` can never be valid there. This is acceptable (Minor: the reason is not pinned).
+- The manifest case asserts both new instructions in every prompt, and the intake limitation sentence. The implementer's mutation shows the case goes red when the line is removed with hashes regenerated, and the hash case goes red when it is removed without regeneration.
+
+**New Critical or Important findings in this diff:** none.
+- Prompt sizes are 2 629 to 3 475 bytes, all under 4 096.
+- The diff only adds lines to the prompts. The untrusted-data sentence, the dossier lines and the SPEC-009 row are not touched, and the existing tests for them stay in place.
+- Field names introduced (`sources`, `basis`, `sourceIds`, `questions`) exist in the schema, and the backticked-identifier test still covers them.
+- The hashes are regenerated for all six, and the on-disk recomputation test is green in the evidence.
+- No test was loosened; two tests were added.
+
+**Minor.** The new line says to write "only `questions`" without stating that `result` must still be present with empty values (the strict schema requires the key). The earlier pointer-only line already says to leave every `result` field empty, so a model can reconcile them. Consider one clause for clarity.
+
+**On the ruling itself:** I agree. Keeping SOURCE_REQUIRED matches the DOC-05 acceptance case, and the held-draft outcome now has a stated, pinned meaning. For the receipt: a project whose context holds no shown-text message and no document yields only held drafts, in a normal project as well as IBS HI.
+
+Spec compliance: ✅ (Task 9)
+Task quality: Approved (Task 9)
+Spec compliance: ✅ (Task 11)
+Task quality: Approved (Task 11)
