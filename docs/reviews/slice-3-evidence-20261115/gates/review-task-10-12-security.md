@@ -100,3 +100,38 @@ None. AR-03 / E-AI-04 hold structurally: the AI role cannot write Z1/Z2, cannot 
 - State: the decision row is the audit record (R12-c); no separate registry event for a rejection.
 - Before a list route: decide I12-3 (value redaction at read time, IBS HI drafts at submit).
 - Before Z4 switch-on: I12-1 and I12-2 fixed with regression cases; M12-1 trace id propagated.
+
+---
+
+## Re-review of fix round 1 (506b444)
+
+Scope: the fix diff `.superpowers/sdd/slice-3-review-skills/review-12-fix1-844eb77..506b444.diff`, the «Fix round 1» section of `task-12-report.md`, the committed gate `2bc6944:src/server/skill-contracts.ts`, and OQ-45 in `docs/OPEN-QUESTIONS.md`. Read only: no tests run, no state-changing git command. Line numbers refer to `506b444` (the gate: `2bc6944`).
+
+### Verdict per finding
+
+- **F12-1 (I12-1, key reuse): ADDRESSED.** `src/server/documents.ts` `proposeRevisionIn(…, fromDraft?)`: when the call comes from a draft, the claimed payload is `{op:'document.propose_revision.from_draft', draftId, documentId, ...input}`; the manual payload `{op:'document.propose_revision', documentId, ...input}` is byte-for-byte the same as before, so stored manual hashes and manual replays behave as they did. `suggestions.ts:180` passes `{draftId:id}`. Two drafts, or a draft and a manual proposal, now hash differently under the same `(tenant, actor, key)` → `claimDocumentCommand` answers `IDEMPOTENCY_CONFLICT` before the action, and the whole decision transaction rolls back. A replay of the *same* draft with the same key is still answered by `decide`'s own replay branch (`:142`) before any claim. A claim row from a draft confirmation can only exist together with its decision (same transaction), so the draft-path claim replay cannot return a stale revision either. Three regression cases plus mutation m9 (dropping the draft id goes red).
+- **F12-2 (I12-2, hidden message cited outside a basis): ADDRESSED.** `2bc6944:src/server/skill-contracts.ts:162` builds `notShown` from `idsOf(out, skill, false)`, i.e. **every** id field in `ID_FIELDS`: `sources.*.id`, `claims.*.basis.*`, `conflicts.*.sourceIds.*`, `result.duplicateOf` (`:101`), and the ba/pm/technical_writer basis paths. Any one naming a `source_event` that is not `excerpt` with text gives `TEXT_NOT_VISIBLE` (`:165`). So the property holds on every citation path I named. Keeping the rule in one place, in the gate, is acceptable to me for three reasons: `decide` calls the gate on every confirmation (`suggestions.ts:174`); first-round mutation m1 (skipping `checkSkillOutput`) already goes red; and the new `decide`-level cases (cited only in `sources`, cited only through `duplicateOf`, plus a positive control) pin the behaviour end to end, so a future weakening of the gate would turn a `decide` test red, not just a gate test. Limit: an id written into a free-text field rather than an id field is not a citation, and nothing detects it. That is the definition we chose, not a defect.
+- **F12-3 (I12-3, `list` exposure): ADDRESSED as a deferral.** OQ-45 (`docs/OPEN-QUESTIONS.md:647-657`) states the decision correctly. Its three points are decided separately: who sees `value`, whether visibility is judged again at read time, and whether IBS HI drafts are stored, refused at write or stored as ids/hashes only. It names the conflicting rules (OQ-30 (b) / Task 1 read-time visibility, `AGENTS.md:16`), puts the decision with the Chairman for point 3, and records current behaviour as option (a) without presenting it as the chosen option. Nothing in the code makes the deferral unsafe today: no file in `src/app` imports the module, nothing in `src` constructs `SuggestionService` (with or without an AI handle), and the boundary test guards both. The other agent's UI task under `src/app/review/**` falls under that scan.
+- **M12-2: ADDRESSED.** `suggestions.ts:160-164` catches only `TypeError` and treats it as `VALUE_HASH_MISMATCH`. `TypeError` is what `canonicalJson` throws for non-finite numbers and sparse or non-plain values (`2bc6944:src/server/skills.ts:54,58`). The narrowed catch cannot let a draft through: `recomputed` stays `''`, which never equals a 64-hex hash, so the draft is held.
+- **M12-5: ADDRESSED.** `src/server/ai-scope.ts:28` validates `id`, `tenantId` and every `projectIds` entry before any statement. `submitDraft` (`suggestions.ts:113-114`) does the same. The 401→404 change is not an oracle: the principal is the pipeline's own server-side identity, and the answer depends only on its shape, not on any stored row.
+- **M12-6: ADDRESSED.** `suggestions.ts:137` takes `pg_advisory_xact_lock($1::int, hashtext($2))` with `DRAFT_DECISION_LOCK = 0x44524654` (`:90`). The two-int and one-bigint forms are separate key spaces, so there is no overlap with `intake.ts:87`, and no other two-int user exists in `src`. Serialisation of decisions on one draft is kept, and the lock order is unchanged: advisory(draft), then row(document) in `proposeRevisionIn`. No path takes the row lock and then the advisory lock, so there is no deadlock. Moving to 32-bit `hashtext` makes collisions between draft ids likelier (about 2^-32 per pair). A collision only makes two unrelated decisions wait for each other; correctness is unaffected. Mutations m10a/m10b go red on native.
+- **Missing cases: ADDRESSED.** The report and diff add native confirm versus reject, native confirm versus a manual revision, and replay after demotion (lost project or `viewer` → 404; manager lowered to `engineer` replaying a candidate decision → the recorded view). The native results are taken from `task-12-fix1-green-native.txt` as reported. I did not re-run them.
+- **M12-1, M12-3, M12-4: deferred by ruling.** They remain minors and receipt items (random decision `trace_id`; the revision body is not bound to the draft value; dedupe conflict shows the pipeline that a key exists in the tenant).
+
+### New Critical / Important in the fix diff
+None.
+
+Checked: the new claim payload cannot collide with the manual one (different `op`, sha256 of the whole payload) and does not change manual replays. The lock change keeps serialisation and adds no lock cycle. The narrowed catch turns no hold into a pass. The 404 change exposes no data.
+
+### Minor (new, fix diff)
+- **M12-7** — `suggestions.ts:163`: a non-`TypeError` from hashing propagates. For a deeply nested stored value, that is a `RangeError` (stack depth) and becomes a 500. Such a value is reachable only through a raw insert: `submitDraft` bounds the shape by schema and size. The error text names no id. Acceptable; record it.
+
+### Deferred (out of scope of this round)
+- OQ-45 must be decided before any route that reads drafts and before Z4 is switched on.
+- Switching Z4 on still needs a design and migration for a non-superuser AI login: migration 021 forbids members of `libetech_ai`.
+- M12-1 (trace id propagation, same pattern as `ReviewService`).
+
+### Task 12 — updated verdicts
+Security verdict: Approved
+Spec compliance: ✅
+Task quality: Approved
