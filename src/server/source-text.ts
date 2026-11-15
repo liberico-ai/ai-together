@@ -14,9 +14,15 @@ export function displayMode(stored:StoredMode|null,allowed:boolean):DisplayMode 
  return allowed?'excerpt':'hidden';
 }
 
+/** Latest domain code of project p (SQL expression of a uuid): the mapping row with the highest mapping_version, NULL when unmapped. The one place that reads it. */
+export const latestDomainSql=(p:string)=>
+ `(SELECT m.domain_code FROM project_domain_mappings m WHERE m.project_id=${p} ORDER BY m.mapping_version DESC LIMIT 1)`;
+/** True when the latest mapping row of project p is IBS_HI (AGENTS.md:16: pointers, hashes and Tech work metadata only). Unmapped and other labels decide nothing. */
+export const isIbsHiSql=(p:string)=>`(coalesce(${latestDomainSql(p)},'')='IBS_HI')`;
+
 /** True while the current config still lets the text of source event e show: group flagged (OQ-28 (c)) and the project's latest mapping row is not IBS_HI. chats = placeholder of a text[] parameter. */
 export const textAllowedSql=(e:string,chats:string)=>
- `(${e}.chat_id = ANY(${chats}::text[]) AND coalesce((SELECT m.domain_code FROM project_domain_mappings m WHERE m.project_id=${e}.project_id ORDER BY m.mapping_version DESC LIMIT 1),'')<>'IBS_HI')`;
+ `(${e}.chat_id = ANY(${chats}::text[]) AND NOT ${isIbsHiSql(`${e}.project_id`)})`;
 
 /** Three columns for revision r of source event e: display_mode, visible_text, visible_hash. Text and hash are NULL unless display_mode='excerpt'. */
 export const visibleColumnsSql=(r:string,e:string,chats:string)=>{
@@ -44,4 +50,23 @@ export async function listVisibleRevisions(tx:Queryable,sourceEventId:string,exc
    WHERE r.source_event_id=$1 ORDER BY ${LATEST_REVISION_ORDER}`,[sourceEventId,[...excerptChats]])).rows;
  return rows.map(r=>({revisionNo:r.revision_no,editedAt:r.edited_at==null?null:new Date(r.edited_at as string).toISOString(),displayMode:r.display_mode,text:r.visible_text,contentHash:r.visible_hash,
   textTruncated:r.text_truncated,recordedAt:new Date(r.created_at as string).toISOString()}));
+}
+
+export type VisibleMessage={sourceEventId:string;ref:string;observedAt:string;forwarded:boolean;displayMode:DisplayMode;text:string|null;contentHash:string|null};
+/**
+ * Newest revision of each message in the thread of one candidate (same chat_id and thread_key, project $1 only), the newest `limit` messages by
+ * observed_at then id, returned oldest first (ties by id), each shown by its own stored mode and the current config. A candidate that is not in the project gives [].
+ */
+export async function visibleThreadMessages(tx:Queryable,projectId:string,candidateId:string,excerptChats:readonly string[],limit:number):Promise<VisibleMessage[]> {
+ const n=Math.max(0,Math.min(Math.trunc(limit),200));
+ const rows=(await tx.query<{id:string;source_id:string;observed_at:unknown;forwarded:boolean;display_mode:DisplayMode;visible_text:string|null;visible_hash:string|null}>(
+  `SELECT t.id,t.source_id,t.observed_at,t.forwarded,t.display_mode,t.visible_text,t.visible_hash FROM (
+     SELECT e.id,e.source_id,e.observed_at,e.forwarded,${visibleColumnsSql('r','e','$3')}
+     FROM intake_candidates c
+     JOIN source_events e ON e.project_id=c.project_id AND e.chat_id=c.chat_id AND e.thread_key=c.thread_key
+     JOIN LATERAL (SELECT * FROM source_event_revisions r WHERE r.source_event_id=e.id ORDER BY ${LATEST_REVISION_ORDER} LIMIT 1) r ON true
+     WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid
+     ORDER BY e.observed_at DESC, e.id DESC LIMIT $4::int) t
+   ORDER BY t.observed_at ASC, t.id ASC`,[projectId,candidateId,[...excerptChats],n])).rows;
+ return rows.map(r=>({sourceEventId:r.id,ref:r.source_id,observedAt:new Date(r.observed_at as string).toISOString(),forwarded:r.forwarded,displayMode:r.display_mode,text:r.visible_text,contentHash:r.visible_hash}));
 }
