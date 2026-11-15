@@ -1,0 +1,25 @@
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/suggestions.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts [ tests/suggestions.test.ts ]
+Error: Cannot find module '/src/server/suggestions' imported from <worktree>/tests/suggestions.test.ts
+ ❯ tests/suggestions.test.ts:17:1
+     15| import {MAX_OUTPUT_BYTES,type SkillName} from '../src/server/skill-con…
+     16| import {buildSkillContextIn} from '../src/server/skill-context';
+     17| import {SuggestionService} from '../src/server/suggestions';
+       | ^
+     18| import type {AiPrincipal} from '../src/server/ai-scope';
+     19| import type {Database,Queryable} from '../src/server/db';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  16:58:18
+   Duration  118ms (worker 97%, environment 3%)
+
