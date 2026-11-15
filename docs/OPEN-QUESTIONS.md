@@ -639,3 +639,19 @@ Lời Chairman 12/11/2026 (nguyên văn):
 - **Phương án:** (a) mọi người đọc của dự án thấy ai duyệt loại tài liệu nào, như hiện nay (cùng mức với «ai nhận xét loại nào» của OQ-41); (b) chỉ điều phối thấy tên; người đọc khác chỉ biết loại tài liệu nào đã có người duyệt.
 - **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn.
 - **Hành vi hiện tại (không phải phương án được chọn):** trùng (a); khối này chỉ gồm mã người và loại tài liệu, không có chữ căn cứ. Đổi sang (b) là một nhánh lọc ở hàm liệt kê.
+
+---
+
+**Bổ sung 15/11/2026 sau review bảo mật của Task 10 và Task 12 lát 3** (`docs/reviews/slice-3-evidence-20261115/gates/review-task-10-12-security.md`, mục I12-3; mã ở `b69d50a`). Ghi khi **chưa có quyết định**, do phiên lát 3 chép từ báo cáo review. **Không chặn task nào của lát 3:** lát này không có tuyến HTTP nào cho nháp Z4 (phán quyết S24 của kế hoạch), Z4 chưa bật, không có login nào cho role AI. Mục này **chặn việc thêm tuyến đọc nháp và việc bật Z4**.
+
+## OQ-45 — Ai được đọc nội dung một nháp AI, và nháp của dự án IBS HI có được lưu không
+
+- **Lát:** sau lát 3 (trước khi thêm tuyến đọc nháp hoặc bật Z4); mã liên quan ở Task 12.
+- **Phía A:** `SuggestionService.list` trả nội dung nháp (`value`, do mô hình viết, có thể chép lại chữ của tin) cho mọi vai đọc của dự án theo phán quyết S11. `submitDraft` lưu nháp của mọi dự án, kể cả dự án ánh xạ `IBS_HI`, vì role AI không có quyền đọc bảng ánh xạ. Lúc xác nhận thì luật chặt đã có: nháp trích tin mà người xác nhận không đọc được chữ, hoặc của dự án `IBS_HI`, bị giữ lại (`DRAFT_HELD`).
+- **Phía B:** quyết định OQ-30 (b) và Task 1 của lát 3 đặt luật: chữ của tin Telegram chỉ rời CSDL qua `src/server/source-text.ts`, theo cờ nhóm và ánh xạ dự án **tại lúc đọc**. `AGENTS.md:16`: «IBS HI: pointers, hashes and Tech work metadata only.» Nội dung nháp là một đường thứ hai mang chữ của tin: nó vẫn đọc được sau khi cờ nhóm bị gỡ, sau khi dự án chuyển sang `IBS_HI`, và với người đọc không được xem tin gốc. Không tài liệu nào nói người đọc thường được xem nội dung nháp, hay nháp của dự án `IBS_HI` được lưu.
+- **Phương án** (ba điểm, quyết riêng từng điểm):
+  1. Ai xem `value`: (a) mọi vai đọc của dự án, như hiện nay; (b) chỉ người có quyền xác nhận nháp đó (vai ghi sổ tài liệu với nháp tài liệu, điều phối dự án với nháp ứng viên).
+  2. Xét lại lúc đọc: (a) không xét, như hiện nay; (b) lúc đọc dựng lại ngữ cảnh dưới quyền người đọc và che `value` khi nháp trích tin người đó không đọc được chữ hoặc dự án đang chỉ con trỏ, chỉ trả mã và lý do giữ.
+  3. Nháp của dự án `IBS_HI`: (a) vẫn lưu, chỉ chặn lúc xác nhận, như hiện nay; (b) từ chối ngay lúc ghi (cần cấp cho role AI quyền đọc hẹp cờ «chỉ con trỏ», hoặc một thiết kế khác); (c) chỉ lưu mã và hash, không lưu nội dung.
+- **Ai quyết:** Chairman (điểm 3 chạm `AGENTS.md:16`); BoM Tech cho điểm 1 và 2 nếu Chairman giao.
+- **Hành vi hiện tại (không phải phương án được chọn):** (a) ở cả ba điểm. Không tuyến nào gọi `list`; chỉ test gọi. Ca kiểm «no route imports the suggestion service» giữ điều đó cho tới khi có quyết định.
