@@ -1,0 +1,10 @@
+npx vitest run tests/review-delegations.test.ts tests/review-delegations-concurrency.test.ts tests/document-review.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  2 passed | 1 skipped (3)
+      Tests  65 passed | 2 skipped (67)
+   Start at  15:54:55
+   Duration  33.59s (tests 100%)
+

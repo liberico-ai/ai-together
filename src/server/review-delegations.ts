@@ -43,10 +43,20 @@ const grantSchema = z.object({
 }).strict();
 const revokeSchema = z.object({ expectedVersion: z.number().int().positive().max(2147483647), basis }).strict();
 
-type Row = { id: string; project_id: string; delegate_id: string; doc_types: DocType[]; granted_by: string; basis: string; revoked_at: unknown; revoked_by: string | null; revoke_basis: string | null; version: number; created_at: unknown };
+export type Row = { id: string; project_id: string; delegate_id: string; doc_types: DocType[]; granted_by: string; basis: string; revoked_at: unknown; revoked_by: string | null; revoke_basis: string | null; version: number; created_at: unknown };
 const iso = (v: unknown) => new Date(v as string).toISOString();
 const toView = (r: Row): DelegationView => ({ id: r.id, projectId: r.project_id, delegateId: r.delegate_id, docTypes: r.doc_types, grantedBy: r.granted_by, basis: r.basis,
   revokedAt: r.revoked_at == null ? null : iso(r.revoked_at), revokedBy: r.revoked_by, revokeBasis: r.revoke_basis, version: r.version, createdAt: iso(r.created_at), designatorIsCoordinator: null, dormant: null });
+/** OQ-39 (c), OQ-40 (c), OQ-41 (c): the one place that decides what a viewer receives of a delegation row; `null` = not at all.
+ * Coordinator: the whole row and both indicators. Anyone else: their own rows (any state) complete, with basis texts and without indicators; of other people's rows only
+ * those in effect (not revoked, not dormant), as id, delegate and document types, every other field null. The own-row test ignores the case of the identifiers. */
+export function visibleDelegation(r: Row, viewer: { coordinator: boolean; id: string }, state: { designatorIsCoordinator: boolean; dormant: boolean }): ListedDelegation | null {
+  if (viewer.coordinator) return { ...toView(r), designatorIsCoordinator: state.designatorIsCoordinator, dormant: state.dormant };
+  if (r.delegate_id.toLowerCase() === viewer.id.toLowerCase()) return toView(r);
+  if (r.revoked_at != null || state.dormant) return null;
+  return { id: r.id, delegateId: r.delegate_id, docTypes: r.doc_types, projectId: null, grantedBy: null, basis: null, revokedAt: null, revokedBy: null, revokeBasis: null, version: null, createdAt: null,
+    designatorIsCoordinator: null, dormant: null };
+}
 const sqlstate = (e: unknown) => (e as { code?: string })?.code;
 
 export class DelegationService {
@@ -81,10 +91,9 @@ export class DelegationService {
       [p.tenantId, projectId, entityId, p.id.toLowerCase(), kind, requestId, randomUUID(), JSON.stringify(payload)]);
   }
 
-  /** Delegations of the project (live first, then revoked, at most 200) and the holders of an approval grant (read-only). Ids only, no names.
-   * What each caller receives is decided here, from the caller's role in the database read inside this transaction (never the session's role or grants):
-   * a coordinator receives every row complete with the two indicators; any other reader receives their own rows complete (basis texts, no indicators) and, of other people's rows,
-   * only the live and not dormant ones with id, delegate and document types (everything else null). Revoked and dormant rows of other people are not returned. */
+  /** Delegations of the project (at most 200) and the holders of an approval grant (read-only). Ids only, no names.
+   * Who receives what is decided in one place, `visibleDelegation`, from the caller's role in the database read inside this transaction (never the session's role or grants).
+   * The SQL below applies the same «may this viewer see this row at all» condition before the limit, so hidden rows never take a place of a visible one. */
   async list(p: Principal, raw: unknown): Promise<{ reviewers: ListedDelegation[]; approvers: ApproverView[]; canDesignate: boolean }> {
     if (!p || p.role === 'bot') throw denied();
     const q = listSchema.parse(raw);
@@ -94,21 +103,21 @@ export class DelegationService {
       const myRole = await this.dbRole(tx, q.projectId, me);
       if (!myRole || !READ_ROLES.has(myRole)) throw denied();                                  // the database no longer gives a reading role: same answer as for an outsider
       const canDesignate = projectRole(p, q.projectId) === 'manager' && myRole === 'manager';
-      const rows = (await tx.query<Row>(`SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 AND ($2::boolean OR $3::uuid=delegate_id OR revoked_at IS NULL) ORDER BY (revoked_at IS NOT NULL), created_at DESC, id LIMIT 1000`,
-        [q.projectId, canDesignate, me])).rows;
+      const isCoordinator = canDesignate;                                                      // «may read everything»; named apart so a later change of canDesignate is a visible decision here
+      // coordinator: every row, live first, newest first. Others: own rows first (newest first), then other people's rows in effect by delegate id (the order tells nothing about when).
+      const rows = (await tx.query<Row>(isCoordinator
+        ? `SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 ORDER BY (revoked_at IS NOT NULL), created_at DESC, id LIMIT 1000`
+        : `SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 AND (delegate_id = $2::uuid OR revoked_at IS NULL)
+           ORDER BY (delegate_id <> $2::uuid), (CASE WHEN delegate_id = $2::uuid THEN created_at END) DESC, delegate_id, id LIMIT 1000`,
+        isCoordinator ? [q.projectId] : [q.projectId, me])).rows;
       const people = [...new Set(rows.flatMap(r => [r.delegate_id, r.granted_by]))];
       const roleOf = new Map((people.length ? (await tx.query<{ user_id: string; project_role: string }>('SELECT user_id,project_role FROM public.bom_eligible_members($1::uuid, $2::uuid[])', [q.projectId, people])).rows : [])
         .map(r => [r.user_id, r.project_role]));
-      const dormant = (r: Row) => r.revoked_at == null && !READ_ROLES.has(roleOf.get(r.delegate_id) ?? '');
-      const reviewers: ListedDelegation[] = [];
-      for (const r of rows) {
-        if (canDesignate) reviewers.push({ ...toView(r), designatorIsCoordinator: roleOf.get(r.granted_by) === 'manager', dormant: dormant(r) });
-        else if (r.delegate_id === me) reviewers.push(toView(r));
-        else if (r.revoked_at == null && !dormant(r)) {
-          reviewers.push({ id: r.id, delegateId: r.delegate_id, docTypes: r.doc_types, projectId: null, grantedBy: null, basis: null, revokedAt: null, revokedBy: null, revokeBasis: null, version: null, createdAt: null,
-            designatorIsCoordinator: null, dormant: null });
-        }
-      }
+      const viewer = { coordinator: isCoordinator, id: p.id };
+      const reviewers = rows.flatMap(r => {
+        const v = visibleDelegation(r, viewer, { designatorIsCoordinator: roleOf.get(r.granted_by) === 'manager', dormant: r.revoked_at == null && !READ_ROLES.has(roleOf.get(r.delegate_id) ?? '') });
+        return v ? [v] : [];
+      });
       const approvers = (await tx.query<{ user_id: string; doc_types: DocType[] }>('SELECT user_id,doc_types FROM public.document_approvers($1::uuid)', [q.projectId])).rows
         .map(a => ({ userId: a.user_id, docTypes: a.doc_types }));
       return { reviewers: reviewers.slice(0, 200), approvers, canDesignate };

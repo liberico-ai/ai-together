@@ -5,7 +5,7 @@ import {ZodError} from 'zod';
 import {openHarness,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
 import {approver,delegate,frozenRevision,grantDocApproval,registerDoc,reviewer,revokeDelegation,seedMembers,transportApprover} from './slice3-fixtures';
-import {DelegationService} from '../src/server/review-delegations';
+import {DelegationService,visibleDelegation,type Row} from '../src/server/review-delegations';
 import {ReviewService} from '../src/server/document-review';
 import type {Database,Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
@@ -193,7 +193,12 @@ describe('designating a commenter',()=>{
  test('the live-designation uniqueness is the unique index, not a read before the write (j)',async()=>{
   const src=await readFile('src/server/review-delegations.ts','utf8');
   expect(src).toMatch(/ON CONFLICT \(tenant_id,project_id,delegate_id\) WHERE revoked_at IS NULL DO NOTHING/);
-  expect(src).not.toMatch(/SELECT[^;`]*FROM review_delegations[^;`]*delegate_id\s*=/);
+  // grant has no read of review_delegations at all, in any spelling (read-before-write is the TOCTOU the unique index replaces); its only statement on the table is the INSERT
+  const start=src.indexOf('async grant('),end=src.indexOf('async revoke(');
+  expect(start).toBeGreaterThan(0);expect(end).toBeGreaterThan(start);
+  const body=src.slice(start,end);
+  expect(body).toMatch(/INSERT INTO review_delegations/);
+  expect(body).not.toMatch(/\b(from|join)\s+(?:"?[a-z_]+"?\s*\.\s*)?"?review_delegations\b/i);
   expect((await rows('SELECT 1 FROM pg_indexes WHERE indexname=$1',['uq_review_delegations_active'])).length).toBe(1);
   await grant(pm,G());
   await refused(grant(pm2,G({docTypes:['plan']})),'DELEGATION_EXISTS',409);
@@ -469,9 +474,66 @@ describe('OQ-39, OQ-40, OQ-41 indicators and who sees what in list',()=>{
   await seed();
   for(const p of [member,reviewer,business2,technical2]) {
    const l=await svc().list(p,{projectId:ids.sales});
+   expect(l.reviewers.length).toBeGreaterThan(0);
+   expect(l.reviewers.some(r=>r.delegateId!==p.id)).toBe(true);                       // the list holds a row of another person
    for(const r of l.reviewers) expect([r.designatorIsCoordinator,r.dormant]).toEqual([null,null]);
   }
  });
+ test('F-2 visibleDelegation: who receives what, for a coordinator and for a reader, per state of the row',()=>{
+  const row=(over:Partial<Row>={}):Row=>({id:randomUUID(),project_id:ids.sales,delegate_id:member.id,doc_types:['design'] as never,granted_by:pm.id,basis:'MARKER-G căn cứ',revoked_at:null,revoked_by:null,revoke_basis:null,version:1,created_at:'2026-11-01T00:00:00Z',...over});
+  const live=row(),revoked=row({revoked_at:'2026-11-02T00:00:00Z',revoked_by:pm.id,revoke_basis:'MARKER-R thu hồi',version:2});
+  const st=(dormant=false)=>({designatorIsCoordinator:false,dormant});
+  const coord={coordinator:true,id:pm2.id},mine={coordinator:false,id:member.id},other={coordinator:false,id:reviewer.id};
+  const nothing={projectId:null,grantedBy:null,basis:null,revokedAt:null,revokedBy:null,revokeBasis:null,version:null,createdAt:null,designatorIsCoordinator:null,dormant:null};
+  // coordinator: everything, with both indicators, in every state
+  expect(visibleDelegation(live,coord,st())).toMatchObject({basis:'MARKER-G căn cứ',grantedBy:pm.id,designatorIsCoordinator:false,dormant:false});
+  expect(visibleDelegation(revoked,coord,st())).toMatchObject({revokeBasis:'MARKER-R thu hồi',revokedBy:pm.id,dormant:false});
+  expect(visibleDelegation(live,coord,st(true))).toMatchObject({dormant:true,basis:'MARKER-G căn cứ'});
+  // reader, own rows: complete, no indicators
+  for(const [r,d] of [[live,false],[revoked,false],[live,true]] as const) {
+   const v=visibleDelegation(r,mine,st(d))!;
+   expect(v).toMatchObject({id:r.id,delegateId:member.id,basis:'MARKER-G căn cứ',grantedBy:pm.id,version:r.version,revokeBasis:r.revoke_basis,designatorIsCoordinator:null,dormant:null});
+  }
+  // reader, other people's rows: in effect only, three fields
+  expect(visibleDelegation(live,other,st())).toEqual({id:live.id,delegateId:member.id,docTypes:['design'],...nothing});
+  expect(visibleDelegation(revoked,other,st())).toBeNull();
+  expect(visibleDelegation(live,other,st(true))).toBeNull();
+ });
+ test('F-3 a reader with one own revoked row among more than 200 rows in effect and 1000 hidden revoked rows still receives the own row, capped at 200',async()=>{
+  const own=await delegate(h,ids.sales,member.id);await revokeDelegation(h,own);
+  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) SELECT gen_random_uuid(),$1,'bulk-'||g,'Thành viên hàng loạt','engineer','fixture-only' FROM generate_series(1,205) g`,[ids.tenant]);
+  await h.operator.query(`INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) SELECT $1,id,$2,'engineer' FROM identity.users WHERE username LIKE 'bulk-%'`,[ids.tenant,ids.sales]);
+  await h.operator.query(`INSERT INTO review_delegations(tenant_id,project_id,delegate_id,doc_types,granted_by,basis) SELECT $1,$2,id,ARRAY['design'],$3,'Chỉ định hàng loạt mẫu' FROM identity.users WHERE username LIKE 'bulk-%'`,[ids.tenant,ids.sales,pm.id]);
+  await h.operator.query(`INSERT INTO review_delegations(tenant_id,project_id,delegate_id,doc_types,granted_by,basis) SELECT $1,$2,gen_random_uuid(),ARRAY['plan'],$3,'Chỉ định đã thu hồi mẫu' FROM generate_series(1,1005)`,[ids.tenant,ids.sales,pm.id]);
+  await h.operator.query(`UPDATE review_delegations SET revoked_at=now(),revoked_by=$2,revoke_basis='Thu hồi hàng loạt mẫu' WHERE doc_types=ARRAY['plan']::text[] AND project_id=$1`,[ids.sales,pm.id]);
+  const l=await svc().list(member,{projectId:ids.sales});
+  expect(l.reviewers).toHaveLength(200);
+  expect(l.reviewers[0]).toMatchObject({id:own,basis:'Chỉ định mẫu cho bản thử',revokeBasis:'Thu hồi mẫu'});
+  for(const r of l.reviewers.slice(1)) expect(r).toMatchObject({docTypes:['design'],basis:null,revokedAt:null});
+ },120000);
+ test('F-4 a principal whose id is in upper case sees their own rows complete and no one else\'s basis text',async()=>{
+  const hexa=mk('1400abcd-0000-4000-8000-00000000abcd','Thành viên chữ hex mẫu',[{projectId:ids.sales,role:'engineer'}],'engineer');      // an id that has letters, so upper case differs
+  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,'slice3-7d-hex',$3,'engineer','fixture-only')`,[hexa.id,hexa.tenantId,hexa.name]);
+  await h.operator.query('INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) VALUES($1,$2,$3,$4)',[hexa.tenantId,hexa.id,ids.sales,'engineer']);
+  expect(hexa.id.toUpperCase()).not.toBe(hexa.id);
+  const mine=await grant(pm,G({delegateId:hexa.id,basis:mkBasis('MARKER-MINE-')}));
+  await grant(pm,G({delegateId:reviewer.id,docTypes:['plan'],basis:mkBasis('MARKER-THEIRS-')}));
+  const up={...hexa,id:hexa.id.toUpperCase()};
+  const l=await svc().list(up,{projectId:ids.sales});
+  expect(l.reviewers.find(x=>x.id===mine.id)).toMatchObject({basis:mkBasis('MARKER-MINE-'),grantedBy:pm.id,version:1});
+  expect(JSON.stringify(l)).not.toContain('MARKER-THEIRS-');
+  expect(l.reviewers.find(x=>x.delegateId===reviewer.id)).toMatchObject({basis:null,grantedBy:null});
+ });
+ test('F-5 a reader receives other people\'s rows ordered by delegate id, not by creation; a coordinator keeps newest first',async()=>{
+  const people=[reviewer,approver,business2,technical2,pm2];
+  for(const p of people) await grant(pm,G({delegateId:p.id,docTypes:['plan']}));          // created in this order
+  const l=await svc().list(member,{projectId:ids.sales});
+  const got=l.reviewers.map(x=>x.delegateId);
+  expect(got).toEqual([...got].sort());
+  const c=await svc().list(pm,{projectId:ids.sales});
+  expect(c.reviewers.map(x=>x.delegateId)).toEqual([...people].reverse().map(p=>p.id));
+ });
+
 });
 
 describe('a commenter can never approve',()=>{

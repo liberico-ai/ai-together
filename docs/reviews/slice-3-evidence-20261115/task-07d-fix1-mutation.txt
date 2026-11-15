@@ -1,0 +1,27 @@
+npx vitest run tests/review-delegations.test.ts (PGlite), four temporary mutations one at a time, each reverted
+=== MUTATION m1a select FROM review_delegations WHERE delegate_id=$1 inside grant
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-delegations.test.ts > designating a commenter > the live-designation uniqueness is the unique index, not a read before the write (j)
+      Tests  1 failed | 38 passed (39)
+=== MUTATION m1b same with reversed operands, lower case, schema-qualified
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-delegations.test.ts > designating a commenter > the live-designation uniqueness is the unique index, not a read before the write (j)
+      Tests  1 failed | 38 passed (39)
+=== MUTATION m2 other people's basis returned to a reader
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a reader who is not a coordinator gets no basis text of another person's rows, live or revoked
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 a delegate reads the basis and the revoke basis of their own rows
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > OQ-41 the caller's coordinator status comes from the database
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-2 visibleDelegation: who receives what, for a coordinator and for a reader, per state of the row
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-3 a reader with one own revoked row among more than 200 rows in effect and 1000 hidden revoked rows still receives the own row, capped at 200
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-4 a principal whose id is in upper case sees their own rows complete and no one else's basis text
+      Tests  6 failed | 33 passed (39)
+=== MUTATION m3 SQL-side visibility filter removed
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-3 a reader with one own revoked row among more than 200 rows in effect and 1000 hidden revoked rows still receives the own row, capped at 200
+      Tests  1 failed | 38 passed (39)
+=== MUTATION m4 own row compared case-sensitively (rerun with an id that has hex letters; first run used an all-digit fixture id and was blind, test fixed)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-4 a principal whose id is in upper case sees their own rows complete and no one else's basis text
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first
+      Tests  2 failed | 37 passed (39)
