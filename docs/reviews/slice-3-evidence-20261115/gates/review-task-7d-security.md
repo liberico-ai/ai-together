@@ -118,3 +118,64 @@ All items addressed, no new Critical/Important breakage (two new Minor: N1 britt
 **Security verdict for Task 7d:** Approved
 
 **Task quality:** Approved
+
+## Review of the Codex fix round 3 (head ccbe70c)
+
+VERDICT: READY
+
+Scope: commit `ccbe70c` over `b8f5a99`, read against the brief `codex-fix3-brief.md` (ruling X1), the builder's report and the saved evidence `codex-fix3-*.txt`. Read-only; no suite, container or server was run by this review.
+
+### a. Does the statement implement the finding completely
+
+Yes (#fact, `src/server/review-delegations.ts:112-115`). For a reader who is not a coordinator, another person's row is fetched only when `revoked_at IS NULL` and its `delegate_id` is in the set returned by `public.bom_eligible_members` for the project with `project_role = ANY($3)`, and this filter sits in the `WHERE` before `ORDER BY ... LIMIT 1001`. Every way of being dormant is covered because the function itself decides them (`migrations/006_bom_allocations.sql:102-110`): no membership in the project (no row), role `viewer` or `bot` (row present, role not in `$3`), inactive account (`u.active`), missing password hash (`u.password_hash IS NOT NULL`), other tenant. Own rows are fetched in every state by `delegate_id = $2::uuid`, independent of eligibility, and sort first. With more than 1 000 rows in effect the cap still applies, but now only over rows the reader may receive, so `fetchedCut` and the 200 cut count only receivable rows. No hidden row can take a place under the cap.
+
+### b. SQL correctness on PostgreSQL 16 and safety
+
+- Parameter typing (#fact): `$1` is used as `project_id=$1` and as `$1::uuid`, both uuid; `$2::uuid`; `$3::text[]` receives a JS array from `[...READ_ROLES]`, sent by `pg` as an array literal. The function returns `project_role text`, so `= ANY(text[])` is well typed.
+- One call (#inference, not observed by EXPLAIN): the function is `plpgsql`, `SECURITY DEFINER`, no volatility clause, therefore `VOLATILE`. Its arguments are uncorrelated: `$1` and an `ARRAY(...)` sub-select that is an InitPlan, computed once. Because the `IN` sits under an `OR`, it cannot become a semi-join and stays a SubPlan; for about 1 000 estimated rows it is normally hashed (built once). Even a non-hashed SubPlan only rescans the FunctionScan without changed parameters, and PostgreSQL then rewinds the stored result instead of calling the function again. So the body runs once per statement. The builder's green runs on both engines are consistent with this; I did not confirm the plan.
+- Zero candidates (#fact): `ARRAY(SELECT ...)` over no rows yields `'{}'`; `u.id = ANY('{}')` is false, the function returns no rows, `IN (empty)` is false; own rows still come back. Fail-closed.
+- NULL (#fact): `delegate_id` is `NOT NULL` (`migrations/020_document_review.sql:17`); `user_id` is a primary key; a `NULL` role would make `= ANY` unknown and drop the row. Fail-closed.
+- Function scope (#fact): `scoped()` sets `app.tenant_id` and `app.project_ids` with `set_config(...,true)` (`src/server/db.ts:53`) and `run()` narrows `projectIds` to `[projectId]` (`src/server/review-delegations.ts:68`); the function checks both settings, so it answers only for this tenant and this project.
+- RLS on the inner read `review_delegations d` (#fact): it runs as `libetech_runtime` (`SET LOCAL ROLE`, `src/server/db.ts:52`) outside the definer function, so `runtime_select` (`migrations/020_document_review.sql:147-149`, ENABLE + FORCE at `:134-135`) limits it to the tenant and project in scope. The candidate set cannot include delegates of another tenant or project. The partial unique index `uq_review_delegations_active` (`:109`) serves this read.
+
+### c. Does the fix open anything
+
+No. A reader now receives a subset of what the earlier query fetched, in the same order rule (own rows newest first, then others by delegate id). The fix closes a small leak: before it, `fetchedCut` could become `true` because of more than 1 000 hidden dormant rows, which told a reader that such rows existed; now the flag counts only receivable rows. The response time still grows with the number of not-revoked rows in the project (the candidate array), as the earlier query's 1 001-row fetch already did; nothing new is measurable. The function raises no error of its own, and no new error path exists. A non-reader cannot reach the statement: `bot`, missing scope and session role are rejected at `:99-101`, and the database role is re-read at `:104-105` before the query. Injection (#fact): the role list is bound as `$3`; the only interpolated text is the constant `COLUMNS`; no role name is typed in the SQL.
+
+### d. Is «dormant» still one definition
+
+Yes. Both the SQL filter and the JS check (`:119-123`) use `public.bom_eligible_members` for the same project and the same `READ_ROLES` set. They can disagree only through time: the transaction is READ COMMITTED (plain `BEGIN`, `src/server/db.ts:44`), the main statement and the `roleOf` statement take different snapshots, and a `VOLATILE` plpgsql function takes its own snapshot per inner query. Case 1: a delegate loses the reading role between the two statements; the SQL fetched the row, the JS marks it dormant and `visibleDelegation` drops it (`:57`); the reader receives one row fewer. Case 2: a delegate gains the role in between; the SQL did not fetch the row; the reader misses it until the next read. Both outcomes are fail-closed and reveal nothing. The coordinator path is unchanged and still labels from the JS computation.
+
+### e. Tests
+
+- G-1 to G-6 (`tests/review-delegations.test.ts:602-676`) pin the behaviour: reader behind 1 100 dormant rows (absence), flag `false`; 205 in effect behind 1 100 dormant, 200 rows and flag `true`; viewer-role and inactive delegates hidden from a reader and labelled `dormant: true` for the coordinator; one delegate per reading role reaches a reader; own revoked and own live rows first, newest first; 1 100 active viewer-role delegates do not hide the live row.
+- Mutations (#fact, `codex-fix3-mutation.txt`): m1 turns G-1, G-2, G-5 red; m3 turns G-4 red; m2 stayed green until G-6 was added (the JS line hid viewers) and is red with G-6. Each is a real catch: G-1/G-2/G-5 depend on the pre-limit filter, G-4 enumerates all four roles, G-6 puts 1 100 eligible-but-viewer rows ahead of the live one.
+- No existing assertion is weakened: the diff on the test file has 67 added lines and 0 removed.
+- Fixtures are synthetic: generated ids in the `00000000-`, `0000abcd-`, `1500abcd-` ranges, placeholder Vietnamese labels, `fixture-only` hashes.
+- Ordering in G-1 and G-6 is certain, not lucky: the live delegate is the fixed demo id `14000000-0000-4000-8000-000000000003` (`src/server/identities.ts:8,12`), which sorts after both dormant ranges byte-wise; G-1 asserts it explicitly. G-5 avoids a clock tie by inserting the old row one day earlier.
+
+### f. Docstring at `src/server/review-delegations.ts:95-97`
+
+These lines were not changed by this diff. Their last sentence («the SQL below applies the same ... condition before the limit») was untrue before the fix and is true now. The phrase «decided in one place, `visibleDelegation`» is now slightly loose, since the SQL is a first line with the same rule (see P3-1).
+
+### g. Outside the allowed scope
+
+None. The commit touches `src/server/review-delegations.ts` (the `list` method only), `tests/review-delegations.test.ts` (additions only) and the four evidence files the brief names. The coordinator query, `visibleDelegation`, migrations and `bom_eligible_members` are untouched.
+
+### Findings
+
+- P3-1 `src/server/review-delegations.ts:96` — the docstring still says who receives what is «decided in one place»; with the pre-limit filter there are two lines applying the same rule. A reader of the code may change one without the other. Suggest naming both lines and saying they must stay in step.
+- P3-2 `tests/review-delegations.test.ts:602-676` — no case covers dormant by missing password hash. The function covers it and the code is right; a regression in the function would not be caught here.
+- P3-3 `docs/reviews/slice-3-evidence-20261115/codex-fix3-mutation.txt` — m1 and m3 were run before the G-5 fixture change and were not repeated on the final test file; the final m2 run is on the final file. The note says so; the evidence is weaker for m1 and m3, not wrong.
+
+No P0, P1 or P2.
+
+### Outside this diff
+
+None found in the lines read.
+
+### Not checked
+
+- The query plan on PostgreSQL 16 (no EXPLAIN was run); the single call of `bom_eligible_members` is an inference from the plan rules above.
+- The test runs themselves; I relied on the saved evidence (PGlite 118 passed and 2 skipped, native 120 passed, typecheck exit 0) and did not re-run them.
+- The UI and HTTP layers beyond the files in the diff.

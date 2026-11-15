@@ -163,7 +163,7 @@ Phát hiện khi kiểm tay, đã sửa ở `4ae074d`: tài liệu không có m�
 
 **Thêm sau review toàn nhánh**
 24. Tệp lùi 020 nay từ chối khi còn bất kỳ dòng nào trong năm bảng review: **020 thành một chiều, trong luật, kể từ dòng review đầu tiên** (nhận xét, quyết định, uỷ quyền, liên kết phụ thuộc hay sự kiện). Tệp lùi 019 khoá ghi trên bảng danh tính trong lúc chạy; nó nâng khoá từ SHARE lên ACCESS EXCLUSIVE nên có thể khoá chết với một giao dịch danh tính đang chạy (PostgreSQL huỷ một bên). Các tệp lùi chỉ chạy trên bản sao.
-25. Ba danh sách có trần nay báo khi bị cắt (cờ `…Truncated` và một câu trên màn hình); chưa phân trang. Với người không phải điều phối, cờ của danh sách người nhận xét được tính trước khi lọc các dòng «ngủ» của người khác: dự án có từ 1 000 dòng như vậy thì cờ cho biết chúng tồn tại.
+25. Ba danh sách có trần nay báo khi bị cắt (cờ `…Truncated` và một câu trên màn hình); chưa phân trang. Danh sách có trần thứ tư — thẻ 3/3, 30 phiếu mới nhất — **không có cờ** (xem mục 44). Với người không phải điều phối, cờ của danh sách người nhận xét được tính trước khi lọc các dòng «ngủ» của người khác: dự án có từ 1 000 dòng như vậy thì cờ cho biết chúng tồn tại.
 26. Hàng Review phân trang theo `offset` ở máy chủ (50 mỗi trang). Nút «Đã sửa» và «Xác nhận đã xử lý» nay theo cờ dịch vụ trả về cho từng nhận xét.
 27. `HEAD` trên các tuyến review được xử lý như `GET`. Chữ tự do có `dir="auto"`, riêng dòng tên và dòng phiếu chưa có. Ghi chú đang gõ cho bản cũ được giữ lại sau «Đọc bản mới» và sẽ gửi cho bản mới nếu người dùng bấm gửi — chưa có dòng nhắc.
 28. Thẻ phiếu ở `/approvals` chưa đánh dấu loại nào là «mới thêm»; phiếu của người vai `viewer` mang mã vẫn đọc như «được cấp quyền duyệt», dù `viewer` không bao giờ là người duyệt (hướng an toàn).
@@ -186,6 +186,13 @@ Phát hiện khi kiểm tay, đã sửa ở `4ae074d`: tài liệu không có m�
 41. Khi một khoá khử trùng của nháp đã được dùng ở dự án khác trong cùng tenant, lệnh gửi nháp trả xung đột: role AI vì thế biết được «khoá này tồn tại ở nơi khác». Chỉ role AI quan sát được; **phải quyết trước khi bật Z4** (reviewer bảo mật, `gates/tier1-security.md`, 12 M12-4).
 42. `SuggestionService` phải được dựng với đúng danh sách nhóm hiện chữ (`excerptChats`) của đường nhận tin đang chạy. Với giá trị mặc định (danh sách rỗng) mọi nháp dựa trên chữ của tin đều bị giữ. Lát này chưa có nơi nào dựng dịch vụ ngoài test.
 43. Hai mục nhỏ còn nguyên: lệnh «Đã sửa» và «Xác nhận đã xử lý» nhận diện tác giả và người viết nhận xét mà không đọc lại tư cách thành viên (vai của người gọi thì có đọc từ CSDL) — Task 5 M-2; gửi lại một lệnh chỉ định đã thành công, sau khi tư cách của người được chỉ định đổi, trả `DELEGATION_INVALID` thay vì câu trả lời đã lưu — Task 7a M6.
+
+**Thêm sau lượt quét lỗi cùng lớp trước Codex vòng 4** (`gates/tier1-code.md`, mục «Class sweep before Codex round 4»: không nơi nào khác áp trần trước khi lọc theo quyền, hiển thị, trạng thái hay phạm vi; năm mục lân cận dưới đây **ghi nhận, không sửa** — nằm ngoài lời «Sửa P2» của Chairman)
+44. **Thẻ 3/3 lấy 30 phiếu mới nhất, phiếu đã đóng cũng tính, và không có câu báo «đã cắt»** (reviewer xếp P2). Một phiếu còn mở cũ hơn 30 phiếu mới hơn sẽ không hiện, và màn hình không cho biết danh sách thiếu: người giữ ghế có thể không bao giờ bỏ phiếu cho nó trên web. Cờ `reviewCardsTruncated` chỉ phủ thẻ review. Sửa gọn: lấy 31 và trả một cờ, hoặc xếp phiếu mở lên trước.
+45. Nhận xét của một tài liệu đọc từ cũ tới mới và giữ 1 000 dòng **cũ nhất**: phần bị cắt là các nhận xét mới nhất. Một nhận xét gốc nằm trong phần giữ mà dòng «đã xử lý» của nó nằm ngoài sẽ hiện như còn mở; nút vẫn hiện và dịch vụ từ chối khi bấm. Chỉ xảy ra khi một tài liệu có trên 1 000 nhận xét.
+46. Khối «liên kết phụ thuộc cần xem lại» ở trang chi tiết Review hiện tối đa 50 liên kết và bỏ tổng số: không có dòng «còn nữa».
+47. Hàng Review xếp theo thời điểm cập nhật; một lần duyệt hay trình bản mới đẩy tài liệu lên đầu. Người đang lật trang có thể bỏ sót một tài liệu giữa hai lần tải; tổng số vẫn đúng.
+48. Ngữ cảnh kỹ năng áp trần đúng (luật hiển thị nằm trong SQL trước mỗi trần) nhưng không có trường nào nói một danh sách đã bị cắt: kỹ năng không phân biệt được «dự án có 50 tài liệu» với «có hơn 50».
 
 ## Ghi chú triển khai (đầu vào cho điểm dừng của Chairman; chưa áp ở đâu)
 

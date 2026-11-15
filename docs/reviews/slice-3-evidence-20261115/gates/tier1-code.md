@@ -334,3 +334,60 @@ Deferred:
 - C1-1 (draft input staleness) and the C3/C4 P3s from the class sweep are not in this round.
 
 VERDICT for re-gating: NEEDS FIXES
+
+## Class sweep before Codex round 4 — a cap applied before a filter (head c5a76c9)
+
+VERDICT: CLEAN
+
+No other place in the slice applies a cap before a filter that removes rows for permission, visibility, state or scope. `DelegationService.list` (reviewers part) is excluded: another agent is fixing it. Read-only sweep of the code at `c5a76c9`, base `ec3b5e7`. No source, test or migration file was changed. No suite, build or server was run. The five findings below are neighbouring issues (a missing or misleading flag, or unstable paging), not the exact class.
+
+### Places examined
+
+| Place | Cap | Filter order | Result |
+|---|---|---|---|
+| `document-review.ts:209-218` `queue` | `LIMIT/OFFSET` (1..200, default 50) | The SQL `WHERE project_id AND latest_revision_id IS NOT NULL` is the same in `total` and the page. `items()` (`:170`) drops a row only when its revision is missing, and the FK at `migrations/014:57` prevents that. No per-row permission filter. | Clean. Paging is unstable, see N4. |
+| `document-review.ts:191-205` `load` comments | `LIMIT 1001`, keep 1000 | No row filter after the cut. `canAddress`/`canResolve` come from the replies inside the cut. | Not the class. See N2. |
+| `document-review.ts:163-166` approvers / decisions in `items` | none (`= ANY(page ids)`, `document_approvers`) | none | Clean |
+| `decisions.ts:72-83` `list` | review cards: `queue` limit 200; ballots: `bom.pending` 30 | Cards are a straight map. No state filter on either set. `reviewCardsTruncated` uses `total` over the same `WHERE`. | Review-card flag is correct. The ballots have no flag, see N1. |
+| `bom.ts:103-122` `pending` | `LIMIT 30`, newest by `created_at` | The seat and Telegram checks run before the query and apply to the whole project, not per row. No per-row filter after it. A missing work row throws instead of dropping. | Not the class. See N1. |
+| `document-dependencies.ts:101-111` `list` | `LIMIT/OFFSET` (1..200, default 50) | One `where` string is used by both `total` and the page. | Clean |
+| `review-page.ts`, `app/review/[documentId]/page.tsx:29-32` | dependency `list` default 50 | `needsReview: true` is in the SQL. `RevisionDiff` filters `needsReview` again (`review.tsx:144`), which removes nothing. `total` is thrown away. | Not the class. See N3. |
+| `suggestions.ts:112-125` `list` | `LIMIT/OFFSET` (1..200) | Same `WHERE` in the page and `total`. The `LEFT JOIN draft_decisions` is 1:1 (`UNIQUE(draft_id)`, migration 021). | Clean |
+| `skill-context.ts:55-90` + `source-text.ts:59-73` | 20 messages, 50 documents, 30 revisions | Visibility is a mask, not a filter: hidden or pointer-only rows keep their place and lose text and hash in SQL (`visibleColumnsSql`). Project and IBS HI (`isIbsHiSql`) are in SQL. The release-librarian "approved only" condition is in the `WHERE` before `LIMIT` (`:85`). A kind outside the skill's table throws instead of filtering (`:88`). | Clean. No "cut" marker, see N5. |
+| `review-delegations.ts:126-127` approvers | none | `document_approvers` filters in SQL (migration 019:64-77). | Clean |
+| `list-cut.ts` `wasCut` | — | Correct for both call shapes used: fetch cap+1, and a known total. | Clean |
+| `review-http.ts:23-27` `query` | passes `limit`/`offset` through as numbers | The strict schema decides. | Clean |
+| `app/review/page.tsx:31-33` | `QUEUE_PAGE_SIZE` 50 | When `offset>0` and the page is empty it redirects to page 1. The project picker filters by `reader` (no cap). | Clean |
+| `app/decisions/page.tsx:23` | none | The `mayRead` project filter has no cap. | Clean |
+| `components/review-view.ts:104-106` `queueWindow` | — | "a–b / total" and `nextOffset` come from the server `total` and the rows shown, which are the same set. | Clean |
+| `components/review.tsx:144-174` | — | Top-level/replies split and the `needsReview` filter work on lists that already hold only those rows. | Clean |
+| `components/decisions.tsx:82-83`, `decisions-view.ts` | — | The count `{cards.length} thẻ` is the rows received. No client filter. | Clean. The flag covers review cards only (N1). |
+| `inbox.ts` (slice changes) `list`/`detail` | `LIMIT/OFFSET`; events `LIMIT 500` (not changed by the slice) | Same `state` filter in `total` and the page. Text visibility is a mask in SQL. | Clean |
+
+### Findings (all neighbours of the class, none exact)
+
+**N1 — P2, missing flag (partly recorded). `bom.ts:111`, `decisions.ts:82`, `decisions.tsx:83`.**
+`pending` takes the newest 30 ballots, closed ones included. Nothing tells the screen the list was cut: `reviewCardsTruncated` covers review cards only. Scenario: a project has one open ballot from day 1, then 30 newer ballots that are all closed. A seat holder sees 30 closed cards and no sign that anything is missing, so they never vote on the open ballot. Receipt item 17 records the cap. Item 25 ("ba danh sách có trần nay báo khi bị cắt") does not say that this fourth capped list has no flag, so the record is incomplete on this point.
+Fix in at most two lines: fetch 31 and return a `ballotsTruncated` flag, or order open ballots first.
+
+**N2 — P3, follow-up flags computed over the cut set. `document-review.ts:191-202`.**
+Comments are read oldest first and the newest rows past 1000 are dropped. A root comment inside the cut whose `resolved` reply falls past it reads as an open thread, so `canAddress`/`canResolve` are true and the screen offers an action that `comment()` then refuses with the closed-thread error (`:256-257`). No data is exposed and no wrong write is possible. A second effect: because the cut keeps the oldest rows, the dropped rows are the newest ones, which are the comments on the revision under review. Receipt item 17 ("nhận xét của một tài liệu ở 1 000") is right about the number but does not say which end is kept. Only reachable above 1000 comments on one document.
+
+**N3 — P3, silent cap. `app/review/[documentId]/page.tsx:29,32`.**
+The flagged-dependencies block calls `list` with the default limit of 50 and passes on `links.items` only, dropping `total`. A document with more than 50 flagged links shows 50, with no "more" line.
+
+**N4 — P3, unstable offset paging. `document-review.ts:215`, together with `document-review.ts:318` and `documents.ts:174`.**
+The queue orders by `updated_at DESC`. An approval or a new proposal sets `updated_at=now()`, which moves that document to page 1 between two page loads. Scenario: a reader is on page 2 (rows 51–100) and someone approves a document on page 3. When the reader opens page 3, the rows have shifted by one and one document is never shown. `total` stays correct.
+
+**N5 — P3, no cut marker in the skill context. `skill-context.ts:56,68-71,77-86`.**
+The 20 / 50 / 30 caps are applied correctly: visibility is in SQL before each limit, and the named document is ordered first so the cut never drops it. But `SkillContext` carries no field saying a list was cut, so a skill cannot tell "this project has 50 documents" from "it has more than 50".
+
+### For the agent fixing `DelegationService.list` (no finding, only a pointer)
+The docstring at `review-delegations.ts:95-97` says the SQL applies the visibility condition before the limit. That is not true for the dormant rule while the defect stands. It should be corrected together with the fix.
+
+### Not examined
+- `DelegationService.list` reviewers part (out of scope by instruction).
+- `bom.read` (`bom.ts:94`, `LIMIT 30` per work item) and `inbox.ts` events `LIMIT 500`: both existed before the slice.
+- Other route files under `src/app/api` beyond the review and decisions handlers.
+- RLS policies of `document_records`, `document_revisions` and `review_comments`, beyond confirming that the services filter by project in SQL. If such a policy hid individual rows from a reader, the counts in `queue` and the dependency `list` would still be consistent, because `total` and the page run under the same policy.
+- Runtime behaviour: nothing was run.
