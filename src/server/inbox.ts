@@ -2,12 +2,14 @@ import {z} from 'zod';
 import {scoped,type Database,type Queryable} from './db';
 import {AppError} from './errors';
 import {deduplicate} from './service';
-import {LATEST_REVISION_ORDER,refOf} from './intake';
+import {refOf} from './intake';
+import {DUPLICATE_HINT_SQL,latestRevisionCte,listVisibleRevisions,type DisplayMode} from './source-text';
 import {candidateTransition,type CandidateAction,type CandidateState} from './intake-rules';
 import {applyOutboxSignal,OVERDUE_SECONDS,type OutboxState} from './outbox';
 import {projectRole} from './types';
 import type {Principal} from './types';
 export type {CandidateAction,CandidateState} from './intake-rules';
+export type {DisplayMode} from './source-text';
 
 // PM-facing side of the inbox: reads candidates and failed outbox rows, and applies the PM's decisions.
 // Every write: scoped transaction (role libetech_runtime), expected version, deduplicated by key, one immutable intake_events row.
@@ -17,12 +19,6 @@ export type CandidateCard={candidateId:string;ref:string;projectId:string;projec
  duplicateCandidates:{candidateId:string;ref:string;reason:string}[];contentMode:DisplayMode;excerpt:string|null;forwarded:boolean;
  attachments:{state:string;mimeType:string;sizeBytes:number|null;fileName:string}[];ticketRef:string|null;status:IntakeStatus;version:number};
 export type SourceAvailabilityRow={chatId:string;topicId:string;state:'not-configured'|'partially-received';coverageStart:string|null;coverageGaps:{from:string;to:string}[];label:string};
-/**
- * OQ-30 (b), decided 14/11/2026 — how one revision is shown, decided here and nowhere else:
- * 'excerpt' = the revision stored text and the current config still allows it; 'hidden' = it stored text but the current config no longer
- * allows it (group flag removed, or the project now mapped to IBS_HI); 'pointer_only' = it stored none. Only 'excerpt' carries text or hash.
- */
-export type DisplayMode='excerpt'|'hidden'|'pointer_only';
 export type RevisionView={revisionNo:number;editedAt:string|null;contentMode:DisplayMode;contentHash:string|null;excerpt:string|null;textTruncated:boolean;recordedAt:string};
 export type EventView={id:string;kind:string;actorKind:string;actorId:string;createdAt:string;payload:Record<string,unknown>};
 export type DeliveryView={outboxId:string;template:string;state:OutboxState;attemptNo:number;deliveredAt:string|null;acknowledgedAt:string|null;
@@ -59,17 +55,15 @@ const commandSchema=z.discriminatedUnion('kind',[
 const failureSchema=z.object({kind:z.enum(['take','requeue','abandon']),expectedVersion,reason}).strict();
 
 type CardRow={id:string;project_id:string;project_label:string;state:CandidateState;classification:CandidateCard['classification'];missing_fields:string[];ticket_ref:string|null;version:number;
- source_id:string;chat_id:string;observed_at:unknown;ingested_at:unknown;forwarded:boolean;content_mode:StoredMode|null;text_excerpt:string|null;dups:string[];
+ source_id:string;chat_id:string;observed_at:unknown;ingested_at:unknown;forwarded:boolean;display_mode:DisplayMode;visible_text:string|null;dups:string[];
  attachments:CandidateCard['attachments'];outbox_state:OutboxState|null;delivered_at:unknown;acknowledged_at:unknown};
 
-// "lat" = the newest revision of each candidate's root message, chosen by edited_at then revision_no (LATEST_REVISION_ORDER).
+// "lat" = the newest revision of each candidate's root message (source-text.ts); text and hash leave it only when the current config shows them. $2 = the operator's flagged groups.
 const CARD_SQL=`WITH lat AS (
-  SELECT DISTINCT ON (c.id) c.id AS cid, r.content_hash, r.content_mode, r.text_excerpt
-  FROM intake_candidates c JOIN source_events e ON e.id=c.root_source_event_id JOIN source_event_revisions r ON r.source_event_id=e.id
-  WHERE c.project_id=$1 ORDER BY c.id, ${LATEST_REVISION_ORDER})
+  ${latestRevisionCte('$2')})
  SELECT c.id,c.project_id,pr.name AS project_label,c.state,c.classification,c.missing_fields,c.ticket_ref,c.version,
-  e.source_id,e.chat_id,e.observed_at,e.ingested_at,e.forwarded,l.content_mode,l.text_excerpt,
-  (SELECT coalesce(json_agg(l2.cid ORDER BY l2.cid),'[]'::json) FROM lat l2 WHERE l2.content_hash=l.content_hash AND l2.cid<>c.id) AS dups,
+  e.source_id,e.chat_id,e.observed_at,e.ingested_at,e.forwarded,coalesce(l.display_mode,'pointer_only') AS display_mode,l.visible_text,
+  ${DUPLICATE_HINT_SQL} AS dups,
   (SELECT coalesce(json_agg(json_build_object('state',a.state,'mimeType',a.mime_type,'sizeBytes',a.size_bytes,'fileName',a.file_name) ORDER BY a.created_at,a.id),'[]'::json)
      FROM intake_attachments a WHERE a.source_event_id=e.id) AS attachments,
   o.state AS outbox_state,o.delivered_at,o.acknowledged_at
@@ -80,31 +74,18 @@ const CARD_SQL=`WITH lat AS (
  LEFT JOIN LATERAL (SELECT state,delivered_at,acknowledged_at FROM outbox_messages WHERE candidate_id=c.id ORDER BY created_at DESC,id LIMIT 1) o ON true
  WHERE c.project_id=$1`;
 
-type StoredMode='excerpt'|'pointer_only';
-/** Whether the current operator config still allows stored text for this group and project: flagged group (OQ-28 (c)) and not IBS_HI. */
-type Allowed=(chatId:string)=>boolean;
-function displayMode(stored:StoredMode|null,allowed:boolean):DisplayMode {
- if(stored!=='excerpt') return 'pointer_only';
- return allowed?'excerpt':'hidden';
-}
-/** Latest mapping row of the project (same order as intake); read in the scoped transaction, RLS limits it to the tenant. */
-async function allowedFor(tx:Queryable,projectId:string,excerptChats:readonly string[]):Promise<Allowed> {
- const domain=(await tx.query<{domain_code:string}>('SELECT domain_code FROM project_domain_mappings WHERE project_id=$1 ORDER BY mapping_version DESC LIMIT 1',[projectId])).rows[0]?.domain_code;
- return chatId=>domain!=='IBS_HI'&&excerptChats.includes(chatId);
-}
-
-function toCard(r:CardRow,allowed:Allowed):CandidateCard {
- const mode=displayMode(r.content_mode,allowed(r.chat_id));
+function toCard(r:CardRow):CandidateCard {
+ const mode=r.display_mode;
  return {candidateId:r.id,ref:refOf(r.id),projectId:r.project_id,projectLabel:r.project_label,sourceRef:r.source_id,receivedAt:iso(r.observed_at),classification:r.classification,state:r.state,
   missingFields:r.missing_fields,duplicateCandidates:r.dups.map(id=>({candidateId:id,ref:refOf(id),reason:'cùng nội dung'})),
-  contentMode:mode,excerpt:mode==='excerpt'?r.text_excerpt:null,forwarded:r.forwarded,
+  contentMode:mode,excerpt:mode==='excerpt'?r.visible_text:null,forwarded:r.forwarded,
   attachments:r.attachments.map(a=>({state:a.state,mimeType:a.mimeType,sizeBytes:a.sizeBytes==null?null:Number(a.sizeBytes),fileName:a.fileName})),ticketRef:r.ticket_ref,
   status:{receivedAt:iso(r.observed_at),persistedAt:iso(r.ingested_at),projectedAt:null,deliveredAt:isoOrNull(r.delivered_at),acknowledgedAt:isoOrNull(r.acknowledged_at),outboxState:r.outbox_state},version:r.version};
 }
 async function loadCard(tx:Queryable,projectId:string,candidateId:string,excerptChats:readonly string[]):Promise<CandidateCard> {
- const row=(await tx.query<CardRow>(CARD_SQL+' AND c.id=$2',[projectId,candidateId])).rows[0];
+ const row=(await tx.query<CardRow>(CARD_SQL+' AND c.id=$3',[projectId,[...excerptChats],candidateId])).rows[0];
  if(!row) throw DENIED();
- return toCard(row,await allowedFor(tx,projectId,excerptChats));
+ return toCard(row);
 }
 
 export class InboxService {
@@ -131,14 +112,11 @@ export class InboxService {
   const q=listSchema.parse(raw);
   readable(p,q.projectId);
   return this.run(p,q.projectId,async tx=>{
-   const params:unknown[]=[q.projectId];
-   let filter='';
-   if(q.state) {params.push(q.state);filter=` AND c.state=$${params.length}`;}
-   const total=(await tx.query<{n:number}>(`SELECT count(*)::int AS n FROM intake_candidates c WHERE c.project_id=$1${filter}`,params)).rows[0].n;
-   params.push(q.limit,q.offset);
-   const rows=(await tx.query<CardRow>(`${CARD_SQL}${filter} ORDER BY c.created_at DESC,c.id LIMIT $${params.length-1} OFFSET $${params.length}`,params)).rows;
-   const allowed=await allowedFor(tx,q.projectId,this.excerptChats);
-   return {items:rows.map(r=>toCard(r,allowed)),total};
+   const filterAt=(i:number)=>q.state?` AND c.state=$${i}`:'';
+   const total=(await tx.query<{n:number}>(`SELECT count(*)::int AS n FROM intake_candidates c WHERE c.project_id=$1${filterAt(2)}`,q.state?[q.projectId,q.state]:[q.projectId])).rows[0].n;
+   const params:unknown[]=[q.projectId,[...this.excerptChats],...(q.state?[q.state]:[]),q.limit,q.offset];
+   const rows=(await tx.query<CardRow>(`${CARD_SQL}${filterAt(3)} ORDER BY c.created_at DESC,c.id LIMIT $${params.length-1} OFFSET $${params.length}`,params)).rows;
+   return {items:rows.map(toCard),total};
   });
  }
 
@@ -147,15 +125,10 @@ export class InboxService {
   readable(p,projectId);
   return this.run(p,projectId,async tx=>{
    const card=await loadCard(tx,projectId,candidateId,this.excerptChats);
-   const root=(await tx.query<{root_source_event_id:string;chat_id:string}>('SELECT c.root_source_event_id,e.chat_id FROM intake_candidates c JOIN source_events e ON e.id=c.root_source_event_id WHERE c.id=$1',[candidateId])).rows[0];
-   const allowed=(await allowedFor(tx,projectId,this.excerptChats))(root.chat_id);
-   const revisions=(await tx.query<{revision_no:number;edited_at:unknown;content_hash:string;content_mode:StoredMode;text_excerpt:string|null;text_truncated:boolean;created_at:unknown}>(
-    `SELECT r.revision_no,r.edited_at,r.content_hash,r.content_mode,r.text_excerpt,r.text_truncated,r.created_at FROM source_event_revisions r JOIN source_events e ON e.id=r.source_event_id
-     WHERE r.source_event_id=$1 ORDER BY ${LATEST_REVISION_ORDER}`,[root.root_source_event_id])).rows
-    // OQ-30 (b): each revision is shown by its own stored mode and the current config. AGENTS.md allows hashes only as stored pointers,
-    // so a hidden or pointer-only revision shows neither text nor hash.
-    .map(r=>{const mode=displayMode(r.content_mode,allowed);const shown=mode==='excerpt';
-     return {revisionNo:r.revision_no,editedAt:isoOrNull(r.edited_at),contentMode:mode,contentHash:shown?r.content_hash:null,excerpt:shown?r.text_excerpt:null,textTruncated:r.text_truncated,recordedAt:iso(r.created_at)};});
+   const root=(await tx.query<{root_source_event_id:string}>('SELECT root_source_event_id FROM intake_candidates WHERE id=$1',[candidateId])).rows[0];
+   // OQ-30 (b): each revision is shown by its own stored mode and the current config (source-text.ts); a hidden or pointer-only one carries neither text nor hash.
+   const revisions:RevisionView[]=(await listVisibleRevisions(tx,root.root_source_event_id,this.excerptChats))
+    .map(r=>({revisionNo:r.revisionNo,editedAt:r.editedAt,contentMode:r.displayMode,contentHash:r.contentHash,excerpt:r.text,textTruncated:r.textTruncated,recordedAt:r.recordedAt}));
    const events=(await tx.query<{id:string;kind:string;actor_kind:string;actor_id:string;created_at:unknown;payload:Record<string,unknown>}>(
     'SELECT id,kind,actor_kind,actor_id,created_at,payload FROM intake_events WHERE project_id=$1 AND entity_id IN ($2,$3) ORDER BY created_at,id LIMIT 500',[projectId,candidateId,root.root_source_event_id])).rows
     .map(e=>({id:e.id,kind:e.kind,actorKind:e.actor_kind,actorId:e.actor_id,createdAt:iso(e.created_at),payload:e.payload}));
