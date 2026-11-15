@@ -16,8 +16,8 @@ Tín hiệu không chỉ bằng màu: «đủ phiếu» và «đã áp dụng» 
 
 ## 3. Props thành phần
 ```ts
-// decisions-view.ts (hàm thuần): reassignmentLabel, reviewLabels, voteBlockCopy, voteBody, voteCommand, describeVoteError, choiceLabel, decisionsPageState (= reviewPageState)
-DecisionsBody({state:'loading'|'error'|'denied'|'empty'|'ready'; cards:DecisionCard[]; error:string|null; people:{id;name}[]; onRetry?:()=>void; renderCard?:(c)=>ReactNode})   // renderCard tuỳ chọn: màn có trạng thái dùng nó để gắn thẻ có ô ghi chú
+// decisions-view.ts (hàm thuần): reassignmentLabel, reviewLabels, voteBlockCopy, voteBody, voteCommand, describeVoteError, voteFailure, voteRecorded, choiceLabel, decisionsPageState (= reviewPageState)
+DecisionsBody({state:'loading'|'error'|'denied'|'empty'|'ready'; cards:DecisionCard[]; error:string|null; people:{id;name}[]; truncated?:boolean; onRetry?:()=>void; renderCard?:(c)=>ReactNode})   // renderCard tuỳ chọn: màn có trạng thái dùng nó để gắn thẻ có ô ghi chú
 DecisionCardView({card; people; busy; error; onVote?:(choice)=>void; note?; onNote?; reloadable?; onReload?})   // không hook; nút theo canVote
 Decisions({projects; projectId; initial:{cards}|null; denied; people:{id;name}[]})   // 'use client'; giữ ghi chú và trạng thái gửi của từng thẻ 3/3
 // trang máy chủ KHÔNG truyền hàm xuống thành phần client (tests/rsc-boundary.test.ts); loading.tsx và error.tsx chỉ truyền `onRetry={reset}` từ tệp client.
@@ -53,7 +53,14 @@ Lý do trên thẻ review (`eligibilityCopy`, nguyên văn của Review): `AUTHO
 Kiểm tại chỗ (không gửi đi): «Ghi chú cần từ 5 đến 2000 ký tự.» · «Chọn Đồng ý, Từ chối hoặc Yêu cầu sửa.»
 Thành công: danh sách được đọc lại, thẻ chuyển trạng thái theo dịch vụ; ghi chú xoá chỉ khi phiếu đã được ghi. Đọc lại hỏng sau phiếu: một câu «Không tải được danh sách quyết định…» (`role="alert"`) phía trên, thẻ cũ giữ nguyên.
 
-## 5. Edge case
+## 5. Breakpoint
+- 360 (<700): một cột; thẻ đệm 12px; nút full-width (bỏ phiếu, «Mở để review», «Tải lại»); không cuộn ngang; mọi khối chữ `min-width:0; overflow-wrap:anywhere`.
+- ≥700: ba nút bỏ phiếu (`.decision-actions`) nằm một hàng, rộng theo chữ, xuống dòng khi hết chỗ.
+- ≥950 và ≥1200: như 700 (danh sách thẻ vẫn một cột để vùng bỏ phiếu không bị ép hẹp).
+- Ranh giới đúng 700px: khối `max-width` dùng 699.98px nên chỉ một trong hai khối có hiệu lực (tests/decisions-ui.test.tsx).
+Không phần tử nào rộng cố định >328px; nút và liên kết hành động ≥44×44.
+
+## 6. Edge case
 - 2/3: «Chưa đủ phiếu (2/3)» và «Chưa áp dụng»; không chữ «Đã áp dụng».
 - Đủ phiếu chưa áp dụng: «Đủ phiếu, chưa áp dụng» và «Chưa áp dụng» (ba sự kiện «đủ phiếu», «đã áp dụng», «biên nhận» là ba dữ kiện riêng).
 - Cần đối soát: «Cần đối soát», không nút; biên nhận không có thì «Chưa áp dụng».
@@ -65,11 +72,14 @@ Thành công: danh sách được đọc lại, thẻ chuyển trạng thái the
 - Thẻ đổi khi đang mở: bấm bỏ phiếu thì dịch vụ trả mã xung đột, hiện câu Conflict + «Tải lại»; ghi chú đang gõ còn.
 - Hai giới hạn của danh sách: thẻ review có cho bản mới nhất của mỗi tài liệu, kể cả đã có quyết định, cắt ở 200 tài liệu; thẻ 3/3 là 30 phiếu mới nhất của dự án, kể cả phiếu đã đóng. Dự án vượt giới hạn thì phần cũ hơn không hiện.
 - Thẻ review có `quorum.have` chỉ đếm chấp thuận: «Yêu cầu sửa» cho `have:0`, `state:'changes_requested'` và một dòng trong danh sách phiếu; dòng bản chuẩn không đổi.
+- Danh sách thẻ review bị cắt (tổng tài liệu lớn hơn 200): dịch vụ trả `reviewCardsTruncated: true`; màn hiện đúng một câu «Danh sách dài hơn phần đang hiện.».
+- Sau một phiếu: ghi nhận thì xoá ghi chú và đọc lại; thất bại thì giữ ghi chú; phiếu đã đóng hoặc đổi phiên bản thì câu Conflict kèm «Tải lại» (`voteFailure`, `voteRecorded` trong `decisions-view.ts`; thành phần chỉ gọi chúng).
+- Tên, tiêu đề, tóm tắt do người viết: `dir="auto"`.
 - Người không có trong danh sách thành viên dự án: «Thành viên chưa rõ tên», không bao giờ id thô.
 - Tên, tiêu đề, tóm tắt có ký tự HTML: chỉ là chữ React; không `dangerouslySetInnerHTML`; liên kết chỉ tới `/review/<documentId>` và `/approvals`.
 - Phiếu duyệt tài khoản và phiếu đổi quyền: không phải thẻ ở đây, không nút; chỉ câu cố định kèm liên kết `/approvals`.
 
-## 6. Kiểm tay
+## Kiểm tay
 **Chưa chạy bởi người viết (không có trình duyệt, không `npm run build`, không máy chủ phát triển). Danh sách này dành cho lượt kiểm tay của phiên lát 3 ở 360×740 và 1280×800.**
 - [ ] `npm run build` liệt kê `/decisions` và `/api/decisions`.
 - [ ] `/decisions` không có `projectId`: một dự án chuyển thẳng; nhiều dự án hiện danh sách chọn.

@@ -510,6 +510,7 @@ describe('OQ-39, OQ-40, OQ-41 indicators and who sees what in list',()=>{
   await h.operator.query(`UPDATE review_delegations SET revoked_at=now(),revoked_by=$2,revoke_basis='Thu hồi hàng loạt mẫu' WHERE doc_types=ARRAY['plan']::text[] AND project_id=$1`,[ids.sales,pm.id]);
   const l=await svc().list(member,{projectId:ids.sales});
   expect(l.reviewers).toHaveLength(200);
+  expect(l.reviewersTruncated).toBe(true);
   expect(l.reviewers[0]).toMatchObject({id:own,basis:'Chỉ định mẫu cho bản thử',revokeBasis:'Thu hồi mẫu'});
   for(const r of l.reviewers.slice(1)) expect(r).toMatchObject({docTypes:['design'],basis:null,revokedAt:null});
  },120000);
@@ -594,4 +595,17 @@ describe('a commenter can never approve',()=>{
   expect(src).not.toMatch(/version\s*=\s*version|updated_at\s*=/);
   expect(src).toMatch(/SET revoked_at=now\(\),revoked_by=\$1,revoke_basis=\$2\s+WHERE/);
  });
+});
+
+describe('W9 the delegation list says when it was cut',()=>{
+ test('a short list is not flagged, a list over 200 live rows is',async()=>{
+  await delegate(h,ids.sales,member.id);
+  expect((await svc().list(pm,{projectId:ids.sales})).reviewersTruncated).toBe(false);
+  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) SELECT gen_random_uuid(),$1,'cut-'||g,'Thành viên hàng loạt','engineer','fixture-only' FROM generate_series(1,205) g`,[ids.tenant]);
+  await h.operator.query(`INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) SELECT $1,id,$2,'engineer' FROM identity.users WHERE username LIKE 'cut-%'`,[ids.tenant,ids.sales]);
+  await h.operator.query(`INSERT INTO review_delegations(tenant_id,project_id,delegate_id,doc_types,granted_by,basis) SELECT $1,$2,id,ARRAY['design'],$3,'Chỉ định hàng loạt mẫu' FROM identity.users WHERE username LIKE 'cut-%'`,[ids.tenant,ids.sales,pm.id]);
+  const l=await svc().list(pm,{projectId:ids.sales});
+  expect(l.reviewers).toHaveLength(200);
+  expect(l.reviewersTruncated).toBe(true);
+ },60000);
 });

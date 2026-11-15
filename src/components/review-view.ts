@@ -1,4 +1,4 @@
-import type { EligibilityReason, DiffEntry, DecisionView, ReviewItem, ReviewRevision, Eligibility } from '../server/document-review';
+import type { EligibilityReason, DiffEntry, DecisionView, ReviewItem, ReviewRevision } from '../server/document-review';
 import type { ListedDelegation } from '../server/review-delegations';
 import type { DocType } from '../server/types';
 import { ApiError } from './api';
@@ -19,8 +19,10 @@ export const EMPTY_COPY = 'Dự án này chưa có tài liệu nào có bản đ
 export const DENIED_COPY = 'Anh/chị chưa có quyền xem phần review của dự án này.';
 export const ERROR_COPY = 'Không tải được danh sách review. Dữ liệu đã lưu không bị thay đổi.';
 export const NOT_FOUND_COPY = 'Không tìm thấy tài liệu trong phạm vi được cấp.';
+export const NO_REVISION_COPY = 'Tài liệu này chưa có bản nào để review.';
 export const CONFLICT_COPY = 'Nguồn đã đổi trong lúc anh/chị đang xem. Phiếu chưa được ghi.';
 export const DECIDED_COPY = 'Bản này đã có quyết định. Muốn quyết lại cần một bản mới.';
+export const TRUNCATED_COPY = 'Danh sách dài hơn phần đang hiện.';
 export const NETWORK_COPY = 'Không kết nối được máy chủ. Nội dung đang nhập vẫn được giữ.';
 export const GENERIC_COPY = 'Không xử lý được yêu cầu. Nội dung đang nhập vẫn được giữ.';
 export const NOT_COORDINATOR_COPY = 'Chỉ điều phối của dự án này chỉ định và thu hồi được người nhận xét.';
@@ -66,6 +68,40 @@ export function describeError(e: unknown): { text: string; reloadable: boolean; 
   if (e instanceof TypeError) return { text: NETWORK_COPY, reloadable: false, code: 'NETWORK' };
   return { text: GENERIC_COPY, reloadable: false, code: '' };
 }
+
+// ---- what happens after a command: the decision of each handler, kept out of the components ----
+export type ReviewForm = 'decision' | 'comment' | 'reply';
+/** After a command on a document failed. A stale revision shows the banner (`stale`, nothing in the form); any other failure is a sentence under the form that sent it. The typed draft is always kept. */
+export function commandFailure(e: unknown, form: ReviewForm): { stale: boolean; target: ReviewForm; message: string; reloadable: boolean; keepDraft: true } {
+  const d = describeError(e);
+  if (d.code === 'REVISION_CONFLICT') return { stale: true, target: form, message: '', reloadable: false, keepDraft: true };
+  return { stale: false, target: form, message: d.text, reloadable: d.reloadable, keepDraft: true };
+}
+/** After a command on a document succeeded: the Idempotency-Key is retired, the banner goes, and the draft of the form that sent it is cleared. */
+export const commandSuccess = (form: ReviewForm): { resetKey: true; stale: false; clearDraft: ReviewForm } => ({ resetKey: true, stale: false, clearDraft: form });
+/** After a command of the reviewers panel failed: the draft stays; the 404 and `DELEGATION_CONFLICT` offer a reload. */
+export function panelFailure(e: unknown): { message: string; reloadable: boolean; keepDraft: true } {
+  const d = describeError(e);
+  return { message: d.text, reloadable: d.reloadable, keepDraft: true };
+}
+/** After a command of the reviewers panel succeeded: the key is retired, the list is read again and the draft is cleared. */
+export const panelSuccess = (): { resetKey: true; reload: true; clearDraft: true } => ({ resetKey: true, reload: true, clearDraft: true });
+/** The command succeeded but the list could not be read again: say so, with a reload, and do not report the command as failed. */
+export function panelReloadFailure(e: unknown): { message: string; reloadable: true } { return { message: describeError(e).text, reloadable: true }; }
+
+// ---- paging of the queue (server-side: the page reads `offset`, the links are ordinary links) ----
+export const QUEUE_PAGE_SIZE = 50;
+/** A non-negative integer multiple of the page size; anything else is 0. */
+export function parseQueueOffset(raw: unknown): number {
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return 0;
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n % QUEUE_PAGE_SIZE === 0 ? n : 0;
+}
+/** «a–b / total» for the rows shown, and the offsets of the neighbouring pages (null when there is none). */
+export function queueWindow(offset: number, count: number, total: number): { label: string; prevOffset: number | null; nextOffset: number | null } {
+  return { label: (offset + 1) + '–' + (offset + count) + ' / ' + total, prevOffset: offset > 0 ? Math.max(0, offset - QUEUE_PAGE_SIZE) : null, nextOffset: offset + count < total ? offset + QUEUE_PAGE_SIZE : null };
+}
+export const queueHref = (projectId: string, offset: number): string => '/review?projectId=' + encodeURIComponent(projectId) + '&offset=' + offset;
 
 // ---- idempotency and transport ----
 type KeyStore = { current: { fingerprint: string; key: string } | null };
@@ -152,4 +188,3 @@ export function selectableMembers<T extends { id: string; role: string }>(people
   return people.filter(p => p.id.toLowerCase() !== viewerId.toLowerCase() && READING.has(p.role));
 }
 export const sameId = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
-export type { Eligibility };

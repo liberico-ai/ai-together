@@ -21,7 +21,7 @@ afterEach(async()=>{await h.reset();await h.close();});
 
 const chats=bridgeConfig.intake!.chats;
 const both=[chatSales,chatTransport];
-const chatTwo='-1000000000077'; // a second group of the same project, used only to make two threads share a thread_key
+const chatTwo='-1000000000007'; // a second group of the same project, used only to make two threads share a thread_key
 const rows=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
 const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
 type Src<K extends SkillContext['sources'][number]['kind']>=Extract<SkillContext['sources'][number],{kind:K}>;

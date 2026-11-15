@@ -4,6 +4,7 @@ import { scoped, type Database, type Queryable } from './db';
 import { claimDocumentCommand } from './document-commands';
 import { AppError } from './errors';
 import { storable } from './text-safety';
+import { wasCut } from './list-cut';
 import { projectRole } from './types';
 import type { DocType, Principal, SourceRef } from './types';
 
@@ -26,9 +27,10 @@ export type Eligibility = { canComment: boolean; canRequestChanges: boolean; can
 export type DecisionView = { id: string; result: 'approved' | 'changes_requested'; revisionId: string; revisionNo: number; revisionHash: string | null; scopeNote: string; exceptions: string[]; decidedBy: string; decidedAt: string };
 export type ReviewItem = { documentId: string; projectId: string; refCode: string; title: string; docType: DocType; recordVersion: number; approvedRevisionId: string | null; revision: ReviewRevision;
   approverState: 'unassigned' | 'assigned'; eligibility: Eligibility; decision: DecisionView | null };
-export type CommentView = { id: string; parentId: string | null; kind: 'comment' | 'addressed' | 'resolved'; anchor: string; body: string; actorId: string; revisionId: string; createdAt: string };
+export type CommentView = { id: string; parentId: string | null; kind: 'comment' | 'addressed' | 'resolved'; anchor: string; body: string; actorId: string; revisionId: string; createdAt: string;
+  /** For the viewer: may write `addressed` / `resolved` on this thread. Only a top-level comment of an open thread can be true. */ canAddress: boolean; canResolve: boolean };
 export type DiffEntry = { field: 'summary' | 'present' | 'missing' | 'source_refs' | 'source_revision' | 'source_hash'; change: 'added' | 'removed' | 'modified'; before: string | null; after: string | null };
-export type ReviewDetail = { item: ReviewItem; base: ReviewRevision | null; diff: DiffEntry[]; comments: CommentView[] };
+export type ReviewDetail = { item: ReviewItem; base: ReviewRevision | null; diff: DiffEntry[]; comments: CommentView[]; commentsTruncated: boolean };
 
 // ---- input: strict schemas, identifiers lower-cased at parse time, free text PostgreSQL can store ----
 export { storable };
@@ -104,6 +106,12 @@ const toRevision = (r: RevisionRow): ReviewRevision => ({
 const toDecision = (r: DecisionRow): DecisionView => ({ id: r.id, result: r.result, revisionId: r.document_revision_id, revisionNo: r.revision_no, revisionHash: r.revision_hash,
   scopeNote: r.scope_note, exceptions: r.exceptions, decidedBy: r.decided_by, decidedAt: iso(r.decided_at) });
 
+/** The one rule for the two follow-up kinds, used by `comment()` and by `detail()` so the flags shown are the rule applied.
+ *  addressed: the author of the revision the comment sits on, or a project manager. resolved: the writer of the comment, or a holder of an authority for the type who is not that revision's author. */
+export function followUpAllowed(kind: 'addressed' | 'resolved', c: { me: string; revisionAuthor: string; commentWriter: string; manager: boolean; covers: boolean }): boolean {
+  return kind === 'addressed' ? c.revisionAuthor === c.me || c.manager : c.commentWriter === c.me || (c.revisionAuthor !== c.me && c.covers);
+}
+
 /** The caller's authority in one project, read inside the transaction: approval types from document_approvers, the live delegation, the project role. */
 type Authority = { approveTypes: string[]; delegation: { id: string; types: string[] } | null; role: string | null };
 const covers = (a: Authority, docType: string) => a.approveTypes.includes(docType) || (a.delegation?.types.includes(docType) ?? false);
@@ -175,10 +183,20 @@ export class ReviewService {
     const baseId = rec.approved_revision_id ?? item.revision.basedOnRevisionId;
     const baseRow = baseId ? (await tx.query<RevisionRow>(`SELECT ${REVISION_COLS} FROM document_revisions v WHERE v.id=$1 AND v.document_id=$2`, [baseId, documentId])).rows[0] : undefined;
     const base = baseRow ? toRevision(baseRow) : null;
-    const comments = (await tx.query<{ id: string; parent_id: string | null; kind: CommentView['kind']; anchor: string; body: string; actor_id: string; document_revision_id: string; created_at: unknown }>(
-      'SELECT id,parent_id,kind,anchor,body,actor_id,document_revision_id,created_at FROM review_comments WHERE document_id=$1 ORDER BY created_at,id LIMIT 1000', [documentId])).rows
-      .map(c => ({ id: c.id, parentId: c.parent_id, kind: c.kind, anchor: c.anchor, body: c.body, actorId: c.actor_id, revisionId: c.document_revision_id, createdAt: iso(c.created_at) }));
-    return { item, base, diff: revisionDiff(base, item.revision), comments };
+    const commentRows = (await tx.query<{ id: string; parent_id: string | null; kind: CommentView['kind']; anchor: string; body: string; actor_id: string; document_revision_id: string; created_at: unknown; proposed_by: string }>(
+      `SELECT c.id,c.parent_id,c.kind,c.anchor,c.body,c.actor_id,c.document_revision_id,c.created_at,v.proposed_by FROM review_comments c JOIN document_revisions v ON v.id=c.document_revision_id
+       WHERE c.document_id=$1 ORDER BY c.created_at,c.id LIMIT 1001`, [documentId])).rows;
+    const commentsTruncated = wasCut({ fetched: commentRows.length, cap: 1000 });
+    commentRows.length = Math.min(commentRows.length, 1000);
+    // what the viewer may do on each open thread: the rule of comment(), applied here so the screen offers nothing the service would refuse
+    const me = p.id.toLowerCase();
+    const auth = await this.authority(tx, projectId, me);
+    const resolvedThreads = new Set(commentRows.filter(c => c.kind === 'resolved' && c.parent_id !== null).map(c => c.parent_id));
+    const mayWrite = (c: typeof commentRows[number], kind: 'addressed' | 'resolved') => c.parent_id === null && c.kind === 'comment' && !resolvedThreads.has(c.id)
+      && followUpAllowed(kind, { me, revisionAuthor: c.proposed_by, commentWriter: c.actor_id, manager: auth.role === 'manager', covers: covers(auth, rec.doc_type) });
+    const comments = commentRows.map(c => ({ id: c.id, parentId: c.parent_id, kind: c.kind, anchor: c.anchor, body: c.body, actorId: c.actor_id, revisionId: c.document_revision_id, createdAt: iso(c.created_at),
+      canAddress: mayWrite(c, 'addressed'), canResolve: mayWrite(c, 'resolved') }));
+    return { item, base, diff: revisionDiff(base, item.revision), comments, commentsTruncated };
   }
 
   async queue(p: Principal, raw: unknown): Promise<{ items: ReviewItem[]; total: number }> {
@@ -235,10 +253,7 @@ export class ReviewService {
             `SELECT c.id,c.document_revision_id,c.actor_id,v.proposed_by FROM review_comments c JOIN document_revisions v ON v.id=c.document_revision_id
              WHERE c.id=$1 AND c.document_id=$2 AND c.kind='comment'`, [input.parentId, id])).rows[0];
           if (!parent) throw denied();
-          const allowed = input.kind === 'addressed'
-            ? parent.proposed_by === me || auth.role === 'manager'
-            : parent.actor_id === me || (parent.proposed_by !== me && covers(auth, rec.doc_type));
-          if (!allowed) throw notAuthorized();
+          if (!followUpAllowed(input.kind, { me, revisionAuthor: parent.proposed_by, commentWriter: parent.actor_id, manager: auth.role === 'manager', covers: covers(auth, rec.doc_type) })) throw notAuthorized();
           revisionId = parent.document_revision_id; parentId = parent.id;
         }
         const traceId = randomUUID();

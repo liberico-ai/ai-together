@@ -163,7 +163,7 @@ html,body{max-width:100%;overflow-x:clip}
 .review-action{min-height:44px;min-width:44px}
 .review-secondary{background:var(--white);color:var(--navy);border:1px solid var(--navy)}
 .review-action:focus-visible,.review-textarea:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
-.review-modes,.review-inline{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:0}
+.review-modes,.review-inline,.review-paging{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:0}
 .review-textarea{min-height:88px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius);font:inherit;color:var(--ink);max-width:100%;width:100%}
 .review-fieldset{min-width:0;margin:0;padding:12px;border:1px solid var(--line);border-radius:var(--radius)}
 .review-check{display:flex;align-items:center;gap:8px;min-height:44px;overflow-wrap:anywhere}
@@ -174,8 +174,8 @@ html,body{max-width:100%;overflow-x:clip}
 .review-full,.review-flagged,.review-head{min-width:0;overflow-wrap:anywhere}
 .review-head{margin-bottom:12px}
 .review-full h4{margin:8px 0 4px;font-size:12px;color:#5d6b64}
-@media(min-width:700px){.review-modes,.review-inline{flex-direction:row;flex-wrap:wrap;align-items:center}.review-modes .doc-action,.review-inline .doc-action{width:auto}}
-@media(max-width:700px){.review-card,.review-panel,.review-section,.review-form{padding:12px}.review-action{width:100%}}
+@media(min-width:700px){.review-modes,.review-inline,.review-paging{flex-direction:row;flex-wrap:wrap;align-items:center}.review-modes .doc-action,.review-inline .doc-action,.review-paging .doc-action{width:auto}}
+@media(max-width:699.98px){.review-card,.review-panel,.review-section,.review-form{padding:12px}.review-action{width:100%}}
 @media(min-width:950px){.review-diff{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* Decisions (.decision-*) — reuses .doc-* for page, buttons, fields and states; tokens only */
@@ -196,5 +196,5 @@ html,body{max-width:100%;overflow-x:clip}
 .decision-action{min-height:44px;min-width:44px}
 .decision-secondary{background:var(--white);color:var(--navy);border:1px solid var(--navy)}
 .decision-action:focus-visible,.decision-textarea:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
-@media(max-width:700px){.decision-card{padding:12px}.decision-action{width:100%}}
+@media(max-width:699.98px){.decision-card{padding:12px}.decision-action{width:100%}}
 @media(min-width:700px){.decision-actions{flex-direction:row;flex-wrap:wrap;align-items:center}.decision-actions .doc-action{width:auto}}

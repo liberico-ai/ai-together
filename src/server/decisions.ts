@@ -3,6 +3,7 @@ import { BomService, type PendingCard } from './bom';
 import type { Database } from './db';
 import { ReviewService, uuid, type Eligibility, type ReviewItem } from './document-review';
 import { AppError } from './errors';
+import { wasCut } from './list-cut';
 import type { Principal } from './types';
 
 // Decision cards (slice 3, Task 13): a read-only view over the review queue and the 3/3 reassignment ballot. It writes nothing and has no command:
@@ -67,16 +68,16 @@ export class DecisionService {
   private bom: BomService;
   constructor(db: Database) { this.review = new ReviewService(db); this.bom = new BomService(db); }
 
-  async list(p: Principal, raw: unknown): Promise<{ cards: DecisionCard[] }> {
+  async list(p: Principal, raw: unknown): Promise<{ cards: DecisionCard[]; reviewCardsTruncated: boolean }> {
     const input = listSchema.parse(raw);
     // one page of the maximum size; a project with more documents than that is cut at 200 (known cap)
-    const { items } = await this.review.queue(p, { projectId: input.projectId, limit: 200, offset: 0 });
+    const { items, total } = await this.review.queue(p, { projectId: input.projectId, limit: 200, offset: 0 });
     const cards: DecisionCard[] = items.map(reviewCard);
     let pending: PendingCard[] = [];
     try { pending = await this.bom.pending(p, input.projectId); }
     catch (e) { if (!(e instanceof AppError && e.code === 'SCOPE_DENIED')) throw e; }   // not a seat: no 3/3 card, no count, no reason
     const now = Date.now();
     for (const c of pending) cards.push(reassignmentCard(p, c, now));
-    return { cards };
+    return { cards, reviewCardsTruncated: wasCut({ fetched: items.length, cap: 200, total }) };
   }
 }

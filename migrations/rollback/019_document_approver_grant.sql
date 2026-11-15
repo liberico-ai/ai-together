@@ -7,6 +7,8 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 -- Read the rows without row-level security: a role that RLS would filter gets an error here instead of a silent empty count.
 SET LOCAL row_security = off;
+-- The checks below read these two tables; lock exactly them so a ballot or membership naming a code cannot be written between the checks and the DROP.
+LOCK TABLE identity.memberships, identity.account_approvals IN SHARE MODE;
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM schema_migrations WHERE version > '019') THEN
     RAISE EXCEPTION 'Roll back the later migrations before 019.';

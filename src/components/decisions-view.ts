@@ -65,6 +65,7 @@ export function voteCommand(choice: string, rawNote: string): Checked<{ choice: 
   return { ok: true, cmd: { choice: picked[0], note } };
 }
 
+// /api/team/bom raises PROPOSAL_CLOSED and VERSION_CONFLICT; the other two codes are never raised by it and are kept only for a future caller of the same screen.
 const CONFLICT_CODES = new Set(['PROPOSAL_CLOSED', 'VERSION_CONFLICT', 'REVISION_CONFLICT', 'REVIEW_ALREADY_DECIDED']);
 /** A sentence for any thrown value, whether a reload belongs with it, and the code. Never an object. */
 export function describeVoteError(e: unknown): { text: string; reloadable: boolean; code: string } {
@@ -75,3 +76,10 @@ export function describeVoteError(e: unknown): { text: string; reloadable: boole
   if (e instanceof TypeError) return { text: NETWORK_COPY, reloadable: false, code: 'NETWORK' };
   return { text: GENERIC_COPY, reloadable: false, code: '' };
 }
+/** After a vote failed: the typed note is kept; a closed or changed proposal gives the Conflict sentence with a reload. */
+export function voteFailure(e: unknown): { message: string; reloadable: boolean; code: string; keepNote: true } {
+  const d = describeVoteError(e);
+  return { message: d.text, reloadable: d.reloadable, code: d.code, keepNote: true };
+}
+/** After a vote was recorded: the key is retired, the note is cleared and the cards are read again. */
+export const voteRecorded = (): { resetKey: true; clearNote: true; reload: true } => ({ resetKey: true, clearNote: true, reload: true });

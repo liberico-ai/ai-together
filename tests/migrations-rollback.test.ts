@@ -280,7 +280,18 @@ test('rollback 020 refuses while an approval decision exists and while a later m
     try { await refused(/later/i); }
     finally { await q("DELETE FROM schema_migrations WHERE version='021'"); }
     expect(await present()).toEqual(tables);expect(await objects()).toEqual(full);
-    // 4. only a changes_requested decision left: it runs, drops tables, triggers and functions, takes the pointer grant back, leaves 019 alone and forgets 020
+    // 3b. a person's comment (not an approval) blocks it too, naming the table and nothing else; nothing was dropped
+    await q('TRUNCATE review_decisions');
+    await h.operator.transaction(async tx=>{
+      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[ids.tenant,ids.sales]);
+      await tx.query(`INSERT INTO review_comments(tenant_id,project_id,document_id,document_revision_id,kind,anchor,body,actor_id,request_id,trace_id)
+        VALUES($1,$2,$3,$4,'comment','','Nhận xét thử của một người',$5,$6,$6)`,[ids.tenant,ids.sales,doc.record.id,fr.revisionId,reviewer.id,randomUUID()]);
+    });
+    await refused(/Roll back 020 refused: review_comments holds rows/i);
+    expect(await present()).toEqual(tables);expect(await objects()).toEqual(full);expect(await applied()).toBe(1);
+    expect(Number((await q<{n:string}>('SELECT count(*) n FROM review_comments'))[0].n)).toBe(1);
+    // 4. every review table empty: it runs, drops tables, triggers and functions, takes the pointer grant back, leaves 019 alone and forgets 020
+    await q('TRUNCATE review_comments, review_decisions, review_delegations, review_events, document_dependencies');
     await h.exec(rollback);
     expect(await present()).toEqual(tables.map(()=>null));
     expect(await objects()).toEqual({triggers:[],functions:[],pointerGrant:false});

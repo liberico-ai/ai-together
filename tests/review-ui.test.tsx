@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { reviewPageState, eligibilityCopy, diffLabel, approverCopy, commandErrorCopy, describeError, decisionStateLabel, hashLabel, selectableMembers,
   decisionBody, commentBody, replyBody, grantBody, revokeBody, decisionCommand, grantCommand, revokeCommand, idempotencyKey, postReview,
-  CONFLICT_COPY, DECIDED_COPY, NOT_FOUND_COPY, EMPTY_COPY, DENIED_COPY, ERROR_COPY, type PanelDraft, type DecisionDraft } from '../src/components/review-view';
+  CONFLICT_COPY, DECIDED_COPY, NOT_FOUND_COPY, EMPTY_COPY, DENIED_COPY, ERROR_COPY, parseQueueOffset, queueWindow, QUEUE_PAGE_SIZE, commandFailure, commandSuccess, panelFailure, panelSuccess, panelReloadFailure, type PanelDraft, type DecisionDraft } from '../src/components/review-view';
 import { ReviewQueueBody, RevisionDiff, DecisionFormView, CommentFormView, ReviewersPanelView, ReviewQueue, ReviewDetailScreen } from '../src/components/review';
 import { ApiError } from '../src/components/api';
 import { formatTime } from '../src/components/inbox-view';
@@ -34,7 +34,7 @@ const ELIG: Record<string, Eligibility> = {
 const decision = (result: DecisionView['result']): DecisionView => ({ id: U(400), result, revisionId: U(300), revisionNo: 2, revisionHash: 'a'.repeat(64), scopeNote: 'Ghi chú phạm vi đã quyết', exceptions: [], decidedBy: BOB, decidedAt: '2026-11-14T03:00:00.000Z' });
 const item = (o: Partial<ReviewItem> = {}): ReviewItem => ({ documentId: DOC, projectId: PROJECT, refCode: 'TL-001', title: 'Tài liệu thiết kế', docType: 'design', recordVersion: 7, approvedRevisionId: null,
   revision: rev(), approverState: 'assigned', eligibility: ELIG.none, decision: null, ...o });
-const comment = (o: Partial<CommentView> = {}): CommentView => ({ id: U(500), parentId: null, kind: 'comment', anchor: 'summary', body: 'Cần làm rõ phạm vi', actorId: ALICE, revisionId: U(300), createdAt: '2026-11-14T02:00:00.000Z', ...o });
+const comment = (o: Partial<CommentView> = {}): CommentView => ({ id: U(500), parentId: null, kind: 'comment', anchor: 'summary', body: 'Cần làm rõ phạm vi', actorId: ALICE, revisionId: U(300), createdAt: '2026-11-14T02:00:00.000Z', canAddress: true, canResolve: true, ...o });
 const entry = (o: Partial<DiffEntry>): DiffEntry => ({ field: 'summary', change: 'modified', before: 'Tóm tắt cũ', after: 'Tóm tắt mới', ...o });
 const link = (o: Partial<DependencyView> = {}): DependencyView => ({ id: U(600), upstreamDocumentId: DOC, upstreamRevisionId: U(300), dependentDocumentId: U(101), note: 'Phụ thuộc vào bản thiết kế', needsReview: true, flaggedRevisionId: U(300), flaggedAt: '2026-11-14T02:30:00.000Z', version: 1, ...o });
 const mine = (o: Partial<ListedDelegation> = {}): ListedDelegation => ({ id: U(700), projectId: PROJECT, delegateId: ALICE, docTypes: ['design', 'plan'], grantedBy: VIEWER, basis: 'Căn cứ chỉ định hợp lệ', revokedAt: null, revokedBy: null,
@@ -238,7 +238,7 @@ describe('review UI', () => {
 
   it('a decided revision offers no new comment and no decision, but keeps the follow-up actions on existing comments', () => {
     const decided = item({ eligibility: ELIG.ALREADY_DECIDED, decision: decision('changes_requested') });
-    const detail: ReviewDetail = { item: decided, base: base(), diff: [entry({})], comments: [comment()] };
+    const detail: ReviewDetail = { item: decided, base: base(), diff: [entry({})], comments: [comment()], commentsTruncated: false };
     const out = renderToStaticMarkup(<ReviewDetailScreen detail={detail} affectedLinks={[]} people={people} />);
     expect(out).toContain('Cần làm rõ phạm vi');
     expect(out).toContain('Đã sửa');
@@ -471,6 +471,10 @@ describe('review UI', () => {
     expect(diff.length).toBeGreaterThan(0);
     const tracks = (body: string) => { const m = /grid-template-columns\s*:\s*([^;}]+)/.exec(body); if (!m) return 0;
       const v = m[1].trim(); const rep = /^repeat\(\s*(\d+)/.exec(v); return rep ? Number(rep[1]) : v.replace(/minmax\([^)]*\)/g, 'T').split(/\s+/).length; };
+    // at exactly 700px only one of the min-width:700px / max-width blocks applies
+    expect(review.some(r => r.media.includes('min-width:700px'))).toBe(true);
+    expect(review.some(r => r.media.includes('max-width:699.98px'))).toBe(true);
+    for (const r of review) expect(r.media, r.selector).not.toMatch(/max-width:\s*700px/);
     for (const r of diff) if (tracks(r.body) > 1) expect(r.media).toContain('min-width:950px');
     expect(diff.some(r => r.media.includes('min-width:950px') && /grid-template-columns/.test(r.body))).toBe(true);
     for (const r of review) for (const m of r.body.matchAll(/(?:^|;)\s*(?:min-|max-)?width\s*:\s*(\d+)px/g)) expect(Number(m[1]), r.selector).toBeLessThanOrEqual(328);
@@ -485,5 +489,156 @@ describe('review UI', () => {
     const block = next < 0 ? css.slice(marker) : css.slice(marker, marker + 1 + next);
     const tail = block.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media[^{]*\{/g, '');
     for (const m of tail.matchAll(/(?:^|\})\s*([^{}]+)\{/g)) for (const s of m[1].split(',')) expect(s.trim(), s).toMatch(/^\.review-/);
+  });
+
+  // ---- W4: server-side paging of the queue ----
+  describe('queue paging', () => {
+    const many = (n: number, from = 0) => Array.from({ length: n }, (_, i) => item({ documentId: U(1000 + from + i), refCode: 'TL-' + (from + i + 1) }));
+    const page = (n: number, offset: number, total: number) => renderToStaticMarkup(<ReviewQueueBody state="ready" items={many(n, offset)} total={total} offset={offset} projectId={PROJECT} error={null} projectLabel="P" />);
+    const links = (out: string) => [...out.matchAll(/<a [^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].filter(m => /Trang/.test(m[2])).map(m => [m[2], m[1].replace(/&amp;/g, '&')]);
+    it('the first page of 73 shows 1–50 / 73 and only Trang sau', () => {
+      const out = page(50, 0, 73);
+      expect(out).toContain('1–50 / 73 tài liệu');
+      expect(links(out)).toEqual([['Trang sau', '/review?projectId=' + PROJECT + '&offset=50']]);
+    });
+    it('the second page shows 51–73 / 73 and only Trang trước', () => {
+      const out = page(23, 50, 73);
+      expect(out).toContain('51–73 / 73 tài liệu');
+      expect(links(out)).toEqual([['Trang trước', '/review?projectId=' + PROJECT + '&offset=0']]);
+    });
+    it('a middle page has both links, a single page has none', () => {
+      expect(links(page(50, 50, 150)).map(l => l[0])).toEqual(['Trang trước', 'Trang sau']);
+      expect(links(page(3, 0, 3))).toEqual([]);
+      expect(page(3, 0, 3)).toContain('1–3 / 3 tài liệu');
+    });
+    it('the window arithmetic', () => {
+      expect(queueWindow(0, 50, 73)).toEqual({ label: '1–50 / 73', prevOffset: null, nextOffset: 50 });
+      expect(queueWindow(50, 23, 73)).toEqual({ label: '51–73 / 73', prevOffset: 0, nextOffset: null });
+      expect(queueWindow(100, 50, 400)).toMatchObject({ prevOffset: 50, nextOffset: 150 });
+      expect(QUEUE_PAGE_SIZE).toBe(50);
+    });
+    it('a bad offset falls back to 0', () => {
+      for (const bad of [undefined, '', 'abc', '-50', '25', '1.5', '50.5', '5e1', ' 50', '0x32', ['50', '100'], '99999999999999999999999']) expect(parseQueueOffset(bad), String(bad)).toBe(0);
+      expect(parseQueueOffset('0')).toBe(0);
+      expect(parseQueueOffset('50')).toBe(50);
+      expect(parseQueueOffset('150')).toBe(150);
+    });
+    it('the queue page reads offset from the search params and passes it to the service', async () => {
+      const src = await readFile('src/app/review/page.tsx', 'utf8');
+      expect(src).toMatch(/limit:\s*QUEUE_PAGE_SIZE,\s*offset/);
+      expect(src).toContain('parseQueueOffset');
+    });
+  });
+
+  // ---- W5: the reply buttons follow the flags the service returns ----
+  describe('reply buttons follow the service flags', () => {
+    const withFlags = (o: Partial<CommentView>) => renderToStaticMarkup(<RevisionDiff {...diffProps({ comments: [comment(o)], onReply: async () => {} })} />);
+    it('shows no button, and no reply box, when both flags are false', () => {
+      const out = withFlags({ canAddress: false, canResolve: false });
+      expect(out).not.toContain('Đã sửa');
+      expect(out).not.toContain('Xác nhận đã xử lý');
+      expect(out).not.toContain('Ghi chú trả lời');
+      expect(out).toContain('Cần làm rõ phạm vi');
+    });
+    it('shows exactly the button whose flag is true', () => {
+      const a = withFlags({ canAddress: true, canResolve: false });
+      expect(a).toContain('>Đã sửa<');
+      expect(a).not.toContain('Xác nhận đã xử lý');
+      const r = withFlags({ canAddress: false, canResolve: true });
+      expect(r).toContain('Xác nhận đã xử lý');
+      expect(r).not.toContain('>Đã sửa<');
+      const both = withFlags({});
+      expect(both).toContain('>Đã sửa<');
+      expect(both).toContain('Xác nhận đã xử lý');
+    });
+    it('a resolved thread is no longer decided by the screen: the flags say so', () => {
+      const reply = comment({ id: U(501), parentId: U(500), kind: 'resolved', canAddress: false, canResolve: false });
+      const out = renderToStaticMarkup(<RevisionDiff {...diffProps({ comments: [comment({ canAddress: false, canResolve: false }), reply], onReply: async () => {} })} />);
+      expect(out).not.toContain('>Đã sửa<');
+    });
+  });
+
+  // ---- W6: the decisions the handlers take, as pure functions ----
+  describe('what happens after a command', () => {
+    const api = (code: string, status = 409) => new ApiError('Câu của máy chủ [' + code + ']', code, status);
+    const CODES = ['REVISION_CONFLICT', 'REVIEW_ALREADY_DECIDED', 'SCOPE_DENIED', 'DELEGATION_CONFLICT', 'DELEGATION_EXISTS', 'MANAGER_REQUIRED', 'APPROVER_NOT_AUTHORIZED', 'SOMETHING_NEW'];
+    it('a stale revision shows the banner and nothing in the form, from every form, and keeps the draft', () => {
+      for (const form of ['decision', 'comment', 'reply'] as const) {
+        expect(commandFailure(api('REVISION_CONFLICT'), form)).toEqual({ stale: true, target: form, message: '', reloadable: false, keepDraft: true });
+      }
+    });
+    it('every other code is a sentence under the form that sent it, never the banner, and the draft is kept', () => {
+      for (const form of ['decision', 'comment', 'reply'] as const) for (const code of CODES.filter(c => c !== 'REVISION_CONFLICT')) {
+        const f = commandFailure(api(code), form);
+        expect(f, form + ' ' + code).toMatchObject({ stale: false, target: form, keepDraft: true });
+        expect(f.message, code).toBe(describeError(api(code)).text);
+        expect(f.message.length).toBeGreaterThan(5);
+      }
+      expect(commandFailure(api('REVIEW_ALREADY_DECIDED'), 'decision').message).toBe(DECIDED_COPY);
+      expect(commandFailure(api('SCOPE_DENIED', 404), 'comment')).toMatchObject({ message: NOT_FOUND_COPY, reloadable: true });
+      expect(commandFailure(new TypeError('fetch failed'), 'reply')).toMatchObject({ stale: false, message: 'Không kết nối được máy chủ. Nội dung đang nhập vẫn được giữ.', reloadable: false });
+      for (const odd of [{ a: 1 }, null, undefined, 42]) expect(commandFailure(odd, 'decision').message).not.toContain('[object');
+    });
+    it('after a success the key is retired, the banner goes and the draft of the sending form is cleared', () => {
+      for (const form of ['decision', 'comment', 'reply'] as const) expect(commandSuccess(form)).toEqual({ resetKey: true, stale: false, clearDraft: form });
+    });
+    it('the reviewers panel: success reloads and clears; failure keeps the draft; the 404 and DELEGATION_CONFLICT offer a reload', () => {
+      expect(panelSuccess()).toEqual({ resetKey: true, reload: true, clearDraft: true });
+      for (const code of ['DELEGATION_CONFLICT', 'SCOPE_DENIED']) expect(panelFailure(api(code)), code).toMatchObject({ reloadable: true, keepDraft: true });
+      for (const code of ['DELEGATION_EXISTS', 'MANAGER_REQUIRED', 'DELEGATION_INVALID', 'SOMETHING_NEW']) expect(panelFailure(api(code)), code).toMatchObject({ reloadable: false, keepDraft: true });
+      expect(panelFailure(api('DELEGATION_CONFLICT')).message).toBe('Uỷ quyền này đã thay đổi. Tải lại để xem trạng thái mới.');
+      expect(panelFailure(api('DELEGATION_EXISTS')).message).toBe('Người này đã là người nhận xét của dự án.');
+      expect(panelFailure(api('MANAGER_REQUIRED')).message).toBe('Chỉ điều phối của dự án này chỉ định và thu hồi được người nhận xét.');
+      expect(panelFailure(new TypeError('x'))).toMatchObject({ reloadable: false, keepDraft: true });
+      expect(panelReloadFailure(new TypeError('x'))).toMatchObject({ reloadable: true });
+    });
+    it('the components call these functions and keep no second copy', async () => {
+      const src = await readFile('src/components/review.tsx', 'utf8');
+      for (const name of ['commandFailure', 'commandSuccess', 'panelFailure', 'panelSuccess', 'panelReloadFailure']) expect(src, name).toContain(name + '(');
+      expect(src).not.toMatch(/d\.code === 'REVISION_CONFLICT'/);
+    });
+  });
+
+  // ---- W9: one fixed sentence when a list was cut ----
+  describe('a cut list says so', () => {
+    const SENTENCE = 'Danh sách dài hơn phần đang hiện.';
+    it('the reviewers panel shows it only when the flag is true', () => {
+      expect(drivePanel({ truncated: true, reviewers: [mine()] }).html()).toContain(SENTENCE);
+      expect(drivePanel({ truncated: false, reviewers: [mine()] }).html()).not.toContain(SENTENCE);
+      expect(drivePanel({ reviewers: [mine()] }).html()).not.toContain(SENTENCE);
+    });
+    it('the revision screen shows it only when the comments were cut', () => {
+      expect(html({ commentsTruncated: true })).toContain(SENTENCE);
+      expect(html({ commentsTruncated: false })).not.toContain(SENTENCE);
+      expect(html()).not.toContain(SENTENCE);
+    });
+    it('the detail screen passes the service flag down', () => {
+      const detail: ReviewDetail = { item: item(), base: base(), diff: [entry({})], comments: [comment()], commentsTruncated: true };
+      expect(renderToStaticMarkup(<ReviewDetailScreen detail={detail} affectedLinks={[]} people={people} />)).toContain(SENTENCE);
+      expect(renderToStaticMarkup(<ReviewDetailScreen detail={{ ...detail, commentsTruncated: false }} affectedLinks={[]} people={people} />)).not.toContain(SENTENCE);
+    });
+    it('the queue screen passes the delegation flag down', () => {
+      const queue = (t: boolean) => renderToStaticMarkup(<ReviewQueue projects={[{ id: PROJECT, name: 'P' }]} projectId={PROJECT} initial={{ items: [item()], total: 1 }} denied={false}
+        delegations={{ reviewers: [mine()], reviewersTruncated: t, approvers: [], canDesignate: true }} people={people} viewerId={VIEWER} />);
+      expect(queue(true)).toContain(SENTENCE);
+      expect(queue(false)).not.toContain(SENTENCE);
+    });
+  });
+
+  // ---- W12: text written by people is isolated for bidirectional text ----
+  it('W12 free text written by people carries dir="auto" on the Review screens', () => {
+    const rtl = '\u202Eخطأ\u202C';
+    const owner = (text: string) => new RegExp('<(?:p|h1|h3|li|bdi|span)[^>]*dir="auto"[^>]*>(?:<[^>]+>)*[^<]*' + text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const detail: ReviewDetail = { item: item({ title: 'Tiêu đề ' + rtl, decision: decision('changes_requested'), eligibility: ELIG.ALREADY_DECIDED }), base: base(), diff: [entry({ after: 'Sau ' + rtl })],
+      comments: [comment({ body: 'Thân ' + rtl }), comment({ id: U(501), parentId: U(500), kind: 'addressed', body: 'Trả lời ' + rtl, canAddress: false, canResolve: false })], commentsTruncated: false };
+    detail.item.revision = rev({ changes: { summary: 'Tóm tắt ' + rtl, present: ['Đã có ' + rtl], missing: ['Thiếu ' + rtl] } });
+    detail.item.decision = { ...decision('changes_requested'), scopeNote: 'Phạm vi ' + rtl, exceptions: ['Ngoại lệ ' + rtl] };
+    const out = renderToStaticMarkup(<ReviewDetailScreen detail={detail} affectedLinks={[link({ note: 'Ghi chú liên kết ' + rtl })]} people={people} />);
+    const view = renderToStaticMarkup(<RevisionDiff {...diffProps({ candidate: detail.item.revision, comments: detail.comments, affectedLinks: [link({ note: 'Ghi chú liên kết ' + rtl })], changedOnly: false })} />);
+    for (const text of ['Tiêu đề ', 'Thân ', 'Trả lời ', 'Tóm tắt ', 'Đã có ', 'Thiếu ', 'Phạm vi ', 'Ngoại lệ ', 'Ghi chú liên kết ', 'Sau ']) {
+      expect(owner(text).test(out) || owner(text).test(view), text).toBe(true);
+    }
+    const queue = renderToStaticMarkup(<ReviewQueueBody state="ready" items={[item({ title: 'Tiêu đề hàng ' + rtl })]} total={1} error={null} projectLabel="P" />);
+    expect(owner('Tiêu đề hàng ').test(queue)).toBe(true);
   });
 });

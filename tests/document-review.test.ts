@@ -4,7 +4,7 @@ import {ZodError} from 'zod';
 import {openHarness,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
 import {approver,delegate,frozenRevision,grantDocApproval,proposeRev,registerDoc,reviewer,revokeDelegation,seedMembers,transportApprover} from './slice3-fixtures';
-import {eligibility,isFrozen,revisionDiff,ReviewService,type ReviewItem,type ReviewRevision} from '../src/server/document-review';
+import {eligibility,followUpAllowed,isFrozen,revisionDiff,ReviewService,type ReviewItem,type ReviewRevision} from '../src/server/document-review';
 import {DocumentService} from '../src/server/documents';
 import {ids} from '../src/server/identities';
 import type {Principal} from '../src/server/types';
@@ -562,4 +562,62 @@ describe('document review input',()=>{
   await expect(svc().decide(reviewer,w.docId,dec(w),k(),'not-a-uuid')).rejects.toBeInstanceOf(ZodError);
   expect((await snap(w.docId)).decisions).toBe(before.decisions);expect((await snap(w.docId)).comments).toBe(1);
  });
+});
+
+describe('follow-up rights shown to the viewer (canAddress, canResolve)',()=>{
+ test('the predicate: who may write addressed and who may write resolved',()=>{
+  const ctx=(o:Partial<Parameters<typeof followUpAllowed>[1]>={})=>({me:'m',revisionAuthor:'a',commentWriter:'w',manager:false,covers:false,...o});
+  // addressed: the author of the revision the comment sits on, or a project manager
+  expect(followUpAllowed('addressed',ctx({me:'a'}))).toBe(true);
+  expect(followUpAllowed('addressed',ctx({manager:true}))).toBe(true);
+  expect(followUpAllowed('addressed',ctx())).toBe(false);
+  expect(followUpAllowed('addressed',ctx({me:'w'}))).toBe(false);
+  expect(followUpAllowed('addressed',ctx({covers:true}))).toBe(false);
+  // resolved: the writer of the comment, or someone holding an authority for the type who is not the revision's author
+  expect(followUpAllowed('resolved',ctx({me:'w'}))).toBe(true);
+  expect(followUpAllowed('resolved',ctx({covers:true}))).toBe(true);
+  expect(followUpAllowed('resolved',ctx({me:'a',covers:true}))).toBe(false);
+  expect(followUpAllowed('resolved',ctx({me:'a'}))).toBe(false);
+  expect(followUpAllowed('resolved',ctx({manager:true}))).toBe(false);
+  expect(followUpAllowed('resolved',ctx())).toBe(false);
+  expect(followUpAllowed('resolved',ctx({me:'a',commentWriter:'a'}))).toBe(true);
+ });
+
+ test('detail() returns the flags for the author, the comment writer, a manager and an unrelated reader, and none on a resolved thread or a reply',async()=>{
+  await delegate(h,ids.sales,reviewer.id);
+  const w=await world({frozen:false});
+  const root=(await comment(reviewer,w.docId,cmt(w))).comments[0];
+  const flags=async(p:Principal)=>{
+   const c=(await svc().detail(p,w.docId)).comments.find(x=>x.id===root.id)!;
+   return {canAddress:c.canAddress,canResolve:c.canResolve};
+  };
+  expect(await flags(member)).toEqual({canAddress:true,canResolve:false});      // author of the revision
+  expect(await flags(reviewer)).toEqual({canAddress:false,canResolve:true});    // writer of the comment
+  expect(await flags(pm)).toEqual({canAddress:true,canResolve:false});          // a manager
+  expect(await flags(approver)).toEqual({canAddress:false,canResolve:false});   // an unrelated reader (no authority for the type)
+  // the flags are exactly what comment() then accepts or refuses
+  for(const [p,kind,ok] of [[member,'addressed',true],[member,'resolved',false],[reviewer,'resolved',true],[reviewer,'addressed',false],[approver,'addressed',false],[approver,'resolved',false]] as const) {
+   const f=await flags(p);
+   expect(kind==='addressed'?f.canAddress:f.canResolve,p.id+' '+kind).toBe(ok);
+  }
+  // a thread with a resolved reply offers nothing; the reply rows themselves carry false flags
+  const closed=await comment(reviewer,w.docId,{kind:'resolved',parentId:root.id,body:'Đã xác nhận'});
+  expect(await flags(member)).toEqual({canAddress:false,canResolve:false});
+  expect(await flags(pm)).toEqual({canAddress:false,canResolve:false});
+  expect(closed.comments.filter(c=>c.parentId!==null).every(c=>c.canAddress===false&&c.canResolve===false)).toBe(true);
+ });
+});
+
+describe('W9 the detail says when its comments were cut',()=>{
+ test('commentsTruncated is false for a few comments and true past 1000',async()=>{
+  await delegate(h,ids.sales,reviewer.id);
+  const w=await world({frozen:false});
+  await comment(reviewer,w.docId,cmt(w));
+  expect((await svc().detail(reviewer,w.docId)).commentsTruncated).toBe(false);
+  await h.operator.query(`INSERT INTO review_comments(tenant_id,project_id,document_id,document_revision_id,kind,anchor,body,actor_id,request_id,trace_id)
+    SELECT $1,$2,$3,$4,'comment','','Nhận xét hàng loạt mẫu',$5,gen_random_uuid(),gen_random_uuid() FROM generate_series(1,1000)`,[ids.tenant,ids.sales,w.docId,w.revisionId,reviewer.id]);
+  const d=await svc().detail(reviewer,w.docId);
+  expect(d.comments).toHaveLength(1000);
+  expect(d.commentsTruncated).toBe(true);
+ },60000);
 });

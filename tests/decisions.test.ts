@@ -342,3 +342,15 @@ describe('review cards',()=>{
 });
 
 function viewerLike():Principal {return {...member,id:'14000000-0000-4000-8000-0000000000aa'};}
+
+describe('W9 the decision list says when its review cards were cut',()=>{
+ test('reviewCardsTruncated follows the queue total against the 200 cards fetched',async()=>{
+  await world();
+  expect((await new DecisionService(h.db).list(pm,{projectId:ids.sales})).reviewCardsTruncated).toBe(false);
+  // 201 documents with a revision would need 201 registrations; the queue is replaced by a double that reports the larger total
+  const svc=new DecisionService(h.db) as unknown as {review:{queue:(p:Principal,q:unknown)=>Promise<{items:unknown[];total:number}>}};
+  const real=svc.review.queue.bind(svc.review);
+  svc.review.queue=async(p,q)=>({...(await real(p,q)),total:201});
+  expect((await (svc as unknown as DecisionService).list(pm,{projectId:ids.sales})).reviewCardsTruncated).toBe(true);
+ });
+});

@@ -8,6 +8,7 @@ import {approver,delegate,frozenRevision,grantDocApproval,proposeRev,registerDoc
 import {COOKIE,createSession} from '../src/server/auth';
 import {handleDecisionsApi,handleReviewApi} from '../src/server/review-http';
 import {DocumentService} from '../src/server/documents';
+import {NOT_FOUND_COPY} from '../src/components/review-view';
 import {DelegationService} from '../src/server/review-delegations';
 import {ids,demoProfiles} from '../src/server/identities';
 import type {Principal} from '../src/server/types';
@@ -76,6 +77,29 @@ describe('review HTTP',()=>{
       expect(r.status,route).toBe(403);
     }
     expect(await n('review_comments')+await n('review_decisions')+await n('review_delegations')).toBe(0);
+  });
+
+  test('W11 HEAD is a read like GET (Next.js serves it through the exported GET): it answers the GET status, never the origin refusal; writes still refuse a foreign origin',async()=>{
+    const w=await world(),cookie=login('manager');
+    for(const route of ['/api/reviews?projectId='+ids.sales,'/api/reviews/'+w.docId,'/api/reviews/delegations?projectId='+ids.sales,'/api/decisions?projectId='+ids.sales]) {
+      const get=await call('GET',route,{cookie,origin:'https://evil.example'});
+      const head=await call('HEAD',route,{cookie,origin:'https://evil.example'});
+      expect(head.status,route).toBe(get.status);
+      expect(head.status,route).toBe(200);
+    }
+    expect((await call('HEAD','/api/reviews?projectId='+ids.sales,{cookie:null})).status).toBe(401);
+    expect((await call('POST','/api/reviews/'+w.docId+'/comments',{cookie,payload:cmt(w),origin:'https://evil.example'})).status).toBe(403);
+    expect((await call('PUT','/api/decisions?projectId='+ids.sales,{cookie,origin:'https://evil.example'})).status).toBe(403);
+    // the demo session store holds 200 sessions per process and this file is close to it: give this test's session back
+    (globalThis as unknown as {libetechSessions?:Map<string,unknown>}).libetechSessions?.delete(cookie.slice(COOKIE.length+1));
+  });
+
+  test('W13 the not-found sentence of the client is the sentence of the handler and of the review service',async()=>{
+    const literal=(src:string,from:RegExp)=>{const m=from.exec(src);expect(m,String(from)).toBeTruthy();return m![1];};
+    const handler=literal(await readFile('src/server/review-http.ts','utf8'),/const notFound = \(\) => new AppError\('SCOPE_DENIED', '([^']+)', 404\)/);
+    const service=literal(await readFile('src/server/document-review.ts','utf8'),/const NOT_FOUND = '([^']+)'/);
+    expect(NOT_FOUND_COPY).toBe(handler);
+    expect(NOT_FOUND_COPY).toBe(service);
   });
 
   test('unknown path, unknown id and out-of-scope id answer the same 404 body; bot and viewer get that same answer',async()=>{
@@ -375,7 +399,7 @@ describe('review HTTP',()=>{
       expect(r.status,profile).toBe(200);
       const b=await json(r);
       expect(b.data,profile).toEqual(direct);
-      expect(Object.keys(b.data).sort()).toEqual(['approvers','canDesignate','reviewers']);
+      expect(Object.keys(b.data).sort()).toEqual(['approvers','canDesignate','reviewers','reviewersTruncated']);
       expect(Object.keys(b)).toEqual(['data','error','meta']);
     }
     const coordinator=(await json(await call('GET','/api/reviews/delegations?projectId='+ids.sales))).data;

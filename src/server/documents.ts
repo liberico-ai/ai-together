@@ -146,8 +146,9 @@ export class DocumentService {
     proposeInput(p, documentId, raw); // refused before the database is touched
     return scoped(this.db, p, tx => this.proposeRevisionIn(tx, p, documentId, raw, key));
   }
-  /** The body of proposeRevision inside the caller's scoped transaction (the AI-draft confirmation shares it): same checks, same order, same events. */
-  async proposeRevisionIn(tx: Queryable, p: Principal, documentId: string, raw: unknown, key: string, fromDraft?: { draftId: string }): Promise<DocumentDetail> {
+  /** The body of proposeRevision inside the caller's scoped transaction (the AI-draft confirmation shares it): same checks, same order, same events.
+ *  `requestId` is the caller's request id for the dependency.flagged events; the manual path passes none and gets one generated id for the transaction. */
+  async proposeRevisionIn(tx: Queryable, p: Principal, documentId: string, raw: unknown, key: string, fromDraft?: { draftId: string }, requestId?: string): Promise<DocumentDetail> {
     const input = proposeInput(p, documentId, raw);
     // the acting person for the database: flagging dependents writes review_events, whose insert policy binds actor_id to it (S40)
     await tx.query("SELECT set_config('app.person_id',$1,true)", [p.id]);
@@ -168,7 +169,7 @@ export class DocumentService {
         [p.tenantId, record.project_id, documentId, no, input.basedOnRevisionId, record.canonical_uri, record.source_type, input.sourceRevision, input.sourceHash,
           input.sourceModifiedAt, JSON.stringify(input.changes), JSON.stringify(input.sourceRefs), p.id])).rows[0];
       await tx.query('UPDATE document_records SET latest_revision_id=$1, version=version+1, updated_at=now() WHERE id=$2', [rev.id, documentId]);
-      await flagDependents(tx, p, { projectId: record.project_id, upstreamDocumentId: documentId, newRevisionId: rev.id, requestId: randomUUID() });
+      await flagDependents(tx, p, { projectId: record.project_id, upstreamDocumentId: documentId, newRevisionId: rev.id, requestId: requestId ?? randomUUID() });
       await tx.query(`INSERT INTO registry_events(tenant_id,project_id,entity_type,entity_id,actor_id,kind,command_key,payload) VALUES($1,$2,'document_revision',$3,$4,'revision_proposed',$5,$6)`,
         [p.tenantId, record.project_id, rev.id, p.id, key, JSON.stringify({ revisionNo: no, basedOnRevisionId: input.basedOnRevisionId, expectedVersion: input.expectedVersion,
           sourceHash: input.sourceHash, hashVerification: 'self_declared', versionBefore: record.version, versionAfter: record.version + 1 })]);

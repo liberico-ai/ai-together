@@ -184,6 +184,21 @@ test('drafts return nothing without RLS context',async()=>{
   expect((await asRuntime(null,S,tx=>tx.query('SELECT 1 FROM intelligence.ai_drafts'))).rows).toHaveLength(1);
 });
 
+test('draft decisions are invisible to another project, another tenant and a session with no context',async()=>{
+  const draft=await seedDraft();
+  await decide(draft);
+  // control: the scope that owns the row sees exactly it
+  expect((await asRuntime(pm.id,S,tx=>tx.query('SELECT 1 FROM draft_decisions'))).rows).toHaveLength(1);
+  // catches removal of the project_id = ANY(app.project_ids) clause of runtime_select
+  expect((await asRuntime(pm.id,[ids.transport],tx=>tx.query('SELECT 1 FROM draft_decisions'))).rows).toHaveLength(0);
+  // catches removal of the tenant_id clause of runtime_select: the sales project id is in the context, the tenant is not the row's
+  const otherTenant={...P(pm.id,S),tenantId:ids.otherTenant};
+  expect((await scoped(h.db,otherTenant,tx=>tx.query('SELECT 1 FROM draft_decisions'))).rows).toHaveLength(0);
+  // catches a missing_ok-less current_setting (an error instead of fail-closed) and a policy that passes when the setting is absent
+  const bare=await h.operator.transaction(async tx=>{await tx.query('SET LOCAL ROLE libetech_runtime');return (await tx.query('SELECT 1 FROM draft_decisions')).rows;});
+  expect(bare).toEqual([]);
+});
+
 test('the table is a backstop at 49 152 bytes of stored text: the densest value that fits the application limit is stored, a larger one is refused',async()=>{
   const dense=JSON.stringify(Array(16383).fill(0));
   expect(dense.length).toBe(32767);

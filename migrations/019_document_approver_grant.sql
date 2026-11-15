@@ -7,6 +7,9 @@
 -- Rollback: migrations/rollback/019_document_approver_grant.sql (refuses while a membership or a ballot carries a doc_approve code).
 -- Lock (Database review M-1): ALTER TABLE takes ACCESS EXCLUSIVE on identity.memberships. After 5 s the whole file (one transaction) fails
 -- and is retried; nothing is applied in part.
+-- Note for later migrations: the loop in step 1 drops every other CHECK on identity.memberships whose definition mentions report_permissions, by definition
+-- match, and it runs again on every start of the embedded database (the demo and the PGlite harness do not consult schema_migrations). A later CHECK on
+-- that column must therefore be given its own name and excluded in that loop's WHERE clause (conname<>'...'), or it is dropped at the next embedded start.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 

@@ -7,13 +7,16 @@ import { ReviewService, reader } from '@/server/document-review';
 import { DelegationService } from '@/server/review-delegations';
 import { AppError } from '@/server/errors';
 import { ReviewQueue } from '@/components/review';
+import { QUEUE_PAGE_SIZE, parseQueueOffset } from '@/components/review-view';
 export const dynamic = 'force-dynamic';
 
-export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ projectId?: string | string[] }> }) {
+export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ projectId?: string | string[]; offset?: string | string[] }> }) {
   let principal;
   try { principal = await pagePrincipal(); }
   catch { redirect('/login'); }
-  const raw = (await searchParams).projectId;
+  const params = await searchParams;
+  const raw = params.projectId;
+  const offset = parseQueueOffset(params.offset);
   const projectId = typeof raw === 'string' && raw ? raw : null;
   // The same reading rule as the service, asked of the service's own function so the page and the API cannot drift.
   const mayRead = (id: string) => reader(principal, id);
@@ -25,14 +28,16 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   if (!projectId && projects.length === 1) redirect('/review?projectId=' + projects[0].id);
   if (!projectId) return <ReviewQueue key="picker" projects={projects} projectId={null} initial={null} denied={false} delegations={null} people={[]} viewerId={principal.id} />;
   try {
-    const initial = await new ReviewService(db).queue(principal, { projectId });
+    const initial = await new ReviewService(db).queue(principal, { projectId, limit: QUEUE_PAGE_SIZE, offset });
+    // a stale link past the last page would read as «no documents»: go back to the first page instead
+    if (offset > 0 && initial.items.length === 0) redirect('/review?projectId=' + projectId);
     // Only the members of this project, and only id, name and the role they hold here: nothing else of a directory entry reaches the browser.
     const people = workspace.people.filter(x => x.projectIds.includes(projectId) && x.role !== 'bot').map(x => ({ id: x.id, name: x.name, role: projectRole(x, projectId) as string }));
     let delegations = null;
     try { delegations = await new DelegationService(db).list(principal, { projectId }); }
     catch (e) { if (!(e instanceof AppError && e.code === 'SCOPE_DENIED')) throw e; }
     return <ReviewQueue key={projectId} projects={projects} projectId={projectId} initial={JSON.parse(JSON.stringify(initial))} denied={false}
-      delegations={delegations && JSON.parse(JSON.stringify(delegations))} people={people} viewerId={principal.id} />;
+      delegations={delegations && JSON.parse(JSON.stringify(delegations))} people={people} viewerId={principal.id} offset={offset} />;
   } catch (e) {
     if (e instanceof AppError && e.code === 'SCOPE_DENIED') return denied;
     throw e;

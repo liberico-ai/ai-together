@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { reassignmentLabel, reviewLabels, voteBlockCopy, voteBody, voteCommand, describeVoteError, decisionsPageState,
+import { reassignmentLabel, reviewLabels, voteBlockCopy, voteBody, voteCommand, describeVoteError, voteFailure, voteRecorded, decisionsPageState,
   EMPTY_COPY, DENIED_COPY, ERROR_COPY, CONFLICT_COPY, ACCOUNTS_COPY } from '../src/components/decisions-view';
 import { eligibilityCopy } from '../src/components/review-view';
 import { DecisionsBody, DecisionCardView, Decisions } from '../src/components/decisions';
@@ -272,6 +272,10 @@ describe('decisions UI', () => {
     }
     const decision = rules.filter(r => /\.decision-/.test(r.selector));
     expect(decision.length).toBeGreaterThan(5);
+    // at exactly 700px only one of the min-width:700px / max-width blocks applies
+    expect(decision.some(r => r.media.includes('min-width:700px'))).toBe(true);
+    expect(decision.some(r => r.media.includes('max-width:699.98px'))).toBe(true);
+    for (const r of decision) expect(r.media, r.selector).not.toMatch(/max-width:\s*700px/);
     for (const r of decision) for (const m of r.body.matchAll(/(?:^|;)\s*(?:min-|max-)?width\s*:\s*(\d+)px/g)) expect(Number(m[1]), r.selector).toBeLessThanOrEqual(328);
     const textual = ['decision-title', 'decision-text', 'decision-meta', 'decision-line', 'decision-notice', 'decision-problem', 'decision-vote'];
     for (const cls of textual) expect(decision.some(r => r.selector.split(',').map(x => x.trim()).includes('.' + cls) && /overflow-wrap\s*:\s*anywhere/.test(r.body)), cls).toBe(true);
@@ -287,5 +291,36 @@ describe('decisions UI', () => {
     expect(reviewAt).toBeLessThan(marker);
     expect(css.slice(reviewAt, marker)).not.toMatch(/\.decision-/);
     expect(css.slice(marker)).not.toMatch(/\.review-/);
+  });
+
+  it('after a vote: recorded clears the note and reloads; a failure keeps it; a closed or changed proposal gives the Conflict sentence with a reload', async () => {
+    expect(voteRecorded()).toEqual({ resetKey: true, clearNote: true, reload: true });
+    for (const code of ['PROPOSAL_CLOSED', 'VERSION_CONFLICT']) {
+      expect(voteFailure(new ApiError('Câu của máy chủ [' + code + ']', code, 409)), code).toEqual({ message: 'Bản này đã thay đổi. Mở bản mới để xem lại.', reloadable: true, code, keepNote: true });
+    }
+    expect(voteFailure(new ApiError('Lựa chọn đã ghi. [VOTE_LOCKED]', 'VOTE_LOCKED', 409))).toEqual({ message: 'Lựa chọn đã ghi. [VOTE_LOCKED]', reloadable: false, code: 'VOTE_LOCKED', keepNote: true });
+    expect(voteFailure(new ApiError('Không có quyền. [SEAT_REQUIRED]', 'SEAT_REQUIRED', 403))).toMatchObject({ reloadable: false, keepNote: true });
+    expect(voteFailure(new TypeError('fetch failed'))).toMatchObject({ message: 'Không kết nối được máy chủ. Nội dung đang nhập vẫn được giữ.', reloadable: false, code: 'NETWORK', keepNote: true });
+    for (const odd of [{ a: 1 }, null, undefined, 42]) expect(voteFailure(odd).message).not.toContain('[object');
+    const src = await readFile('src/components/decisions.tsx', 'utf8');
+    expect(src).toContain('voteFailure(');
+    expect(src).toContain('voteRecorded(');
+  });
+
+  it('W9 the list shows one fixed sentence only when the review cards were cut', () => {
+    const SENTENCE = 'Danh sách dài hơn phần đang hiện.';
+    const body = (truncated?: boolean) => renderToStaticMarkup(<DecisionsBody state="ready" cards={[review()]} error={null} people={people} truncated={truncated} />);
+    expect(body(true)).toContain(SENTENCE);
+    expect(body(false)).not.toContain(SENTENCE);
+    expect(body()).not.toContain(SENTENCE);
+    const screen = (t: boolean) => renderToStaticMarkup(<Decisions projects={[{ id: PROJECT, name: 'P' }]} projectId={PROJECT} initial={{ cards: [review()], reviewCardsTruncated: t }} denied={false} people={people} />);
+    expect(screen(true)).toContain(SENTENCE);
+    expect(screen(false)).not.toContain(SENTENCE);
+  });
+
+  it('W12 titles and summaries written by people carry dir="auto" on the Decisions screen', () => {
+    const rtl = '\u202Eخطأ\u202C';
+    const out = renderToStaticMarkup(<DecisionsBody state="ready" cards={[review({ title: 'Tiêu đề thẻ ' + rtl, summary: 'Tóm tắt thẻ ' + rtl }), reassign({ title: 'Việc ' + rtl, summary: 'Lý do ' + rtl })]} error={null} people={people} />);
+    for (const text of ['Tiêu đề thẻ ', 'Tóm tắt thẻ ', 'Việc ', 'Lý do ']) expect(out, text).toMatch(new RegExp('dir="auto"[^>]*>[^<]*' + text));
   });
 });

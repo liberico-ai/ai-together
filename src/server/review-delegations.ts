@@ -5,6 +5,7 @@ import { scoped, type Database, type Queryable } from './db';
 import { claimDocumentCommand } from './document-commands';
 import { READ_ROLES, reader, storable, uuid } from './document-review';
 import { AppError } from './errors';
+import { wasCut } from './list-cut';
 import { projectRole } from './types';
 import type { DocType, Principal } from './types';
 
@@ -94,7 +95,7 @@ export class DelegationService {
   /** Delegations of the project (at most 200) and the holders of an approval grant (read-only). Ids only, no names.
    * Who receives what is decided in one place, `visibleDelegation`, from the caller's role in the database read inside this transaction (never the session's role or grants).
    * The SQL below applies the same «may this viewer see this row at all» condition before the limit, so hidden rows never take a place of a visible one. */
-  async list(p: Principal, raw: unknown): Promise<{ reviewers: ListedDelegation[]; approvers: ApproverView[]; canDesignate: boolean }> {
+  async list(p: Principal, raw: unknown): Promise<{ reviewers: ListedDelegation[]; reviewersTruncated: boolean; approvers: ApproverView[]; canDesignate: boolean }> {
     if (!p || p.role === 'bot') throw denied();
     const q = listSchema.parse(raw);
     if (!reader(p, q.projectId)) throw denied();
@@ -106,10 +107,12 @@ export class DelegationService {
       const isCoordinator = canDesignate;                                                      // «may read everything»; named apart so a later change of canDesignate is a visible decision here
       // coordinator: every row, live first, newest first. Others: own rows first (newest first), then other people's rows in effect by delegate id (the order tells nothing about when).
       const rows = (await tx.query<Row>(isCoordinator
-        ? `SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 ORDER BY (revoked_at IS NOT NULL), created_at DESC, id LIMIT 1000`
+        ? `SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 ORDER BY (revoked_at IS NOT NULL), created_at DESC, id LIMIT 1001`
         : `SELECT ${COLUMNS} FROM review_delegations WHERE project_id=$1 AND (delegate_id = $2::uuid OR revoked_at IS NULL)
-           ORDER BY (delegate_id <> $2::uuid), (CASE WHEN delegate_id = $2::uuid THEN created_at END) DESC, delegate_id, id LIMIT 1000`,
+           ORDER BY (delegate_id <> $2::uuid), (CASE WHEN delegate_id = $2::uuid THEN created_at END) DESC, delegate_id, id LIMIT 1001`,
         isCoordinator ? [q.projectId] : [q.projectId, me])).rows;
+      const fetchedCut = wasCut({ fetched: rows.length, cap: 1000 });
+      rows.length = Math.min(rows.length, 1000);
       const people = [...new Set(rows.flatMap(r => [r.delegate_id, r.granted_by]))];
       const roleOf = new Map((people.length ? (await tx.query<{ user_id: string; project_role: string }>('SELECT user_id,project_role FROM public.bom_eligible_members($1::uuid, $2::uuid[])', [q.projectId, people])).rows : [])
         .map(r => [r.user_id, r.project_role]));
@@ -120,7 +123,7 @@ export class DelegationService {
       });
       const approvers = (await tx.query<{ user_id: string; doc_types: DocType[] }>('SELECT user_id,doc_types FROM public.document_approvers($1::uuid)', [q.projectId])).rows
         .map(a => ({ userId: a.user_id, docTypes: a.doc_types }));
-      return { reviewers: reviewers.slice(0, 200), approvers, canDesignate };
+      return { reviewers: reviewers.slice(0, 200), reviewersTruncated: fetchedCut || wasCut({ fetched: reviewers.length, cap: 200 }), approvers, canDesignate };
     });
   }
 

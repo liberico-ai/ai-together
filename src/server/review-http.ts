@@ -50,7 +50,8 @@ export async function handleReviewApi(request: Request, parts: string[], db: Dat
   const requestId = randomUUID();
   try {
     const principal = await authenticatedPrincipal(request);
-    const m = request.method;
+    // Next.js serves HEAD through the exported GET handler: a HEAD is a read like GET, never a write that needs the origin check
+    const m = request.method === 'HEAD' ? 'GET' : request.method;
     if (m !== 'GET') checkOrigin(request);
     if (parts[0] !== 'reviews') throw notFound();
     const rest = parts.slice(1);
@@ -81,7 +82,7 @@ export async function handleDecisionsApi(request: Request, db: Database): Promis
   const requestId = randomUUID();
   try {
     const principal = await authenticatedPrincipal(request);
-    if (request.method !== 'GET') { checkOrigin(request); throw notFound(); }
+    if (request.method !== 'GET' && request.method !== 'HEAD') { checkOrigin(request); throw notFound(); }
     return noStore(success(await new DecisionService(db).list(principal, query(request)), 200, requestId));
   } catch (error) { return noStore(failure(normalised(error), requestId)); }
 }

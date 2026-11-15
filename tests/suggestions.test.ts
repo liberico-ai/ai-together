@@ -245,6 +245,31 @@ describe('Z4 drafts: decide',()=>{
   expect(await rows("SELECT 1 FROM registry_events WHERE kind LIKE '%draft%'")).toHaveLength(0);
  });
 
+ test('W8 the dependency.flagged event of a confirmed draft carries the decision\'s request id',async()=>{
+  const up=await doc(),dep=await doc();
+  await new DependencyService(h.db).link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,dependentDocumentId:dep.record.id},k(),randomUUID());
+  const {draftId,valueHash}=await docDraft({d:up});
+  const req=randomUUID();
+  await decide(svc(),pm,draftId,body(valueHash,{revision:revisionBody(await fresh(up.record.id))}),k(),req);
+  const flag=await rows<{request_id:string}>("SELECT request_id FROM review_events WHERE kind='dependency.flagged'");
+  expect(flag).toHaveLength(1);
+  const dec=await rows<{request_id:string}>('SELECT request_id FROM draft_decisions');
+  expect(dec[0].request_id).toBe(req);
+  expect(flag[0].request_id).toBe(dec[0].request_id);
+ });
+
+ test('W8 a manual proposal keeps one generated request id for the flag events of its transaction',async()=>{
+  const up=await doc(),a=await doc(),b=await doc();
+  const links=new DependencyService(h.db);
+  await links.link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,dependentDocumentId:a.record.id},k(),randomUUID());
+  await links.link(pm,{projectId:ids.sales,upstreamDocumentId:up.record.id,dependentDocumentId:b.record.id},k(),randomUUID());
+  await proposeRev(h,pm,await new DocumentService(h.db).detail(pm,up.record.id));
+  const flags=await rows<{request_id:string}>("SELECT request_id FROM review_events WHERE kind='dependency.flagged'");
+  expect(flags).toHaveLength(2);
+  expect(flags[0].request_id).toMatch(/^[0-9a-f-]{36}$/);
+  expect(flags[1].request_id).toBe(flags[0].request_id);
+ });
+
  test('the confirmer\'s own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidden is held',async()=>{
   const other=await doc(ids.transport),d=await doc();
   const a=await docDraft({d,sources:[other.record.id]});

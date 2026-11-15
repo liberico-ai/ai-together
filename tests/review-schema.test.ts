@@ -44,10 +44,10 @@ async function mkUser(memberships:[string,string][],opts:{active?:boolean}={}):P
  return id;
 }
 
-const insDel=(tx:Queryable,over:{project?:string;delegate?:string;types?:string[]|null;granted?:string;basis?:string}={}) => {
- const v={project:ids.sales,delegate:reviewer.id,types:['design'] as string[]|null,granted:pm.id,basis:'Chỉ định mẫu',...over};
+const insDel=(tx:Queryable,over:{tenant?:string;project?:string;delegate?:string;types?:string[]|null;granted?:string;basis?:string}={}) => {
+ const v={tenant:ids.tenant,project:ids.sales,delegate:reviewer.id,types:['design'] as string[]|null,granted:pm.id,basis:'Chỉ định mẫu',...over};
  return tx.query<{id:string}>(`INSERT INTO review_delegations(tenant_id,project_id,delegate_id,doc_types,granted_by,basis) VALUES($1,$2,$3,$4::text[],$5,$6) RETURNING id`,
-  [ids.tenant,v.project,v.delegate,v.types,v.granted,v.basis]);
+  [v.tenant,v.project,v.delegate,v.types,v.granted,v.basis]);
 };
 const revoke=(tx:Queryable,id:string,by:string|null,basis:string|null='Thu hồi mẫu',at:string='2000-01-01T00:00:00Z')=>tx.query<R>(
  `UPDATE review_delegations SET revoked_at=$2,revoked_by=$3,revoke_basis=$4 WHERE id=$1 RETURNING id,version,revoked_at,revoked_by,updated_at`,[id,at,by,basis]);
@@ -77,8 +77,8 @@ const decisionCols='tenant_id,project_id,document_id,document_revision_id,revisi
 type D={result:string;authority:string;decided_by:string;delegation_id:string|null;revision_no:number;revision_hash:string|null;record_version:number;document_id:string;document_revision_id:string;project:string};
 const decisionOf=(w:W,over:Partial<D>={}):D=>({result:'changes_requested',authority:'review_delegation',decided_by:reviewer.id,delegation_id:w.delegationId,revision_no:w.revisionNo,
  revision_hash:w.hash,record_version:w.version,document_id:w.docId,document_revision_id:w.revisionId,project:w.project,...over});
-const insDec=(tx:Queryable,d:D)=>tx.query<{id:string}>(`INSERT INTO review_decisions(${decisionCols}) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'Phạm vi mẫu cho bản thử','[]',$9,$10,$11,$12,$13,$13) RETURNING id`,
- [ids.tenant,d.project,d.document_id,d.document_revision_id,d.revision_no,d.revision_hash,d.record_version,d.result,d.authority,d.delegation_id,d.decided_by,'k-'+randomUUID(),randomUUID()]);
+const insDec=(tx:Queryable,d:D,tenant:string=ids.tenant)=>tx.query<{id:string}>(`INSERT INTO review_decisions(${decisionCols}) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'Phạm vi mẫu cho bản thử','[]',$9,$10,$11,$12,$13,$13) RETURNING id`,
+ [tenant,d.project,d.document_id,d.document_revision_id,d.revision_no,d.revision_hash,d.record_version,d.result,d.authority,d.delegation_id,d.decided_by,'k-'+randomUUID(),randomUUID()]);
 const decideAsRuntime=(d:D)=>as(d.decided_by,[d.project],tx=>insDec(tx,d));
 const approvalOf=(w:W,by:string,over:Partial<D>={}):D=>decisionOf(w,{result:'approved',authority:'approval_grant',decided_by:by,delegation_id:null,...over});
 
@@ -86,12 +86,15 @@ const insComment=(tx:Queryable,w:W,actor:string,over:{kind?:string;parent?:strin
  `INSERT INTO review_comments(tenant_id,project_id,document_id,document_revision_id,parent_id,kind,anchor,body,actor_id,request_id,trace_id)
   VALUES($1,$2,$3,$4,$5,$6,'',$7,$8,$9,$9) RETURNING id`,
  [ids.tenant,over.project??w.project,over.doc??w.docId,over.rev??w.revisionId,over.parent??null,over.kind??'comment','Nhận xét mẫu',actor,randomUUID()]);
+const insCommentIn=(tx:Queryable,w:W,actor:string,over:{tenant:string}) => tx.query(
+ `INSERT INTO review_comments(tenant_id,project_id,document_id,document_revision_id,parent_id,kind,anchor,body,actor_id,request_id,trace_id)
+  VALUES($1,$2,$3,$4,NULL,'comment','','Nhận xét mẫu',$5,$6,$6)`,[over.tenant,w.project,w.docId,w.revisionId,actor,randomUUID()]);
 const insEvent=(tx:Queryable,actor:string,over:{project?:string;tenant?:string}={}) => tx.query(
  `INSERT INTO review_events(tenant_id,project_id,entity_type,entity_id,actor_id,kind,request_id,trace_id,payload) VALUES($1,$2,'review_comment',$3,$4,'comment_added',$5,$5,'{}')`,
  [over.tenant??ids.tenant,over.project??ids.sales,randomUUID(),actor,randomUUID()]);
-const insDep=(tx:Queryable,up:W,down:string,by:string,over:{upstream?:string}={}) => tx.query<{id:string}>(
+const insDep=(tx:Queryable,up:W,down:string,by:string,over:{upstream?:string;tenant?:string}={}) => tx.query<{id:string}>(
  `INSERT INTO document_dependencies(tenant_id,project_id,upstream_document_id,upstream_revision_id,dependent_document_id,note,confirmed_by) VALUES($1,$2,$3,$4,$5,'',$6) RETURNING id`,
- [ids.tenant,up.project,over.upstream??up.docId,up.revisionId,down,by]);
+ [over.tenant??ids.tenant,up.project,over.upstream??up.docId,up.revisionId,down,by]);
 
 const tables=['review_delegations','review_comments','review_decisions','document_dependencies','review_events'];
 
@@ -117,7 +120,7 @@ test('review tables return nothing without RLS context',async()=>{
  }
 });
 
-test('runtime cannot read or write another project or tenant',async()=>{
+test('runtime reads only its own tenant and project; writes outside its project, or into another tenant, are refused',async()=>{
  const sales=await seedAll(ids.sales);
  const transport=await seedAll(ids.transport);
  // reads: the transport rows are invisible from a sales-only scope
@@ -126,6 +129,13 @@ test('runtime cannot read or write another project or tenant',async()=>{
  expect((await failure(as(pm.id,S,tx=>insComment(tx,transport.w,pm.id)))).message).toMatch(/row-level security/);
  expect((await failure(as(pm.id,S,tx=>insEvent(tx,pm.id,{project:ids.transport})))).message).toMatch(/row-level security/);
  expect((await failure(as(pm.id,S,tx=>insEvent(tx,pm.id,{tenant:ids.otherTenant})))).message).toMatch(/row-level security/);
+ // cross-tenant inserts are refused by the tenant clause of WITH CHECK, one case per table (the delegation is refused by RLS before its guard)
+ const rls=/row-level security/;
+ expect((await failure(as(pm.id,S,tx=>insCommentIn(tx,sales.w,pm.id,{tenant:ids.otherTenant})))).message).toMatch(rls);
+ // a decision: the BEFORE guard looks the document up under the row's own tenant and refuses first (it runs ahead of WITH CHECK), so either refusal is accepted
+ expect((await failure(as(reviewer.id,S,tx=>insDec(tx,decisionOf(sales.w,{decided_by:reviewer.id,delegation_id:sales.w.delegationId}),ids.otherTenant)))).message).toMatch(/row-level security|A decision names a document of the project/);
+ expect((await failure(as(pm.id,S,tx=>insDep(tx,sales.w,sales.other,pm.id,{tenant:ids.otherTenant})))).message).toMatch(rls);
+ expect((await failure(as(pm.id,S,tx=>insDel(tx,{tenant:ids.otherTenant,delegate:approver.id})))).message).toMatch(rls);
  expect((await failure(as(pm.id,S,tx=>insDep(tx,transport.w,transport.other,pm.id)))).message).toMatch(/row-level security/);
  // these two are refused by the guards, not by the policy: the document is not visible from this scope, the designation is not eligible
  expect((await failure(as(reviewer.id,S,tx=>insDec(tx,decisionOf(transport.w,{decided_by:reviewer.id,delegation_id:transport.w.delegationId}))))).message).toBe('A decision names a document of the project');
@@ -139,6 +149,20 @@ test('runtime cannot read or write another project or tenant',async()=>{
  expect(revoked).toHaveLength(0);
  expect((await rows('SELECT revoked_at FROM review_delegations WHERE id=$1',[transport.w.delegationId]))[0]).toEqual({revoked_at:null});
  expect(sales.w.docId).toBeTruthy();
+});
+
+test('review tables are invisible to another tenant that holds the project id, and fail closed with no context',async()=>{
+ await seedAll();
+ const foreign={...P(pm.id,S),tenantId:ids.otherTenant};
+ for(const t of tables){
+  // control: the owning scope sees the seeded row, so an empty answer below is the policy's doing
+  expect(await as(pm.id,S,async tx=>(await tx.query<{n:number}>(`SELECT count(*)::int n FROM ${t}`)).rows[0].n),t+' control').toBe(1);
+  // catches removal of the tenant_id clause of the select policy: the sales project id is in app.project_ids, only the tenant differs
+  expect(await scoped(h.db,foreign,async tx=>(await tx.query<{n:number}>(`SELECT count(*)::int n FROM ${t}`)).rows[0].n),t+' other tenant').toBe(0);
+  // catches a policy that passes, or raises, when the setting is absent (current_setting without missing_ok)
+  const bare=await h.operator.transaction(async tx=>{await tx.query('SET LOCAL ROLE libetech_runtime');return (await tx.query(`SELECT count(*)::int n FROM ${t}`)).rows[0] as {n:number};});
+  expect(bare.n,t+' no context').toBe(0);
+ }
 });
 
 test('a decision, a comment, a delegation and an event are bound to the acting person',async()=>{

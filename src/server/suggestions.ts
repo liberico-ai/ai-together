@@ -180,7 +180,7 @@ export class SuggestionService {
     if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
     if(d.entity_type==='document') {
      if(!input.revision) throw new AppError('REVISION_REQUIRED','Nháp gắn tài liệu cần kèm nội dung bản đề xuất.',422);
-     revisionId=(await this.documents.proposeRevisionIn(tx,p,d.entity_id,input.revision,key,{draftId:id})).record.latest_revision_id;
+     revisionId=(await this.documents.proposeRevisionIn(tx,p,d.entity_id,input.revision,key,{draftId:id},requestId)).record.latest_revision_id;
     } else if(input.revision) throw new AppError('INVALID_INPUT','Nháp gắn ứng viên không kèm bản đề xuất tài liệu.',422);
    }
    const row=(await tx.query<{id:string}>(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,document_revision_id,decided_by,command_key,request_id,trace_id)

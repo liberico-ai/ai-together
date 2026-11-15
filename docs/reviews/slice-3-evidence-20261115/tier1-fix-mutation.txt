@@ -1,0 +1,25 @@
+MUTATION 1: migrations/020 runtime_select ON review_comments, tenant_id clause replaced by true
+ ❯ tests/review-schema.test.ts (36 tests | 1 failed | 1 skipped) 16643ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-schema.test.ts > review tables are invisible to another tenant that holds the project id, and fail closed with no context
+AssertionError: review_comments other tenant: expected 1 to be +0 // Object.is equality
+ Test Files  1 failed (1)
+      Tests  1 failed | 34 passed | 1 skipped (36)
+MUTATION 2: migrations/021 runtime_select ON draft_decisions, project_id clause removed
+ ❯ tests/z4-schema.test.ts (25 tests | 1 failed | 2 skipped) 11075ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/z4-schema.test.ts > draft decisions are invisible to another project, another tenant and a session with no context
+AssertionError: expected [ { '?column?': 1 } ] to have a length of +0 but got 1
+ Test Files  1 failed (1)
+      Tests  1 failed | 22 passed | 2 skipped (25)
+Both migrations restored; git diff of migrations:
+(empty above = no diff)
+
+Assertion -> policy clause it would catch if removed (W2)
+- z4-schema 'draft decisions are invisible ...': context [transport] -> 0 rows: the project_id = ANY(app.project_ids) clause of runtime_select ON draft_decisions (migration 021). PROVEN by mutation 2 above.
+- same case, another tenant holding the sales project id -> 0 rows: the tenant_id = app.tenant_id clause of runtime_select ON draft_decisions.
+- same case, no context at all -> 0 rows: fail-closed behaviour (nullif(current_setting(..., true), '')): a policy that passes, or raises, when the setting is absent.
+- review-schema 'review tables are invisible to another tenant ...', per table, other tenant with the sales project id -> 0: the tenant_id clause of runtime_select on each of the five review tables. PROVEN for review_comments by mutation 1 above.
+- same case, no context -> 0 rows: the missing_ok / nullif fail-closed form of every runtime_select policy of the five tables.
+- review-schema cross-tenant inserts: comment, dependency and delegation -> 'row-level security': the tenant_id clause of WITH CHECK of runtime_insert on review_comments, document_dependencies, review_delegations.
+  A decision with another tenant is refused by the BEFORE guard ('A decision names a document of the project') ahead of WITH CHECK, so that one assertion accepts either refusal and does not pin the policy clause alone.
