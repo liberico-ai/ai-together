@@ -162,17 +162,17 @@ describe('designating a commenter',()=>{
  test('a failed grant leaves no delegation, no event and no command row',async()=>{
   await delegate(h,ids.sales,reviewer.id);
   const before=await snap();
-  const cases:[string,()=>Promise<unknown>,string][]=[
-   ['self',()=>grant(pm,G({delegateId:pm.id})),'DELEGATION_INVALID'],
-   ['not a member',()=>grant(pm,G({delegateId:transportApprover.id})),'DELEGATION_INVALID'],
-   ['exists',()=>grant(pm,G({delegateId:reviewer.id})),'DELEGATION_EXISTS'],
-   ['not a manager',()=>grant(member,G({delegateId:pm2.id})),'MANAGER_REQUIRED'],
-   ['out of scope',()=>grant(tm,G()),'SCOPE_DENIED'],
-   ['bad key',()=>grant(pm,G(),'short'),'IDEMPOTENCY_REQUIRED'],
+  const cases:[string,()=>Promise<unknown>,string,number][]=[
+   ['self',()=>grant(pm,G({delegateId:pm.id})),'DELEGATION_INVALID',422],
+   ['not a member',()=>grant(pm,G({delegateId:transportApprover.id})),'DELEGATION_INVALID',422],
+   ['exists',()=>grant(pm,G({delegateId:reviewer.id})),'DELEGATION_EXISTS',409],
+   ['not a manager',()=>grant(member,G({delegateId:pm2.id})),'MANAGER_REQUIRED',403],
+   ['out of scope',()=>grant(tm,G()),'SCOPE_DENIED',404],
+   ['bad key',()=>grant(pm,G(),'short'),'IDEMPOTENCY_REQUIRED',400],
   ];
-  for(const [,run,code] of cases) {
+  for(const [,run,code,status] of cases) {
    const e=await run().then(()=>null,x=>x);
-   expect(e).toMatchObject({code});
+   expect(e).toMatchObject({code,status});
    expect(await snap()).toEqual(before);
   }
  });
@@ -206,6 +206,22 @@ describe('stale session role and the database guards',()=>{
   await setDbRole(pm.id,ids.sales,'engineer');                                              // the session still says manager
   const before=await snap();
   const e=await refused(grant(pm,G()),'SCOPE_DENIED',404);
+  expect(e.message).toBe(NOT_FOUND);
+  expect(await snap()).toEqual(before);
+ });
+ test('F-1a the service itself re-reads the caller role: a demoted caller who designates themself gets the 404, not the self-designation answer',async()=>{
+  await setDbRole(pm.id,ids.sales,'engineer');                                              // session still says manager
+  const before=await snap();
+  const e=await refused(grant(pm,G({delegateId:pm.id})),'SCOPE_DENIED',404);
+  expect(e.message).toBe(NOT_FOUND);
+  await refused(grant(pm,G({delegateId:transportApprover.id})),'SCOPE_DENIED',404);       // nor the delegate answer
+  expect(await snap()).toEqual(before);
+ });
+ test('F-1b the service itself re-reads the caller role: a demoted caller with a stale version gets the 404, not DELEGATION_CONFLICT',async()=>{
+  const id=await delegate(h,ids.sales,member.id);
+  await setDbRole(pm.id,ids.sales,'engineer');
+  const before=await snap();
+  const e=await refused(revoke(pm,id,V(99)),'SCOPE_DENIED',404);                            // the UPDATE would match 0 rows, so the trigger would never fire
   expect(e.message).toBe(NOT_FOUND);
   expect(await snap()).toEqual(before);
  });
@@ -388,6 +404,19 @@ describe('a commenter can never approve',()=>{
   await grant(pm,G({delegateId:reviewer.id,docTypes:['design']}));
   expect((await review.comment(reviewer,wd3.docId,cmt(wd3),k(),k())).comments).toHaveLength(1);
   expect(await codeOf(review.decide(reviewer,wd3.docId,dec(wd3,{result:'approved'}),k(),k()))).toBe('APPROVER_NOT_AUTHORIZED');
+ });
+ test('F-3 behavioural: designating and revoking never touch approval grants, ballots, memberships or the approved pointer',async()=>{
+  await grantDocApproval(h,approver.id,ids.sales,['design']);
+  const doc=await registerDoc(h,pm,{docType:'design'});
+  const probe=async()=>({approvers:await rows('SELECT user_id,doc_types FROM public.document_approvers($1::uuid) ORDER BY user_id',[ids.sales]),
+   perms:await rows('SELECT user_id,project_id,report_permissions,project_role FROM identity.memberships ORDER BY user_id,project_id'),
+   ballots:await n('identity.account_approvals'),records:await rows('SELECT id,version,approved_revision_id,latest_revision_id FROM document_records ORDER BY id'),decisions:await n('review_decisions')});
+  const before=await probe();
+  const v=await grant(pm,G({delegateId:reviewer.id,docTypes:['design','plan','guide']}));
+  expect(await probe()).toEqual(before);
+  await revoke(pm,v.id,V(v.version));
+  expect(await probe()).toEqual(before);
+  expect(doc.record.id).toBeTruthy();
  });
  test('the service has no path that grants or implies approval and never writes the stamped columns',async()=>{
   const src=await readFile('src/server/review-delegations.ts','utf8');
