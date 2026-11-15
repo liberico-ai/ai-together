@@ -10,7 +10,7 @@
   ],
   "prompt": {
     "path": "skills/intake-analyst/prompt.md",
-    "sha256": "008c96b5c4194ed8423261ae09bd7651d3ea6cce099aa1b9cba91ed3bcfc9e16"
+    "sha256": "d7c8abd70533c467c55e2191b8f5d6da07b40097504e0dd9750db234eb51493b"
   },
   "inputContract": "SkillContext/v1",
   "outputContract": "SkillOutput/intake_analyst/v1",
@@ -31,5 +31,5 @@
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "73bbb7a98ee6a9e0439f934c4eba5913b63968c0fc4560047673a3543b7f95d9"
+  "hash": "859e6893d04bbb91112171395dd3f4e86b108ec80aeb16ecf857156bed3f02bd"
 }

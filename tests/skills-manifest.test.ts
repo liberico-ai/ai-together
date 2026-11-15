@@ -126,6 +126,16 @@ describe('skill manifests', () => {
     expect(keysOf(outputSchemas.technical_writer).has('decisionsNeeded')).toBe(false);
   });
 
+  it('every prompt forbids ids of messages without shown text and says an empty-source output stays a draft', async () => {
+    for (const name of SKILLS) {
+      const text = await readFile(path.join(ROOT, skillManifests[name].prompt.path), 'utf8');
+      expect(text, name).toContain('Không đưa mã của tin không có văn bản được hiển thị');
+      expect(text, name).toContain('để `sources` rỗng. Đầu ra như vậy vẫn là bản nháp, không được đưa ra để xác nhận');
+    }
+    const intake = await readFile(path.join(ROOT, skillManifests.intake_analyst.prompt.path), 'utf8');
+    expect(intake).toContain('tin không có văn bản được hiển thị chỉ được nhắc như một câu hỏi');
+  });
+
   it('prompts say the system fills skill and manifestHash, and technical_writer promises no examples', async () => {
     for (const name of SKILLS) {
       const text = await readFile(path.join(ROOT, skillManifests[name].prompt.path), 'utf8');

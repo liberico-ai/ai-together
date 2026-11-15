@@ -10,7 +10,7 @@
   ],
   "prompt": {
     "path": "skills/technical-writer/prompt.md",
-    "sha256": "b61460f133d4f64fd9d3b4b197c61180fdc5e199d3eeb94d7db0f3de81bc93f9"
+    "sha256": "adab6f96155caa38810687bbbbe6a8094c67ac6aa3602409a09686fc6d63797a"
   },
   "inputContract": "SkillContext/v1",
   "outputContract": "SkillOutput/technical_writer/v1",
@@ -31,5 +31,5 @@
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "629e8801d50473c2ac2fef75a0abd35737efe8b3908260eb7111f23584b0d770"
+  "hash": "c6ae5aba0dbbe43e96f75c3ee015388e844e634788e0db38c13dbb8e89ee4f8b"
 }

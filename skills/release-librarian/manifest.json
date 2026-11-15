@@ -10,7 +10,7 @@
   ],
   "prompt": {
     "path": "skills/release-librarian/prompt.md",
-    "sha256": "4b460b4cb6cc07f46f1126c4bf93c3689a0e6d6b765349d3a298af759a0b1d52"
+    "sha256": "0e173c04eaced0f632f0f35ff6803a9e698420b0766d7dc74b18c9b823f4fb45"
   },
   "inputContract": "SkillContext/v1",
   "outputContract": "SkillOutput/release_librarian/v1",
@@ -31,5 +31,5 @@
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "f6df21e3a43cc15b3719a3348ccff3e33db9e7da55b64bddccf0a3d5f3402a46"
+  "hash": "3d86068f2d2ade40cc4165004fea1fa9d55c2b6d82db2cb2f2f5c4d17a03f381"
 }

@@ -23,6 +23,8 @@ Chỉ ghi mục nào còn thiếu so với loại việc vào `questions`, hoặ
 - Thiếu thông tin thì ghi vào `questions` (field, question), không đoán.
 - Nguồn mâu thuẫn thì ghi vào `conflicts` (field, sourceIds, note); mỗi mục nêu ít nhất hai mã nguồn khác nhau; không chọn giúp một giá trị.
 - Nguồn chỉ có con trỏ hoặc bị ẩn thì không trích nội dung. Khi `pointerOnly` là true: để `claims`, `conflicts` và mọi trường của `result` rỗng, chỉ ghi `questions`. `confidence` là số nguyên 0–100.
+- Không đưa mã của tin không có văn bản được hiển thị (tin bị ẩn hoặc chỉ có con trỏ: chế độ hiển thị khác excerpt, hoặc text là null) vào `sources`, `basis`, `sourceIds` hay bất kỳ trường nào khác.
+- Khi không có nguồn nào có văn bản được hiển thị và không có tài liệu nào để dựa vào: chỉ ghi `questions`, để `sources` rỗng. Đầu ra như vậy vẫn là bản nháp, không được đưa ra để xác nhận.
 - Không gọi công cụ: `toolRequests` luôn là `[]`. Không có trường giao việc, hạn, duyệt hay trạng thái giao.
 
 ## Đầu ra

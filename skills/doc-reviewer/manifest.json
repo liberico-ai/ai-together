@@ -10,7 +10,7 @@
   ],
   "prompt": {
     "path": "skills/doc-reviewer/prompt.md",
-    "sha256": "5f239abf89e10bb6e5a0aa82b244fac30f695f4599c01ee1ddb2db02ea7dd54c"
+    "sha256": "f5aed8be07710466e0b4978ee889901bfa6ec96f15f4f1f876a97788bbc392aa"
   },
   "inputContract": "SkillContext/v1",
   "outputContract": "SkillOutput/doc_reviewer/v1",
@@ -31,5 +31,5 @@
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "9b4e4d8cc660d619554bcafd0bb601eb93d4dd0dcb49ef248a2dc6fae632f617"
+  "hash": "f0f16f553124df7958eccafa3e3e08a6340dbfdb9fe84bde241caeffa1ff2fd4"
 }

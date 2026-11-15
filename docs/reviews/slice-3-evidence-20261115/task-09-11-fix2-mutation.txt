@@ -1,0 +1,3 @@
+Fix round 2 mutations on skills/technical-writer/prompt.md (backup copy restored afterwards):
+(a) line "Khi không có nguồn nào ..." removed, hashes NOT updated -> red: "prompt and eval hashes match the files on disk and the manifest hash matches its content", "every prompt forbids ids of messages without shown text and says an empty-source output stays a draft"
+(b) same line removed, hashes regenerated -> red: "every prompt forbids ids of messages without shown text and says an empty-source output stays a draft" (hash case green)

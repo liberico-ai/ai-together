@@ -10,7 +10,7 @@
   ],
   "prompt": {
     "path": "skills/ba-elicitation/prompt.md",
-    "sha256": "6cc791bd02c652d10ef3a7ff6746e8585b84def001f1660857f4ce96cf0c5ebd"
+    "sha256": "a6d26986e1ab33975c8cd74054c483e8a98cb5e4671c5feab80761dc6e61c83a"
   },
   "inputContract": "SkillContext/v1",
   "outputContract": "SkillOutput/ba_elicitation/v1",
@@ -32,5 +32,5 @@
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "b332ad6528e54775529fe6ec99eec34e98e96e683f7798b7b435c0a4e400e14a"
+  "hash": "aaf71b8d39989d4713b305355c112c2abd7ecccc1b01ff1d58fc48a824352d74"
 }

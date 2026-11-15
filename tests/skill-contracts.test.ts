@@ -365,6 +365,25 @@ describe('skill contracts', () => {
     expect(check('pm_planning', { ...pm, result: { ...deep, milestones: [{ title: 'x', basis: [], estimate: null }] } }, [], ctx({ skill: 'pm_planning', pointerOnly: true })).reasons).toContain('TEXT_NOT_VISIBLE');
   });
 
+  it('a context with no shown text and no document yields only held outputs', () => {
+    const msg = (id: string, mode: 'hidden' | 'pointer_only') => ({ id, kind: 'source_event' as const, ref: `ref-${id}`, mode, text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
+    for (const pointerOnly of [true, false]) for (const s of SKILLS) {
+      const c: SkillContext = { skill: s, projectId: 'p1', pointerOnly, sources: [msg('h1', 'hidden'), msg('h2', 'pointer_only')] };
+      const questionsOnly = { ...clean(s), sources: [], claims: [], conflicts: [], questions: [{ field: 'f', question: 'Cần văn bản hoặc tài liệu để phân tích?' }], result: emptyOf[s] };
+      const tag = `${s} pointerOnly=${pointerOnly}`;
+      if (s === 'doc_reviewer') {
+        // its required candidateRevisionId can never name a revision here
+        expect(check(s, questionsOnly, [], c).verdict, tag).toBe('hold');
+        continue;
+      }
+      expect(check(s, questionsOnly, [], c), tag).toEqual({ verdict: 'hold', reasons: ['SOURCE_REQUIRED'], output: null });
+      for (const id of ['h1', 'h2']) {
+        const listed = { ...questionsOnly, sources: [{ id }] };
+        expect(check(s, listed, [], c), `${tag} lists ${id}`).toEqual({ verdict: 'hold', reasons: ['TEXT_NOT_VISIBLE'], output: null });
+      }
+    }
+  });
+
   it('F9-3 an excerpt without text does not support a statement', () => {
     const c = ctx();
     c.sources.push({ id: 'e4', kind: 'source_event', ref: 'ref-4', mode: 'excerpt', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
