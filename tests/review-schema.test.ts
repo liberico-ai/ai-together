@@ -1,6 +1,6 @@
-import {afterEach,beforeEach,expect,test} from 'vitest';
+import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
-import {openHarness,type Harness} from './slice1-db';
+import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
 import {member,pm,seedSlice1} from './slice1-fixtures';
 import {approver,delegate,frozenRevision,grantDocApproval,registerDoc,reviewer,revokeDelegation,seedMembers,transportApprover} from './slice3-fixtures';
 import {scoped,type Queryable} from '../src/server/db';
@@ -54,12 +54,12 @@ const revoke=(tx:Queryable,id:string,by:string|null,basis:string|null='Thu hồi
 
 type W={docId:string;revisionId:string;version:number;hash:string;revisionNo:number;delegationId:string;project:string};
 /** A design document of sales whose only revision was proposed by member and is frozen; reviewer holds a design delegation. */
-async function world(over:{project?:string;docType?:string;author?:string}={}):Promise<W> {
+async function world(over:{project?:string;docType?:string;author?:string;delegateTo?:string}={}):Promise<W> {
  const project=over.project??ids.sales;
  const doc=await registerDoc(h,pm,{projectId:project,docType:over.docType??'design'});
  const fr=await frozenRevision(h,doc.record.id,over.author??member.id);
  const revisionNo=(await rows<{n:number}>('SELECT revision_no n FROM document_revisions WHERE id=$1',[fr.revisionId]))[0].n;
- const delegationId=await delegate(h,project,reviewer.id,[over.docType??'design']);
+ const delegationId=await delegate(h,project,over.delegateTo??reviewer.id,[over.docType??'design']);
  return {docId:doc.record.id,revisionId:fr.revisionId,version:fr.version,hash:fr.hash,revisionNo,delegationId,project};
 }
 /** Another revision (any freezing level) through the operational login; moves the latest pointer and the record version. */
@@ -97,10 +97,11 @@ const tables=['review_delegations','review_comments','review_decisions','documen
 
 // Seeds one row in every review table through the operational login; returns what a later case needs.
 async function seedAll(project=ids.sales) {
- const w=await world({project});
+ const decider=project===ids.sales?reviewer.id:transportApprover.id;
+ const w=await world({project,delegateTo:decider});
  const other=await registerDoc(h,pm,{projectId:project});
  await insComment(h.operator,w,pm.id);
- await insDec(h.operator,decisionOf(w));
+ await asOp([project],tx=>insDec(tx,decisionOf(w,{decided_by:decider})));
  await insDep(h.operator,w,other.record.id,pm.id);
  await insEvent(h.operator,pm.id,{project});
  return {w,other:other.record.id};
@@ -126,8 +127,9 @@ test('runtime cannot read or write another project or tenant',async()=>{
  expect((await failure(as(pm.id,S,tx=>insEvent(tx,pm.id,{project:ids.transport})))).message).toMatch(/row-level security/);
  expect((await failure(as(pm.id,S,tx=>insEvent(tx,pm.id,{tenant:ids.otherTenant})))).message).toMatch(/row-level security/);
  expect((await failure(as(pm.id,S,tx=>insDep(tx,transport.w,transport.other,pm.id)))).message).toMatch(/row-level security/);
- expect((await failure(as(reviewer.id,S,tx=>insDec(tx,decisionOf(transport.w,{decided_by:reviewer.id,delegation_id:transport.w.delegationId}))))).message).toBeTruthy();
- await failure(as(pm.id,S,tx=>insDel(tx,{project:ids.transport,delegate:transportApprover.id})));
+ // these two are refused by the guards, not by the policy: the document is not visible from this scope, the designation is not eligible
+ expect((await failure(as(reviewer.id,S,tx=>insDec(tx,decisionOf(transport.w,{decided_by:reviewer.id,delegation_id:transport.w.delegationId}))))).message).toBe('A decision names a document of the project');
+ expect((await failure(as(pm.id,S,tx=>insDel(tx,{project:ids.transport,delegate:transportApprover.id})))).code).toBe('LTR02');
  // updates across the scope change nothing
  const before=await rows('SELECT * FROM document_dependencies WHERE project_id=$1',[ids.transport]);
  const flagged=await as(pm.id,S,async tx=>(await tx.query(`UPDATE document_dependencies SET needs_review=true,flagged_revision_id=upstream_revision_id,flagged_at=now() WHERE project_id=$1 RETURNING id`,[ids.transport])).rows);
@@ -153,7 +155,6 @@ test('a decision, a comment, a delegation and an event are bound to the acting p
  expect((await failure(as(null,S,tx=>insComment(tx,w,reviewer.id)))).message).toMatch(rls);
  expect((await failure(as(null,S,tx=>insEvent(tx,pm.id)))).message).toMatch(rls);
  expect((await failure(as(null,S,tx=>insDel(tx,{delegate:approver.id,granted:pm.id})))).message).toMatch(rls);
- expect((await failure(as(null,S,tx=>insDep(tx,w,w.docId,pm.id,{upstream:w.docId})))).message).toBeTruthy();
  // controls: the right person writes each
  await as(reviewer.id,S,tx=>insDec(tx,decisionOf(w)));
  await as(reviewer.id,S,tx=>insComment(tx,w,reviewer.id));
@@ -431,7 +432,8 @@ test('runtime can move the approved pointer only to a revision that has an appro
  const w=await world();
  await grantDocApproval(h,approver.id,ids.sales,['design']);
  const message='Approved pointer requires an approval decision on a frozen revision';
- const move=(to:string|null)=>as(pm.id,S,async tx=>(await tx.query<{approved_revision_id:string|null}>(
+
+ const move=(to:string|null,person:string|null=approver.id)=>as(person,S,async tx=>(await tx.query<{approved_revision_id:string|null}>(
   'UPDATE document_records SET approved_revision_id=$2,updated_at=now() WHERE id=$1 RETURNING approved_revision_id',[w.docId,to])).rows);
  expect((await failure(move(w.revisionId))).message).toBe(message);
  // a changes_requested decision is not an approval
@@ -491,8 +493,11 @@ test('a dependency cannot point a document at itself and is unique per pair',asy
  // flagging: both columns move together, to a revision of the upstream document only
  const flag=(to:string|null,flag:boolean)=>as(pm.id,S,tx=>tx.query(
   `UPDATE document_dependencies SET needs_review=$2,flagged_revision_id=$3,flagged_at=now(),version=version+1,updated_at=now() WHERE dependent_document_id=$1 RETURNING version`,[down.record.id,flag,to]));
- expect((await failure(flag(null,true))).message).toMatch(/document_dependencies_flag_pair/);
- expect((await failure(flag(up.revisionId,false))).message).toMatch(/document_dependencies_flag_pair/);
+ const notCleared='A dependency flag is set or advanced, not cleared';
+ expect((await failure(flag(null,true))).message).toBe(notCleared);
+ expect((await failure(flag(up.revisionId,false))).message).toBe(notCleared);
+ // the pair CHECK holds for the operational login too, which the guard lets through
+ expect((await failure(h.operator.query('UPDATE document_dependencies SET needs_review=true,version=version+1 WHERE dependent_document_id=$1',[down.record.id]))).message).toMatch(/document_dependencies_flag_pair/);
  const foreign=await frozenRevision(h,(await registerDoc(h,pm)).record.id,member.id);
  expect((await failure(flag(foreign.revisionId,true))).code).toBe('23503');
  expect((await flag(up.revisionId,true)).rows).toEqual([{version:2}]);
@@ -544,4 +549,176 @@ test('column-level grants: INSERT leaves ids, timestamps and decided_at to defau
  ];
  for(const [t,cols,vals] of tries)
   expect((await failure(as(pm.id,S,tx=>tx.query(`INSERT INTO ${t}(${cols}) VALUES(${vals.map((_,i)=>'$'+(i+1)).join(',')})`,vals)))).message,t+' '+cols.split(',').pop()).toMatch(/permission denied/);
+});
+
+test('confirmed_by is bound to the acting person',async()=>{
+ const up=await world();
+ const down=await registerDoc(h,pm);
+ const rls=/row-level security/;
+ expect((await failure(as(member.id,S,tx=>insDep(tx,up,down.record.id,pm.id)))).message).toMatch(rls);
+ expect((await failure(as(null,S,tx=>insDep(tx,up,down.record.id,pm.id)))).message).toMatch(rls);
+ await as(pm.id,S,tx=>insDep(tx,up,down.record.id,pm.id));
+});
+
+test('an insert with no context at all is refused on every review table',async()=>{
+ const {w,other}=await seedAll();
+ const bare=(fn:(tx:Queryable)=>Promise<unknown>)=>h.operator.transaction(async tx=>{await tx.query('SET LOCAL ROLE libetech_runtime');return fn(tx);});
+ expect((await failure(bare(tx=>insDel(tx,{delegate:approver.id})))).code).toBe('LTR02');
+ expect((await failure(bare(tx=>insDec(tx,decisionOf(w))))).message).toBe('A decision names a document of the project');
+ expect((await failure(bare(tx=>insComment(tx,w,pm.id)))).message).toMatch(/row-level security/);
+ expect((await failure(bare(tx=>insDep(tx,w,other,pm.id,{upstream:w.docId})))).message).toMatch(/row-level security/);
+ expect((await failure(bare(tx=>insEvent(tx,pm.id)))).message).toMatch(/row-level security/);
+ for(const t of tables) expect((await rows<{n:number}>(`SELECT count(*)::int n FROM ${t}`))[0].n,t).toBe(1);
+});
+
+test('a delegate who lost the project role or was deactivated cannot decide, although the delegation was never revoked',async()=>{
+ const w=await world();
+ const setRole=(role:string)=>h.operator.query('UPDATE identity.memberships SET project_role=$2 WHERE user_id=$1 AND project_id=$3',[reviewer.id,role,ids.sales]);
+ await setRole('viewer');
+ expect((await failure(decideAsRuntime(decisionOf(w)))).code,'viewer').toBe('LTR01');
+ await setRole('technical');
+ await h.operator.query('UPDATE identity.users SET active=false WHERE id=$1',[reviewer.id]);
+ expect((await failure(decideAsRuntime(decisionOf(w)))).code,'deactivated').toBe('LTR01');
+ expect((await rows('SELECT revoked_at FROM review_delegations WHERE id=$1',[w.delegationId]))[0]).toEqual({revoked_at:null});
+ await h.operator.query('UPDATE identity.users SET active=true WHERE id=$1',[reviewer.id]);
+ await decideAsRuntime(decisionOf(w));
+ expect(await rows('SELECT id FROM review_decisions')).toHaveLength(1);
+});
+
+test('the approved pointer cannot go back to an older approved revision, nor be moved by anyone but the approver',async()=>{
+ const w=await world();
+ await grantDocApproval(h,approver.id,ids.sales,['design']);
+ const message='Approved pointer requires an approval decision on a frozen revision';
+ const move=(to:string,person:string|null)=>as(person,S,async tx=>(await tx.query<{approved_revision_id:string|null}>(
+  'UPDATE document_records SET approved_revision_id=$2,updated_at=now() WHERE id=$1 RETURNING approved_revision_id',[w.docId,to])).rows);
+ const pointer=async()=>(await rows<{p:string|null}>('SELECT approved_revision_id p FROM document_records WHERE id=$1',[w.docId]))[0].p;
+ await decideAsRuntime(approvalOf(w,approver.id));
+ expect(await move(w.revisionId,approver.id)).toEqual([{approved_revision_id:w.revisionId}]);
+ const second=await frozenRevision(h,w.docId,member.id);
+ const w2:W={...w,revisionId:second.revisionId,version:second.version,hash:second.hash,revisionNo:(await rows<{n:number}>('SELECT revision_no n FROM document_revisions WHERE id=$1',[second.revisionId]))[0].n};
+ await decideAsRuntime(approvalOf(w2,approver.id));
+ // revision 2 is approved and the latest; the pointer is still on revision 1: only the approver moves it
+ for(const who of [reviewer.id,pm.id,null]) {
+  expect((await failure(move(second.revisionId,who))).message,String(who)).toBe(message);
+  expect(await pointer()).toBe(w.revisionId);
+ }
+ expect(await move(second.revisionId,approver.id)).toEqual([{approved_revision_id:second.revisionId}]);
+ // it never goes back to revision 1, which also carries an approval decision and is frozen
+ for(const who of [approver.id,reviewer.id,pm.id,null]) {
+  expect((await failure(move(w.revisionId,who))).message,String(who)).toBe(message);
+  expect(await pointer()).toBe(second.revisionId);
+ }
+});
+
+test('runtime sets or advances a dependency flag but cannot clear it; the version moves by exactly one',async()=>{
+ const up=await world();
+ const down=await registerDoc(h,pm);
+ await as(pm.id,S,tx=>insDep(tx,up,down.record.id,pm.id));
+ const upd=(set:string,params:unknown[]=[])=>as(pm.id,S,async tx=>(await tx.query<R>(
+  `UPDATE document_dependencies SET ${set} WHERE dependent_document_id=$1 RETURNING needs_review,flagged_revision_id,version`,[down.record.id,...params])).rows);
+ const newer=await frozenRevision(h,up.docId,member.id);
+ expect(await upd('needs_review=true,flagged_revision_id=$2,flagged_at=now(),version=version+1,updated_at=now()',[up.revisionId]))
+  .toEqual([{needs_review:true,flagged_revision_id:up.revisionId,version:2}]);
+ expect(await upd('flagged_revision_id=$2,flagged_at=now(),version=version+1',[newer.revisionId]))
+  .toEqual([{needs_review:true,flagged_revision_id:newer.revisionId,version:3}]);
+ const state=await rows('SELECT * FROM document_dependencies WHERE dependent_document_id=$1',[down.record.id]);
+ const cleared='A dependency flag is set or advanced, not cleared';
+ expect((await failure(upd('needs_review=false,flagged_revision_id=NULL,flagged_at=NULL,version=version+1'))).message).toBe(cleared);
+ expect((await failure(upd('needs_review=false,version=version+1'))).message).toBe(cleared);
+ expect((await failure(upd('flagged_revision_id=NULL,version=version+1'))).message).toBe(cleared);
+ expect((await failure(upd('updated_at=now(),version=version+2'))).message).toBe('A dependency version moves by exactly one');
+ expect((await failure(upd('updated_at=now()'))).message).toBe('A dependency version moves by exactly one');
+ // flagged_at needs a flagged revision
+ expect((await failure(h.operator.query('UPDATE document_dependencies SET flagged_revision_id=NULL,needs_review=false,flagged_at=now(),version=version+1 WHERE dependent_document_id=$1',[down.record.id]))).message).toMatch(/document_dependencies_flagged_at_pair/);
+ expect(await rows('SELECT * FROM document_dependencies WHERE dependent_document_id=$1',[down.record.id])).toEqual(state);
+});
+
+test('a reply cannot point at a comment of another document or revision',async()=>{
+ const w=await world();
+ const root=await as(reviewer.id,S,async tx=>(await insComment(tx,w,reviewer.id)).rows[0].id);
+ const other=await registerDoc(h,pm);
+ const ow=await frozenRevision(h,other.record.id,member.id);
+ const second=await rawRevision(w.docId,member.id);
+ // same project, but the parent is on another document, or on another revision of the same document
+ const e1=await failure(as(reviewer.id,S,tx=>insComment(tx,w,reviewer.id,{kind:'addressed',parent:root,doc:other.record.id,rev:ow.revisionId})));
+ expect(e1.code).toBe('23503');
+ const e2=await failure(as(reviewer.id,S,tx=>insComment(tx,w,reviewer.id,{kind:'addressed',parent:root,rev:second.revisionId})));
+ expect(e2.code).toBe('23503');
+ await as(reviewer.id,S,tx=>insComment(tx,w,reviewer.id,{kind:'addressed',parent:root}));
+});
+
+test('review_events and decisions carry bounds as database backstops',async()=>{
+ const w=await world();
+ const ev=(kind:string,payload:unknown)=>as(pm.id,S,tx=>tx.query(`INSERT INTO review_events(tenant_id,project_id,entity_type,entity_id,actor_id,kind,request_id,trace_id,payload)
+  VALUES($1,$2,'review_comment',$3,$4,$5,$6,$6,$7)`,[ids.tenant,ids.sales,randomUUID(),pm.id,kind,randomUUID(),JSON.stringify(payload)]));
+ expect((await failure(ev('',{}))).message).toMatch(/review_events_kind_length/);
+ expect((await failure(ev('k'.repeat(65),{}))).message).toMatch(/review_events_kind_length/);
+ expect((await failure(ev('k',{text:'x'.repeat(8200)}))).message).toMatch(/review_events_payload_size/);
+ await ev('k'.repeat(64),{text:'x'.repeat(100)});
+ const dec=(exceptions:string)=>as(reviewer.id,S,tx=>tx.query(`INSERT INTO review_decisions(${decisionCols}) VALUES($1,$2,$3,$4,$5,$6,$7,'changes_requested','Phạm vi mẫu cho bản thử',$8,'review_delegation',$9,$10,'k',$11,$11)`,
+  [ids.tenant,ids.sales,w.docId,w.revisionId,w.revisionNo,w.hash,w.version,exceptions,w.delegationId,reviewer.id,randomUUID()]));
+ expect((await failure(dec('{"a":1}'))).message).toMatch(/review_decisions_exceptions_array/);
+ expect((await failure(dec(JSON.stringify(Array(11).fill('x'))))).message).toMatch(/review_decisions_exceptions_bounds/);
+ expect((await failure(dec(JSON.stringify(Array(10).fill('x'.repeat(2000)))))).message).toMatch(/review_decisions_exceptions_bounds/);
+ await dec(JSON.stringify(Array(10).fill('x'.repeat(100))));
+});
+
+test('each authority branch raises its own SQLSTATE and no integrity branch does',async()=>{
+ const w=await world();
+ const x=await mkUser([[ids.transport,'manager'],[ids.sales,'engineer']]);
+ const both=[ids.sales,ids.transport];
+ const live=await delegate(h,ids.sales,approver.id);
+ const dep2=await registerDoc(h,pm);
+ await as(pm.id,S,tx=>insDep(tx,w,dep2.record.id,pm.id));
+ const attempts:[string,string|null,()=>Promise<unknown>][]=[
+  // authority branches: one code each
+  ['decision: no authority','LTR01',()=>decideAsRuntime(approvalOf(w,reviewer.id))],
+  ['decision: delegate lost the role','LTR01',async()=>{await h.operator.query("UPDATE identity.memberships SET project_role='viewer' WHERE user_id=$1",[reviewer.id]);
+    try{await decideAsRuntime(decisionOf(w));}finally{await h.operator.query("UPDATE identity.memberships SET project_role='technical' WHERE user_id=$1",[reviewer.id]);}}],
+ ['designation: granter is an engineer','LTR02',()=>as(member.id,S,tx=>insDel(tx,{delegate:reviewer.id,granted:member.id}))],
+  ['designation: delegate not a member','LTR02',()=>as(pm.id,S,tx=>insDel(tx,{delegate:transportApprover.id}))],
+  ['revocation: revoker is an engineer','LTR03',()=>as(x,both,tx=>revoke(tx,live,x))],
+  // integrity and platform branches: no LTR code
+  ['decision: wrong hash','none',()=>decideAsRuntime(decisionOf(w,{revision_hash:'d'.repeat(64)}))],
+  ['decision: stale record version','none',()=>decideAsRuntime(decisionOf(w,{record_version:w.version+5}))],
+  ['check violation','none',()=>insDel(h.operator,{delegate:pm.id,granted:pm.id})],
+  ['row-level security violation','none',()=>as(member.id,S,tx=>insEvent(tx,pm.id))],
+  ['column-privilege violation','none',()=>as(pm.id,S,tx=>tx.query('UPDATE review_delegations SET basis=$2 WHERE id=$1',[live,'Căn cứ khác']))],
+  ['unique violation','none',()=>insDel(h.operator,{delegate:approver.id})],
+  ['revoke guard: repeat','none',async()=>{await revokeDelegation(h,live);await h.operator.query("UPDATE review_delegations SET revoked_at=now(),revoked_by=revoked_by,revoke_basis='Thu hồi lần hai' WHERE id=$1",[live]);}],
+  ['pointer guard','none',()=>as(pm.id,S,tx=>tx.query('UPDATE document_records SET approved_revision_id=$2 WHERE id=$1',[w.docId,w.revisionId]))],
+  ['flag guard: clear','none',()=>as(pm.id,S,tx=>tx.query("UPDATE document_dependencies SET needs_review=false,flagged_revision_id=NULL,flagged_at=NULL,version=version+1 WHERE dependent_document_id=$1",[dep2.record.id]))],
+  ['flag guard: version','none',()=>as(pm.id,S,tx=>tx.query("UPDATE document_dependencies SET updated_at=now(),version=version+3 WHERE dependent_document_id=$1",[dep2.record.id]))],
+ ];
+ for(const [label,code,run] of attempts){
+  const e=await failure(run());
+  if(code==='none') noAuthorityCode(e); else expect(e.code,label).toBe(code);
+ }
+ // the platform codes themselves, for the record
+ const codeOf=async(p:Promise<unknown>)=>(await failure(p)).code;
+ expect(await codeOf(insDel(h.operator,{delegate:pm.id,granted:pm.id}))).toBe('23514');
+ expect(await codeOf(as(member.id,S,tx=>insEvent(tx,pm.id)))).toBe('42501');
+ expect(await codeOf(as(pm.id,S,tx=>tx.query('UPDATE review_delegations SET basis=$2 WHERE id=$1',[live,'Căn cứ khác'])))).toBe('42501');
+});
+
+describe.skipIf(!native)('decision guard lock (native PostgreSQL)',()=>{
+ test('two raw concurrent decisions on one revision end with one row and no deadlock',async()=>{
+  const w=await world();
+  const second=await mkUser([[ids.sales,'technical']]);
+  await delegate(h,ids.sales,second);
+  let all!:Promise<PromiseSettledResult<unknown>[]>;
+  // the operational login holds the document row; both deciders park on the guard's row lock, then are released together
+  await h.operator.transaction(async tx=>{
+   await tx.query('SELECT id FROM document_records WHERE id=$1 FOR UPDATE',[w.docId]);
+   const mine=(await rows<{id:string}>('SELECT id FROM review_delegations WHERE delegate_id=$1',[second]))[0].id;
+   all=Promise.allSettled([decideAsRuntime(decisionOf(w)),decideAsRuntime(decisionOf(w,{decided_by:second,delegation_id:mine}))]);
+   await waitForBlocked(h,2);
+  });
+  const res=await all;
+  expect(res.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+  const lost=res.find(r=>r.status==='rejected') as PromiseRejectedResult;
+  expect(['23505','LTR01','P0001']).toContain((lost.reason as Err).code);
+  expect((lost.reason as Err).code).not.toBe('40P01');
+  expect(await rows('SELECT id FROM review_decisions WHERE document_revision_id=$1',[w.revisionId])).toHaveLength(1);
+ });
 });

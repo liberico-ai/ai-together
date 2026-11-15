@@ -41,7 +41,10 @@ CREATE TABLE IF NOT EXISTS review_comments (
   FOREIGN KEY(document_id,tenant_id,project_id) REFERENCES document_records(id,tenant_id,project_id),
   FOREIGN KEY(document_revision_id,document_id) REFERENCES document_revisions(id,document_id),
   UNIQUE(id,tenant_id,project_id),
+  UNIQUE(id,document_id,document_revision_id),
   FOREIGN KEY(parent_id,tenant_id,project_id) REFERENCES review_comments(id,tenant_id,project_id),
+  -- a reply belongs to the document and the revision of the comment it answers (S50)
+  FOREIGN KEY(parent_id,document_id,document_revision_id) REFERENCES review_comments(id,document_id,document_revision_id),
   CHECK((kind = 'comment') = (parent_id IS NULL))
 );
 CREATE TABLE IF NOT EXISTS review_decisions (
@@ -62,6 +65,9 @@ CREATE TABLE IF NOT EXISTS review_decisions (
   CONSTRAINT review_decisions_approval_needs_grant CHECK(result <> 'approved' OR authority = 'approval_grant'),
   CONSTRAINT review_decisions_approval_needs_hash CHECK(result <> 'approved' OR revision_hash IS NOT NULL),
   CONSTRAINT review_decisions_exceptions_array CHECK(jsonb_typeof(exceptions) = 'array'),
+  -- bounds are a backstop; a non-array never reaches jsonb_array_length
+  CONSTRAINT review_decisions_exceptions_bounds CHECK(jsonb_typeof(exceptions) <> 'array'
+    OR (jsonb_array_length(exceptions) <= 10 AND octet_length(exceptions::text) <= 16384)),
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
   FOREIGN KEY(document_id,tenant_id,project_id) REFERENCES document_records(id,tenant_id,project_id),
   FOREIGN KEY(document_revision_id,document_id) REFERENCES document_revisions(id,document_id),
@@ -79,6 +85,7 @@ CREATE TABLE IF NOT EXISTS document_dependencies (
   version integer NOT NULL DEFAULT 1 CHECK(version > 0),
   CONSTRAINT document_dependencies_not_self CHECK(upstream_document_id <> dependent_document_id),
   CONSTRAINT document_dependencies_flag_pair CHECK(needs_review = (flagged_revision_id IS NOT NULL)),
+  CONSTRAINT document_dependencies_flagged_at_pair CHECK((flagged_at IS NULL) = (flagged_revision_id IS NULL)),
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
   FOREIGN KEY(upstream_document_id,tenant_id,project_id) REFERENCES document_records(id,tenant_id,project_id),
   FOREIGN KEY(dependent_document_id,tenant_id,project_id) REFERENCES document_records(id,tenant_id,project_id),
@@ -93,6 +100,8 @@ CREATE TABLE IF NOT EXISTS review_events (
   entity_type text NOT NULL CHECK(entity_type IN ('review_decision','review_comment','document_dependency','review_delegation')),
   entity_id uuid NOT NULL, actor_id uuid NOT NULL, kind text NOT NULL,
   request_id uuid NOT NULL, trace_id uuid NOT NULL, payload jsonb NOT NULL,
+  CONSTRAINT review_events_kind_length CHECK(length(kind) BETWEEN 1 AND 64),
+  CONSTRAINT review_events_payload_size CHECK(octet_length(payload::text) <= 8192),
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id)
 );
 
@@ -249,17 +258,21 @@ CREATE TRIGGER review_delegations_revoke_guard BEFORE UPDATE ON review_delegatio
   FOR EACH ROW EXECUTE FUNCTION public.review_delegations_revoke_guard();
 
 -- Decision guard (S38). Authority first (LTR01), then the revision, then freshness, then the freezing rule for an approval. Sentences carry no names.
--- The document row is read FOR SHARE so a revision proposed concurrently waits for this decision to commit instead of slipping past the freshness check.
+-- The document row is read FOR NO KEY UPDATE: a revision proposed concurrently waits for this decision to commit instead of slipping past the freshness
+-- check, and two deciders serialise here instead of both holding a share lock and deadlocking when each updates the row.
 CREATE OR REPLACE FUNCTION public.review_decisions_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE rec record; rev record; authorised boolean;
 BEGIN
   SELECT d.doc_type, d.latest_revision_id, d.version INTO rec FROM public.document_records d
-    WHERE d.id = NEW.document_id AND d.tenant_id = NEW.tenant_id AND d.project_id = NEW.project_id FOR SHARE;
+    WHERE d.id = NEW.document_id AND d.tenant_id = NEW.tenant_id AND d.project_id = NEW.project_id FOR NO KEY UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'A decision names a document of the project'; END IF;
   IF NEW.authority = 'review_delegation' THEN
     authorised := EXISTS (SELECT 1 FROM public.review_delegations g WHERE g.id = NEW.delegation_id AND g.tenant_id = NEW.tenant_id
-      AND g.project_id = NEW.project_id AND g.delegate_id = NEW.decided_by AND g.revoked_at IS NULL AND rec.doc_type = ANY(g.doc_types));
+      AND g.project_id = NEW.project_id AND g.delegate_id = NEW.decided_by AND g.revoked_at IS NULL AND rec.doc_type = ANY(g.doc_types))
+      -- the delegate must still be an active member with a reading role (S51), as the approval branch re-checks through document_approvers
+      AND EXISTS (SELECT 1 FROM public.bom_eligible_members(NEW.project_id, ARRAY[NEW.decided_by]) e
+        WHERE e.project_role IN ('manager','engineer','technical','business'));
   ELSIF NEW.authority = 'approval_grant' THEN
     authorised := EXISTS (SELECT 1 FROM public.document_approvers(NEW.project_id) a WHERE a.user_id = NEW.decided_by AND rec.doc_type = ANY(a.doc_types));
   ELSE
@@ -288,17 +301,21 @@ DROP TRIGGER IF EXISTS review_decisions_guard ON review_decisions;
 CREATE TRIGGER review_decisions_guard BEFORE INSERT ON review_decisions
   FOR EACH ROW EXECUTE FUNCTION public.review_decisions_guard();
 
--- Approved pointer guard (S7). The operational login keeps the direct path of slice 1; every other role moves the pointer only to a revision
--- that carries an approval decision and is frozen. Setting it back to NULL is refused for them as well.
+-- Approved pointer guard (S7). The operational login keeps the direct path of slice 1. Every other role moves the pointer only (a) to the document's
+-- latest revision, (b) in the transaction of the person who recorded the approval, (c) when that revision carries an approval decision and is frozen.
+-- Setting it back to NULL, or back to an older approved revision, is refused for them.
 CREATE OR REPLACE FUNCTION public.document_records_approval_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
   IF coalesce((SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname = current_user), false) THEN RETURN NEW; END IF;
   IF NEW.approved_revision_id IS DISTINCT FROM OLD.approved_revision_id THEN
-    IF NEW.approved_revision_id IS NULL OR NOT EXISTS (
+    IF NEW.approved_revision_id IS NULL
+      OR NEW.approved_revision_id IS DISTINCT FROM NEW.latest_revision_id
+      OR NOT EXISTS (
       SELECT 1 FROM public.review_decisions d
       JOIN public.document_revisions v ON v.id = d.document_revision_id AND v.document_id = d.document_id
       WHERE d.document_revision_id = NEW.approved_revision_id AND d.document_id = NEW.id AND d.result = 'approved'
+        AND d.decided_by = nullif(pg_catalog.current_setting('app.person_id', true), '')::uuid
         AND v.snapshot_ref IS NOT NULL AND v.hash_verification = 'verified' AND v.source_hash IS NOT NULL) THEN
       RAISE EXCEPTION 'Approved pointer requires an approval decision on a frozen revision';
     END IF;
@@ -309,6 +326,32 @@ $$;
 DROP TRIGGER IF EXISTS document_records_approval_guard ON document_records;
 CREATE TRIGGER document_records_approval_guard BEFORE UPDATE OF approved_revision_id ON document_records
   FOR EACH ROW EXECUTE FUNCTION public.document_records_approval_guard();
+
+-- Flag guard (slice 3 builds no un-flagging). For every role the identity of a dependency is frozen and the version moves by exactly one; for every
+-- role but the operational login a flag can be set or moved to a newer revision, never cleared.
+CREATE OR REPLACE FUNCTION public.document_dependencies_flag_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF NEW.id IS DISTINCT FROM OLD.id OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id OR NEW.project_id IS DISTINCT FROM OLD.project_id
+    OR NEW.upstream_document_id IS DISTINCT FROM OLD.upstream_document_id OR NEW.upstream_revision_id IS DISTINCT FROM OLD.upstream_revision_id
+    OR NEW.dependent_document_id IS DISTINCT FROM OLD.dependent_document_id OR NEW.confirmed_by IS DISTINCT FROM OLD.confirmed_by
+    OR NEW.note IS DISTINCT FROM OLD.note OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'Only the flag columns of a dependency change';
+  END IF;
+  IF NEW.version IS DISTINCT FROM OLD.version + 1 THEN
+    RAISE EXCEPTION 'A dependency version moves by exactly one';
+  END IF;
+  IF NOT coalesce((SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname = current_user), false) THEN
+    IF NEW.needs_review IS NOT TRUE OR NEW.flagged_revision_id IS NULL THEN
+      RAISE EXCEPTION 'A dependency flag is set or advanced, not cleared';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS document_dependencies_flag_guard ON document_dependencies;
+CREATE TRIGGER document_dependencies_flag_guard BEFORE UPDATE ON document_dependencies
+  FOR EACH ROW EXECUTE FUNCTION public.document_dependencies_flag_guard();
 
 -- History: comments, decisions and events never change; delegations and dependencies are never deleted.
 DROP TRIGGER IF EXISTS review_comments_immutable ON review_comments;

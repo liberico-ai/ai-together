@@ -1,0 +1,24 @@
+npx vitest run tests/review-schema.test.ts   # m1: remove F-1 membership condition (delegate eligibility)
+   × a delegate who lost the project role or was deactivated cannot decide, although the delegation was never revoked 446ms
+   × each authority branch raises its own SQLSTATE and no integrity branch does 449ms
+      Tests  2 failed | 31 passed | 1 skipped (34)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-schema.test.ts > a delegate who lost the project role or was deactivated cannot decide, although the delegation was never revoked
+ FAIL  tests/review-schema.test.ts > each authority branch raises its own SQLSTATE and no integrity branch does
+
+npx vitest run tests/review-schema.test.ts   # m2: remove F-3 condition (a), pointer only to the latest revision
+   × the approved pointer cannot go back to an older approved revision, nor be moved by anyone but the approver 465ms
+      Tests  1 failed | 32 passed | 1 skipped (34)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-schema.test.ts > the approved pointer cannot go back to an older approved revision, nor be moved by anyone but the approver
+
+npx vitest run tests/review-schema.test.ts   # m3: remove F-4 'cannot clear' condition
+   × a dependency cannot point a document at itself and is unique per pair 463ms
+   × runtime sets or advances a dependency flag but cannot clear it; the version moves by exactly one 457ms
+   × each authority branch raises its own SQLSTATE and no integrity branch does 468ms
+      Tests  3 failed | 30 passed | 1 skipped (34)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/review-schema.test.ts > a dependency cannot point a document at itself and is unique per pair
+ FAIL  tests/review-schema.test.ts > runtime sets or advances a dependency flag but cannot clear it; the version moves by exactly one
+ FAIL  tests/review-schema.test.ts > each authority branch raises its own SQLSTATE and no integrity branch does
+
