@@ -1,0 +1,35 @@
+{
+  "name": "doc_reviewer",
+  "version": "0.1.0",
+  "owner": "BoM Tech",
+  "attribution": [
+    {
+      "ref": "docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:97-104",
+      "note": "viết mới theo bảng năng lực; không chép từ khung ngoài"
+    }
+  ],
+  "prompt": {
+    "path": "skills/doc-reviewer/prompt.md",
+    "sha256": "93df752c216792acdf75f5dc4b67318a5413ec4d6b1c2706efe240af3e56df27"
+  },
+  "inputContract": "SkillContext/v1",
+  "outputContract": "SkillOutput/doc_reviewer/v1",
+  "toolAllowlist": [],
+  "dataScope": {
+    "projectScope": "single",
+    "kinds": [
+      "document",
+      "document_revision"
+    ],
+    "ibsHi": "pointer_hash_metadata_only",
+    "hiddenText": "never"
+  },
+  "evalSet": {
+    "path": "skills/doc-reviewer/eval.json",
+    "sha256": "1cce5bbfe61dbd4fb40f0d51dd59a4ab4dcd3dc8bda51f60b87c64ce5f992b21",
+    "cases": 5
+  },
+  "modelBinding": "none",
+  "enabled": false,
+  "hash": "4fea7dea151e384fba80d7a9d6093865942e68f06e1163dd4e2dd2f3992285da"
+}

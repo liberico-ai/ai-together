@@ -1,0 +1,35 @@
+{
+  "name": "technical_writer",
+  "version": "0.1.0",
+  "owner": "BoM Tech",
+  "attribution": [
+    {
+      "ref": "docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:97-104",
+      "note": "viết mới theo bảng năng lực; không chép từ khung ngoài"
+    }
+  ],
+  "prompt": {
+    "path": "skills/technical-writer/prompt.md",
+    "sha256": "6a601c3e7ceb6fc010c2f59578d740ff4b512862d03a7b518b4aac4e938871b2"
+  },
+  "inputContract": "SkillContext/v1",
+  "outputContract": "SkillOutput/technical_writer/v1",
+  "toolAllowlist": [],
+  "dataScope": {
+    "projectScope": "single",
+    "kinds": [
+      "document",
+      "document_revision"
+    ],
+    "ibsHi": "pointer_hash_metadata_only",
+    "hiddenText": "never"
+  },
+  "evalSet": {
+    "path": "skills/technical-writer/eval.json",
+    "sha256": "099ece98779511c1c1ff7ecc894b38bee8b16a839a09b62045030d3b880c6503",
+    "cases": 5
+  },
+  "modelBinding": "none",
+  "enabled": false,
+  "hash": "0621ab704ef70580298c0d2a70f35114a33554e475eafaa17f572a9cfb466897"
+}

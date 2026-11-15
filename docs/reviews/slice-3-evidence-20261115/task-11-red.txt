@@ -1,0 +1,7 @@
+RED run: npx vitest run tests/skills-manifest.test.ts tests/skills-eval.test.ts tests/skill-contracts.test.ts tests/skill-context.test.ts (before src/server/skills.ts and skills/ exist; expected: module not found)
+ FAIL  tests/skills-eval.test.ts [ tests/skills-eval.test.ts ]
+Error: Cannot find module '../src/server/skills' imported from <worktree>/tests/skills-eval.test.ts
+ FAIL  tests/skills-manifest.test.ts [ tests/skills-manifest.test.ts ]
+Error: Cannot find module '../src/server/skills' imported from <worktree>/tests/skills-manifest.test.ts
+ Test Files  2 failed | 2 passed (4)
+      Tests  47 passed (47)
