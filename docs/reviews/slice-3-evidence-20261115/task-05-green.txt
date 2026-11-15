@@ -1,0 +1,10 @@
+npx vitest run tests/document-review.test.ts tests/documents.test.ts tests/document-cases.test.ts tests/documents-http.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  4 passed (4)
+      Tests  72 passed (72)
+   Start at  13:35:03
+   Duration  34.45s (tests 99%)
+

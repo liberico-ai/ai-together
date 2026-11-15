@@ -1,0 +1,10 @@
+npx vitest run tests/document-review.test.ts tests/documents.test.ts tests/document-cases.test.ts tests/documents-http.test.ts tests/document-review-concurrency.test.ts tests/documents-concurrency.test.ts   # native: SLICE1_* variables from $SLICE3_ENV_FILE exported
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  6 passed (6)
+      Tests  80 passed (80)
+   Start at  13:35:38
+   Duration  24.55s (tests 99%, import 1%)
+

@@ -1,0 +1,26 @@
+npx vitest run tests/document-review.test.ts tests/documents.test.ts tests/document-cases.test.ts tests/documents-http.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+ ❯ tests/document-review.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-review.test.ts [ tests/document-review.test.ts ]
+Error: Cannot find module '../src/server/document-review' imported from <worktree>/tests/document-review.test.ts
+ ❯ tests/document-review.test.ts:7:1
+      5| import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtu…
+      6| import {approver,delegate,frozenRevision,grantDocApproval,proposeRev,r…
+      7| import {eligibility,isFrozen,revisionDiff,ReviewService,type ReviewIte…
+       | ^
+      8| import {DocumentService} from '../src/server/documents';
+      9| import {ids} from '../src/server/identities';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  46 passed (46)
+   Start at  13:31:07
+   Duration  22.34s (tests 99%, import 1%)
+

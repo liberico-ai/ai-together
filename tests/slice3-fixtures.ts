@@ -122,3 +122,14 @@ export async function delegate(h:Harness,projectId:string,delegateId:string,docT
 export async function revokeDelegation(h:Harness,id:string):Promise<void> {
  await h.operator.query("UPDATE review_delegations SET revoked_at=now(),revoked_by=$2,revoke_basis='Thu hồi mẫu' WHERE id=$1",[id,pm.id]);
 }
+
+/** Wraps a database so that, inside a transaction, `hook` runs once, just before the first statement whose text matches `pattern`.
+ * The hook uses another connection (the operational login) to change what the service has already read; it must not touch the service's own transaction. */
+export function beforeStatement(db:Database,pattern:RegExp,hook:()=>Promise<void>):Database {
+ let fired=false;
+ const wrap=(q:Queryable):Queryable=>({query:async<T=Record<string,unknown>>(sql:string,params?:unknown[])=>{
+  if(!fired&&pattern.test(sql)){fired=true;await hook();}
+  return q.query<T>(sql,params);
+ }});
+ return {...wrap(db),transaction:fn=>db.transaction(tx=>fn(wrap(tx))),close:()=>db.close()};
+}
