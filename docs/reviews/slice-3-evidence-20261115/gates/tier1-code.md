@@ -185,3 +185,102 @@ Deferred (P3, out of scope):
 - The receipt items above still stand: there are no browser hand checks, the screen state transitions are static-render only, and the P2-3 and P2-4 numbers are owed.
 
 VERDICT after the fix wave: READY
+
+## Class sweep before the gate's last run (c363992)
+
+I read the committed text only (`git show c363992:<path>`) and ran nothing. These items were already known and are not repeated here: link revision, decide fingerprint, closed thread, `reassignmentState` applied<3, the `conflicting_sources` cases of release_librarian/doc_reviewer, and the 020 pointer guard. Schema guards are left to the database reviewer. Unless marked otherwise, every finding is #fact from the cited line.
+
+### Class 1: «whatever is current» instead of what the caller saw
+
+| Write | What the command names | What the service compares, and under which lock | Answer when the state moved |
+|---|---|---|---|
+| `ReviewService.comment` kind `comment` (`document-review.ts:250-256`) | revisionId | `rec.latest_revision_id` under the document row's FOR UPDATE (`:246`) | REVISION_CONFLICT; REVIEW_ALREADY_DECIDED if decided |
+| `comment` `addressed`/`resolved` (`:257-267`) | parentId only | parent exists, follow-up rule, `threadClosed` under the same row lock | COMMENT_RESOLVED. The thread's open/closed state is the only state the reply depends on, and it is re-checked under the lock. Naming the revision is not needed: the reply attaches to the parent's revision. |
+| `ReviewService.decide` (`:290-301`) | revisionId, sourceHash, expectedVersion | latest, hash and record version all under the row lock; the pointer UPDATE carries `version=$3` (`:318`) | REVISION_CONFLICT |
+| `DelegationService.grant` (`review-delegations.ts:138-154`) | nothing (a create) | caller and delegate roles read from the DB in the transaction; the LTR02 guard; the live-row UNIQUE | DELEGATION_EXISTS / DELEGATION_INVALID / 404. Acceptable for a create. |
+| `DelegationService.revoke` (`:176-183`) | expectedVersion | `version=$5 AND revoked_at IS NULL` in the UPDATE | DELEGATION_CONFLICT |
+| `DependencyService.link` (`document-dependencies.ts:78-84`) | upstreamRevisionId | latest under FOR SHARE | REVISION_CONFLICT (the known fix holds) |
+| `DocumentService.proposeRevisionIn` (`documents.ts:156,166`) | expectedVersion, basedOnRevisionId | both under FOR UPDATE | REVISION_CONFLICT |
+| `SuggestionService.decide` (`suggestions.ts:143-191`) | valueHash (+ the revision body for a document draft) | the draft's own hash under the advisory lock. **Nothing is compared with the draft's input.** | see C1-1 |
+| `review-http.ts` handlers (`:57-77`) | path id goes to the service; no state of its own | — | — |
+
+- **C1-1 (P2) A draft is confirmed against a context that may have moved since the draft was made.**
+  - The draft stores `input_hash` (`suggestions.ts:96-99`), and nothing ever reads it back. `grep input_hash` in src finds only that insert.
+  - The confirmation path (`:175-185`) rebuilds the context *now* and checks only that the draft's cited ids are still in it. `buildSkillContextIn` returns every revision up to the cap (`skill-context.ts` revisions query), so an older revision still passes.
+  - The decide command names nothing about the candidate or document state the person saw.
+  - Scenario for a document: doc_reviewer drafts against revision 3. Someone proposes revision 4. A person confirms the draft with a body based on 4. The confirmation is accepted, and the new revision 5 is recorded as coming from a draft that analysed revision 3.
+  - Scenario for an intake candidate: a correcting message arrives in the thread after the draft, and the confirmation is still accepted.
+  - No route reaches this today (Z4 is off), hence P2 and not P1.
+  - Smallest fix: hold the confirmation with `INPUT_MOVED` when the draft is older than the newest context item. For a document draft, that means the draft's cited `document_revision` is not `latestRevisionId`. For a candidate, a visible message's `observedAt` is later than the draft's `created_at`. Alternative: recompute and compare the input hash, if its formula is defined server-side.
+
+### Class 2: fingerprint or replay narrower than the command
+
+| Claim / replay | Fingerprint or replay fields | Parsed command and path | Covered? |
+|---|---|---|---|
+| `comment` (`document-review.ts:247`) | op, documentId, ...input | path documentId + discriminated body (defaults applied) | yes |
+| `decide` (`:289`) | op, documentId, ...input | path documentId + revisionId, sourceHash, expectedVersion, result, scopeNote, exceptions | yes |
+| `grant` (`review-delegations.ts:143`) | op, ...input | projectId, delegateId, docTypes (sorted), basis | yes |
+| `revoke` (`:172`) | op, delegationId, ...input | path delegationId + expectedVersion, basis | yes |
+| `link` (`document-dependencies.ts:81`) | op, ...input | projectId, both document ids, upstreamRevisionId, note | yes |
+| `proposeRevisionIn` manual (`documents.ts:164,181`) | op, documentId, ...input | path + full proposeSchema | yes |
+| draft `decide` (`suggestions.ts:152`) | op, draftId, ...input | path draftId + result, valueHash, reason, revision | yes (known fix holds) |
+| `register` (`documents.ts:129`) | op, ...input | full registerSchema | yes |
+| `review_decisions.command_key` | no hand-rolled replay; replay goes through the claim, and `ON CONFLICT(document_revision_id)` → REVIEW_ALREADY_DECIDED | — | yes |
+| `draft_decisions.command_key` | no hand-rolled replay; `ON CONFLICT(draft_id)` → DRAFT_ALREADY_DECIDED | — | yes |
+| `ai_drafts.dedupe_key` replay (`suggestions.ts:102-104`) | project, skill, entityType, entityId, valueHash | + **inputHash, modelVersion**, traceId | **no**, see C2-1 |
+
+- **C2-1 (P2) The draft dedupe replay ignores `inputHash` and `modelVersion`.**
+  - Scenario: the pipeline retries key K after the source changed (or with another model). The output is the same, so the valueHash is the same. The service answers `stored:false` with the old draft id, so the pipeline believes the draft for input B / model M2 is stored, while the row records input A / M1.
+  - The provenance fields are part of the command's content. `traceId` differs per attempt by design, so leaving it out is right.
+  - Fix: select `input_hash, model_version` and add both to the comparison at `:104`.
+- P3: `grant` re-checks the delegate's role (`:141-142`) before the claim. A same-key replay after the delegate left therefore answers DELEGATION_INVALID instead of the recorded result. This refuses rather than misleads, so it is P3.
+
+### Class 3: a label that can say more than its facts
+
+| Derived value | Facts read | Over-claim found |
+|---|---|---|
+| `eligibility` (`document-review.ts:85-95`) | decided, author, delegation types, approval types, frozen | none: each reason follows from its row |
+| `approverState` (`:175`) | `document_approvers` minus the author | none |
+| `isFrozen` / «Nguồn đã đóng băng» (`:58`, `review.tsx:151`) | snapshot_ref, verified, hash non-null | none |
+| `hashLabel` «đã kiểm» (`review-view.ts:47`; `review.tsx:35`, `:152`) | `hash_verification` only | C3-3 (queue line) |
+| `canAddress`/`canResolve` (`:202-205`) | follow-up rule, thread closed | none (same rule as the command) |
+| review card `state`, `quorum`, `reviewLabels` (`decisions.ts:41-45`, `decisions-view.ts:36-41`) | the decision row | none: vote and baseline are separate lines |
+| review card `appliedReceipt` / «Đã áp dụng làm bản chuẩn» / «Biên nhận lúc» (`decisions.ts:37,44`; `decisions.tsx:29,31`) | approved decision + pointer = revision | C3-2 |
+| `reassignmentState` (`decisions.ts:28-33`) | stored state, agree count, receipt | C3-4 (another combination in the function being fixed) |
+| reassignment «Đã áp dụng · biên nhận» line (`decisions.tsx:46`) | receipt only | **C3-1** |
+| «Đủ phiếu» (`decisions-view.ts:24`) | `quorum_met` | via C3-4 only |
+| truncation flags (`list-cut.ts`; `review-delegations.ts:114,126`; `decisions.ts:81`; `document-review.ts:195`) | fetched vs cap / total | C3-5 |
+| `designatorIsCoordinator`, `dormant` (`review-delegations.ts:121`; `review.tsx:64-65`) | granter / delegate current role | none: «không còn là điều phối» and «đang ngủ» are what the roles say; shown only to a coordinator |
+
+- **C3-1 (P2) A reconcile card still says «Đã áp dụng».**
+  - `decisions.tsx:46` prints «Đã áp dụng · biên nhận lúc …» whenever `appliedReceipt` exists. The quorum line (`:39,45`) and `reassignmentState` (`decisions.ts:30`) read `reconcile` when a receipt exists on a stored `pending` / `rejected` / `cancelled` / `expired` proposal.
+  - Scenario: an operator, or a bug, leaves a receipt on a rejected proposal. The card shows «Cần đối soát» and, on the next line, «Đã áp dụng». The brief keeps «đã áp dụng» and «biên nhận» as separate facts, and the stored state does not establish «applied».
+  - Fix: print «Đã áp dụng» only when the shown state is `applied`. Otherwise print «Có biên nhận lúc … — cần đối soát».
+  - This is the file being edited now, and a different combination from the known item.
+- **C3-2 (P3) The review card's «Biên nhận lúc» is not a receipt.** It is the decision's `decidedAt` (`decisions.ts:44`), labelled as a receipt, and no receipt row exists for a review decision. The time is right only if the pointer moved in the decision's own transaction. Fix: label it «Áp dụng cùng quyết định lúc …», or drop the line.
+- **C3-3 (P3) The queue line prints a hash label when there is no hash.** `review.tsx:35` prints «hash tự khai — chưa kiểm» even when `sourceHash` is null. If an inconsistent row has `hash_verification='verified'` with a null hash, it prints «hash đã kiểm». Line 152 already handles the null case. Fix: use the same null branch on the queue line.
+- **C3-4 (P2, note for the builder of the in-flight fix)** `decisions.ts:29`: a stored `applied` with **no** receipt and ≥3 agree reads `quorum_met` («Đủ phiếu, chưa áp dụng»). The store says applied and the screen says not applied: two facts disagree, and the fail-closed rule in the comment at `:26-27` says `reconcile`. The UI belt (`decisions.tsx:39`) does not catch it, because the state is already `quorum_met`. Please confirm the fix covers this combination as well as the known one.
+- C3-5 (P3) A non-coordinator's `reviewersTruncated` can be true because of rows the viewer will never see. The SQL fetch cap (`review-delegations.ts:111-114`) counts dormant rows that `visibleDelegation` drops. The screen then says «dài hơn phần đang hiện» while every visible row is shown. It needs more than 1000 rows in one project. Fix: compute `fetchedCut` after the visibility filter, or put the dormant condition in the SQL.
+
+### Class 4: eval cases (30)
+
+The two known cases (release_librarian and doc_reviewer `conflicting_sources`) are skipped. «Fits» means the context exhibits the category, «good» means the good output is acceptable, and «bad» means the bad output is wrong for the stated reason. Injection bads are `toolRequests:[send_message]` in all six skills.
+
+| Skill | fabrication | injection | conflicting | revoked | same name other BU |
+|---|---|---|---|---|---|
+| ba_elicitation | fits, good, bad | fits, good, bad | fits (two rounding rules at once), good, bad | id-absent only; good question presumes a hidden source (C4-3) | id-absent only, good, bad |
+| intake_analyst | fits, good, bad | fits, good, bad | fits (customer 20/11 vs owner 25/11), good, bad | id-absent only, good, bad | **good wrong: C4-2** |
+| pm_planning | fits, good, bad | fits, good, bad | fits (team A 2 weeks vs team B 5 weeks), good, bad | id-absent; C4-3 | id-absent, good, bad |
+| technical_writer | fits, good, bad | fits (injection in the title), good, bad | **does not fit: C4-1** | id-absent; C4-3 | id-absent, good, bad |
+| doc_reviewer | fits; good has an unsourced impact (C4-4) | fits, good, bad | (known) | fits better (r2 without r1 shows a missing base), good, bad | id-absent, good, bad |
+| release_librarian | fits, good, bad | fits, good, bad | (known) | id-absent; C4-3 | id-absent, good, bad |
+
+- **C4-1 (P2) technical_writer `conflicting_sources` is supersession, not conflict.** This is the same defect as the known release_librarian case, in a third skill. `skills/technical-writer/eval.json:4`: revision 1 says 30 days and revision 2, the document's latest, says 90 days. The later revision replaces the earlier value, so the two are not incompatible at the same time. The good output reports a conflict, while the bad output (no conflict) is the honest reading. Fix: two different documents, or two sources dated the same, stating 30 and 90 days.
+- **C4-2 (P2) intake_analyst `same_name_other_bu` good sample marks the message a duplicate of itself.** `skills/intake-analyst/eval.json:6`: the context has one message (`…043`). The good output sets `duplicateOf: "…043"`, but `skill-contracts.ts:100` defines `duplicateOf` as *another* message of the context. A careful person would reject it, and the eval passes it as good. The bad output has the same value, so the bad is also wrong for an incidental reason. Fix: `duplicateOf: null` in both.
+- C4-3 (P3) In the `revoked_access` cases of ba, pm, tw and release_librarian, the good question asserts that something «không còn trong ngữ cảnh» («Tài liệu thứ hai…», «Quy tắc phê duyệt…»). Nothing in the context says such a source existed, so the good output knows what it cannot know. This is the same root as the recorded P3 that these cases test only «id absent». Fix: phrase it as missing («chưa có nguồn về …»), or put a revocation marker in the context.
+- C4-4 (P3) doc_reviewer `fabrication_when_missing` good sample (`skills/doc-reviewer/eval.json:2`) carries the impact «Cần cập nhật kịch bản kiểm rollback». No source says that, so in the one case that tests fabrication, the good output contains an unsourced inference. Fix: `impacts: []`, or tie the impact to a sourced fact.
+
+### Outside the four classes (seen, for the record)
+- `DependencyService.link` (`document-dependencies.ts:74`) and `SuggestionService.decide` (`suggestions.ts:155-157`) take the manager / write role from the session's `projectRole`. `DelegationService` and `ReviewService` re-read the role in the transaction. I found no guard in 020 for the dependency insert or the draft decision (DB reviewer to confirm). Rated P3 if the session principal is rebuilt from memberships on each request, P2 if it is not.
+
+**Counts:** P0 0 · P1 0 · P2 6 (C1-1, C2-1, C3-1, C3-4, C4-1, C4-2) · P3 7.

@@ -505,3 +505,48 @@ The wave changes these entries:
 - **Re-running 019 on embedded starts:** the 019 header now warns later migrations about the CHECK-drop loop. There is no code change.
 
 VERDICT after the fix wave: READY
+
+## Class sweep before the gate's last run (c363992)
+
+Scope: `019`/`020`/`021` and their rollbacks at `c363992` (read with `git show`; `git diff f0d08c8 c363992 -- migrations` is empty), the 014 objects that 020 relies on, and the four service files changed since `f0d08c8`. Not repeated here: the approved-pointer same-transaction gap, the `DependencyService.link` revision and the draft-decision idempotency fingerprint (the coordinator's known items). Read-only; no test was run.
+
+Standing trust boundary (applies to every «same person» row below, not counted again): every attribution policy and guard keys on `app.person_id`, which `libetech_runtime` sets itself with `set_config(...,true)`. «Same person» therefore means «the person the web tier says», which is the trust D-M8 already places on `app.tenant_id`/`app.project_ids`. Recorded as a receipt (A-0, P3), not as a defect.
+
+### Class A — promise versus check
+
+| # | Object (committed text) | Promise | Actual check | Gap |
+|---|---|---|---|---|
+| A-0 | all `runtime_insert`/`runtime_update` policies, 020:154,165,175,185,195,212; 021:116 | «the person who …» | `col = nullif(current_setting('app.person_id',true),'')::uuid` | GUC settable by the runtime role — trust boundary above. P3 receipt |
+| A-1 | `review_decisions_guard` 020:284-287 with 014:124-127 | S7: «author ≠ decider» enforced by the database | compares `NEW.decided_by` with `document_revisions.proposed_by`; the 014 insert policy binds tenant, project, `self_declared` and `snapshot_ref IS NULL` but **not** `proposed_by` | the author side of the check is a free column. Under one fixed `app.person_id`, raw SQL can insert a revision naming another person as `proposed_by`, move `latest_revision_id` to it (020:332-350 allows any higher `revision_no`), then record a `changes_requested` decision on its own content, and comment on it as if it were the author. An `approved` decision is still stopped, because runtime-inserted revisions are never frozen (`snapshot_ref IS NULL`, no UPDATE path). **P2** |
+| A-2 | `document_records_latest_guard` 020:330-350 | «only moves forward» | forward = any existing revision of the same document with a higher `revision_no`; the 014 grant (014:142) lets `latest_revision_id` change without `version` changing, and no guard ties the move to the transaction that inserted the revision | holds for direction. Does not hold for «the next revision» or «version moves with the pointer»: a two-step path (insert rev N+5 now, move the pointer later) is accepted, and the record's `version` can stay unchanged while latest moves. The decision guard's `record_version` check then accepts a decision against a version number that predates the pointer move (it still binds the revision itself, so no wrong revision is decided). P3 |
+| A-3 | `document_dependencies_flag_guard` 020:354-390 | «set or advanced, never cleared; version +1» | enforced as written; «newer» = any higher upstream revision, not the latest, not tied to the proposing transaction; `+1` only, with no expected-version check | matches its own comment; only the schema notes' implication «flag follows a proposal» is service-only. Folded into B-2 |
+| A-4 | `draft_decisions_guard` 021:122-149 (revision clause 139-143) | suggestions.ts order (6): «the person's own revision proposal, under the same claim» | the revision only has to belong to the draft's document; a `confirmed` document draft may carry `document_revision_id IS NULL`; no `proposed_by = decided_by`, no «is the latest» | raw SQL can record «AI draft confirmed → revision X» against an older revision, or another person's revision, so that revision reads as AI-derived. Row is immutable and attributed to the decider, so only the link is weak. P3 |
+| A-5 | `reject_history_mutation` triggers: 014:131; 020:393-402; 021:151-154 | «never change» | `BEFORE UPDATE OR DELETE … FOR EACH ROW`; TRUNCATE not covered | no application role holds TRUNCATE (grants 020:406-414, 021:159-165), so only the owner or the operational login can do it. Already recorded in task 1. P3 |
+| A-6 | `review_comments` 020:31-36; service `document-review.ts:264-266` | a thread is closed by its one `resolved` reply | service-only: a read under the document row lock (`lockRecord`, :227/:246), then a refusal; the schema has no partial unique index on `(parent_id) WHERE kind='resolved'` | the service path is now correct. Raw SQL can add a second `resolved`, or any reply after it. This matches the standing «comment authority is service-only» position. P3 |
+| A-7 | `memberships_doc_approve_guard`, `document_approvers` (019); designation and revoke guards 020:216-258; rollback 019/020/021 | as written | as written (re-read; unchanged since the fix wave) | none found beyond the known item and N-1/N-2 |
+
+### Class B — Z1 change with no DB-required immutable attributed record
+
+| # | Change the runtime role can make | Record the DB requires | Gate phrasing | P |
+|---|---|---|---|---|
+| B-1 | move `document_records.latest_revision_id` (014:142, 020:332-350) | an immutable `document_revisions` row exists, but its `proposed_by` is not bound to the actor (A-1); no `registry_events` row is required; `version` need not change | «a document's latest revision can be moved by the runtime role to a revision whose author column it chose itself» | rated with A-1 (P2) |
+| B-2 | set or advance `document_dependencies.needs_review`/`flagged_revision_id` (020:195-199 policy, 354-390 guard) | none: the row has no `flagged_by`, and `review_events` `dependency.flagged` is written by the service only | «a dependency flag can be set or advanced by the runtime role with no attributed record» | P3 (a flag cannot be cleared, so the worst case is a false «needs review») |
+| B-3 | revoke a delegation | the row itself: `revoked_by = app.person_id` (020:165), a manager check, live→revoked once, stamped | — | none found |
+| B-4 | insert decision, comment, event, draft decision | each row is immutable and bound to `app.person_id` (020:175,185,212; 021:116) | — | none found |
+| B-5 | `approved_revision_id` | known item (not repeated) | — | — |
+
+### Findings and smallest fixes
+
+- **P2 — A-1/B-1. Revision author not bound to the actor** (014:124-127, relied on by 020:287 and 020:332-350).
+  - Fix: in 020 (forward, idempotent), replace the `scope_insert` policy on `document_revisions` with the same predicate plus `AND proposed_by = nullif(current_setting('app.person_id',true),'')::uuid`, and restore the 014 text in `rollback/020`.
+  - The only inserter is `documents.ts:169`, and it sets `app.person_id` first at :155, so no service path changes.
+  - Test: insert a revision as person A with `proposed_by = B` → refused; with no `app.person_id` → refused.
+- **P3 — A-2.** Add `NEW.version = OLD.version + 1` to the latest guard when the pointer moves. Optionally require the target `revision_no = OLD + 1`.
+- **P3 — B-2.** Add `flagged_by uuid` to `document_dependencies`, stamped by the flag guard from `app.person_id` (and refused when it is empty), or accept the gap as service-only and record that in the schema notes.
+- **P3 — A-4.** In `draft_decisions_guard`, for `result='confirmed'` on a document draft, require a non-null revision with `v.proposed_by = NEW.decided_by` and `v.id = (SELECT latest_revision_id FROM document_records WHERE id = d.entity_id)`.
+- **P3 — A-6.** `CREATE UNIQUE INDEX IF NOT EXISTS … ON review_comments(parent_id) WHERE kind='resolved'`. This blocks a second `resolved` but not a reply after one; that part stays service-only.
+- **P3 — A-0, A-5.** Receipts only: the trust boundary, and TRUNCATE held by no app role.
+
+Counts for this sweep: P0 0 · P1 0 · P2 1 · P3 6 (A-0, A-2, A-4, A-5, A-6, B-2).
+
+VERDICT after the class sweep: READY WITH FIXES (one P2, A-1/B-1; the P3s may be deferred with receipts)

@@ -655,3 +655,19 @@ Lời Chairman 12/11/2026 (nguyên văn):
   3. Nháp của dự án `IBS_HI`: (a) vẫn lưu, chỉ chặn lúc xác nhận, như hiện nay; (b) từ chối ngay lúc ghi (cần cấp cho role AI quyền đọc hẹp cờ «chỉ con trỏ», hoặc một thiết kế khác); (c) chỉ lưu mã và hash, không lưu nội dung.
 - **Ai quyết:** Chairman (điểm 3 chạm `AGENTS.md:16`); BoM Tech cho điểm 1 và 2 nếu Chairman giao.
 - **Hành vi hiện tại (không phải phương án được chọn):** (a) ở cả ba điểm. Không tuyến nào gọi `list`; chỉ test gọi. Ca kiểm «no route imports the suggestion service» giữ điều đó cho tới khi có quyết định.
+
+---
+
+**Bổ sung 15/11/2026 sau lượt quét lớp lỗi của reviewer mã tầng 1** (`docs/reviews/slice-3-evidence-20261115/gates/tier1-code.md`, mục «Class sweep before the gate's last run», điểm C1-1; mã ở `c363992`). Ghi khi **chưa có quyết định**, do phiên lát 3 chép từ báo cáo review. **Không chặn task nào của lát 3** (không tuyến HTTP nào cho nháp, Z4 chưa bật, không mô hình nào chạy). Cùng với OQ-45, mục này **chặn việc bật Z4**.
+
+## OQ-46 — Nháp AI dựng trên đầu vào đã cũ có được xác nhận không
+
+- **Lát:** sau lát 3 (trước khi bật Z4); mã liên quan ở Task 12.
+- **Phía A:** lúc xác nhận, dịch vụ dựng lại ngữ cảnh dưới quyền người xác nhận và chạy cổng kiểm đầu ra: nháp bị giữ khi nguồn nó nêu không còn trong ngữ cảnh, chữ của tin đã bị ẩn, manifest đã đổi, hash giá trị lệch, hay dự án chỉ con trỏ. Với nháp tài liệu, người xác nhận còn phải gửi `expectedVersion` của tài liệu, nên **người** không thao tác trên bản cũ. Mỗi nháp lưu `input_hash` do pipeline khai, nhưng không tài liệu nào định nghĩa nó băm cái gì, và dịch vụ không so nó với gì.
+- **Phía B:** mục tiêu của lát (`docs/SLICE-BRIEFS.md:157`): «nguồn đổi giữa chừng thì trả xung đột». Một nháp `doc_reviewer` phân tích bản r3; có người trình bản r4; nháp vẫn xác nhận được, vì các bản cũ vẫn nằm trong ngữ cảnh. Một nháp phân tích tin vẫn xác nhận được sau khi luồng có thêm tin đính chính. SPEC không nói nháp «cũ» nghĩa là gì và ai chịu trách nhiệm nhận ra điều đó.
+- **Phương án:**
+  - (a) Không kiểm thêm, như hiện nay: người xác nhận tự chịu trách nhiệm; giao diện sau này nêu rõ nháp dựng lúc nào và trên bản nào.
+  - (b) Giữ nháp khi **đối tượng của chính nó** đã đổi: tài liệu có bản mới hơn sau lúc nháp được ghi; luồng của ứng viên có tin hoặc bản sửa mới sau lúc đó. Phải định nghĩa «sau» theo mốc nào (thời điểm ghi, hay bản mới nhất mà nháp nêu).
+  - (c) Giữ nháp khi **ngữ cảnh dựng lại không còn y hệt**: định nghĩa `input_hash` là hash của toàn bộ ngữ cảnh và so lúc xác nhận. Chặt nhất; hệ quả là mọi thay đổi trong dự án (kể cả đăng ký một tài liệu không liên quan) làm mọi nháp đang chờ của dự án hết hiệu lực.
+- **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn (cùng lúc với OQ-14 và OQ-45).
+- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a). `input_hash` được lưu và, từ vòng sửa cuối của lát 3, được so khi cùng một khoá khử trùng gửi lại; nó chưa được so lúc xác nhận.
