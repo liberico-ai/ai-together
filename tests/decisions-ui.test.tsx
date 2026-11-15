@@ -101,6 +101,19 @@ describe('decisions UI', () => {
     expect(reviewLabels(review({ state: 'approved', appliedReceipt: { decisionId: U(400), approvedRevisionId: U(300), at: '2026-11-14T03:00:00.000Z' } })).baseline).toBe('Đã áp dụng làm bản chuẩn');
   });
 
+  it('a card with a receipt and fewer than three agreeing votes never reads Đã áp dụng on the vote line, whether the state is reconcile (the service) or a hand-built applied', () => {
+    for (const state of ['reconcile', 'applied'] as const) for (const have of [0, 1, 2]) {
+      const out = cardHtml(reassign({ state, quorum: { needed: 3, have }, appliedReceipt: RECEIPT, actorEligibility: { canVote: false, reason: 'CLOSED' } }));
+      expect(lineOf(out, 'quorum'), state + have).toBe('Cần đối soát');
+      expect(out, state + have).not.toContain('Đã áp dụng');
+      expect(lineOf(out, 'applied'), state + have).toBe('Có biên nhận nhưng trạng thái không khớp — cần đối soát.');
+    }
+    // an applied card (receipt, three agreeing votes) says Đã áp dụng on both lines
+    const ok = cardHtml(reassign({ state: 'applied', quorum: { needed: 3, have: 3 }, appliedReceipt: RECEIPT, actorEligibility: { canVote: false, reason: 'CLOSED' } }));
+    expect(lineOf(ok, 'quorum')).toBe('Đã áp dụng');
+    expect(lineOf(ok, 'applied')).toMatch(/^Đã áp dụng · biên nhận/);
+  });
+
   it('the reassignment label never reads Đã áp dụng for any state without a receipt', () => {
     const wording: Record<ReassignmentCard['state'], string> = { pending: 'Chưa đủ phiếu (1/3)', quorum_met: 'Đủ phiếu, chưa áp dụng', applied: 'Đã áp dụng', rejected: 'Từ chối',
       revise: 'Yêu cầu sửa', cancelled: 'Đã hủy', expired: 'Hết hạn', reconcile: 'Cần đối soát' };
@@ -111,7 +124,7 @@ describe('decisions UI', () => {
         const second = lineOf(out, 'applied') ?? '';
         const label = JSON.stringify({ state, receipt: receipt !== null });
         if (receipt === null) { expect(out, label).not.toContain('Đã áp dụng'); expect(second, label).toBe('Chưa áp dụng'); }
-        else expect(second, label).toMatch(/^Đã áp dụng/);
+        else expect(second, label).toBe('Có biên nhận nhưng trạng thái không khớp — cần đối soát.');   // default quorum have is 1: no card here is applied (D2 extended)
         expect(lineOf(out, 'quorum'), label).not.toBeNull();
       }
     }

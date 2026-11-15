@@ -302,13 +302,22 @@ CREATE TRIGGER review_decisions_guard BEFORE INSERT ON review_decisions
   FOR EACH ROW EXECUTE FUNCTION public.review_decisions_guard();
 
 -- Approved pointer guard (S7). The operational login keeps the direct path of slice 1. Every other role moves the pointer only (a) to the revision that
--- was the document's latest before this statement (OLD, so one UPDATE cannot move both pointers), (b) in the transaction of the person who recorded the approval, (c) when that revision carries an approval decision and is frozen.
--- Setting it back to NULL, or back to an older approved revision, is refused for them.
+-- was the document's latest before this statement (OLD, so one UPDATE cannot move both pointers), (b) when that revision carries an approval decision recorded by the
+-- person named in app.person_id AND inserted in THIS transaction, (c) when that revision is frozen. «This transaction»: the guard reads the decision through the
+-- caller's own snapshot, where a row whose inserting transaction (xmin, a system column the runtime role cannot write) is still in progress can only be the caller's own,
+-- or one inserted inside one of its savepoints; a decision committed earlier has a finished xmin and is refused. This holds across savepoints and needs no clock
+-- (PGlite's clock has millisecond resolution, so transaction_timestamp() could not tell two quick transactions apart). xmin is 32 bits, so the full id is built
+-- around the CURRENT one: candidate = current + (((xmin - current mod 2^32 + 3*2^31) mod 2^32) - 2^31), the nearest id with that low half (a sub-transaction id, a little
+-- above the top-level one, stays in the current epoch; an id from the previous epoch lands below it); anything below 3 is no transaction.
+-- Setting the pointer back to NULL, or back to an older approved revision, is refused for them.
 CREATE OR REPLACE FUNCTION public.document_records_approval_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE cur numeric; cm numeric;
 BEGIN
   IF coalesce((SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname = current_user), false) THEN RETURN NEW; END IF;
   IF NEW.approved_revision_id IS DISTINCT FROM OLD.approved_revision_id THEN
+    cur := pg_catalog.pg_current_xact_id()::pg_catalog.text::pg_catalog.numeric;
+    cm := pg_catalog.mod(cur, 4294967296);
     IF NEW.approved_revision_id IS NULL
       OR NEW.approved_revision_id IS DISTINCT FROM OLD.latest_revision_id
       OR NOT EXISTS (
@@ -316,6 +325,8 @@ BEGIN
       JOIN public.document_revisions v ON v.id = d.document_revision_id AND v.document_id = d.document_id
       WHERE d.document_revision_id = NEW.approved_revision_id AND d.document_id = NEW.id AND d.result = 'approved'
         AND d.decided_by = nullif(pg_catalog.current_setting('app.person_id', true), '')::uuid
+        AND pg_catalog.pg_xact_status((CASE WHEN cur + pg_catalog.mod(d.xmin::pg_catalog.text::pg_catalog.numeric - cm + 6442450944, 4294967296) - 2147483648 >= 3
+              THEN cur + pg_catalog.mod(d.xmin::pg_catalog.text::pg_catalog.numeric - cm + 6442450944, 4294967296) - 2147483648 END)::pg_catalog.text::pg_catalog.xid8) = 'in progress'
         AND v.snapshot_ref IS NOT NULL AND v.hash_verification = 'verified' AND v.source_hash IS NOT NULL) THEN
       RAISE EXCEPTION 'Approved pointer requires an approval decision on a frozen revision';
     END IF;
@@ -326,6 +337,16 @@ $$;
 DROP TRIGGER IF EXISTS document_records_approval_guard ON document_records;
 CREATE TRIGGER document_records_approval_guard BEFORE UPDATE OF approved_revision_id ON document_records
   FOR EACH ROW EXECUTE FUNCTION public.document_records_approval_guard();
+
+-- Author of a revision (Codex round 2, D4). The decision guard and the latest-pointer guard trust document_revisions.proposed_by ("the author does not decide
+-- their own revision"), so the runtime insert policy of 014 gets one more condition: the author is the person named in the transaction (app.person_id, set by
+-- the service from the session). Same name, same scope and self-declared conditions as 014; only proposed_by is added. Rolled back to 014's text by the rollback file.
+DROP POLICY IF EXISTS scope_insert ON document_revisions;
+CREATE POLICY scope_insert ON document_revisions FOR INSERT
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+    AND hash_verification = 'self_declared' AND snapshot_ref IS NULL
+    AND proposed_by = nullif(current_setting('app.person_id',true),'')::uuid);
 
 -- Latest-revision pointer guard. The decision guard and the approved-pointer guard trust document_records.latest_revision_id, so the runtime role may
 -- only move it forward: to a revision of this document with a higher revision_no than the current one. The operational login keeps its direct path.

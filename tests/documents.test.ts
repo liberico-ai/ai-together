@@ -145,6 +145,7 @@ describe('document tables',()=>{
       "INSERT INTO document_templates(tenant_id,code,template_version,doc_type,title,path,content_hash) VALUES($1,'TX','1','other','x','p',$2)",[ids.tenant,'a'.repeat(64)]))).rejects.toThrow();
     await expect(rec(ids.sales,ids.tenant,'https://docs.google.com/t4')).resolves.toBeTruthy();
     const revision=(p:typeof pm,project:string,tenant:string)=>scoped(h.db,p,async tx=>{
+      await tx.query("SELECT set_config('app.person_id',$1,true)",[p.id]);
       const id=(await tx.query<{id:string}>("SELECT id FROM document_records LIMIT 1")).rows[0].id;
       return tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://docs.google.com/u','drive',$4)",[tenant,project,id,p.id]);
     });
@@ -152,9 +153,9 @@ describe('document tables',()=>{
   });
   test('runtime cannot set the approved pointer, a verified hash or a snapshot',async()=>{
     const d=await (async()=>{await templates();return svc().register(pm,base(),'doc-key-0001');})();
-    const ins=(extra:string,val:unknown)=>scoped(h.db,pm,tx=>tx.query(
+    const ins=(extra:string,val:unknown)=>scoped(h.db,pm,async tx=>{await tx.query("SELECT set_config('app.person_id',$1,true)",[pm.id]);return tx.query(
       `INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by,${extra}) VALUES($1,$2,$3,1,'https://docs.google.com/u','drive',$4,$5)`,
-      [ids.tenant,ids.sales,d.record.id,pm.id,val]));
+      [ids.tenant,ids.sales,d.record.id,pm.id,val]);});
     await expect(ins('hash_verification','verified')).rejects.toThrow();
     await expect(ins('snapshot_ref','x')).rejects.toThrow();
     await expect(ins('hash_verification','self_declared')).rejects.toThrow(/permission denied/); // column not granted; the default is self_declared
@@ -165,6 +166,22 @@ describe('document tables',()=>{
     await expect(scoped(h.db,pm,tx=>tx.query('UPDATE document_records SET latest_revision_id=$1,version=version+1,updated_at=now() WHERE id=$2',[revId,d.record.id]))).resolves.toBeTruthy();
     await expect(h.operator.query('UPDATE document_revisions SET changes=\'{}\'')).rejects.toThrow('Append-only history');
     await expect(h.operator.query('DELETE FROM document_records')).rejects.toThrow();
+  });
+  test('D4 the author of a revision is the acting person at the database: another author, or no person, is refused',async()=>{
+    await templates();
+    const d=await svc().register(pm,base(),'doc-key-0001');
+    const insert=(personId:string|null,author:string)=>scoped(h.db,pm,async tx=>{
+      if(personId) await tx.query("SELECT set_config('app.person_id',$1,true)",[personId]);
+      return tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://docs.google.com/u','drive',$4) RETURNING id",
+        [ids.tenant,ids.sales,d.record.id,author]);
+    });
+    const refusal=async(p:Promise<unknown>)=>{const e=await p.then(()=>null,x=>x);expect(e,'expected a refusal').toBeTruthy();expect((e as {code?:string}).code).toBe('42501');expect(String((e as Error).message)).toMatch(/row-level security/);};
+    await refusal(insert(pm.id,member.id));      // person A names person B as the author
+    await refusal(insert(null,pm.id));           // no person in the transaction
+    await refusal(insert(member.id,pm.id));
+    expect(await count('document_revisions')).toBe(0);
+    await expect(insert(pm.id,pm.id)).resolves.toBeTruthy();
+    expect(await count('document_revisions')).toBe(1);
   });
   test('runtime cannot claim a source state or a source check time',async()=>{
     for(const [col,val] of [['source_state','fresh'],['source_checked_at','2026-01-01T00:00:00Z']])
@@ -177,7 +194,7 @@ describe('document tables',()=>{
     await templates();
     const a=await svc().register(pm,base(),'doc-key-0001');
     const b=await svc().register(pm,{...base(),canonicalUri:'https://docs.google.com/docs/b'},'doc-key-0002');
-    await scoped(h.db,pm,tx=>tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://docs.google.com/u','drive',$4)",[ids.tenant,ids.sales,a.record.id,pm.id]));
+    await scoped(h.db,pm,async tx=>{await tx.query("SELECT set_config('app.person_id',$1,true)",[pm.id]);return tx.query("INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by) VALUES($1,$2,$3,1,'https://docs.google.com/u','drive',$4)",[ids.tenant,ids.sales,a.record.id,pm.id]);});
     const rev=(await h.operator.query<{id:string}>('SELECT id FROM document_revisions')).rows[0].id;
     await expect(scoped(h.db,pm,tx=>tx.query('UPDATE document_records SET latest_revision_id=$1 WHERE id=$2',[rev,b.record.id]))).rejects.toThrow();
   });

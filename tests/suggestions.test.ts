@@ -205,6 +205,24 @@ describe('Z4 drafts: submit',()=>{
   expect(await n('intelligence.ai_drafts')).toBe(1);
  });
 
+ test('D5 the replay covers the whole envelope: another inputHash or another modelVersion under the same key is a conflict; identical is the same draft id',async()=>{
+  const d=await doc(),key='dk-'+randomUUID(),o=out('technical_writer',[d.record.id]);
+  const e=(over:R={})=>env('document',d.record.id,'technical_writer',o,{dedupeKey:key,...over});
+  const first=await svc().submitDraft(ai,e());
+  expect(await svc().submitDraft(ai,e())).toEqual({draftId:first.draftId,stored:false});
+  const err1=await refused(svc().submitDraft(ai,e({inputHash:'d'.repeat(64)})),'IDEMPOTENCY_CONFLICT',409);
+  expect(err1.message).toBe(CONFLICT);
+  await refused(svc().submitDraft(ai,e({modelVersion:'synthetic-model-2'})),'IDEMPOTENCY_CONFLICT',409);
+  // the trace id is per attempt and is not part of the identity of the draft
+  expect(await svc().submitDraft(ai,e({traceId:randomUUID()}))).toEqual({draftId:first.draftId,stored:false});
+  // the skill version and manifest hash on the stored row are compared with the current ones: a row written under an older skill is not this envelope
+  for(const [col,val] of [['skill_version','0.0.1'],['manifest_hash','e'.repeat(64)]] as const) {
+   const key2='dk-'+randomUUID();
+   await rawDraft({entityType:'document',entityId:d.record.id,value:o,over:{dedupe_key:key2,input_hash:'c'.repeat(64),model_version:'synthetic-model-1',[col]:val}});
+   await refused(svc().submitDraft(ai,e({dedupeKey:key2})),'IDEMPOTENCY_CONFLICT',409);
+  }
+ });
+
  test('R12-f a skill and entity pair the context builder could never honour is refused before any statement',async()=>{
   const c=await candidate(),d=await doc();
   await refused(svc(handle).submitDraft(ai,env('intake_candidate',c.candidateId,'technical_writer',out('technical_writer',[c.sourceEventId]))),'DRAFT_INVALID',422);

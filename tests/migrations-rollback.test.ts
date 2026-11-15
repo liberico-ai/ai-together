@@ -234,6 +234,8 @@ test('rollback 020 refuses while an approval decision exists and while a later m
       AND p.proname IN ('review_delegations_guard','review_delegations_revoke_guard','review_decisions_guard','document_records_approval_guard','document_dependencies_flag_guard','document_records_latest_guard') ORDER BY 1`)).map(r=>r.n),
     pointerGrant:(await q<{ok:boolean}>("SELECT has_column_privilege('libetech_runtime','public.document_records','approved_revision_id','UPDATE') ok"))[0].ok,
   });
+  /** The insert policy of document_revisions: 014's text, or 014's plus the author binding of 020 (D4 of the Codex gate, round 2). */
+  const policy=async()=>(await q<{w:string}>("SELECT with_check w FROM pg_policies WHERE tablename='document_revisions' AND policyname='scope_insert'")).map(r=>r.w);
   const nineteen=async()=>({
     guard:(await q<{d:string}>("SELECT pg_get_triggerdef(oid) d FROM pg_trigger WHERE tgname='memberships_doc_approve_guard' AND NOT tgisinternal")).map(r=>r.d),
     reader:(await q<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname='document_approvers'")).map(r=>r.d),
@@ -251,6 +253,8 @@ test('rollback 020 refuses while an approval decision exists and while a later m
     const full=await objects();
     expect(full.triggers).toHaveLength(6);expect(full.functions).toHaveLength(6);expect(full.pointerGrant).toBe(true);
     expect(await present()).toEqual(tables);
+    const withAuthor=await policy();
+    expect(withAuthor).toHaveLength(1);expect(withAuthor[0]).toMatch(/app\.person_id/);expect(withAuthor[0]).toMatch(/proposed_by/);
     const kept=await nineteen();
     // an approval decision on a frozen revision, written the way the service will: approver holds the design code
     const doc=await registerDoc(h,pm);
@@ -297,6 +301,10 @@ test('rollback 020 refuses while an approval decision exists and while a later m
     expect(await objects()).toEqual({triggers:[],functions:[],pointerGrant:false});
     expect(await applied()).toBe(0);
     expect(await nineteen()).toEqual(kept);
+    // the insert policy of document_revisions is 014's again: one policy, scope and self-declared conditions, no author binding
+    const back=await policy();
+    expect(back).toHaveLength(1);expect(back[0]).not.toMatch(/app\.person_id/);expect(back[0]).not.toMatch(/proposed_by/);
+    expect(back[0]).toMatch(/hash_verification/);expect(back[0]).toMatch(/snapshot_ref IS NULL/);expect(back[0]).toMatch(/app\.project_ids/);
     // the document record and its revisions are as they were
     expect((await q('SELECT latest_revision_id,approved_revision_id,version FROM document_records WHERE id=$1',[doc.record.id]))[0]).toEqual({latest_revision_id:fr.revisionId,approved_revision_id:null,version:fr.version});
     // the file is repeatable once rolled back; forward twice leaves one of everything, then rollback and forward again is clean
@@ -305,7 +313,7 @@ test('rollback 020 refuses while an approval decision exists and while a later m
     expect(await applied()).toBe(1);
     expect(await present()).toEqual(tables);expect(await objects()).toEqual(full);expect(await nineteen()).toEqual(kept);
     await h.exec(rollback);await h.exec(forward);
-    expect(await objects()).toEqual(full);
+    expect(await objects()).toEqual(full);expect(await policy()).toEqual(withAuthor);
   } finally {
     await h.exec('ROLLBACK').catch(()=>{});
     await h.exec(forward);

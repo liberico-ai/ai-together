@@ -26,10 +26,10 @@
   },
   "evalSet": {
     "path": "skills/doc-reviewer/eval.json",
-    "sha256": "372bbd8c7616d5c2ee48273d5c328dad5cf39f07a55391a9d60cde378f082ec3",
+    "sha256": "bdc14af70d18a85c438d3a97cdfd683f4909183eb4f7631818e3948be0795d53",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "f0f16f553124df7958eccafa3e3e08a6340dbfdb9fe84bde241caeffa1ff2fd4"
+  "hash": "10698774e59e9b3586c026274a36de31c998a0e85863b3cbf20a1c65ee3627f7"
 }

@@ -53,7 +53,7 @@ describe('reassignmentState',()=>{
    const out=reassignmentState({state,agree,hasReceipt});
    if(out==='applied') {expect(hasReceipt,`${state}/${agree}`).toBe(true);expect(state).toBe('applied');}
   }
-  expect(reassignmentState({state:'applied',agree:3,hasReceipt:false})).toBe('quorum_met');
+  expect(reassignmentState({state:'applied',agree:3,hasReceipt:false})).toBe('reconcile');   // a stored applied without its receipt is an inconsistent row (D2 extended: was quorum_met)
   expect(reassignmentState({state:'applied',agree:2,hasReceipt:false})).toBe('reconcile');
   expect(reassignmentState({state:'pending',agree:3,hasReceipt:false})).toBe('quorum_met');
   expect(reassignmentState({state:'pending',agree:2,hasReceipt:false})).toBe('pending');
@@ -63,9 +63,39 @@ describe('reassignmentState',()=>{
   for(const s of ['pending','rejected','revise','cancelled','expired','reconcile']) expect(reassignmentState({state:s,agree:3,hasReceipt:true}),s).toBe('reconcile');
   for(const bad of ['bogus','','APPLIED','quorum_met']) for(const hasReceipt of [false,true]) expect(reassignmentState({state:bad,agree:3,hasReceipt}),bad).toBe('reconcile');
  });
+
+ test('D2 the exhaustive table: every stored state x 0..3 agreeing votes x receipt yes/no, `applied` needs all three facts',()=>{
+  const stored=['pending','applied','rejected','revise','cancelled','expired','reconcile','quorum_met','bogus',''];
+  const terminal=['rejected','revise','cancelled','expired','reconcile'];
+  const expected=(state:string,agree:number,hasReceipt:boolean)=>{
+   if(state==='applied') return hasReceipt&&agree>=3?'applied':'reconcile';
+   if(hasReceipt) return 'reconcile';
+   if(state==='pending') return agree>=3?'quorum_met':'pending';
+   return terminal.includes(state)?state:'reconcile';
+  };
+  for(const state of stored) for(const agree of [0,1,2,3]) for(const hasReceipt of [false,true])
+   expect(reassignmentState({state,agree,hasReceipt}),JSON.stringify({state,agree,hasReceipt})).toBe(expected(state,agree,hasReceipt));
+  expect(reassignmentState({state:'applied',agree:2,hasReceipt:true})).toBe('reconcile');
+  expect(reassignmentState({state:'applied',agree:3,hasReceipt:true})).toBe('applied');
+  expect(reassignmentState({state:'pending',agree:3,hasReceipt:false})).toBe('quorum_met');
+  expect(reassignmentState({state:'pending',agree:3,hasReceipt:true})).toBe('reconcile');
+  for(const agree of [0,1,2,3]) for(const state of stored) if(!(state==='pending'&&agree>=3)) expect(reassignmentState({state,agree,hasReceipt:false}),state+agree).not.toBe('quorum_met');
+ });
 });
 
 describe('reassignment cards',()=>{
+ test('D2 a stored applied proposal with a receipt and only two agreeing votes reads reconcile; the receipt line still follows the receipt',async()=>{
+  const s=await seedBom(h);
+  const bom=new BomService(h.db);
+  const id=(await bom.command(pm,{action:'propose',workId:s.workId,expectedVersion:1,allocation:s.selection,reason:'Phân công mô phỏng trong bản thử'},k())).proposal.id;
+  for(const voter of [s.roster[0],s.roster[1]]) await bom.command(voter,{action:'vote',proposalId:id,choice:'agree',note:'Xác nhận bằng phiên thử nghiệm'},k());
+  await h.operator.query("UPDATE bom_proposals SET state='applied',finished_at=now() WHERE id=$1",[id]);
+  await h.operator.query(`INSERT INTO bom_receipts(proposal_id,tenant_id,project_id,work_id,work_version,source_checked_at) SELECT id,tenant_id,project_id,work_id,work_version,now() FROM bom_proposals WHERE id=$1`,[id]);
+  const [card]=reassignments(await list(pm));
+  expect(card).toMatchObject({decisionId:id,quorum:{needed:3,have:2},state:'reconcile'});
+  expect(card.appliedReceipt).not.toBeNull();
+ });
+
  const propose=(bom:BomService,s:Awaited<ReturnType<typeof seedBom>>)=>
   bom.command(pm,{action:'propose',workId:s.workId,expectedVersion:1,allocation:s.selection,reason:'Phân công mô phỏng trong bản thử'},k());
  const agree=(bom:BomService,id:string,p:Principal)=>bom.command(p,{action:'vote',proposalId:id,choice:'agree',note:'Xác nhận bằng phiên thử nghiệm'},k());

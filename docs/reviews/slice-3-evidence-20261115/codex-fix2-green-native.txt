@@ -1,0 +1,6 @@
+Codex gate fix round 2 (with corrections E1, E2) - native PostgreSQL (environment file loaded in the same shell, values not recorded). Worktree: <worktree>.
+Focused (same 9 files): 165 passed, 0 skipped
+Full:
+ Test Files  68 passed (68)
+      Tests  1006 passed (1006)
+skipped: 0

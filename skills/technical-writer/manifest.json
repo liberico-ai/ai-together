@@ -26,10 +26,10 @@
   },
   "evalSet": {
     "path": "skills/technical-writer/eval.json",
-    "sha256": "347076fb8aa625c8598882a34a6b0fc9c77d19b6111155f6d91880eb26af2a5b",
+    "sha256": "e030741e6789917db575780ccfb0a85b10b5ec0f2f53c85f27de3398a7502d77",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "c6ae5aba0dbbe43e96f75c3ee015388e844e634788e0db38c13dbb8e89ee4f8b"
+  "hash": "bc4c0ee76f9b011d85f808476ce9e7887edc4e5530334d2b36be43997cf4cd8d"
 }

@@ -98,10 +98,13 @@ export class SuggestionService {
     [ai.tenantId,input.projectId,input.entityType,input.entityId,input.skill,manifest.version,manifest.hash,input.modelVersion,JSON.stringify(output),valueHash,
      JSON.stringify(output.sources),JSON.stringify(output.questions),output.confidence,input.inputHash,ai.id,input.traceId,input.dedupeKey])).rows[0];
    if(row) return {draftId:row.id,stored:true};
-   // Nothing stored: the key is taken. It is a replay only if the row is visible to this principal and says the same thing; the key is unique per tenant across projects.
-   const old=(await tx.query<{id:string;project_id:string;signal_type:string;entity_type:string;entity_id:string;value_hash:string}>(
-    'SELECT id,project_id,signal_type,entity_type,entity_id,value_hash FROM intelligence.ai_drafts WHERE tenant_id=$1 AND dedupe_key=$2',[ai.tenantId,input.dedupeKey])).rows[0];
-   if(!old||old.project_id!==input.projectId||old.signal_type!==input.skill||old.entity_type!==input.entityType||old.entity_id!==input.entityId||old.value_hash!==valueHash) throw idempotencyConflict();
+   // Nothing stored: the key is taken. It is a replay only if the row is visible to this principal and says the same thing: the whole parsed envelope that identifies the
+   // draft (project, skill, entity, value hash, input hash, model version) and the skill version and manifest hash the row was written under against the current ones.
+   // The trace id belongs to the attempt, not to the draft. The key is unique per tenant across projects.
+   const old=(await tx.query<{id:string;project_id:string;signal_type:string;entity_type:string;entity_id:string;value_hash:string;input_hash:string;model_version:string;skill_version:string;manifest_hash:string}>(
+    'SELECT id,project_id,signal_type,entity_type,entity_id,value_hash,input_hash,model_version,skill_version,manifest_hash FROM intelligence.ai_drafts WHERE tenant_id=$1 AND dedupe_key=$2',[ai.tenantId,input.dedupeKey])).rows[0];
+   if(!old||old.project_id!==input.projectId||old.signal_type!==input.skill||old.entity_type!==input.entityType||old.entity_id!==input.entityId||old.value_hash!==valueHash
+    ||old.input_hash!==input.inputHash||old.model_version!==input.modelVersion||old.skill_version!==manifest.version||old.manifest_hash!==manifest.hash) throw idempotencyConflict();
    return {draftId:old.id,stored:false};
   });
  }

@@ -41,6 +41,12 @@ DROP FUNCTION IF EXISTS public.review_decisions_guard();
 DROP FUNCTION IF EXISTS public.review_delegations_revoke_guard();
 DROP FUNCTION IF EXISTS public.review_delegations_guard();
 DROP FUNCTION IF EXISTS public.document_dependencies_flag_guard();
+-- the insert policy of document_revisions goes back to the text 014 defines (no app.person_id)
+DROP POLICY IF EXISTS scope_insert ON document_revisions;
+CREATE POLICY scope_insert ON document_revisions FOR INSERT
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid
+    AND project_id = ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+    AND hash_verification = 'self_declared' AND snapshot_ref IS NULL);
 REVOKE UPDATE(approved_revision_id) ON document_records FROM libetech_runtime;
 DROP TABLE IF EXISTS review_events, document_dependencies, review_decisions, review_comments, review_delegations;
 DELETE FROM schema_migrations WHERE version = '020';

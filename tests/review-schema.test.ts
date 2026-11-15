@@ -468,7 +468,31 @@ test('runtime can move the approved pointer only to a revision that has an appro
  expect((await failure(move(second.revisionId))).message).toBe(message);
  const f:W={...w,revisionId:second.revisionId,version:second.version,hash:second.hash,revisionNo:(await rows<{n:number}>('SELECT revision_no n FROM document_revisions WHERE id=$1',[second.revisionId]))[0].n};
  await decideAsRuntime(approvalOf(f,approver.id));
- expect(await move(second.revisionId)).toEqual([{approved_revision_id:second.revisionId}]);
+ // the approval is committed; a LATER transaction, even with the right person in app.person_id, does not move the pointer (D1 of the Codex gate, round 2)
+ expect((await failure(move(second.revisionId))).message).toBe(message);
+ expect(await rows('SELECT approved_revision_id FROM document_records WHERE id=$1',[w.docId])).toEqual([{approved_revision_id:null}]);
+ // one transaction that inserts the approval and moves the pointer succeeds: a fresh frozen revision, decision and pointer together
+ const revW=async(r:{revisionId:string;version:number;hash:string}):Promise<W>=>({...w,revisionId:r.revisionId,version:r.version,hash:r.hash,
+  revisionNo:(await rows<{n:number}>('SELECT revision_no n FROM document_revisions WHERE id=$1',[r.revisionId]))[0].n});
+ const moveIn=async(tx:Queryable,to:string)=>(await tx.query<{approved_revision_id:string|null}>('UPDATE document_records SET approved_revision_id=$2,updated_at=now() WHERE id=$1 RETURNING approved_revision_id',[w.docId,to])).rows;
+ const third=await revW(await frozenRevision(h,w.docId,member.id));
+ expect(await as(approver.id,S,async tx=>{await insDec(tx,approvalOf(third,approver.id));return moveIn(tx,third.revisionId);})).toEqual([{approved_revision_id:third.revisionId}]);
+ // the same with the decision inserted inside a savepoint that is released before the pointer moves (still one transaction)
+ const fourth=await revW(await frozenRevision(h,w.docId,member.id));
+ expect(await as(approver.id,S,async tx=>{
+  await tx.query('SAVEPOINT decision_step');await insDec(tx,approvalOf(fourth,approver.id));await tx.query('RELEASE SAVEPOINT decision_step');
+  return moveIn(tx,fourth.revisionId);
+ })).toEqual([{approved_revision_id:fourth.revisionId}]);
+ // a decision inserted in a savepoint that is rolled back leaves nothing to move the pointer with
+ const fifth=await revW(await frozenRevision(h,w.docId,member.id));
+ expect((await failure(as(approver.id,S,async tx=>{
+  await tx.query('SAVEPOINT decision_step');await insDec(tx,approvalOf(fifth,approver.id));await tx.query('ROLLBACK TO SAVEPOINT decision_step');
+  return moveIn(tx,fifth.revisionId);
+ }))).message).toBe(message);
+ // approval committed in an earlier transaction of the same person, pointer in a later one: refused again for the newest revision
+ const sixth=await revW(await frozenRevision(h,w.docId,member.id));
+ await decideAsRuntime(approvalOf(sixth,approver.id));
+ expect((await failure(as(approver.id,S,tx=>moveIn(tx,sixth.revisionId)))).message).toBe(message);
  // the first revision still has no approval; clearing the pointer is refused too
  expect((await failure(move(w.revisionId))).message).toBe(message);
  expect((await failure(move(null))).message).toBe(message);
@@ -479,6 +503,20 @@ test('runtime can move the approved pointer only to a revision that has an appro
  expect((await rows('SELECT approved_revision_id FROM document_records WHERE id=$1',[w.docId]))[0]).toEqual({approved_revision_id:w.revisionId});
  await h.operator.query('UPDATE document_records SET approved_revision_id=NULL WHERE id=$1',[w.docId]);
  expect(await rows('SELECT approved_revision_id FROM document_records WHERE id=$1',[w.docId])).toEqual([{approved_revision_id:null}]);
+});
+
+test('E1 the guard builds the full transaction id around the current epoch (formula of the guard, applied to hand-made numbers)',async()=>{
+ // A MIRROR of the expression inside document_records_approval_guard (no helper function may exist in public: every role could execute it); the second assertion ties the
+ // mirror to the deployed function by looking for its constants. candidate = cur + (((xmin - cur mod 2^32 + 3*2^31) mod 2^32) - 2^31)
+ const E32=4294967296;
+ const run=async(cur:number,xmin:number)=>(await rows<{c:string}>(
+  'SELECT (($1::numeric) + pg_catalog.mod($2::numeric - pg_catalog.mod($1::numeric,4294967296) + 6442450944, 4294967296) - 2147483648)::text c',[cur,xmin]))[0].c;
+ expect(await run(2*E32+100,90)).toBe(String(2*E32+90));                  // same epoch, an older id
+ expect(await run(2*E32+100,4294967290)).toBe(String(1*E32+4294967290));  // the id is from the previous epoch
+ expect(await run(2*E32+100,105)).toBe(String(2*E32+105));                // a sub-transaction id a little above the top-level one stays in the current epoch
+ expect(await run(100,90)).toBe('90');                                    // epoch 0 is the same as the plain cast
+ const def=(await rows<{d:string}>("SELECT pg_get_functiondef('public.document_records_approval_guard()'::regprocedure) d"))[0].d;
+ for(const needle of ['pg_current_xact_id','6442450944','2147483648','4294967296','pg_xact_status']) expect(def,needle).toContain(needle);
 });
 
 test('one decision per revision',async()=>{
@@ -620,8 +658,9 @@ test('the approved pointer cannot go back to an older approved revision, nor be 
  const move=(to:string,person:string|null)=>as(person,S,async tx=>(await tx.query<{approved_revision_id:string|null}>(
   'UPDATE document_records SET approved_revision_id=$2,updated_at=now() WHERE id=$1 RETURNING approved_revision_id',[w.docId,to])).rows);
  const pointer=async()=>(await rows<{p:string|null}>('SELECT approved_revision_id p FROM document_records WHERE id=$1',[w.docId]))[0].p;
- await decideAsRuntime(approvalOf(w,approver.id));
- expect(await move(w.revisionId,approver.id)).toEqual([{approved_revision_id:w.revisionId}]);
+ // the approval and the pointer move in one transaction (D1 of the Codex gate, round 2: a later transaction no longer moves it)
+ expect(await as(approver.id,S,async tx=>{await insDec(tx,approvalOf(w,approver.id));return (await tx.query<{approved_revision_id:string|null}>(
+  'UPDATE document_records SET approved_revision_id=$2,updated_at=now() WHERE id=$1 RETURNING approved_revision_id',[w.docId,w.revisionId])).rows;})).toEqual([{approved_revision_id:w.revisionId}]);
  const second=await frozenRevision(h,w.docId,member.id);
  const w2:W={...w,revisionId:second.revisionId,version:second.version,hash:second.hash,revisionNo:(await rows<{n:number}>('SELECT revision_no n FROM document_revisions WHERE id=$1',[second.revisionId]))[0].n};
  await decideAsRuntime(approvalOf(w2,approver.id));
@@ -630,7 +669,10 @@ test('the approved pointer cannot go back to an older approved revision, nor be 
   expect((await failure(move(second.revisionId,who))).message,String(who)).toBe(message);
   expect(await pointer()).toBe(w.revisionId);
  }
- expect(await move(second.revisionId,approver.id)).toEqual([{approved_revision_id:second.revisionId}]);
+ // even the approver, in a transaction later than the approval, does not move it; the operational login sets the state the rest of the case starts from
+ expect((await failure(move(second.revisionId,approver.id))).message).toBe(message);
+ await h.operator.query('UPDATE document_records SET approved_revision_id=$2 WHERE id=$1',[w.docId,second.revisionId]);
+ expect(await pointer()).toBe(second.revisionId);
  // it never goes back to revision 1, which also carries an approval decision and is frozen
  for(const who of [approver.id,reviewer.id,pm.id,null]) {
   expect((await failure(move(w.revisionId,who))).message,String(who)).toBe(message);

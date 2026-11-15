@@ -105,6 +105,29 @@ describe('skill eval sets', () => {
     }
   });
 
+  it('a conflict is two sources asserting incompatible values for the same fact at the same time: never two revisions of one document (that is a change), and never two documents that merely differ', () => {
+    for (const name of SKILLS) {
+      const c = sets[name].find(x => x.category === 'conflicting_sources')!;
+      const ids = (c.good as { conflicts: { sourceIds: string[] }[] }).conflicts[0].sourceIds;
+      const cited = ids.map(id => c.context.sources.find(s => s.id === id)!);
+      expect(cited.every(Boolean), name).toBe(true);
+      const owners = cited.map(s => s.kind === 'document_revision' ? s.documentId : s.id);
+      expect(new Set(owners).size, `${name}: both cited sources are revisions of one document`).toBe(2);
+      // both are statements that can be read: neither is a bare record, and the two differ
+      const text = (x: typeof cited[number]) => x.kind === 'document_revision' ? x.summary : x.kind === 'source_event' ? (x.text ?? '') : '';
+      expect(cited.every(x => x.kind !== 'document'), `${name}: a document record is cited with its own statement only through a revision, except the release librarian's record-vs-index case`).toBe(name === 'release_librarian' ? false : true);
+      if (name !== 'release_librarian') expect(new Set(cited.map(text)).size, name).toBe(2);
+    }
+  });
+
+  it('duplicateOf names another message: no sample sets it to the only source_event of its own context', () => {
+    for (const c of sets.intake_analyst) for (const [which, o] of [['good', c.good], ['bad', c.bad]] as const) {
+      const events = c.context.sources.filter(s => s.kind === 'source_event').map(s => s.id);
+      const dup = ((o as { result?: { duplicateOf?: string | null } }).result ?? {}).duplicateOf ?? null;
+      if (dup !== null) expect(events.length === 1 && events[0] === dup, `${c.category}/${which}`).toBe(false);
+    }
+  });
+
   it('runEvalCase fills skill and manifestHash from the manifest and runs the checks', () => {
     const c = structuredClone(sets.intake_analyst.find(x => x.category === 'conflicting_sources')!);
     const m = skillManifests.intake_analyst;

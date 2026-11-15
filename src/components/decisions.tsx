@@ -13,6 +13,7 @@ import { decisionsPageState, reassignmentLabel, reviewLabels, voteBlockCopy, vot
 type Person = { id: string; name: string };
 type KeyStore = { current: { fingerprint: string; key: string } | null };
 const nameOf = (people: Person[], id: string) => people.find(p => sameId(p.id, id))?.name ?? UNKNOWN_PERSON;
+const RECEIPT_MISMATCH_COPY = 'Có biên nhận nhưng trạng thái không khớp — cần đối soát.';
 const Skeleton = ({ label }: { label: string }) => <div className="doc-list doc-skeleton" aria-busy="true" aria-label={label}>{[0, 1, 2].map(i => <div key={i} className="doc-skel-row" aria-hidden="true" />)}</div>;
 
 export type CardProps = { card: DecisionCard; people: Person[]; busy: boolean; error: string; onVote?: (choice: string) => void;
@@ -35,15 +36,15 @@ function ReviewBody({ card, people }: { card: ReviewCard; people: Person[] }) {
 }
 
 function ReassignmentBody({ card, people, busy, error, onVote, note = '', onNote, reloadable, onReload }: CardProps & { card: ReassignmentCard }) {
-  // «đủ phiếu» and «đã áp dụng» are two facts. A stored `applied` with no receipt can never be shown as applied: it reads like the service's own fail-closed state.
-  const shown = card.state === 'applied' && card.appliedReceipt === null ? 'reconcile' : card.state;
+  // «đủ phiếu» and «đã áp dụng» are two facts. A stored `applied` with no receipt, or with fewer than three agreeing votes, can never be shown as applied: it reads like the service's own fail-closed state.
+  const shown = card.state === 'applied' && (card.appliedReceipt === null || card.quorum.have < 3) ? 'reconcile' : card.state;
   const block = voteBlockCopy(card.actorEligibility.reason);
   return <>
     <h3 className="decision-title" dir="auto">{card.workCode} · {card.title}</h3>
     <p className="decision-meta">Phiếu chia lại việc 3/3 · dựa trên phiên bản việc {card.revision.workVersion} · hết hạn {formatTime(card.expiresAt)}</p>
     {card.summary && <p className="decision-text" dir="auto">{card.summary}</p>}
     <p className="decision-line" data-line="quorum">{reassignmentLabel(shown, card.quorum.have)}</p>
-    <p className="decision-line" data-line="applied">{card.appliedReceipt ? 'Đã áp dụng · biên nhận lúc ' + formatTime(card.appliedReceipt.at) + ' · phiên bản việc ' + card.appliedReceipt.workVersion : 'Chưa áp dụng'}</p>
+    <p className="decision-line" data-line="applied">{card.appliedReceipt === null ? 'Chưa áp dụng' : shown === 'applied' ? 'Đã áp dụng · biên nhận lúc ' + formatTime(card.appliedReceipt.at) + ' · phiên bản việc ' + card.appliedReceipt.workVersion : RECEIPT_MISMATCH_COPY}</p>
     {card.votes.length > 0 && <ul className="decision-votes">{card.votes.map((v, i) => <li key={i} className="decision-vote">{nameOf(people, v.actorId)} · {choiceLabel(v.choice)} · {formatTime(v.at)}</li>)}</ul>}
     {!card.actorEligibility.canVote && block && <p className="decision-notice" data-block="vote">{block}</p>}
     {error && <div className="decision-problem" role="alert"><p className="decision-text">{error}</p>

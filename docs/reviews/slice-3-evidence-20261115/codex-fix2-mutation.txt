@@ -1,0 +1,31 @@
+Codex gate fix round 2 - mutations (each applied, focused PGlite run, reverted)
+
+m1 guard without the same-transaction condition
+× runtime can move the approved pointer only to a revision that has an approval decision 476ms
+× the approved pointer cannot go back to an older approved revision, nor be moved by anyone but the approver 471ms
+Tests  2 failed | 33 passed | 1 skipped (36)
+
+m2 reassignmentState applied for a receipt with two votes
+× D2 the exhaustive table: every stored state x 0..3 agreeing votes x receipt yes/no, `applied` needs all three facts 491ms
+× D2 a stored applied proposal with a receipt and only two agreeing votes reads reconcile; the receipt line still follows the receipt 494ms
+Tests  2 failed | 38 passed (40)
+
+m3 one rewritten good sample cites one source (release_librarian)
+× release_librarian/conflicting_sources: the good output passes and the bad output is caught for the stated reason 3ms
+× each conflicting_sources case checks that the good output cites two distinct sources 0ms
+× a conflict is two sources asserting incompatible values for the same fact at the same time: never two revisions of one document (that is a change), and never two docume
+× the eval needs no network 1ms
+Tests  4 failed | 36 passed (40)
+
+m4 drop the author condition of the revision insert policy
+× D4 the author of a revision is the acting person at the database: another author, or no person, is refused 475ms
+Tests  1 failed | 27 passed (28)
+
+m5 drop inputHash from the dedupe comparison
+× D5 the replay covers the whole envelope: another inputHash or another modelVersion under the same key is a conflict; identical is the same draft id 499ms
+Tests  1 failed | 45 passed | 1 skipped (47)
+
+m6 epoch-0 cast again (pg_xact_status((xmin::text)::xid8))
+× E1 the guard builds the full transaction id around the current epoch (formula of the guard, applied to hand-made numbers) 474ms
+Tests  1 failed | 41 passed | 1 skipped (43)
+m6 note: every behavioural case of D1 (same transaction, released and rolled-back savepoint, later transaction, operational login) stays GREEN under the epoch-0 cast, because the test clusters have not wrapped: no existing case can catch it. Only the E1 case goes red, and only through its check that the deployed function still contains the formula's constants; the arithmetic itself is documented by the mirror.

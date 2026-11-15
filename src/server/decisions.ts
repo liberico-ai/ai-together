@@ -23,10 +23,11 @@ export type DecisionCard = ReviewCard | ReassignmentCard;
 const listSchema = z.object({ projectId: uuid }).strict();
 const TERMINAL = ['rejected', 'revise', 'cancelled', 'expired', 'reconcile'] as const;
 
-/** The three events «enough votes», «applied» and «receipt» stay separate facts. `applied` only with a receipt on a stored `applied` proposal; an unknown or
- * inconsistent combination reads `reconcile` (fail closed), never `applied`. */
+/** The three events «enough votes», «applied» and «receipt» stay separate facts. `applied` needs all three: the stored state `applied`, a receipt and three agreeing
+ * votes. A stored `applied` with anything missing is an inconsistent row and reads `reconcile`; `quorum_met` is only a stored `pending` with three agreeing votes and no
+ * receipt; a receipt on any other stored state, or an unknown stored state, reads `reconcile` (fail closed), never `applied`. */
 export function reassignmentState(i: { state: string; agree: number; hasReceipt: boolean }): ReassignmentCard['state'] {
-  if (i.state === 'applied') return i.hasReceipt ? 'applied' : i.agree >= 3 ? 'quorum_met' : 'reconcile';
+  if (i.state === 'applied') return i.hasReceipt && i.agree >= 3 ? 'applied' : 'reconcile';
   if (i.hasReceipt) return 'reconcile';
   if (i.state === 'pending') return i.agree >= 3 ? 'quorum_met' : 'pending';
   return (TERMINAL as readonly string[]).includes(i.state) ? i.state as ReassignmentCard['state'] : 'reconcile';
