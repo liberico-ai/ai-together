@@ -655,6 +655,16 @@ describe('Codex round 3 (P2): «in effect» is decided in the SQL, before the li
   expect(l.reviewers.map(x=>x.id)).toEqual([live]);
   expect(l.reviewersTruncated).toBe(false);
  },120000);
+ test('G-7 (B) a delegate who is a member with a reading role but whose account has no password hash never reaches a reader; reaches a coordinator labelled dormant',async()=>{
+  await h.operator.query('UPDATE identity.users SET password_hash=NULL WHERE id=$1',[approver.id]);       // invited, not activated
+  const invited=await delegate(h,ids.sales,approver.id);
+  const live=await delegate(h,ids.sales,reviewer.id);
+  const l=await svc().list(member,{projectId:ids.sales});
+  expect(l.reviewers.map(x=>x.id)).toEqual([live]);
+  const c=await svc().list(pm,{projectId:ids.sales});
+  expect(c.reviewers.find(x=>x.id===invited)).toMatchObject({dormant:true});
+  expect(c.reviewers.find(x=>x.id===live)).toMatchObject({dormant:false});
+ });
  test('G-4 a delegate in effect with any one of the four reading roles reaches a reader',async()=>{
   const want=await Promise.all([member,business2,technical2,pm2].map(async p=>[p.id,await delegate(h,ids.sales,p.id)] as const));
   const l=await svc().list(reviewer,{projectId:ids.sales});

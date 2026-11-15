@@ -1,18 +1,14 @@
-== m1: eligibility sub-select removed; 'revoked_at IS NULL' alone ($3 kept referenced so the failure is the behaviour, not a parameter error)
- FAIL  tests/review-delegations.test.ts G-1 (A, C) a reader sees the one row in effect behind 1001 dormant rows of other
- FAIL  tests/review-delegations.test.ts G-2 (C) with more than 200 rows in effect the flag is true and exactly 200 rows 
- FAIL  tests/review-delegations.test.ts G-5 (D) a reader's own rows come back in every state and first, ahead of other p
-      Tests  3 failed | 2 passed | 40 skipped (45)
+Final mutation table, run against the final test file (G-1..G-7, G-5 fixture clock-independent). Earlier runs existed against earlier versions of the file (before G-6, the G-5 fix and G-7); they were repeated so the table describes the file as committed.
+== m1: eligibility sub-select removed ('revoked_at IS NULL' alone, $3 kept referenced)
+ FAIL  tests/review-delegations.test.ts G-1 (A, C) a reader sees the one row in effect behind 1001 dormant row
+ FAIL  tests/review-delegations.test.ts G-2 (C) with more than 200 rows in effect the flag is true and exactly
+ FAIL  tests/review-delegations.test.ts G-6 (B) 1001 delegates who are still active members but now viewers do
+ FAIL  tests/review-delegations.test.ts G-5 (D) a reader's own rows come back in every state and first, ahead 
+      Tests  4 failed | 3 passed | 40 skipped (47)
 == m2: role list also contains viewer
-      Tests  5 passed | 40 skipped (45)
-== m3: literal list omitting business (parameter still bound, unused by the filter)
- FAIL  tests/review-delegations.test.ts G-4 a delegate in effect with any one of the four reading roles reaches a reader
-      Tests  1 failed | 4 passed | 40 skipped (45)
-== m2 (rerun after adding G-6): role list also contains viewer
-      Tests  6 passed | 40 skipped (46)
-== m2 (final, with G-6 holding 1100 active viewer-role delegates): role list also contains viewer
- FAIL  tests/review-delegations.test.ts G-6 (B) 1001 delegates who are still active members but now viewers do not hide 
-      Tests  1 failed | 5 passed | 40 skipped (46)
-
-Notes: the first m2 run (before G-6 existed) stayed green because the JS «dormant» check hides viewers anyway; G-6 (1100 active viewer-role delegates behind which the live row hides) was added and m2 then went red.
-m1 and m3 were run before G-5 was made clock-independent (its fixture changed afterwards, its assertions did not). Every mutation was reverted; the source equals the fixed version.
+ FAIL  tests/review-delegations.test.ts G-6 (B) 1001 delegates who are still active members but now viewers do
+      Tests  1 failed | 6 passed | 40 skipped (47)
+== m3: literal list omitting business (parameter still bound)
+ FAIL  tests/review-delegations.test.ts G-4 a delegate in effect with any one of the four reading roles reache
+      Tests  1 failed | 6 passed | 40 skipped (47)
+== m4 (not a mutation): the rule «a delegate without a password hash is not eligible» lives in public.bom_eligible_members (migration 006), not in this service, so it cannot be mutated from review-delegations.ts. A regression of that rule is caught by G-7 (a member with a reading role and password_hash NULL must not reach a reader and must be dormant:true for a coordinator).

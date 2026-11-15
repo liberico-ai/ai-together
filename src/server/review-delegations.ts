@@ -93,8 +93,9 @@ export class DelegationService {
   }
 
   /** Delegations of the project (at most 200) and the holders of an approval grant (read-only). Ids only, no names.
-   * Who receives what is decided in one place, `visibleDelegation`, from the caller's role in the database read inside this transaction (never the session's role or grants).
-   * The SQL below applies the same «may this viewer see this row at all» condition before the limit, so hidden rows never take a place of a visible one. */
+   * For a caller who is not a coordinator the SQL below decides «in effect» before the limit (not revoked, the delegate holds a reading role now, read through `public.bom_eligible_members` with the roles of `READ_ROLES`),
+   * so hidden rows never take a place of a visible one. `visibleDelegation` applies the same rule again as a second line and decides which fields are returned; the two must change together.
+   * The caller's own role is read from the database inside this transaction (never the session's role or grants). */
   async list(p: Principal, raw: unknown): Promise<{ reviewers: ListedDelegation[]; reviewersTruncated: boolean; approvers: ApproverView[]; canDesignate: boolean }> {
     if (!p || p.role === 'bot') throw denied();
     const q = listSchema.parse(raw);
