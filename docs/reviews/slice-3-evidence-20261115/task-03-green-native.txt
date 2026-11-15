@@ -1,0 +1,10 @@
+npx vitest run tests/slice3-bom-events.test.ts tests/foundation.test.ts tests/spec004.test.ts tests/slice3-bom-concurrency.test.ts
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  4 passed (4)
+      Tests  38 passed (38)
+   Start at  11:05:30
+   Duration  18.13s (tests 99%, import 1%)
+

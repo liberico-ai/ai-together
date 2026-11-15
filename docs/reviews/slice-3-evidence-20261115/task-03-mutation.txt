@@ -1,0 +1,43 @@
+npx vitest run tests/slice3-bom-events.test.ts   (each mutation applied alone, then reverted)
+
+== m1: src/server/bom.ts:170
+        if(existing.votes.filter(v=>v.choice==='agree').length!==2) return card(tx,proposal);
+change: !==2 -> !==1
+        if(existing.votes.filter(v=>v.choice==='agree').length!==1) return card(tx,proposal);
+command: npx vitest run tests/slice3-bom-events.test.ts
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/slice3-bom-events.test.ts > DOC-09/T06 two agrees change nothing: assignment, version and receipts stay
+ FAIL  tests/slice3-bom-events.test.ts > DOC-09/T07 the third agree applies once with exactly one receipt
+ FAIL  tests/slice3-bom-events.test.ts > PM-05 reject and revise end the round; a changed source or a revoked link holds the vote for reconciliation
+ FAIL  tests/slice3-bom-events.test.ts > PM-05/T15 every shortcut around 3/3 is refused
+ FAIL  tests/slice3-bom-events.test.ts > DOC-08/T17 the implementer cannot accept own work, also after reassignment through 3/3
+ Test Files  1 failed (1)
+      Tests  5 failed | 3 passed (8)
+reverted; diff:
+
+== m2: src/server/service.ts:151
+          invariant(p.id !== work.assignee_id && !participant,'SELF_ACCEPTANCE','Người thực hiện không được tự nghiệm thu.',403);
+change:  \&\& !participant -> 
+          invariant(p.id !== work.assignee_id,'SELF_ACCEPTANCE','Người thực hiện không được tự nghiệm thu.',403);
+command: npx vitest run tests/slice3-bom-events.test.ts
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/slice3-bom-events.test.ts > DOC-08/T17 the implementer cannot accept own work, also after reassignment through 3/3
+AssertionError: Người thực hiện technical_accept: expected Error: Bạn không phải người nghiệm thu đư… { …(2) } to match object { code: 'SELF_ACCEPTANCE' }
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+reverted; diff:
+
+== m3: src/server/service.ts:130
+          if (cmd.state === 'done') { const a = (await detail(tx,work)).acceptance; invariant(a.technical && a.business,'ACCEPTANCE_REQUIRED','Cần cả chấp nhận kỹ thuật và nghiệm thu nghiệp vụ cho đúng SHA/phiên bản.',422); }
+change: whole line replaced by a comment (the done transition check removed)
+command: npx vitest run tests/slice3-bom-events.test.ts
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/slice3-bom-events.test.ts > PM-06 technical and business acceptance are separate events by different people; closing the ticket replaces neither
+AssertionError: promise resolved "{ work: { …(19) }, …(3) }" instead of rejecting
+ FAIL  tests/slice3-bom-events.test.ts > T18 a closed ticket leaves acceptance missing and the work in review
+AssertionError: promise resolved "{ work: { …(19) }, …(3) }" instead of rejecting
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 passed (8)
+reverted; diff:
+
+final: git diff --stat -- src/ tests/foundation.test.ts tests/spec004.test.ts (empty below)
