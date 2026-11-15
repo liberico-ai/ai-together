@@ -1,0 +1,19 @@
+# Task 15 — mutation table (copied from the builder's report by the slice-3 session; each mutation was applied alone and reverted)
+
+## Mutations (each reverted; file diffed against the original after)
+| # | Mutation | Red case |
+|---|---|---|
+| m1 | no checkOrigin on non-GET | "no session answers 401; a cross-origin POST answers 403"; "success and error responses ... no-store" |
+| m2 | different 404 body for paths of >3 segments | "unknown path, unknown id and out-of-scope id answer the same 404 body..." |
+| m3 | revoke route falls back to a key when header missing | "every POST ... needs an Idempotency-Key"; "OQ-34 through the handler" |
+| m4 | fresh requestId in meta | "a decision without idempotency key ... request id in meta"; OQ-31; OQ-34 round trips |
+| m5 | failure path without no-store | "success and error responses of both functions carry Cache-Control: no-store" |
+| m6 | merge path documentId into the comment body | first run: NO case red (gap: no successful comment through the handler). Added "a comment round trip ..." case; rerun: red there. |
+
+## Round 0 rulings
+- R15-g: `normalised()` in review-http.ts, applied in the catch of `handleReviewApi`, `handleDecisionsApi` and `reviewRouteFailure`: an `AppError` with code SCOPE_DENIED and status 404 from a service is answered with the handler's own not-found body. Nothing else is mapped (comment at the mapping says it replaces «maps nothing» for this one case). No service edited. Concern 1 is closed.
+  Test: the 404 case now collects every denial class across all families (paths, literals, wrong methods on each family, malformed/unknown/out-of-scope document and delegation ids, grant and list outside scope, bot, viewer, member of another project, /api/reviews/decisions, /api/decisions outside scope; 44 bodies) and asserts one byte-identical body with `meta.requestId` removed; it also asserts that body equals exactly `{data:null,error:{code:'SCOPE_DENIED',message:'Không tìm thấy tài liệu trong phạm vi được cấp.'},meta:{}}`.
+- R15-h: `GET /api/reviews/dependencies` now passes the whole query to `DependencyService.list`; `limit`/`offset` become numbers, `needsReview` 'true'/'false' become booleans (other values stay strings and the service refuses them); unknown parameters, `limit=201`, bad ids are 422 from the service's strict schema. New case "dependency list: filters by documentId and needsReview, pages, and refuses an unknown parameter". The old "limit=5 on dependencies is 422" assertion was removed.
+- Concern 3 stands: a query string on `GET /api/reviews/:documentId` is ignored, deliberately.
+- m7 (remove the normalisation): red in "unknown path, unknown id and out-of-scope id answer the same 404 body..."; reverted (diff clean).
+- Command: `npx vitest run tests/review-http.test.ts tests/inbox-http.test.ts tests/documents-http.test.ts tests/rsc-boundary.test.ts` -> 4 files, 35 tests passed (17 in review-http). `npm run typecheck` clean. Evidence refreshed in task-15-green-pglite.txt. `pgrep -f vitest | wc -l` = 5 (other builder's; none of mine running).
