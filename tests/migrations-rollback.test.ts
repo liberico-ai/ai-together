@@ -5,6 +5,8 @@ import {expect,test} from 'vitest';
 import {openHarness} from './slice1-db';
 import {seedSlice1} from './slice1-fixtures';
 import {ids} from '../src/server/identities';
+import {member,pm} from './slice1-fixtures';
+import {approver,delegate,frozenRevision,grantDocApproval,registerDoc,reviewer,seedMembers} from './slice3-fixtures';
 
 const dir=(p:string)=>path.join(process.cwd(),p);
 const sqlFiles=async(p:string)=>(await readdir(dir(p))).filter(f=>/^\d+.*\.sql$/.test(f)).sort();
@@ -211,6 +213,90 @@ test('rollback 019 refuses while a membership or a ballot carries a doc_approve 
     expect(await objects()).toEqual(fullObjects);
     expect((await q('SELECT report_permissions FROM identity.memberships WHERE user_id=$1',[subject]))[0]).toEqual({report_permissions:['people_read']});
   } finally {
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});
+
+test('rollback 020 refuses while an approval decision exists and while a later migration is applied',async()=>{
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/020_document_review.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/020_document_review.sql'),'utf8');
+  expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+ROLE/i);
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  const tables=['review_delegations','review_comments','review_decisions','document_dependencies','review_events'];
+  const present=async()=>(await q<{t:string|null}>('SELECT to_regclass(n)::text t FROM unnest($1::text[]) n',[tables])).map(r=>r.t);
+  const objects=async()=>({
+    triggers:(await q<{d:string}>(`SELECT pg_get_triggerdef(oid) d FROM pg_trigger WHERE NOT tgisinternal AND tgname IN
+      ('review_delegations_guard','review_delegations_revoke_guard','review_decisions_guard','document_records_approval_guard') ORDER BY tgname`)).map(r=>r.d),
+    functions:(await q<{n:string}>(`SELECT p.proname n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE s.nspname='public'
+      AND p.proname IN ('review_delegations_guard','review_delegations_revoke_guard','review_decisions_guard','document_records_approval_guard') ORDER BY 1`)).map(r=>r.n),
+    pointerGrant:(await q<{ok:boolean}>("SELECT has_column_privilege('libetech_runtime','public.document_records','approved_revision_id','UPDATE') ok"))[0].ok,
+  });
+  const nineteen=async()=>({
+    guard:(await q<{d:string}>("SELECT pg_get_triggerdef(oid) d FROM pg_trigger WHERE tgname='memberships_doc_approve_guard' AND NOT tgisinternal")).map(r=>r.d),
+    reader:(await q<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname='document_approvers'")).map(r=>r.d),
+    applied:(await q("SELECT 1 FROM schema_migrations WHERE version='019'")).length,
+  });
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='020'")).length;
+  // the refusal raises inside the file's own BEGIN; PGlite keeps that aborted block open (a pooled client that errors is discarded)
+  const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);await seedMembers(h);
+    // migrations after 020 sit on top of it: take them off in reverse order first, put them back at the end
+    later=(await from013()).filter(f=>num(f)>20);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    const full=await objects();
+    expect(full.triggers).toHaveLength(4);expect(full.functions).toHaveLength(4);expect(full.pointerGrant).toBe(true);
+    expect(await present()).toEqual(tables);
+    const kept=await nineteen();
+    // an approval decision on a frozen revision, written the way the service will: approver holds the design code
+    const doc=await registerDoc(h,pm);
+    const fr=await frozenRevision(h,doc.record.id,member.id);
+    await grantDocApproval(h,approver.id,ids.sales,['design']);
+    const revisionNo=(await q<{n:number}>('SELECT revision_no n FROM document_revisions WHERE id=$1',[fr.revisionId]))[0].n;
+    const decide=(result:string,authority:string,by:string,delegation:string|null)=>h.operator.transaction(async tx=>{
+      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[ids.tenant,ids.sales]);
+      await tx.query(`INSERT INTO review_decisions(tenant_id,project_id,document_id,document_revision_id,revision_no,revision_hash,record_version,result,scope_note,authority,delegation_id,decided_by,command_key,request_id,trace_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,'Phạm vi mẫu cho bản thử',$9,$10,$11,'rollback-key',$12,$12)`,
+        [ids.tenant,ids.sales,doc.record.id,fr.revisionId,revisionNo,fr.hash,fr.version,result,authority,delegation,by,randomUUID()]);
+    });
+    await decide('approved','approval_grant',approver.id,null);
+    // 1. a later version applied blocks it even though the approval exists (the later migration is named first)
+    await q("INSERT INTO schema_migrations(version) VALUES('021')");
+    try { await refused(/Roll back the later migrations before 020/i); }
+    finally { await q("DELETE FROM schema_migrations WHERE version='021'"); }
+    expect(await present()).toEqual(tables);expect(await objects()).toEqual(full);expect(await applied()).toBe(1);
+    // 2. the approval decision blocks it; nothing was dropped
+    await refused(/approved pointers would lose their basis/i);
+    expect(await present()).toEqual(tables);expect(await objects()).toEqual(full);expect(await applied()).toBe(1);
+    // 3. a later version applied also blocks it when there is no approval (order 021 → 020 → 019)
+    await q('TRUNCATE review_decisions');
+    const delegation=await delegate(h,ids.sales,reviewer.id);
+    await decide('changes_requested','review_delegation',reviewer.id,delegation);
+    await q("INSERT INTO schema_migrations(version) VALUES('021')");
+    try { await refused(/later/i); }
+    finally { await q("DELETE FROM schema_migrations WHERE version='021'"); }
+    expect(await present()).toEqual(tables);expect(await objects()).toEqual(full);
+    // 4. only a changes_requested decision left: it runs, drops tables, triggers and functions, takes the pointer grant back, leaves 019 alone and forgets 020
+    await h.exec(rollback);
+    expect(await present()).toEqual(tables.map(()=>null));
+    expect(await objects()).toEqual({triggers:[],functions:[],pointerGrant:false});
+    expect(await applied()).toBe(0);
+    expect(await nineteen()).toEqual(kept);
+    // the document record and its revisions are as they were
+    expect((await q('SELECT latest_revision_id,approved_revision_id,version FROM document_records WHERE id=$1',[doc.record.id]))[0]).toEqual({latest_revision_id:fr.revisionId,approved_revision_id:null,version:fr.version});
+    // the file is repeatable once rolled back; forward twice leaves one of everything, then rollback and forward again is clean
+    await h.exec(rollback);
+    await h.exec(forward);await h.exec(forward);
+    expect(await applied()).toBe(1);
+    expect(await present()).toEqual(tables);expect(await objects()).toEqual(full);expect(await nineteen()).toEqual(kept);
+    await h.exec(rollback);await h.exec(forward);
+    expect(await objects()).toEqual(full);
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
     await h.exec(forward);
     for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
     await h.reset();await h.close();

@@ -111,3 +111,14 @@ export async function grantDocApproval(h:Harness,userId:string,projectId:string,
  await h.operator.query(`UPDATE identity.memberships SET report_permissions=(SELECT array_agg(DISTINCT c ORDER BY c) FROM unnest(report_permissions||$3::text[]) c),updated_at=now()
   WHERE user_id=$1 AND project_id=$2`,[userId,projectId,codes]);
 }
+
+/** Operational login (superuser, so the designation guard is skipped): inserts one review_delegations row granted by pm. Default type ['design']. Returns its id. */
+export async function delegate(h:Harness,projectId:string,delegateId:string,docTypes:string[]=['design']):Promise<string> {
+ return (await h.operator.query<{id:string}>(`INSERT INTO review_delegations(tenant_id,project_id,delegate_id,doc_types,granted_by,basis)
+  VALUES($1,$2,$3,$4::text[],$5,'Chỉ định mẫu cho bản thử') RETURNING id`,[ids.tenant,projectId,delegateId,docTypes,pm.id])).rows[0].id;
+}
+
+/** Operational login: revokes a delegation as pm with the fixed basis 'Thu hồi mẫu'; the revoke trigger stamps the time and the version. */
+export async function revokeDelegation(h:Harness,id:string):Promise<void> {
+ await h.operator.query("UPDATE review_delegations SET revoked_at=now(),revoked_by=$2,revoke_basis='Thu hồi mẫu' WHERE id=$1",[id,pm.id]);
+}

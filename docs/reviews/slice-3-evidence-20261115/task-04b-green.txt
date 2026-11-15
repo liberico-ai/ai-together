@@ -1,0 +1,11 @@
+npx vitest run tests/review-schema.test.ts tests/migrations-rollback.test.ts tests/rls-catalog.test.ts tests/slice1-harness.test.ts tests/documents.test.ts tests/document-cases.test.ts tests/doc-approver-grant.test.ts tests/outbox-schema.test.ts
+
+
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  8 passed (8)
+      Tests  133 passed | 5 skipped (138)
+   Start at  12:35:01
+   Duration  63.66s (tests 100%)
+
