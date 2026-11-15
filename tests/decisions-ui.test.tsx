@@ -320,7 +320,7 @@ describe('decisions UI', () => {
     expect(src).toContain('voteRecorded(');
   });
 
-  it('W9 the list shows one fixed sentence only when the review cards were cut', () => {
+  it('W9 the list shows one fixed sentence when the review cards were cut', () => {
     const SENTENCE = 'Danh sách dài hơn phần đang hiện.';
     const body = (truncated?: boolean) => renderToStaticMarkup(<DecisionsBody state="ready" cards={[review()]} error={null} people={people} truncated={truncated} />);
     expect(body(true)).toContain(SENTENCE);
@@ -329,6 +329,19 @@ describe('decisions UI', () => {
     const screen = (t: boolean) => renderToStaticMarkup(<Decisions projects={[{ id: PROJECT, name: 'P' }]} projectId={PROJECT} initial={{ cards: [review()], reviewCardsTruncated: t }} denied={false} people={people} />);
     expect(screen(true)).toContain(SENTENCE);
     expect(screen(false)).not.toContain(SENTENCE);
+  });
+
+  it('P2 the screen shows the same single sentence when the 3/3 cards were cut, and never two', () => {
+    const SENTENCE = 'Danh sách dài hơn phần đang hiện.';
+    const screen = (flags: { reviewCardsTruncated?: boolean; reassignmentCardsTruncated?: boolean }) =>
+      renderToStaticMarkup(<Decisions projects={[{ id: PROJECT, name: 'P' }]} projectId={PROJECT} initial={{ cards: [review(), reassign()], ...flags }} denied={false} people={people} />);
+    const times = (markup: string) => markup.split(SENTENCE).length - 1;
+    expect(times(screen({ reassignmentCardsTruncated: true }))).toBe(1);
+    expect(times(screen({ reviewCardsTruncated: false, reassignmentCardsTruncated: true }))).toBe(1);
+    expect(times(screen({ reviewCardsTruncated: true, reassignmentCardsTruncated: true }))).toBe(1);
+    expect(times(screen({ reviewCardsTruncated: true, reassignmentCardsTruncated: false }))).toBe(1);
+    expect(times(screen({ reviewCardsTruncated: false, reassignmentCardsTruncated: false }))).toBe(0);
+    expect(times(screen({}))).toBe(0);
   });
 
   it('W12 titles and summaries written by people carry dir="auto" on the Decisions screen', () => {

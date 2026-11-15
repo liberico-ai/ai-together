@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { scoped, type Database, type Queryable } from './db';
 import { invariant } from './errors';
+import { wasCut } from './list-cut';
 import { append, deduplicate, workRow } from './service';
 import { projectWorkSummary } from './projector';
 import type { Principal, Work } from './types';
@@ -99,8 +100,10 @@ export class BomService {
     });
   }
 
-  /** Read-only: the newest 30 proposals of a project for a seat holder (the Decisions screen). Same seat and Telegram checks as read(); no write, no lock. */
-  async pending(p:Principal,projectId:string):Promise<PendingCard[]> {
+  /** Read-only: at most 30 proposals of a project for a seat holder (the Decisions screen), and whether more exist. Live ballots come first, newest first: stored `pending`
+   * and not past `expires_at`, the two conditions the vote command applies below. Every other proposal follows, newest first, so the cap never drops a ballot that can
+   * still be voted on in favour of a closed one. Same seat and Telegram checks as read(); no write, no lock. */
+  async pending(p:Principal,projectId:string):Promise<{cards:PendingCard[];truncated:boolean}> {
     // a malformed project id gets the same 404 assertSeat gives, not a database error
     invariant(uuid.safeParse(projectId).success,'SCOPE_DENIED','Không tìm thấy hồ sơ BoM trong phạm vi được cấp.',404);
     return scoped(this.db,p,async tx=>{
@@ -108,7 +111,11 @@ export class BomService {
       assertSeat(p,scope);
       const eligible=await members(tx,projectId,[...new Set(scope.seat_ids)]);
       invariant(eligible.some(member=>member.user_id===p.id&&member.linked),'SCOPE_DENIED','Cần ghép Telegram và có phạm vi dự án.',403);
-      const proposals=(await tx.query<Proposal>('SELECT * FROM bom_proposals WHERE project_id=$1 ORDER BY created_at DESC,id DESC LIMIT 30',[projectId])).rows;
+      const cap=30;
+      // «live» is decided here, before the limit; one row more than the cap is fetched only to know that the list was cut
+      const fetched=(await tx.query<Proposal>(`SELECT * FROM bom_proposals WHERE project_id=$1
+        ORDER BY (state='pending' AND expires_at>clock_timestamp()) DESC,created_at DESC,id DESC LIMIT $2::int`,[projectId,cap+1])).rows;
+      const proposals=fetched.slice(0,cap);
       const works=new Map((await tx.query<PendingCard['work']>('SELECT id,code,title,version FROM work_items WHERE id=ANY($1::uuid[])',[[...new Set(proposals.map(x=>x.work_id))]])).rows.map(w=>[w.id,w]));
       const cards:PendingCard[]=[];
       for(const proposal of proposals) {
@@ -117,7 +124,7 @@ export class BomService {
         invariant(work,'BOM_INCONSISTENT','Phiếu BoM không có đầu việc trong phạm vi được cấp.',500);
         cards.push({...await card(tx,proposal),work});
       }
-      return cards;
+      return {cards,truncated:wasCut({fetched:fetched.length,cap})};
     });
   }
 
