@@ -1,0 +1,11 @@
+# Task 13 — mutation table (copied from the builder's report by the slice-3 session; each mutation was applied alone and reverted)
+
+## Mutations (each reverted, `decisions.ts`/`bom.ts` diffed back to the original)
+| # | Mutation | Case that went red |
+|---|---|---|
+| m1 | `pending` + 3 agrees -> `'applied'` | reassignmentState never says applied without a receipt |
+| m2 | `appliedReceipt` without the pointer condition | a review card reports the vote and the applied baseline as two facts |
+| m3 | catch every error from `pending` | only SCOPE_DENIED from pending is absorbed; any other failure propagates |
+| m4 | `pending` without `assertSeat` | pending answers a non-seat and an unlinked seat as read() does, and writes nothing (list-level cases would NOT catch it: the Telegram check also gives SCOPE_DENIED, so I added the direct `BomService.pending` assertion) |
+| m5 | `have` counts any decision | a changes_requested decision uses the only slot |
+
