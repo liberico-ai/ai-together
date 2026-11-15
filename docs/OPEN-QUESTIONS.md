@@ -617,3 +617,25 @@ Lời Chairman 12/11/2026 (nguyên văn):
     - «(c) Chưa coi là rủi ro» — «Không coi là rủi ro cần xử lý ở giai đoạn này.»
 - **Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):** OQ-42 (a): lát 3 không thêm mã. Biên nhận `DELIVERY-012` ghi điểm này vào mục giới hạn đã biết: luật không tự chỉ định chỉ chắc trong phạm vi một tài khoản.
 - **Hành vi hiện tại (không phải phương án được chọn):** lát 3 không thêm gì về việc này; luật không tự chỉ định chỉ chắc trong phạm vi một tài khoản.
+
+---
+
+**Bổ sung 15/11/2026 sau review bảo mật của Task 7d lát 3** (`docs/reviews/slice-3-evidence-20261115/gates/review-task-7d-security.md`, kết luận bảo mật «Approved»; mã ở `b5d6d21`). Hai mục dưới đây là hai câu hỏi «ai xem được gì» mà các quyết định OQ-39 và OQ-41 chưa phủ. Ghi khi **chưa có quyết định**, do phiên lát 3 chép từ báo cáo review. **Không mục nào chặn task nào của lát 3:** mã đã có một hành vi cho từng trường hợp, nêu ở dòng «Hành vi hiện tại»; đó không phải phương án được chọn.
+
+## OQ-43 — Người được chỉ định có thấy nhãn «người chỉ định không còn là điều phối» ở dòng của chính mình không
+
+- **Lát:** 3 (Task 7d đã có mã; Task 15, 16), pilot.
+- **Phía A:** quyết định OQ-39 (c) — «Vẫn hiệu lực, nhưng danh sách và giao diện nêu rõ «người chỉ định không còn là điều phối». Chỉ thêm một cột tính trong hàm liệt kê và một dòng chữ trên giao diện.» — không nói nêu rõ cho ai. Quyết định OQ-40 (c) thì nói rõ người thấy: «điều phối thấy dòng đó được đánh dấu «đang ngủ»».
+- **Phía B:** quyết định OQ-41 (c) — «Điều phối thấy đủ. Người đọc khác chỉ thấy ai nhận xét loại tài liệu nào, không thấy chữ căn cứ. Người được chỉ định thấy căn cứ của các dòng của chính mình. Phiên lát 3 đang tạm làm theo hướng này.» Nhãn này cho biết tình trạng vai hiện tại của một người khác (người đã chỉ định). Không tài liệu nào nói người được chỉ định có được biết điều đó ở dòng của mình không.
+- **Phương án:** (a) chỉ điều phối thấy nhãn, như hiện nay; (b) người được chỉ định cũng thấy nhãn ở các dòng của chính mình.
+- **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn.
+- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a) — cách đọc chặt của phiên lát 3 (phán quyết S86 của kế hoạch). Đổi sang (b) là một dòng ở hàm liệt kê.
+
+## OQ-44 — Ai được xem danh sách người đang giữ quyền duyệt bản chuẩn của dự án
+
+- **Lát:** 3 (Task 7a, 7d đã có mã; Task 15, 16), pilot.
+- **Phía A:** hàm liệt kê người nhận xét của dự án trả kèm một khối «người duyệt» (ai đang giữ quyền duyệt bản chuẩn cho loại tài liệu nào, đọc từ `public.document_approvers`), cho mọi người đọc của dự án theo phán quyết S11. Màn Review cần biết có người duyệt hay chưa để hiện «Chờ xác định người duyệt» (`docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:47`).
+- **Phía B:** quyết định OQ-41 (c) giới hạn điều người đọc thường thấy về người nhận xét ở mức «ai nhận xét loại tài liệu nào», không nói gì về người duyệt. Không tài liệu nào nói người đọc thường được thấy tên người giữ quyền duyệt, hay chỉ được biết có/chưa có người duyệt cho một loại tài liệu.
+- **Phương án:** (a) mọi người đọc của dự án thấy ai duyệt loại tài liệu nào, như hiện nay (cùng mức với «ai nhận xét loại nào» của OQ-41); (b) chỉ điều phối thấy tên; người đọc khác chỉ biết loại tài liệu nào đã có người duyệt.
+- **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn.
+- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a); khối này chỉ gồm mã người và loại tài liệu, không có chữ căn cứ. Đổi sang (b) là một nhánh lọc ở hàm liệt kê.
