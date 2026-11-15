@@ -2,7 +2,7 @@ import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
 import {member,pm,seedSlice1} from './slice1-fixtures';
-import {approver,delegate,frozenRevision,grantDocApproval,registerDoc,reviewer,revokeDelegation,seedMembers,transportApprover} from './slice3-fixtures';
+import {approver,delegate,frozenRevision,grantDocApproval,proposeRev,registerDoc,reviewer,revokeDelegation,seedMembers,transportApprover} from './slice3-fixtures';
 import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
 import type {Principal} from '../src/server/types';
@@ -499,8 +499,10 @@ test('a dependency cannot point a document at itself and is unique per pair',asy
  // the pair CHECK holds for the operational login too, which the guard lets through
  expect((await failure(h.operator.query('UPDATE document_dependencies SET needs_review=true,version=version+1 WHERE dependent_document_id=$1',[down.record.id]))).message).toMatch(/document_dependencies_flag_pair/);
  const foreign=await frozenRevision(h,(await registerDoc(h,pm)).record.id,member.id);
- expect((await failure(flag(foreign.revisionId,true))).code).toBe('23503');
- expect((await flag(up.revisionId,true)).rows).toEqual([{version:2}]);
+ expect((await failure(flag(foreign.revisionId,true))).message).toBe('A dependency flag moves to a newer revision of the upstream document');
+ expect((await failure(flag(up.revisionId,true))).message).toBe('A dependency flag moves to a newer revision of the upstream document');
+ const newerUp=await frozenRevision(h,up.docId,member.id);
+ expect((await flag(newerUp.revisionId,true)).rows).toEqual([{version:2}]);
  expect((await failure(as(pm.id,S,tx=>tx.query("UPDATE document_dependencies SET note='x' WHERE dependent_document_id=$1",[down.record.id])))).message).toMatch(/permission denied/);
 });
 
@@ -608,6 +610,43 @@ test('the approved pointer cannot go back to an older approved revision, nor be 
   expect((await failure(move(w.revisionId,who))).message,String(who)).toBe(message);
   expect(await pointer()).toBe(second.revisionId);
  }
+ // one statement that moves both pointers back to the older approved revision is refused too, and leaves the row as it was
+ const row=async()=>(await rows('SELECT latest_revision_id,approved_revision_id,version FROM document_records WHERE id=$1',[w.docId]))[0];
+ const before=await row();
+ const both=(to:string)=>as(approver.id,S,tx=>tx.query('UPDATE document_records SET latest_revision_id=$2,approved_revision_id=$2 WHERE id=$1',[w.docId,to]));
+ await failure(both(w.revisionId));
+ expect(await row()).toEqual(before);
+ // the same statement forward: revision 3 is approved while it is the latest, then the operational login puts latest back on revision 2;
+ // moving latest and approved to revision 3 in one statement is refused because the pointer must follow the latest BEFORE the statement
+ const third=await frozenRevision(h,w.docId,member.id);
+ const w3:W={...w,revisionId:third.revisionId,version:third.version,hash:third.hash,revisionNo:(await rows<{n:number}>('SELECT revision_no n FROM document_revisions WHERE id=$1',[third.revisionId]))[0].n};
+ await decideAsRuntime(approvalOf(w3,approver.id));
+ await h.operator.query('UPDATE document_records SET latest_revision_id=$2 WHERE id=$1',[w.docId,second.revisionId]);
+ const before3=await row();
+ expect((await failure(both(third.revisionId))).message).toBe(message);
+ expect(await row()).toEqual(before3);
+});
+
+test('the latest-revision pointer only moves forward for the runtime role',async()=>{
+ const doc=await registerDoc(h,pm);
+ const r1=await proposeRev(h,pm,doc);
+ const r2=await proposeRev(h,pm,r1);
+ const first=r1.record.latest_revision_id as string,second=r2.record.latest_revision_id as string;
+ expect(first).not.toBe(second);
+ const other=await proposeRev(h,pm,await registerDoc(h,pm));
+ const otherRev=other.record.latest_revision_id as string;
+ const msg='The latest revision of a document only moves forward';
+ const move=(to:string|null)=>as(pm.id,S,tx=>tx.query('UPDATE document_records SET latest_revision_id=$2 WHERE id=$1',[doc.record.id,to]));
+ const latest=async()=>(await rows<{l:string|null}>('SELECT latest_revision_id l FROM document_records WHERE id=$1',[doc.record.id]))[0].l;
+ for(const [label,to] of [['an older revision',first],['a revision of another document',otherRev],['NULL',null]] as [string,string|null][]){
+  expect((await failure(move(to))).message,label).toBe(msg);
+  expect(await latest(),label).toBe(second);
+ }
+ // the service path still works, and the operational login still sets it directly
+ const r3=await proposeRev(h,pm,r2);
+ expect(r3.record.latest_revision_id).not.toBe(second);
+ await h.operator.query('UPDATE document_records SET latest_revision_id=$2 WHERE id=$1',[doc.record.id,first]);
+ expect(await latest()).toBe(first);
 });
 
 test('runtime sets or advances a dependency flag but cannot clear it; the version moves by exactly one',async()=>{
@@ -616,11 +655,21 @@ test('runtime sets or advances a dependency flag but cannot clear it; the versio
  await as(pm.id,S,tx=>insDep(tx,up,down.record.id,pm.id));
  const upd=(set:string,params:unknown[]=[])=>as(pm.id,S,async tx=>(await tx.query<R>(
   `UPDATE document_dependencies SET ${set} WHERE dependent_document_id=$1 RETURNING needs_review,flagged_revision_id,version`,[down.record.id,...params])).rows);
+ const first=await frozenRevision(h,up.docId,member.id);
  const newer=await frozenRevision(h,up.docId,member.id);
- expect(await upd('needs_review=true,flagged_revision_id=$2,flagged_at=now(),version=version+1,updated_at=now()',[up.revisionId]))
-  .toEqual([{needs_review:true,flagged_revision_id:up.revisionId,version:2}]);
+ const older='A dependency flag moves to a newer revision of the upstream document';
+ // with no flag yet, the confirmed revision itself is not newer
+ expect((await failure(upd('needs_review=true,flagged_revision_id=$2,version=version+1',[up.revisionId]))).message).toBe(older);
+ // a stamp supplied in the past is overwritten with the transaction time
+ expect(await upd("needs_review=true,flagged_revision_id=$2,flagged_at='2000-01-01T00:00:00Z',version=version+1,updated_at='2000-01-01T00:00:00Z'",[first.revisionId]))
+  .toEqual([{needs_review:true,flagged_revision_id:first.revisionId,version:2}]);
+ const stamps=(await rows<{flagged_at:Date;updated_at:Date}>('SELECT flagged_at,updated_at FROM document_dependencies WHERE dependent_document_id=$1',[down.record.id]))[0];
+ expect(stamps.flagged_at.getFullYear()).toBeGreaterThan(2020);expect(stamps.updated_at.getFullYear()).toBeGreaterThan(2020);
  expect(await upd('flagged_revision_id=$2,flagged_at=now(),version=version+1',[newer.revisionId]))
   .toEqual([{needs_review:true,flagged_revision_id:newer.revisionId,version:3}]);
+ // advancing to an older revision, or to the same one as a move, is refused
+ expect((await failure(upd('flagged_revision_id=$2,version=version+1',[first.revisionId]))).message).toBe(older);
+ expect((await failure(upd('flagged_revision_id=$2,version=version+1',[up.revisionId]))).message).toBe(older);
  const state=await rows('SELECT * FROM document_dependencies WHERE dependent_document_id=$1',[down.record.id]);
  const cleared='A dependency flag is set or advanced, not cleared';
  expect((await failure(upd('needs_review=false,flagged_revision_id=NULL,flagged_at=NULL,version=version+1'))).message).toBe(cleared);
@@ -711,13 +760,16 @@ describe.skipIf(!native)('decision guard lock (native PostgreSQL)',()=>{
   await h.operator.transaction(async tx=>{
    await tx.query('SELECT id FROM document_records WHERE id=$1 FOR UPDATE',[w.docId]);
    const mine=(await rows<{id:string}>('SELECT id FROM review_delegations WHERE delegate_id=$1',[second]))[0].id;
-   all=Promise.allSettled([decideAsRuntime(decisionOf(w)),decideAsRuntime(decisionOf(w,{decided_by:second,delegation_id:mine}))]);
+   // as the service will: after the insert, the same transaction updates the document row (version bump)
+   const decide=(d:D)=>as(d.decided_by,S,async tx=>{await insDec(tx,d);await tx.query('UPDATE document_records SET version=version+1 WHERE id=$1',[w.docId]);});
+   all=Promise.allSettled([decide(decisionOf(w)),decide(decisionOf(w,{decided_by:second,delegation_id:mine}))]);
    await waitForBlocked(h,2);
   });
   const res=await all;
   expect(res.filter(r=>r.status==='fulfilled')).toHaveLength(1);
   const lost=res.find(r=>r.status==='rejected') as PromiseRejectedResult;
-  expect(['23505','LTR01','P0001']).toContain((lost.reason as Err).code);
+  expect(['23505','P0001']).toContain((lost.reason as Err).code);
+  if((lost.reason as Err).code==='P0001') expect((lost.reason as Err).message).toBe('A decision names the latest revision and the current record version');
   expect((lost.reason as Err).code).not.toBe('40P01');
   expect(await rows('SELECT id FROM review_decisions WHERE document_revision_id=$1',[w.revisionId])).toHaveLength(1);
  });

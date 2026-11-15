@@ -20,11 +20,13 @@ BEGIN
   END IF;
 END $$;
 DROP TRIGGER IF EXISTS document_records_approval_guard ON document_records;
+DROP TRIGGER IF EXISTS document_records_latest_guard ON document_records;
 DROP TRIGGER IF EXISTS review_decisions_guard ON review_decisions;
 DROP TRIGGER IF EXISTS review_delegations_revoke_guard ON review_delegations;
 DROP TRIGGER IF EXISTS review_delegations_guard ON review_delegations;
 DROP TRIGGER IF EXISTS document_dependencies_flag_guard ON document_dependencies;
 DROP FUNCTION IF EXISTS public.document_records_approval_guard();
+DROP FUNCTION IF EXISTS public.document_records_latest_guard();
 DROP FUNCTION IF EXISTS public.review_decisions_guard();
 DROP FUNCTION IF EXISTS public.review_delegations_revoke_guard();
 DROP FUNCTION IF EXISTS public.review_delegations_guard();

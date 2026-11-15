@@ -66,8 +66,8 @@ CREATE TABLE IF NOT EXISTS review_decisions (
   CONSTRAINT review_decisions_approval_needs_hash CHECK(result <> 'approved' OR revision_hash IS NOT NULL),
   CONSTRAINT review_decisions_exceptions_array CHECK(jsonb_typeof(exceptions) = 'array'),
   -- bounds are a backstop; a non-array never reaches jsonb_array_length
-  CONSTRAINT review_decisions_exceptions_bounds CHECK(jsonb_typeof(exceptions) <> 'array'
-    OR (jsonb_array_length(exceptions) <= 10 AND octet_length(exceptions::text) <= 16384)),
+  CONSTRAINT review_decisions_exceptions_bounds CHECK(CASE WHEN jsonb_typeof(exceptions) = 'array'
+    THEN jsonb_array_length(exceptions) <= 10 AND octet_length(exceptions::text) <= 16384 ELSE false END),
   FOREIGN KEY(project_id,tenant_id) REFERENCES projects(id,tenant_id),
   FOREIGN KEY(document_id,tenant_id,project_id) REFERENCES document_records(id,tenant_id,project_id),
   FOREIGN KEY(document_revision_id,document_id) REFERENCES document_revisions(id,document_id),
@@ -301,8 +301,8 @@ DROP TRIGGER IF EXISTS review_decisions_guard ON review_decisions;
 CREATE TRIGGER review_decisions_guard BEFORE INSERT ON review_decisions
   FOR EACH ROW EXECUTE FUNCTION public.review_decisions_guard();
 
--- Approved pointer guard (S7). The operational login keeps the direct path of slice 1. Every other role moves the pointer only (a) to the document's
--- latest revision, (b) in the transaction of the person who recorded the approval, (c) when that revision carries an approval decision and is frozen.
+-- Approved pointer guard (S7). The operational login keeps the direct path of slice 1. Every other role moves the pointer only (a) to the revision that
+-- was the document's latest before this statement (OLD, so one UPDATE cannot move both pointers), (b) in the transaction of the person who recorded the approval, (c) when that revision carries an approval decision and is frozen.
 -- Setting it back to NULL, or back to an older approved revision, is refused for them.
 CREATE OR REPLACE FUNCTION public.document_records_approval_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
@@ -310,7 +310,7 @@ BEGIN
   IF coalesce((SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname = current_user), false) THEN RETURN NEW; END IF;
   IF NEW.approved_revision_id IS DISTINCT FROM OLD.approved_revision_id THEN
     IF NEW.approved_revision_id IS NULL
-      OR NEW.approved_revision_id IS DISTINCT FROM NEW.latest_revision_id
+      OR NEW.approved_revision_id IS DISTINCT FROM OLD.latest_revision_id
       OR NOT EXISTS (
       SELECT 1 FROM public.review_decisions d
       JOIN public.document_revisions v ON v.id = d.document_revision_id AND v.document_id = d.document_id
@@ -327,8 +327,30 @@ DROP TRIGGER IF EXISTS document_records_approval_guard ON document_records;
 CREATE TRIGGER document_records_approval_guard BEFORE UPDATE OF approved_revision_id ON document_records
   FOR EACH ROW EXECUTE FUNCTION public.document_records_approval_guard();
 
+-- Latest-revision pointer guard. The decision guard and the approved-pointer guard trust document_records.latest_revision_id, so the runtime role may
+-- only move it forward: to a revision of this document with a higher revision_no than the current one. The operational login keeps its direct path.
+CREATE OR REPLACE FUNCTION public.document_records_latest_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF coalesce((SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname = current_user), false) THEN RETURN NEW; END IF;
+  IF NEW.latest_revision_id IS DISTINCT FROM OLD.latest_revision_id THEN
+    IF NEW.latest_revision_id IS NULL OR NOT EXISTS (
+      SELECT 1 FROM public.document_revisions v
+      WHERE v.id = NEW.latest_revision_id AND v.document_id = NEW.id
+        AND (OLD.latest_revision_id IS NULL
+          OR v.revision_no > (SELECT o.revision_no FROM public.document_revisions o WHERE o.id = OLD.latest_revision_id))) THEN
+      RAISE EXCEPTION 'The latest revision of a document only moves forward';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS document_records_latest_guard ON document_records;
+CREATE TRIGGER document_records_latest_guard BEFORE UPDATE OF latest_revision_id ON document_records
+  FOR EACH ROW EXECUTE FUNCTION public.document_records_latest_guard();
+
 -- Flag guard (slice 3 builds no un-flagging). For every role the identity of a dependency is frozen and the version moves by exactly one; for every
--- role but the operational login a flag can be set or moved to a newer revision, never cleared.
+-- role but the operational login a flag can be set or moved to a newer revision, never cleared; the two stamps are written here.
 CREATE OR REPLACE FUNCTION public.document_dependencies_flag_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
@@ -345,6 +367,20 @@ BEGIN
     IF NEW.needs_review IS NOT TRUE OR NEW.flagged_revision_id IS NULL THEN
       RAISE EXCEPTION 'A dependency flag is set or advanced, not cleared';
     END IF;
+    -- the flag only moves to a newer revision of the upstream document than the one flagged now (or, with no flag, than the confirmed one)
+    IF NEW.flagged_revision_id IS DISTINCT FROM OLD.flagged_revision_id AND NOT EXISTS (
+      SELECT 1 FROM public.document_revisions v
+      WHERE v.id = NEW.flagged_revision_id AND v.document_id = NEW.upstream_document_id
+        AND v.revision_no > (SELECT o.revision_no FROM public.document_revisions o
+          WHERE o.id = coalesce(OLD.flagged_revision_id, OLD.upstream_revision_id))) THEN
+      RAISE EXCEPTION 'A dependency flag moves to a newer revision of the upstream document';
+    END IF;
+  END IF;
+  -- stamps are the database's, whatever the statement supplied
+  NEW.updated_at := pg_catalog.now();
+  IF NEW.flagged_revision_id IS NOT NULL THEN
+    IF NEW.flagged_revision_id IS DISTINCT FROM OLD.flagged_revision_id THEN NEW.flagged_at := pg_catalog.now();
+    ELSE NEW.flagged_at := OLD.flagged_at; END IF;
   END IF;
   RETURN NEW;
 END;

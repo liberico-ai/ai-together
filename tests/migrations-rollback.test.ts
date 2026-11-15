@@ -229,9 +229,9 @@ test('rollback 020 refuses while an approval decision exists and while a later m
   const present=async()=>(await q<{t:string|null}>('SELECT to_regclass(n)::text t FROM unnest($1::text[]) n',[tables])).map(r=>r.t);
   const objects=async()=>({
     triggers:(await q<{d:string}>(`SELECT pg_get_triggerdef(oid) d FROM pg_trigger WHERE NOT tgisinternal AND tgname IN
-      ('review_delegations_guard','review_delegations_revoke_guard','review_decisions_guard','document_records_approval_guard','document_dependencies_flag_guard') ORDER BY tgname`)).map(r=>r.d),
+      ('review_delegations_guard','review_delegations_revoke_guard','review_decisions_guard','document_records_approval_guard','document_dependencies_flag_guard','document_records_latest_guard') ORDER BY tgname`)).map(r=>r.d),
     functions:(await q<{n:string}>(`SELECT p.proname n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE s.nspname='public'
-      AND p.proname IN ('review_delegations_guard','review_delegations_revoke_guard','review_decisions_guard','document_records_approval_guard','document_dependencies_flag_guard') ORDER BY 1`)).map(r=>r.n),
+      AND p.proname IN ('review_delegations_guard','review_delegations_revoke_guard','review_decisions_guard','document_records_approval_guard','document_dependencies_flag_guard','document_records_latest_guard') ORDER BY 1`)).map(r=>r.n),
     pointerGrant:(await q<{ok:boolean}>("SELECT has_column_privilege('libetech_runtime','public.document_records','approved_revision_id','UPDATE') ok"))[0].ok,
   });
   const nineteen=async()=>({
@@ -249,7 +249,7 @@ test('rollback 020 refuses while an approval decision exists and while a later m
     later=(await from013()).filter(f=>num(f)>20);
     for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
     const full=await objects();
-    expect(full.triggers).toHaveLength(5);expect(full.functions).toHaveLength(5);expect(full.pointerGrant).toBe(true);
+    expect(full.triggers).toHaveLength(6);expect(full.functions).toHaveLength(6);expect(full.pointerGrant).toBe(true);
     expect(await present()).toEqual(tables);
     const kept=await nineteen();
     // an approval decision on a frozen revision, written the way the service will: approver holds the design code

@@ -130,3 +130,64 @@ None.
 The schema follows the brief closely, the revoke design is well closed, and the tests are real database evidence on both engines. Two items should be settled before Task 5 is written: I1 (re-check the delegate's eligibility in the delegation branch, one `EXISTS`) and I2 (remove the lock-upgrade hazard, by `FOR NO KEY UPDATE` in the guard or by fixing "lock `FOR UPDATE` first" in the Task 5 brief). The Minor items are optional or plan-mandated.
 
 **Database verdict for Task 4b:** Needs fixes (I1; I2 either in the guard or as a binding line in the Task 5 brief).
+
+## Re-review of fix round 1 (9e209bf)
+
+Scope: the fix diff `c888e77..9e209bf` (`review-c888e77..9e209bf.diff`) and the «Fix round 1» part of the implementer's report. No database, no test run. Line numbers are at `9e209bf`. The lock claims are `#inference` from PostgreSQL 16 lock semantics.
+
+### Verdict per finding
+
+| Id | Verdict | Evidence |
+|---|---|---|
+| F-1 (I1) | **ADDRESSED** | `migrations/020_document_review.sql:271-275`: the delegation branch now also requires `bom_eligible_members(NEW.project_id, ARRAY[NEW.decided_by])` with a reading role. It still raises `LTR01`, because the result feeds `authorised`. Case `tests/review-schema.test.ts:574` covers a viewer and a deactivated account, both `LTR01`, the delegation still live, and a control once the person is restored. Mutation m1 turns it red. |
+| F-2 (I2) | **ADDRESSED** (the code) | `020:268` now uses `FOR NO KEY UPDATE`. The runtime role keeps `UPDATE(latest_revision_id,version,updated_at)` (`014:142`), which a row lock needs, and the `scope_update` USING passes. Against `proposeRevision` (`FOR UPDATE` first, `documents.ts:161`), both sides take a single row lock first, so they serialise instead of deadlocking. A pointer or version `UPDATE` later in the decision transaction needs the same lock it already holds (`approved_revision_id` is not a key column), so the lock never has to upgrade. The native case at `:705` exists, but it cannot tell the old code from the new; see N2. |
+| F-3 (M1) | **ADDRESSED** (with N1) | `020:311-319`: the new pointer must equal `latest_revision_id`, and it needs an `approved` decision by the person in `app.person_id` on a frozen revision. NULL is still refused, and the superuser bypass is unchanged. The case at `:588` covers the backward move and moves by the reviewer, the PM and nobody. Mutation m2 turns it red. |
+| F-4 (M4) | **ADDRESSED** (with N3) | `020:88` adds the CHECK `document_dependencies_flagged_at_pair`. `020:332-354` adds the guard: identity, note and created_at frozen for every role, `version = OLD.version + 1`, and non-superusers cannot clear the flag. `rollback/020` drops the trigger, then the function. The case is at `:613`. |
+| F-5 (M2) | **ADDRESSED** | `020:44` adds `UNIQUE(id,document_id,document_revision_id)`. `020:47` adds a composite FK from the reply to its parent. The case at `:636` refuses another document and another revision (`23503`); the control (a reply on the parent's own document and revision) passes. |
+| F-6 (M5) | **ADDRESSED** | `020:69-70` bounds `exceptions`; `020:103-104` bounds `kind` and `payload`. The case at `:650` checks the boundaries and a non-array. Every column involved is `NOT NULL`, so no NULL path exists. |
+| F-7 (M6) | **ADDRESSED** | `:554` binds `confirmed_by` (wrong person, no person, two distinct documents). The cross-project decision and delegation now assert the exact sentence and `LTR02` (diff, isolation case). `:563` is a no-context insert on all five tables, with counts unchanged. |
+| F-8 (M7) | **ADDRESSED** | `:666` is the named case: `LTR01` (also the F-1 branch), `LTR02` for both causes, `LTR03`, and twelve branches with no code (decision integrity, CHECK `23514`, RLS `42501`, column privilege `42501`, unique, revoke repeat, pointer guard, flag guard). |
+
+### Did the two changed assertions get weaker?
+
+- **Dependency case** (diff, `flag(...)` lines). For the runtime role, the former `flag_pair` expectations now hit the guard sentence, because the guard runs before the CHECK. The CHECK is still proven, through the operational login, in one direction (`needs_review=true` with no revision). The other direction (a revision set, `needs_review=false`) is no longer proven for the CHECK itself; only the guard covers it for runtime. Slightly weaker, but acceptable: the guard enforces it for every non-superuser.
+- **Pointer case** (`runtime can move the approved pointer only …`, `move(...)` now defaults to the approver). The first three refusals still isolate "no approval decision": the target is the latest revision and the mover is the approver. The later refusal `move(w.revisionId)` ("first revision still has no approval") is now also caught by the latest-revision rule, so it no longer isolates its stated reason; step 1 already proves that reason. Not materially weaker.
+
+### New breakage introduced by the fix
+
+- **N1 — Minor. F-3 can be bypassed by moving `latest_revision_id` in the same statement.** `020:313`. The guard compares with `NEW.latest_revision_id`, and the runtime role may update `latest_revision_id` (`014:142`). Scenario: revisions 1 and 2 were both approved by the approver, and the pointer is on 2. As runtime, with `app.person_id` = the approver: `UPDATE document_records SET latest_revision_id=<rev1>, approved_revision_id=<rev1>` → accepted. Both pointers go back to revision 1. Only the person who approved revision 1 can do this. Smallest fix: compare with `OLD.latest_revision_id`, or also require `NEW.latest_revision_id IS NOT DISTINCT FROM OLD.latest_revision_id` whenever the approved pointer moves. The planned service path (one statement that sets the pointer and the version, latest unchanged) keeps working under either fix.
+- **N2 — Minor. The native concurrency case cannot tell the old code from the new.** `tests/review-schema.test.ts:705-722`. Both deciders only `INSERT`; neither then updates `document_records`. Under the old `FOR SHARE` this case also ends with one row and `23505`, so it would stay green with I2 reverted. The accepted codes (`23505`, `LTR01`, `P0001`) are also broad. Smallest fix: in each decider transaction, follow the insert with `UPDATE document_records SET version=version+1 WHERE id=$1`, as the service will, and assert the loser's code is `23505` or the freshness sentence. A mutation back to `FOR SHARE` would then turn it red with `40P01`.
+- **N3 — Minor. The flag guard does not do what its comment says, and does not stamp its times.** `020:331-349`. The comment says the flag moves "to a newer revision". The code accepts any revision of the upstream document, including an older one. `flagged_at` and `updated_at` stay whatever the caller writes, so they can be back-dated, unlike the revoke guard. Smallest fix: in the guard, set `NEW.updated_at := now()`, and set `NEW.flagged_at := now()` when `flagged_revision_id` changes. Optionally, refuse a `flagged_revision_id` whose `revision_no` is not greater than the current flag's. A later slice that adds clearing only needs `CREATE OR REPLACE FUNCTION`, not a table rewrite. It will likely want a "cleared by" column anyway, which means a migration of its own.
+- **N4 — Minor. `review_decisions_exceptions_bounds` relies on `OR` being evaluated left to right.** `020:69-70`. PostgreSQL does not guarantee that order. On a non-array, `jsonb_array_length` could raise `22023` instead of a CHECK violation. Either outcome refuses the row, so nothing gets in. `CASE WHEN jsonb_typeof(exceptions)='array' THEN … ELSE true END` is the form that guarantees the order.
+- Checked and fine:
+  - F-5: a legitimate reply (on the parent's revision) passes, and inserts are no more order-dependent than before; the parent must exist first anyway. The new FK is served by `idx_review_comments_parent_fk`, which leads with `parent_id`.
+  - F-4: `version = OLD+1` fits the planned `flagDependents` statement, which also does `version=version+1`.
+  - F-3: with the planned path (lock the row, insert the approval as the approver, then update the pointer and version in one statement), the guard sees its own decision under RLS, latest is unchanged, and the person matches.
+  - Rollback: it drops 5 triggers and 5 functions, each trigger before its function, then the tables with their new constraints. That matches the rollback test's new count of 5 and 5.
+
+### Out-of-scope observations
+
+- **The existing slice-1 path leaves `latest_revision_id` unguarded** (`014:142`). Any runtime transaction in scope can point "latest" at any revision of the document, including an older one. The decision guard's "names the latest revision" rule and F-3 both trust that column. Before go-live, consider a guard that lets `latest_revision_id` move only to a revision with a higher `revision_no`. That would also close N1.
+
+### Round verdict
+
+All findings addressed, no new Critical/Important breakage (N1–N4 are Minor).
+
+**Database verdict for Task 4b after fix round 1:** Approved. N1 and N2 are recommended before Task 5 merges.
+
+### Updated deployment notes
+
+Same as above, plus:
+- 020 now also creates the trigger `document_dependencies_flag_guard`, which applies to every role. Any manual repair of `document_dependencies` by the operator must bump `version` by exactly one and must leave the identity columns unchanged.
+- The decision guard takes `FOR NO KEY UPDATE` on `document_records`, so a decision blocks concurrent revision proposals on the same document until it commits.
+
+### What Task 5 must know (updated)
+
+- Set `app.person_id` in every writing transaction (`scoped()` does not).
+- In `decide`: lock the row with `SELECT … FROM document_records … FOR UPDATE` first; insert the decision; then, for an approval, set `approved_revision_id` and bump `version` in one `UPDATE` of the same transaction, as the approver. Do not touch `latest_revision_id` in that statement.
+- Map `LTR01` on that `INSERT` to `APPROVER_NOT_AUTHORIZED`. A delegate who lost their role or account also gets `LTR01` now.
+- Only the approver can move the pointer, only to the latest revision, and never back to NULL. There is no separate "publish" command.
+- Every `document_dependencies` update must bump `version` by exactly one. Runtime can set or advance a flag, never clear it. Stamp `flagged_at` and `updated_at` yourself until N3 is fixed.
+- A reply must carry its parent's `document_id` and `document_revision_id` (FK-enforced). "Parent is a `comment`" remains a service rule.
+- A commenter's `changes_requested` takes the revision's only decision slot (S3).
+- Self-revocation by a delegate who is also a manager is allowed (S62, pending confirmation).
