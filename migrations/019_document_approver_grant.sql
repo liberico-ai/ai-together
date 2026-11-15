@@ -1,7 +1,9 @@
 -- Slice 3, OQ-31 (b): the right to approve a document's canonical revision, per document type, is carried by the existing report_permissions
--- list of a project membership as eight codes doc_approve:<type>. It is granted only through the existing access-change ballot of 018
--- (OQ-29: one BoM agreeing). No new ballot kind, no new voting rule, no table, no data row: this file only widens the value set of one
--- column (expand), adds a trigger that stops a code entering a membership without a ballot that names it, and adds one read function.
+-- list of a project membership as eight codes doc_approve:<type>. No new ballot kind, no new voting rule, no table, no data row: this file only
+-- widens the value set of one column (expand), adds a trigger and adds one read function.
+-- What the database guarantees: a doc_approve code is admitted into a membership only when an access_change ballot row of the same tenant,
+-- for that account, in state 'issued' or in state 'approved' and unexpired, names that project and that code. Vote counting (OQ-29) and
+-- ballot freezing are enforced by the identity service, not by the database.
 -- Rollback: migrations/rollback/019_document_approver_grant.sql (refuses while a membership or a ballot carries a doc_approve code).
 -- Lock (Database review M-1): ALTER TABLE takes ACCESS EXCLUSIVE on identity.memberships. After 5 s the whole file (one transaction) fails
 -- and is retried; nothing is applied in part.
@@ -37,6 +39,7 @@ BEGIN
     IF NOT EXISTS (
       SELECT 1 FROM identity.account_approvals a
       WHERE a.tenant_id=NEW.tenant_id AND a.kind='access_change' AND a.subject_user_id=NEW.user_id AND a.state IN ('approved','issued')
+        AND (a.state='issued' OR a.expires_at > pg_catalog.now())
         AND EXISTS (SELECT 1 FROM pg_catalog.jsonb_array_elements(a.grants) g
           WHERE pg_catalog.lower(g->>'projectId')=pg_catalog.format('%s',NEW.project_id)
             AND pg_catalog.jsonb_typeof(g->'reportPermissions')='array'
@@ -57,7 +60,7 @@ CREATE TRIGGER memberships_doc_approve_guard BEFORE INSERT OR UPDATE OF report_p
 -- activated accounts, and never a viewer or bot (effective role = project role first, as bom_eligible_members in 006).
 CREATE OR REPLACE FUNCTION public.document_approvers(target_project uuid)
 RETURNS TABLE(user_id uuid, doc_types text[])
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
   SELECT m.user_id, pg_catalog.array_agg(DISTINCT pg_catalog.substr(c,13) ORDER BY pg_catalog.substr(c,13)) AS doc_types
   FROM identity.memberships m
   JOIN identity.users u ON u.id=m.user_id AND u.tenant_id=m.tenant_id

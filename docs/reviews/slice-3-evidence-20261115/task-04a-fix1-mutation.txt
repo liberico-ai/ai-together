@@ -1,0 +1,40 @@
+npx vitest run tests/doc-approver-grant.test.ts -t 'document_approvers lists holders'
+# Finding: removing only the tenant line of public.document_approvers leaves the case GREEN, because the function runs as libetech_identity
+# and FORCE ROW LEVEL SECURITY on identity.memberships/users already filters by app.tenant_id. So the tenant line is defence in depth.
+# To test the line itself the mutation also takes RLS out of play (owner = the superuser operator login):
+## mutation A: owner changed to CURRENT_USER, tenant line kept -> expected green
+ RUN  v5.1.0 <worktree>
+ Test Files  1 passed (1)
+      Tests  1 passed | 17 skipped (18)
+   Start at  12:10:05
+   Duration  704ms (tests 91%, import 6%, transform 2%)
+## mutation B: owner changed to CURRENT_USER AND tenant line deleted -> expected RED
+ RUN  v5.1.0 <worktree>
+ ❯ tests/doc-approver-grant.test.ts (18 tests | 1 failed | 17 skipped) 606ms
+   × document_approvers lists holders of the project in scope only 605ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/doc-approver-grant.test.ts > document_approvers lists holders of the project in scope only
+AssertionError: expected [ { …(2) } ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   {
++     "doc_types": [
++       "design",
++       "plan",
++     ],
++     "user_id": "14000000-0000-4000-8000-000000000003",
++   },
++ ]
+ ❯ tests/doc-approver-grant.test.ts:221:78
+    219|  expect(await listApprovers(outsider,ids.sales)).toEqual([]);
+    220|  // the other tenant with this tenant's project id in its context: onl…
+    221|  expect(await listApprovers({...outsider,projectIds:[ids.sales]},ids.s…
+## reverted: migration restored
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+ RUN  v5.1.0 <worktree>
+ Test Files  1 passed (1)
+      Tests  1 passed | 17 skipped (18)
+   Start at  12:10:07
+   Duration  702ms (tests 92%, import 6%, transform 2%)

@@ -1,8 +1,8 @@
-import {afterEach,beforeEach,expect,test} from 'vitest';
+import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
-import {openHarness,type Harness} from './slice1-db';
+import {native,openHarness,type Harness} from './slice1-db';
 import {outsider,pm,seedSlice1} from './slice1-fixtures';
 import {provisionApprovers} from './account-approval-fixture';
 import {grantDocApproval,reviewer,seedMembers,approver as docApprover,transportApprover} from './slice3-fixtures';
@@ -171,6 +171,40 @@ test('moving a membership that carries a doc_approve code to another project or 
  expect((await rows<{project_id:string}>('SELECT project_id FROM identity.memberships WHERE user_id=$1',[subject.id]))[0].project_id).toBe(ids.transport);
 });
 
+test('an approved ballot past its expiry does not admit the code',async()=>{
+ await ballotFor(subject.id,ids.sales,[design],'approved');
+ await h.operator.query("UPDATE identity.account_approvals SET expires_at=now()-interval '1 hour'");
+ await expect(setPermissions(subject.id,ids.sales,[design])).rejects.toThrow(GUARD);
+ expect((await memberships())[0].report_permissions).toEqual([]);
+ await h.operator.query("UPDATE identity.account_approvals SET expires_at=now()+interval '1 hour'");
+ await setPermissions(subject.id,ids.sales,[design]);
+ expect((await memberships())[0].report_permissions).toEqual([design]);
+ // an issued ballot stays valid after its deadline: the grant it backed was applied before
+ await h.operator.query("UPDATE identity.account_approvals SET state='issued',expires_at=now()-interval '1 hour'");
+ await setPermissions(subject.id,ids.sales,[]);
+ await setPermissions(subject.id,ids.sales,[design]);
+});
+
+describe.skipIf(!native)('as the identity role (native: roles and RLS are real)',()=>{
+ test('as libetech_identity the guard refuses a code without a ballot, and a ballot of another tenant does not count',async()=>{
+  // a person and a ballot that exist only in the other tenant; the FK on memberships fires after the guard, so a guard that ignored the
+  // tenant would let this insert reach the FK and fail with another message
+  const foreign=randomUUID();
+  await h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,'foreign.da','Người tenant khác','viewer','fixture-hash')`,[foreign,ids.otherTenant]);
+  const insert=(user:string)=>new IdentityService(h.operator,ids.tenant).scope(tx=>tx.query(
+   `INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role,report_permissions) VALUES($1,$2,$3,'engineer',$4)`,[ids.tenant,user,ids.transport,[design]]));
+  await expect(insert(subject.id)).rejects.toThrow(GUARD);
+  const grants=JSON.stringify([{projectId:ids.transport,role:'engineer',reportPermissions:[design]}]);
+  await h.operator.query(`INSERT INTO identity.account_approvals(tenant_id,kind,subject_user_id,subject_account_version,previous_grants,proposer_id,grants,reason,state)
+   VALUES($1,'access_change',$2,1,$3,$2,$4,'Phiếu của tenant khác','issued')`,[ids.otherTenant,foreign,JSON.stringify([]),grants]);
+  await expect(insert(foreign)).rejects.toThrow(GUARD);
+  // control: a ballot of this tenant for this person admits it, through the same role
+  await ballotFor(subject.id,ids.transport,[design],'issued');
+  await insert(subject.id);
+  expect(await count('identity.memberships','user_id=$1 AND project_id=$2',[subject.id,ids.transport])).toBe(1);
+ });
+});
+
 // ---------------------------------------------------------------- Cô lập và rò
 test('document_approvers lists holders of the project in scope only',async()=>{
  await seedMembers(h);
@@ -183,6 +217,8 @@ test('document_approvers lists holders of the project in scope only',async()=>{
  expect(await listApprovers({...pm,projectIds:[ids.transport]},ids.transport)).toEqual([{user_id:transportApprover.id,doc_types:['design']}]);
  // another tenant's context sees none of this tenant's holders
  expect(await listApprovers(outsider,ids.sales)).toEqual([]);
+ // the other tenant with this tenant's project id in its context: the project condition no longer refuses; the tenant condition of the function and FORCE RLS both do (see task-04a-fix1-mutation.txt)
+ expect(await listApprovers({...outsider,projectIds:[ids.sales]},ids.sales)).toEqual([]);
  // no context at all
  const bare=await h.operator.transaction(async tx=>{await tx.query('SET LOCAL ROLE libetech_runtime');
   return (await tx.query('SELECT * FROM public.document_approvers($1)',[ids.sales])).rows;});
@@ -225,7 +261,7 @@ test('the runtime role cannot read or write identity.memberships, and only libet
  expect(acl).toEqual([{role:'libetech_identity',ok:true},{role:'libetech_intake',ok:false},{role:'libetech_runtime',ok:true}]);
  const meta=(await rows<{owner:string;secdef:boolean;config:string[]|null}>(`SELECT pg_get_userbyid(p.proowner) owner,p.prosecdef secdef,p.proconfig config
   FROM pg_proc p WHERE p.oid='public.document_approvers(uuid)'::regprocedure`))[0];
- expect(meta).toMatchObject({owner:'libetech_identity',secdef:true,config:['search_path=pg_catalog']});
+ expect(meta).toMatchObject({owner:'libetech_identity',secdef:true,config:['search_path=pg_catalog, pg_temp']});
  const guard=(await rows<{secdef:boolean;config:string[]|null}>(`SELECT p.prosecdef secdef,p.proconfig config FROM pg_proc p
   WHERE p.oid='identity.memberships_doc_approve_guard()'::regprocedure`))[0];
  expect(guard).toEqual({secdef:false,config:['search_path=pg_catalog, pg_temp']});

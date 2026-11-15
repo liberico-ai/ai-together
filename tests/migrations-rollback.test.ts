@@ -140,10 +140,11 @@ test('rollback 019 refuses while a membership or a ballot carries a doc_approve 
   const checks=async()=>(await q<{conname:string;def:string}>(`SELECT conname,pg_get_constraintdef(oid) def FROM pg_constraint
     WHERE conrelid='identity.memberships'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%report_permissions%' ORDER BY conname`));
   const objects=async()=>({
-    trigger:(await q('SELECT 1 FROM pg_trigger WHERE tgname=\'memberships_doc_approve_guard\' AND NOT tgisinternal')).length,
-    guard:(await q('SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname=\'identity\' AND p.proname=\'memberships_doc_approve_guard\'')).length,
-    reader:(await q('SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname=\'public\' AND p.proname=\'document_approvers\'')).length,
+    trigger:(await q<{d:string}>("SELECT pg_get_triggerdef(oid) d FROM pg_trigger WHERE tgname='memberships_doc_approve_guard' AND NOT tgisinternal")).map(r=>r.d),
+    guard:(await q<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='identity' AND p.proname='memberships_doc_approve_guard'")).map(r=>r.d),
+    reader:(await q<{d:string;owner:string;acl:string|null}>("SELECT pg_get_functiondef(p.oid) d,pg_get_userbyid(p.proowner) owner,p.proacl::text acl FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='document_approvers'")),
   });
+  const absent={trigger:[],guard:[],reader:[]};
   const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='019'")).length;
   // the refusal raises inside the file's own BEGIN; PGlite keeps that aborted block open (a pooled client that errors is discarded)
   const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
@@ -164,14 +165,18 @@ test('rollback 019 refuses while a membership or a ballot carries a doc_approve 
       previous_grants,proposer_id,grants,reason,state) VALUES($1,'access_change',$2,1,$3,$4,$5,'Phiếu đổi quyền mẫu','issued') RETURNING id`,[ids.tenant,subject,previous,admin,g]))[0].id;
     const full=await checks();
     expect(full.map(c=>c.conname)).toEqual(['memberships_grant_permissions_check']);
-    expect(await objects()).toEqual({trigger:1,guard:1,reader:1});
+    const fullObjects=await objects();
+    expect(fullObjects.trigger).toHaveLength(1);expect(fullObjects.guard).toHaveLength(1);expect(fullObjects.reader).toHaveLength(1);
+    expect(fullObjects.trigger[0]).toContain('UPDATE OF report_permissions, project_id, user_id, tenant_id');
+    expect(fullObjects.reader[0]).toMatchObject({owner:'libetech_identity'});
+    expect(fullObjects.reader[0].acl).toContain('libetech_runtime=X/libetech_identity');
     // 1. a membership carries a code (a ballot allowed it; the refusal names the membership)
     const first=await ballot(grants,plain);
     await q('UPDATE identity.memberships SET report_permissions=$2 WHERE user_id=$1',[subject,[code]]);
     await refused(/membership carries a doc_approve code/i);
     expect(await applied()).toBe(1);
     expect(await checks()).toEqual(full);
-    expect(await objects()).toEqual({trigger:1,guard:1,reader:1});
+    expect(await objects()).toEqual(fullObjects);
     // 2. no membership carries it any more, the ballot's grants still name it
     await q("UPDATE identity.memberships SET report_permissions='{}' WHERE user_id=$1",[subject]);
     await refused(/ballot carries a doc_approve code/i);
@@ -186,12 +191,12 @@ test('rollback 019 refuses while a membership or a ballot carries a doc_approve 
     await q("INSERT INTO schema_migrations(version) VALUES('999')");
     try { await refused(/later|019/i); }
     finally { await q("DELETE FROM schema_migrations WHERE version='999'"); }
-    expect(await objects()).toEqual({trigger:1,guard:1,reader:1});
+    expect(await objects()).toEqual(fullObjects);
     // 5. clean: it runs, drops trigger and both functions, restores the three-value CHECK under its 004 name and forgets 019
     await ballot(plain,plain);
     await q("UPDATE identity.memberships SET report_permissions=ARRAY['people_read'] WHERE user_id=$1",[subject]);
     await h.exec(rollback);
-    expect(await objects()).toEqual({trigger:0,guard:0,reader:0});
+    expect(await objects()).toEqual(absent);
     const bare=await checks();
     expect(bare.map(c=>c.conname)).toEqual(['memberships_report_permissions_check']);
     expect(bare[0].def).not.toContain('doc_approve');
@@ -203,7 +208,7 @@ test('rollback 019 refuses while a membership or a ballot carries a doc_approve 
     await h.exec(forward);await h.exec(forward);
     expect(await applied()).toBe(1);
     expect(await checks()).toEqual(full);
-    expect(await objects()).toEqual({trigger:1,guard:1,reader:1});
+    expect(await objects()).toEqual(fullObjects);
     expect((await q('SELECT report_permissions FROM identity.memberships WHERE user_id=$1',[subject]))[0]).toEqual({report_permissions:['people_read']});
   } finally {
     await h.exec(forward);
