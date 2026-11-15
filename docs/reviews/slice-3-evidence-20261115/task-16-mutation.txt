@@ -1,0 +1,14 @@
+# Task 16 — mutation table (copied from the builder's report by the slice-3 session; each mutation was applied alone and reverted)
+
+## Mutations (each applied alone, confirmed red, reverted)
+| m | change | red case(s) |
+|---|---|---|
+| m1 | «Thu hồi» when `canDesignate` false | `OQ-34 only a project manager sees Thu hồi…`; `a reader who is not a coordinator sees other reviewers…` |
+| m2 | member select includes `viewerId` | `the reviewers panel lets only a project manager designate, never offers the viewer…` |
+| m3 | comment body via `dangerouslySetInnerHTML` | `comment bodies with markup are rendered as text` |
+| m4 | label shown when field is `null` (`!field`) | `only a coordinator sees người chỉ định không còn là điều phối and đang ngủ…` |
+| m5 | «Yêu cầu sửa» also on `ALREADY_DECIDED` | `a decided revision offers no new comment…`; `each eligibility reason renders its sentence and hides the buttons it forbids` |
+| m6 | self-declared hash labelled «đã kiểm» | `self-declared hashes are never shown as verified` |
+| m7 | basis printed for any row to a non-coordinator | `shows another person's basis to nobody but a coordinator…` |
+No mutation survived; no gap case needed beyond those written.
+
