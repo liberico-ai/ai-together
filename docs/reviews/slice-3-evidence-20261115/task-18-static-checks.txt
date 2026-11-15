@@ -1,0 +1,25 @@
+# Task 18 step h - static checks, HEAD 2a267c5, base ec3b5e7 (observed 2026-11-15)
+
+$ git diff --stat ec3b5e7 -- tests/foundation.test.ts tests/spec004.test.ts
+(empty above = pass)
+
+$ git diff --stat ec3b5e7 -- AGENTS.md CLAUDE.md bot-plugin src/server/account-approval.ts
+(empty above = pass)
+
+$ git diff --name-only ec3b5e7 -- migrations | /usr/bin/grep -v -E '^migrations/(rollback/)?(019|020|021)_'
+[grep exit 1] (1 and empty above = pass)
+
+$ git diff ec3b5e7 -- migrations | /usr/bin/grep -nE '^\+.*\bevidence\b'
+[grep exit 1] (1 and empty above = pass)
+
+$ git diff ec3b5e7 -- src tests migrations skills | /usr/bin/grep -E '^\+' | /usr/bin/grep -E -- '-100[0-9]{7,}' | /usr/bin/grep -vE -- '-100000000000[0-9]([^0-9]|$)'
++const chatTwo='-1000000000077'; // a second group of the same project, used only to make two threads share a thread_key
++        if (s.kind === 'source_event') expect(s.ref, tag).toMatch(/^telegram:-100000000000[0-9]:\d+$/);
++      for (const hit of text.match(/-100[0-9]{7,}/g) ?? []) expect(hit, f).toMatch(/^-100000000000[0-9]$/);
+[grep exit 0] NOT EMPTY: 3 lines printed above, recorded verbatim, nothing edited. Reading (not a judgement): line 1 is a test constant '-1000000000077' (not of the form -100000000000x, a second synthetic group); lines 2 and 3 are test code whose regex text contains the pattern itself.
+
+$ git ls-files --others --exclude-standard -- src tests migrations skills | xargs /usr/bin/grep -nE -- '-100[0-9]{7,}' | /usr/bin/grep -vE ...
+(untracked files in src tests migrations skills: 0; empty above = pass)
+
+$ /usr/bin/grep -rn "fetch(\|https\?://" src/server/skills.ts src/server/skill-contracts.ts src/server/skill-context.ts src/server/suggestions.ts src/server/ai-scope.ts
+[grep exit 1] (1 and empty above = pass)

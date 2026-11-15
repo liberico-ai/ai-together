@@ -1,0 +1,11 @@
+Task 18 step g - privilege query of Task 8 against the native test database (PostgreSQL, synthetic data), observed 2026-11-15 at HEAD 2a267c5
+Method: the database is empty of migrations between test runs (the harness resets it), so the rows were read inside a one-off vitest run that opens the repository harness (tests/slice1-db openHarness + reset, which applies migrations 001-021) and runs the SQL of task-8-brief.md lines 25-31 as the operator. Nothing was applied by hand. The same assertions also pass in tests/z4-schema.test.ts (24 passed).
+Expected: 0 rows, 0 rows, exactly SELECT + INSERT on intelligence.ai_drafts.
+
+migrations applied: intelligence.ai_drafts exists = true
+-- INSERT/UPDATE/DELETE/TRUNCATE (table or column) on public, identity, analytics: rows = 0
+-- SELECT (table or column) on public, identity, analytics: rows = 0
+-- privileges of libetech_ai on tables of schema intelligence (table or column level):
+intelligence.ai_drafts INSERT
+intelligence.ai_drafts SELECT
+-- schema intelligence: USAGE = true, CREATE = false

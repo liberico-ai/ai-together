@@ -1,0 +1,89 @@
+{
+  "slice": 3,
+  "branch": "slice-3-review-skills",
+  "codeHead": "2a267c590cedd9283a9217b6a804cb8f83e8229e",
+  "base": "ec3b5e7498013d3ba7c19116735b40e2118f0e22",
+  "observedAt": "2026-11-15+07:00",
+  "runner": "builder agent (Task 18, only vitest.config.ts edited), local machine",
+  "nativeDatabase": "PostgreSQL 16.15, Docker container on loopback only, synthetic data",
+  "redaction": "worktree/home/scratchpad paths replaced; connection strings replaced by <redacted-url>; no environment values stored",
+  "workingTreeNote": "vitest.config.ts was modified and uncommitted when the commands ran (coverage.include extended by 13 files of slice 3); the evidence files under docs/reviews/slice-3-evidence-20261115/ were untracked",
+  "commands": [
+    {
+      "name": "vitest-pglite",
+      "command": "npx vitest run --reporter=verbose",
+      "exit": 0,
+      "files": "56 passed | 9 skipped (65)",
+      "tests": "890 passed | 39 skipped (929)",
+      "log": "logs/vitest-pglite-2a267c5.log",
+      "note": "39 skipped are all native-only describe/test blocks (skipIf not native)"
+    },
+    {
+      "name": "vitest-native",
+      "command": "set -a; . $SLICE3_ENV_FILE; set +a; npx vitest run --reporter=verbose",
+      "exit": 0,
+      "files": "65 passed (65)",
+      "tests": "929 passed (929)",
+      "log": "logs/vitest-native-2a267c5.log",
+      "note": "0 skipped"
+    },
+    {
+      "name": "coverage",
+      "command": "npx vitest run --coverage",
+      "exit": 0,
+      "totals": { "statements": 96.03, "branches": 90.75, "functions": 97.69, "lines": 97.23 },
+      "thresholds": "60 passed",
+      "log": "logs/coverage-2a267c5.log"
+    },
+    {
+      "name": "pytest",
+      "command": "python3 -m pytest tests/test_bot_bridge.py -q",
+      "exit": 0,
+      "result": "67 passed, 69 subtests passed",
+      "log": "logs/pytest-2a267c5.log"
+    },
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "exit": 0,
+      "result": "tsc --noEmit, no output",
+      "log": "logs/typecheck-2a267c5.log"
+    },
+    {
+      "name": "build",
+      "command": "rm -rf .next && npm run build",
+      "exit": 0,
+      "result": "routes present: /review, /review/[documentId], /decisions, /api/reviews/[[...path]], /api/decisions; files in .next/static with fabrication_when_missing: 0; with the injection sentence: 0",
+      "log": "logs/build-2a267c5.log"
+    },
+    {
+      "name": "ai-privileges",
+      "command": "privilege query of task-8-brief.md lines 25-31 for write privileges and for SELECT on public/identity/analytics, plus libetech_ai privileges on schema intelligence, run in a one-off vitest run that opens the repository harness (which applies the migrations); admin URL read from $SLICE3_ENV_FILE, not echoed",
+      "exit": 0,
+      "result": "0 rows write; 0 rows SELECT; intelligence.ai_drafts SELECT + INSERT only; schema intelligence USAGE true, CREATE false",
+      "log": "task-18-ai-privileges.txt"
+    },
+    {
+      "name": "static-checks",
+      "command": "four git diff checks against base ec3b5e7, two chat-id leak checks, network grep of five src/server files",
+      "exit": 0,
+      "result": "4 diff checks empty; network grep empty; untracked-file leak check empty; added-lines leak check printed 3 lines, recorded verbatim (a test constant -1000000000077 and two test regexes)",
+      "log": "task-18-static-checks.txt"
+    },
+    {
+      "name": "absent-7c",
+      "command": "ls tests/doc-approval-proposal*.test.ts src/app/api/team/doc-approvals",
+      "exit": 1,
+      "result": "No such file or directory for both, as expected (Task 7c and step 16b are not part of slice 3, Chairman decision 15/11/2026)",
+      "log": "task-18-case-table.md"
+    },
+    {
+      "name": "git-status",
+      "command": "git status --short",
+      "exit": 0,
+      "result": "only vitest.config.ts and docs/reviews/slice-3-evidence-20261115/ appear; see task-18-report",
+      "log": "../../../.superpowers/sdd/slice-3-review-skills/task-18-report.md"
+    }
+  ],
+  "caseTable": "task-18-case-table.md"
+}
