@@ -6,7 +6,7 @@ Sửa mục 44 của `docs/DELIVERY-012-review-skills-20261115.md` (reviewer mã
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | **Mã ở `1be10f5`**, PR [#14](https://github.com/liberico-ai/ai-together/pull/14), **chưa merge**. Test trên hai động cơ, coverage, typecheck và build xanh với mã thoát 0 ở đúng mã đó; sáu ca mới đỏ trên mã gốc và xanh sau khi sửa. Review tầng 1: `liberico-code-reviewer` khuyến nghị READY, không P0–P2; `liberico-security-reviewer` nêu một P2 về tệp bằng chứng (đã sửa) và không thấy thay đổi nào về quyền. **Cổng Codex: chưa chạy ở commit này; kết quả được ghi bằng commit tài liệu kế tiếp.** | Bảng «Bằng chứng kiểm» bên dưới |
+| **Đã có mã** | **Mã ở `1be10f5`**, PR [#14](https://github.com/liberico-ai/ai-together/pull/14), **chưa merge**. Test trên hai động cơ, coverage, typecheck và build xanh với mã thoát 0 ở đúng mã đó; sáu ca mới đỏ trên mã gốc và xanh sau khi sửa. Review tầng 1: `liberico-code-reviewer` khuyến nghị READY, không P0–P2; `liberico-security-reviewer` nêu một P2 về tệp bằng chứng (đã sửa) và không thấy thay đổi nào về quyền. **Cổng Codex vòng 1 (base `0560a4f`, head `9ec08fd`): dòng đầu là `VERDICT: CHANGES_REQUIRED` — không P0, không P1; một P2 và một P3.** Điều kiện «không còn P0/P1» đạt; verdict được ghi nguyên như vậy và **không phải một lượt đạt**. Mục P2 trùng câu hỏi mở OQ-47 và **chưa sửa**: sửa nó là chọn một luật hiển thị, phiên không tự chọn. Mục P3 (một dòng roadmap) đã sửa ở commit ghi kết quả cổng; không chạy lại cổng | Bảng «Bằng chứng kiểm» bên dưới |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1; PR này không có migration | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Chỉ chạy trên dữ liệu tổng hợp; chưa người giữ ghế nào dùng màn Quyết định trên dữ liệu thật | — |
 | Đã nghiệm thu | **Chưa.** Chưa có chữ ký nghiệm thu | — |
@@ -40,8 +40,9 @@ Ba dòng test có sẵn bị chạm, không dòng nào đổi điều khẳng đ
 2. **Phiếu đã quá hạn mà chưa ai đóng** (vẫn lưu `pending`, vì hệ thống chỉ đóng phiếu quá hạn khi có lệnh chạm tới nó) **không** được đưa lên trước: nó giữ chỗ theo thời điểm tạo, xen giữa các phiếu đã đóng, như trước PR này. Lý do: nếu coi nó là «mở», các phiếu quá hạn tích tụ dần sẽ đẩy mọi phiếu đã đóng ra khỏi 30 chỗ. Có ca kiểm ghim đúng vị trí của nó và hai phép đột biến (M2, M7) chứng minh ca bắt được. Phiên điều phối đã đọc cách hiểu 1 và 2 trước khi mã được viết và không thấy điểm nào đổi quyền xem hay luật bỏ phiếu. Nếu sai: cùng mệnh đề `ORDER BY` đó.
 3. **Một câu cho cả hai cờ.** Màn hình không nói danh sách nào bị cắt (thẻ review hay thẻ 3/3). Nếu sai: thêm một câu thứ hai.
 4. **Kiểu trả về của `pending()` đổi** từ mảng sang `{cards, truncated}`. Chỉ `src/server/decisions.ts` gọi hàm này. Nếu sai: không gì ngoài hai dòng test.
-5. **Không tự quyết việc giữ thẻ vừa đóng trên màn hình:** ghi thành OQ-47, không chặn PR, vì thứ tự của phiếu đã đóng không đổi so với trước. Nếu sai (tức lẽ ra phải dừng): PR chờ quyết định OQ-47 trước khi merge.
+5. **Không tự quyết việc giữ thẻ vừa đóng trên màn hình:** ghi thành OQ-47. Trước lượt chạy cổng, phiên coi mục này không chặn PR, vì thứ tự của phiếu đã đóng không đổi so với trước. **Cổng Codex không đồng ý: nêu thành P2.** Phiên dừng ở đó theo đề bài («SPEC thiếu thì ghi câu hỏi mở và dừng, không tự chọn»); một vòng sửa của quy trình (tối đa hai) chưa dùng cho mã. Nếu sai: sau khi có quyết định, một mệnh đề `ORDER BY` hoặc một dòng trên màn hình, và một lượt chạy cổng nữa.
 6. **Thứ tự việc hồ sơ:** PR được mở trước lượt chạy cổng Codex để số PR có trong hồ sơ tại head mà cổng xem; kết quả cổng được ghi bằng một commit chỉ có tài liệu sau đó.
+7. **Không chạy lại cổng sau khi sửa mục P3:** phần sửa chỉ là hai dòng roadmap và lời văn hồ sơ; mục P2 còn nguyên nên lượt chạy lại sẽ cho cùng verdict. Lượt chạy cổng kế tiếp thuộc về vòng sửa P2, nếu có quyết định. Nếu sai: một lượt chạy cổng.
 
 ## Bằng chứng kiểm
 
@@ -57,7 +58,7 @@ Mọi số dưới đây là của cây ở `1be10f5` (hai commit mã; các comm
 | Đỏ trước: tệp test cuối trên ba tệp nguồn của gốc | 6 ca đỏ (5 ca dịch vụ, 1 ca màn hình) | `red.txt` |
 | Đột biến trên cây xanh | M1–M7 đều bị ít nhất một ca bắt; sau mỗi phép, ba tệp nguồn được khôi phục và đối chiếu sha256; lượt kiểm chứng cuối 46/46 | `mutation.txt` |
 | Review tầng 1 | `liberico-code-reviewer`: READY. `liberico-security-reviewer`: CHANGES vì một dòng trong tệp bằng chứng, đã sửa | `tier1-reviews.md` |
-| Cổng Codex (`codex exec --sandbox read-only`, base `0560a4f`) | Chưa chạy ở commit này; kết quả được ghi bằng commit tài liệu kế tiếp | `codex-context-round-1.md`, `codex-round-1.md` |
+| Cổng Codex vòng 1 (`codex exec --sandbox read-only`, base `0560a4f`, head `9ec08fd`, diff đầy đủ 85 673 ký tự) | **`VERDICT: CHANGES_REQUIRED`**. [P2] `src/server/bom.ts:117` — phiếu vừa đóng có thể biến mất ngay sau khi bỏ phiếu thành công (OQ-47; căn cứ `docs/UI-HANDOFF-3-decisions.md:101`): **chưa sửa, chờ quyết định**. [P3] `docs/IMPLEMENTATION-ROADMAP.md:40` còn ghi cờ «đã cắt» của thẻ 3/3 là việc để lại: đã sửa. Bản ghi đầy đủ của Codex không vào repo; chỉ tệp kết quả và khối bối cảnh | `codex-context-round-1.md`, `codex-round-1.md` |
 
 Không chạy: `pytest` (PR không đụng `bot-plugin/` hay tệp Python nào); kiểm tay bằng trình duyệt; kế hoạch truy vấn. Repo không có CI: mọi cổng ở đây là lượt chạy trên máy của phiên, không phải kiểm tra tự động trên PR.
 
@@ -76,14 +77,14 @@ Không chạy: `pytest` (PR không đụng `bot-plugin/` hay tệp Python nào);
 11. **Lưới hồi quy còn thiếu** (hành vi đã được reviewer bảo mật dò và thấy đúng): không ca nào ở tầng HTTP đọc thân trả lời của `GET /api/decisions` cho người không giữ ghế khi dự án có hơn 30 phiếu (`tests/review-http.test.ts` còn cách trần phiên của kho phiên mô phỏng một phiên); không ca cho viewer và bot nằm trong dự án, cho ghế bị khoá hoặc mất tư cách thành viên; phép phân định `id DESC` khi hai phiếu trùng thời điểm tạo chưa có ca nào ghim (trước PR cũng chưa).
 12. **Bằng chứng «đỏ trước»:** `red.txt` là lượt chạy tệp test **cuối** trên ba tệp nguồn của gốc, dựng lại sau khi review tầng 1 làm ca kiểm đổi. Lượt đỏ đầu tiên (năm ca, trước khi có mã) chạy lúc chưa sửa `src/`; log đó đã bị thay bằng bản dựng lại. Ca thứ sáu («phép kiểm ghế chạy trước câu đọc phiếu») là ca canh giữ một tính chất không đổi: ở gốc nó đỏ chỉ vì kiểu trả về của `pending()`; bằng chứng của nó là phép đột biến M6.
 13. Ba mô-đun mới vào coverage đều nhỏ và đạt 100%; số coverage chung gần như không đổi. `text-safety.ts` không có tệp test riêng, nó được phủ qua test của hợp đồng kỹ năng và của review. Trình báo cáo dạng bảng không in các tệp đạt 100%, nên ba tệp không có dòng trong `coverage-pglite.txt`; số của chúng đọc từ `coverage/coverage-summary.json` lúc chạy (tệp đó không vào repo).
-14. Phần sửa sau review tầng 1 (hai ca kiểm, một tên kiểu, lời văn hồ sơ) không có lượt soát riêng của reviewer tầng 1; phiên đọc diff, rồi cổng Codex xem toàn bộ.
+14. Phần sửa sau review tầng 1 (hai ca kiểm, một tên kiểu, lời văn hồ sơ) không có lượt soát riêng của reviewer tầng 1; phiên đọc diff, rồi cổng Codex xem toàn bộ. Commit ghi kết quả cổng (hai dòng roadmap, lời văn của biên nhận này và của OQ-47, tệp kết quả cổng) là commit cổng chưa xem; nó chỉ có tài liệu.
 15. Bốn mục 45–48 của `DELIVERY-012` còn nguyên.
 
 ## Điểm dừng — không làm, chờ Chairman
 
-Merge PR này · triển khai d1-ai1 · kiểm tay thẻ 3/3 bằng trình duyệt với người giữ ghế thật · quyết OQ-47.
+**Quyết OQ-47** (finding P2 còn mở của Codex vòng 1: sửa theo phương án nào rồi chạy cổng lại, hay giữ nguyên) · merge PR này · triển khai d1-ai1 · kiểm tay thẻ 3/3 bằng trình duyệt với người giữ ghế thật.
 
 ## Câu hỏi mở
 
-- **OQ-47** (`docs/OPEN-QUESTIONS.md`) — phiếu 3/3 vừa đóng có giữ chỗ trên màn Quyết định không. **Không chặn PR này**; hành vi hiện tại trùng phương án (a) của mục đó, không phải phương án được chọn.
+- **OQ-47** (`docs/OPEN-QUESTIONS.md`) — phiếu 3/3 vừa đóng có giữ chỗ trên màn Quyết định không. Hành vi hiện tại trùng phương án (a) của mục đó, không phải phương án được chọn. **Đây là finding P2 còn mở của cổng Codex vòng 1; việc PR có merge được khi mục này chưa quyết là của Chairman.**
 - Chưa thành câu hỏi mở, cần quyết nếu muốn đổi: phạm vi BoM đang tắt có được hiện phiếu không (khoảng trống 8).
