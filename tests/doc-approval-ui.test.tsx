@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { proposalPanelState, canProposeFrom, heldTypes, proposeCommand, withdrawCommand, proposeBody, withdrawBody, proposalStateLabel, proposalFailure, EMPTY_PROPOSAL_DRAFT,
+import { proposalPanelState, canProposeFrom, reloadProposals, settledDraft, heldTypes, proposeCommand, withdrawCommand, proposeBody, withdrawBody, proposalStateLabel, proposalFailure, EMPTY_PROPOSAL_DRAFT,
   PROPOSED_NOTICE, WITHDRAWN_NOTICE, type ProposalDraft, type ProposalPanelState } from '../src/components/doc-approval-view';
 import { DocApprovalPanelView, type DocApprovalPanelViewProps } from '../src/components/doc-approval-proposals';
 import { ReviewQueue } from '../src/components/review';
@@ -518,5 +518,100 @@ describe('the proposal block on the Review screen', () => {
     expect(screen).toContain('Rút phiếu');
     expect(screen).not.toContain('name="proposalUserId"');
     expect(screen).not.toContain('24 giờ');
+  });
+
+  // ---- fix round 1 (code review Important 1 and minors 2, 3; UI review I-1, I-2) ----
+  it('P16 after a reloadable refusal «Tải lại» rereads the approvers before the list, so the held types and expectedTypes the form sends are fresh', async () => {
+    const conflict = proposalFailure(new ApiError('Quyền duyệt của người này đã đổi. Tải lại trước khi trình. [VERSION_CONFLICT]', 'VERSION_CONFLICT', 409));
+    expect(conflict.reloadable).toBe(true);
+    // the page's snapshot says the engineer holds design; the service already holds design and plan
+    let approvers: ApproverView[] = [{ userId: ENGINEER, docTypes: ['design'] }];
+    const calls: string[] = [];
+    const io = { readDelegations: async () => { calls.push('delegations'); approvers = [{ userId: ENGINEER, docTypes: ['design', 'plan'] }]; },
+      readOwn: async () => { calls.push('own'); return [ballot()]; } };
+    const draft: ProposalDraft = { ...EMPTY_PROPOSAL_DRAFT, userId: ENGINEER, docTypes: ['verification'], basis: 'Cần duyệt bản kiểm thử' };
+    const stale = proposeCommand(draft, heldTypes(approvers, ENGINEER));
+    expect(stale.ok && stale.cmd.expectedTypes).toEqual(['design']);
+    expect(await reloadProposals(io, conflict.reloadable)).toEqual({ own: { kind: 'ok', items: [ballot()] }, delegationsError: '' });
+    expect(calls).toEqual(['delegations', 'own']);
+    const fresh = proposeCommand(draft, heldTypes(approvers, ENGINEER));
+    expect(fresh.ok && fresh.cmd.expectedTypes).toEqual(['design', 'plan']);
+    expect(fresh.ok && fresh.cmd.docTypes).toEqual(['verification']);
+    // the form drawn with the fresh approvers shows plan as held
+    const after = driveProposals({ approvers, draft });
+    expect(after.field('proposalType:plan').props.disabled).toBe(true);
+    expect(after.html()).toContain('Kế hoạch — đang giữ');
+    // «Thử lại» of the error state, with no refusal shown, reads the list only
+    calls.length = 0;
+    await reloadProposals(io, false);
+    expect(calls).toEqual(['own']);
+    // a failed reread of the approvers is said, the list is still read, and nothing throws
+    const network = await reloadProposals({ readDelegations: async () => { throw new TypeError('fetch failed'); }, readOwn: async () => [] }, true);
+    expect(network).toEqual({ own: { kind: 'ok', items: [] }, delegationsError: NETWORK_COPY });
+    expect(await reloadProposals({ readDelegations: async () => {}, readOwn: async () => { throw new ApiError('Không tìm thấy mục trong phạm vi được cấp. [SCOPE_DENIED]', 'SCOPE_DENIED', 404); } }, true))
+      .toEqual({ own: { kind: 'denied' }, delegationsError: '' });
+    expect(await reloadProposals({ readDelegations: async () => {}, readOwn: async () => { throw new Error('boom'); } }, false)).toEqual({ own: { kind: 'failed' }, delegationsError: '' });
+    // the queue screen passes the refusal's reloadable flag and applies the outcome of reloadProposals
+    const src = await readFile('src/components/review.tsx', 'utf8');
+    expect(src).toContain('reloadProposals(');
+    expect(src).toContain('onReload={() => void reloadOwn(proposalReloadable)}');
+  });
+
+  it('P17 a command clears only its own fields, and only while they still hold what was sent; false keeps the whole draft', async () => {
+    const sent: ProposalDraft = { ...EMPTY_PROPOSAL_DRAFT, userId: ENGINEER, docTypes: ['plan'], basis: 'Căn cứ đã gửi', withdrawId: U(800), withdrawBasis: 'Đang gõ dở' };
+    const PROPOSE_CLEAR = { userId: '', docTypes: [], basis: '' }, WITHDRAW_CLEAR = { withdrawId: null, withdrawBasis: '' };
+    expect(settledDraft(sent, sent, PROPOSE_CLEAR, false)).toBe(sent);
+    expect(settledDraft(sent, sent, PROPOSE_CLEAR, true)).toEqual({ ...sent, ...PROPOSE_CLEAR });
+    expect(settledDraft(sent, sent, PROPOSE_CLEAR, undefined)).toEqual({ ...sent, ...PROPOSE_CLEAR });
+    // a proposal typed while the command was in flight is kept whole
+    const retyped = { ...sent, basis: 'Căn cứ mới đang gõ' };
+    expect(settledDraft(retyped, sent, PROPOSE_CLEAR, true)).toBe(retyped);
+    const otherTypes = { ...sent, docTypes: ['plan', 'guide'] as ProposalDraft['docTypes'] };
+    expect(settledDraft(otherTypes, sent, PROPOSE_CLEAR, true)).toBe(otherTypes);
+    // a withdrawal clears the withdrawal box and leaves a proposal typed meanwhile
+    const typedMeanwhile = { ...sent, userId: BUSINESS, basis: 'Một phiếu khác' };
+    expect(settledDraft(typedMeanwhile, sent, WITHDRAW_CLEAR, true)).toEqual({ ...typedMeanwhile, ...WITHDRAW_CLEAR });
+    expect(settledDraft({ ...sent, withdrawBasis: 'Căn cứ rút đã sửa' }, sent, WITHDRAW_CLEAR, true).withdrawBasis).toBe('Căn cứ rút đã sửa');
+    const src = await readFile('src/components/doc-approval-proposals.tsx', 'utf8');
+    expect(src).toContain('settledDraft(');
+  });
+
+  it('P18 focus: the withdrawal box takes focus when it opens; «Hủy» and a successful withdrawal hand it back', async () => {
+    const closed = driveProposals({ proposals: [ballot()] });
+    expect(closed.html()).not.toContain('autofocus');
+    closed.click('Rút phiếu');
+    const open = closed.html();
+    expect(open.match(/<input[^>]*name="withdrawBasis"[^>]*>/)?.[0]).toContain('autofocus=""');
+    expect(open.split('autofocus').length - 1).toBe(1);
+    // the list heading can take focus from the script and is not a tab stop
+    expect(open).toContain('<h3 tabindex="-1">Phiếu anh/chị đã trình</h3>');
+    expect(open).toContain('<h3>Trình phiếu mới</h3>');
+    expect(driveProposals({ state: 'former', proposals: [ballot()] }).html()).toContain('<h3 tabindex="-1">Phiếu anh/chị đã trình</h3>');
+    // a browser moves focus; static markup cannot, so the two moves are pinned in the source (the manual check is in the spec's «Kiểm tay»)
+    const src = await readFile('src/components/doc-approval-proposals.tsx', 'utf8');
+    for (const name of ['heading.current?.focus()', 'withdrawButtons.current.get(', "setFocus({ to: 'withdraw'", "{ to: 'list' }", 'listHeadingRef={heading}', 'withdrawButtonRef={']) expect(src, name).toContain(name);
+  });
+
+  it('P19 an error is echoed, hidden from screen readers, right above the button that sends; «Tải lại» waits while a command runs', () => {
+    const local = driveProposals({ localError: PICK_MEMBER }).html();
+    expect(local).toMatch(/role="alert"[^>]*><p[^>]*>Chọn một thành viên\./);
+    expect(local).toMatch(/<div class="review-problem" aria-hidden="true"><p class="review-text">Chọn một thành viên\.<\/p><\/div><button type="button" class="doc-action review-action">Trình phiếu<\/button>/);
+    expect(local.indexOf('aria-hidden="true"><p class="review-text">Chọn một thành viên.')).toBeGreaterThan(local.indexOf('name="proposalBasis"'));
+    expect(local.split('Chọn một thành viên.').length - 1).toBe(2);
+    // a command's refusal is echoed the same way
+    expect(driveProposals({ error: 'Người này đang có một phiếu đổi quyền chưa xong.' }).html())
+      .toMatch(/aria-hidden="true"><p class="review-text">Người này đang có một phiếu đổi quyền chưa xong\.<\/p><\/div><button type="button" class="doc-action review-action">Trình phiếu<\/button>/);
+    // with a withdrawal box open, the echo also stands right above «Xác nhận rút»
+    const withdrawing = driveProposals({ proposals: [ballot()], draft: { ...EMPTY_PROPOSAL_DRAFT, withdrawId: U(800), withdrawBasis: 'abc' }, localError: LENGTH_500 }).html();
+    expect(withdrawing).toMatch(/<div class="review-problem" aria-hidden="true"><p class="review-text">Căn cứ cần từ 5 đến 500 ký tự\.<\/p><\/div><button type="button" class="doc-action review-action">Xác nhận rút<\/button>/);
+    const former = driveProposals({ state: 'former', proposals: [ballot()], draft: { ...EMPTY_PROPOSAL_DRAFT, withdrawId: U(800), withdrawBasis: 'abc' }, localError: LENGTH_500 }).html();
+    expect(former).toMatch(/aria-hidden="true"><p class="review-text">Căn cứ cần từ 5 đến 500 ký tự\.<\/p><\/div><button type="button" class="doc-action review-action">Xác nhận rút<\/button>/);
+    // no error, no echo
+    expect(driveProposals({ proposals: [ballot()] }).html()).not.toContain('review-problem');
+    // «Tải lại» is disabled while a command is busy
+    const reload = (busy: boolean) => driveProposals({ error: 'Quyền duyệt của người này đã đổi. Tải lại trước khi trình. [VERSION_CONFLICT]', reloadable: true, busy })
+      .all().find(h => h.type === 'button' && textOf(h.props.children) === 'Tải lại');
+    expect(reload(true)?.props.disabled).toBe(true);
+    expect(reload(false)?.props.disabled).toBe(false);
   });
 });

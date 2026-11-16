@@ -3,7 +3,7 @@ import type { ApproverView } from '../server/review-delegations';
 import type { ProposalsInitial } from '../server/review-page';
 import type { DocType } from '../server/types';
 import { ApiError } from './api';
-import { DOC_TYPES, GENERIC_COPY, NETWORK_COPY, checkBasis, sameId } from './review-view';
+import { DOC_TYPES, GENERIC_COPY, NETWORK_COPY, checkBasis, describeError, sameId } from './review-view';
 
 // Pure helpers of the block «Trình phiếu cấp quyền duyệt bản chuẩn» on the Review screen (Task 7c, step 16b): its state, what a person typed,
 // the exact request bodies and the sentence of each refusal. Nothing here decides a permission: the block follows what the service returned,
@@ -45,6 +45,26 @@ export function canProposeFrom(initial: ProposalsInitial | undefined, canDesigna
 
 export type ProposalDraft = { userId: string; docTypes: DocType[]; basis: string; withdrawId: string | null; withdrawBasis: string };
 export const EMPTY_PROPOSAL_DRAFT: ProposalDraft = { userId: '', docTypes: [], basis: '', withdrawId: null, withdrawBasis: '' };
+
+/** The draft after a command answered. `false` keeps it whole. Any other answer clears the command's own fields (`cleared`), but only while
+ *  every one of them still holds what was sent, so a proposal typed while the command was in flight is not wiped (code review, fix round 1). */
+export function settledDraft(current: ProposalDraft, sent: ProposalDraft, cleared: Partial<ProposalDraft>, answer: boolean | void): ProposalDraft {
+  if (answer === false) return current;
+  const untouched = (Object.keys(cleared) as (keyof ProposalDraft)[]).every(k => JSON.stringify(current[k]) === JSON.stringify(sent[k]));
+  return untouched ? { ...current, ...cleared } : current;
+}
+
+export type ProposalReload = { own: { kind: 'ok'; items: DocApprovalProposal[] } | { kind: 'denied' } | { kind: 'failed' }; delegationsError: string };
+/** «Tải lại» and «Thử lại» of the block. With `withDelegations` — the «Tải lại» beside a reloadable refusal, such as VERSION_CONFLICT «Tải lại
+ *  trước khi trình» — the reviewers panel's lists are read again first, so the held types and the `expectedTypes` the form sends are fresh; then
+ *  the own list. Never throws: a scope refusal of the list is `denied`, any other failure `failed`; a failed reread of the approvers comes back as
+ *  the sentence of `describeError`, so the block can say it and offer «Tải lại» again. */
+export async function reloadProposals(io: { readOwn: () => Promise<DocApprovalProposal[]>; readDelegations: () => Promise<void> }, withDelegations: boolean): Promise<ProposalReload> {
+  let delegationsError = '';
+  if (withDelegations) { try { await io.readDelegations(); } catch (e) { delegationsError = describeError(e).text; } }
+  try { return { own: { kind: 'ok', items: await io.readOwn() }, delegationsError }; }
+  catch (e) { return { own: e instanceof ApiError && e.code === 'SCOPE_DENIED' ? { kind: 'denied' } : { kind: 'failed' }, delegationsError }; }
+}
 
 /** The types the person already approves, read from the `approvers` of the reviewers panel; ids compare ignoring case; in the order of DOC_TYPES. */
 export function heldTypes(approvers: ApproverView[], userId: string): DocType[] {

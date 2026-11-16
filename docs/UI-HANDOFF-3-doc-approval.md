@@ -1,7 +1,7 @@
 # Bàn giao giao diện — «Trình phiếu cấp quyền duyệt bản chuẩn» (màn Review) và khối phiếu đang mở ở `/team` (Task 7c)
 
 Nguồn: kế hoạch `docs/plans/task-7c-coordinator-proposal.md` (Task 3, Task 4; T7C-4, T7C-11, T7C-13, T7C-15, T7C-18, T7C-19, T7C-21, T7C-28, T7C-29, T7C-31, T7C-32, T7C-33, T7C-35), quyết định OQ-35 (a), OQ-36 (b), OQ-37 (c), OQ-38 (c), OQ-48 (b), OQ-49 (a), OQ-50 (c), OQ-51 (b), OQ-52 (a) ở `docs/OPEN-QUESTIONS.md`; khuôn `docs/UI-HANDOFF-3-review.md`; `docs/DESIGN-SYSTEM-PM-DOCUMENTS.md` (`:23`, `:62-66`, `:90-103`).
-Mã ở màn Review: `src/components/doc-approval-proposals.tsx` (khối), `src/components/doc-approval-view.ts` (hàm thuần, câu chữ), `src/components/review.tsx` (`ReviewQueue`, `ReviewersPanelView`, `ReviewersPanel`), `src/components/review-view.ts` (`checkBasis`, `APPROVAL_NOTE_WITH_PROPOSALS_COPY`), `src/server/review-page.ts` (`loadOwnProposals`), `src/app/review/page.tsx`. Mã ở `/team` (Task 3): `src/components/team-accounts.tsx` (`AccountForm`, `OpenBallot`, `standingEcho`, `ballotCommand`, `shouldReloadAccounts`, `reloadAfterConflict`). Tuyến: `src/app/api/team/doc-approvals/[[...path]]/route.ts` → `src/server/doc-approval-http.ts` → `src/server/doc-approval-proposals.ts`; lệnh của quản trị qua `/api/team/accounts` có sẵn. Ca kiểm: `tests/doc-approval-ui.test.tsx` (P1–P15, màn Review), `tests/doc-approver-ui.test.tsx` (khối ở `/team`).
+Mã ở màn Review: `src/components/doc-approval-proposals.tsx` (khối), `src/components/doc-approval-view.ts` (hàm thuần, câu chữ), `src/components/review.tsx` (`ReviewQueue`, `ReviewersPanelView`, `ReviewersPanel`), `src/components/review-view.ts` (`checkBasis`, `APPROVAL_NOTE_WITH_PROPOSALS_COPY`), `src/server/review-page.ts` (`loadOwnProposals`), `src/app/review/page.tsx`. Mã ở `/team` (Task 3): `src/components/team-accounts.tsx` (`AccountForm`, `OpenBallot`, `standingEcho`, `ballotCommand`, `shouldReloadAccounts`, `reloadAfterConflict`). Tuyến: `src/app/api/team/doc-approvals/[[...path]]/route.ts` → `src/server/doc-approval-http.ts` → `src/server/doc-approval-proposals.ts`; lệnh của quản trị qua `/api/team/accounts` có sẵn. Ca kiểm: `tests/doc-approval-ui.test.tsx` (P1–P19, màn Review; P16–P19 của lượt sửa 1), `tests/doc-approver-ui.test.tsx` (khối ở `/team`).
 Giao diện không tự tính quyền: khối nào hiện, nút nào hiện theo dữ liệu dịch vụ trả (`canDesignate` của `DelegationService.list`, `accountAdmin` của phiên, danh sách của `DocApprovalProposalService.listOwn`, `accessChange` của `AccountService.list`). Mọi từ chối đến từ dịch vụ. Khối trình phiếu không cấp gì: một phiếu cần một thành viên BoM đồng ý, và chỉ quản trị tài khoản áp, ở `/team`.
 
 ## 1. Bố cục
@@ -11,7 +11,7 @@ Không có `proposals` (trang chọn dự án, dự án ngoài quyền, người
 **Khối «Trình phiếu cấp quyền duyệt bản chuẩn»** (`<section className="review-panel" aria-label="Trình phiếu cấp quyền duyệt bản chuẩn">`), từ trên xuống:
 1. Tiêu đề `h2` cùng chữ.
 2. Vùng `role="status"` (luôn có mặt, rỗng khi chưa có thông báo).
-3. Lỗi của lệnh hoặc lỗi kiểm tại chỗ (`role="alert"`), kèm nút «Tải lại» khi lỗi đó được đánh dấu `reloadable`.
+3. Lỗi của lệnh hoặc lỗi kiểm tại chỗ (`role="alert"`), kèm nút «Tải lại» khi lỗi đó được đánh dấu `reloadable`; «Tải lại» bị vô hiệu trong lúc một lệnh đang chạy. Đây là bản trình đọc màn hình đọc.
 4. Thân theo trạng thái (mục 4):
    - `loading`: khung chờ `<div className="doc-list doc-skeleton" aria-busy="true" aria-label="Đang tải phiếu đã trình">` với ba `doc-skel-row`.
    - `admin`: một câu và liên kết «Mở trang Quản trị tài khoản» tới `/team`.
@@ -19,7 +19,8 @@ Không có `proposals` (trang chọn dự án, dự án ngoài quyền, người
    - `denied`: một câu, không gì khác.
    - `former`: câu «Anh/chị không còn là điều phối…» → danh sách «Phiếu anh/chị đã trình».
    - `empty` và `ready`: câu «Phiếu cần một thành viên BoM đồng ý. Quyền chỉ có hiệu lực sau khi quản trị tài khoản áp.» → danh sách «Phiếu anh/chị đã trình» → đoạn ba câu về việc trình lại → nhóm «Trình phiếu mới».
-**Danh sách «Phiếu anh/chị đã trình»** (`h3`): rỗng thì «Anh/chị chưa có phiếu nào đang mở.»; ngược lại mỗi phiếu một dòng `review-person`: tên người được cấp (trong `<bdi dir="auto">`; không có trong danh bạ thì «Thành viên chưa rõ tên») → nhãn các loại tài liệu phiếu thêm → «Hết hạn lúc <giờ>» → nhãn giai đoạn → với phiếu `approved`: câu «Phiếu đã đủ xác nhận nên không rút được ở đây; muốn dừng thì nhờ quản trị tài khoản huỷ.»; với phiếu `pending`: nút «Rút phiếu», bấm thì thay bằng ô «Căn cứ rút phiếu (5–500 ký tự)», nút «Xác nhận rút» và «Hủy» ngay tại dòng.
+**Danh sách «Phiếu anh/chị đã trình»** (`h3`): rỗng thì «Anh/chị chưa có phiếu nào đang mở.»; ngược lại mỗi phiếu một dòng `review-person`: tên người được cấp (trong `<bdi dir="auto">`; không có trong danh bạ thì «Thành viên chưa rõ tên») → nhãn các loại tài liệu phiếu thêm → «Hết hạn lúc <giờ>» → nhãn giai đoạn → với phiếu `approved`: câu «Phiếu đã đủ xác nhận nên không rút được ở đây; muốn dừng thì nhờ quản trị tài khoản huỷ.»; với phiếu `pending`: nút «Rút phiếu», bấm thì thay bằng ô «Căn cứ rút phiếu (5–500 ký tự)» (ô nhận focus khi mở, `autoFocus`), nút «Xác nhận rút» và «Hủy» ngay tại dòng. Tiêu đề `h3` của danh sách có `tabIndex={-1}`: nhận focus từ mã sau khi rút thành công, không nằm trong vòng Tab.
+**Bản nhắc lỗi ngay trên nút gửi** (lượt sửa 1, soát giao diện I-2): khi có lỗi (của lệnh hoặc kiểm tại chỗ), cùng câu đó hiện lần nữa trong `<div className="review-problem" aria-hidden="true">` **ngay trên «Trình phiếu»**, và khi một ô rút đang mở, **ngay trên «Xác nhận rút»** (giữa ô căn cứ rút và nút). Bản nhắc chỉ để nhìn — `aria-hidden="true"`, không `role` — để trình đọc màn hình không đọc hai lần; bản được đọc là vùng `role="alert"` ở đầu khối (mục 3 ở trên). Lý do: ở 360 px vùng lỗi đầu khối có thể nằm xa phía trên nút vừa bấm. Không có bản nhắc cho thông báo thành công.
 **Nhóm «Trình phiếu mới»** (`<div className="review-form" role="group" aria-label="Trình phiếu mới">`, tiêu đề `h3` cùng chữ): ô chọn «Thành viên» → (khi người đang chọn là điều phối của dự án) câu «Người này cũng là điều phối của dự án. Phiếu sẽ nêu rõ điều đó cho người bỏ phiếu.» → nhóm tám ô «Loại tài liệu được duyệt bản chuẩn (chọn thêm ít nhất một)» → ô «Căn cứ (5–300 ký tự, một dòng)» → nút «Trình phiếu». Không có phần tử `<form>`: nhấn Enter trong ô căn cứ không gửi gì; chỉ nút gửi.
 
 **`/team` — khối phiếu đang mở của một tài khoản** (Task 3, T7C-15): Quản trị chọn tài khoản → biểu mẫu `AccountForm` của tài khoản đó. **Phần tử con đầu tiên của biểu mẫu là `<button type="submit" disabled hidden/>`** (lượt soát bảo mật Task 3, F1): Enter trong một ô chữ gửi biểu mẫu qua nút gửi đầu tiên, và nút đó bị vô hiệu nên không gửi gì; vì vậy Enter không bao giờ áp hay huỷ phiếu đang hiện bên dưới. Mọi nút nhìn thấy vẫn gửi khi bấm. Tiếp theo: dòng tình trạng tài khoản («Đã khóa» / «Đang hoạt động» / «Chờ kích hoạt») → khối `OpenBallot` (chỉ khi tài khoản có `accessChange`) → «Phạm vi dự án» (có tám ô duyệt bản chuẩn theo loại) → xác minh GitHub → «Lý do thay đổi» → hàng nút có sẵn.
@@ -50,6 +51,13 @@ export function canProposeFrom(initial:ProposalsInitial|undefined,canDesignate:b
 //   trang đã đưa vào loadOwnProposals. Lần đọc đầu lỗi rồi «Thử lại» thành công thì điều phối vẫn thấy biểu mẫu, không bị coi là `denied`/`former`.
 export type ProposalDraft={userId:string;docTypes:DocType[];basis:string;withdrawId:string|null;withdrawBasis:string};
 export const EMPTY_PROPOSAL_DRAFT:ProposalDraft;
+export function settledDraft(current:ProposalDraft,sent:ProposalDraft,cleared:Partial<ProposalDraft>,answer:boolean|void):ProposalDraft;
+//   answer === false → current nguyên vẹn; khác false → xoá các trường trong `cleared`, nhưng chỉ khi mọi trường đó vẫn giữ đúng giá trị đã gửi
+//   (`sent`); nếu người dùng đã gõ lại trong lúc lệnh chạy thì giữ nguyên current
+export type ProposalReload={own:{kind:'ok';items:DocApprovalProposal[]}|{kind:'denied'}|{kind:'failed'};delegationsError:string};
+export async function reloadProposals(io:{readOwn:()=>Promise<DocApprovalProposal[]>;readDelegations:()=>Promise<void>},withDelegations:boolean):Promise<ProposalReload>;
+//   withDelegations → đọc lại khối người nhận xét trước (approvers), rồi danh sách của mình. Không bao giờ ném: SCOPE_DENIED của danh sách → denied,
+//   lỗi khác → failed; đọc lại approvers lỗi → delegationsError là câu của describeError, danh sách vẫn được đọc
 export function heldTypes(approvers:ApproverView[],userId:string):DocType[];      // so mã không phân biệt hoa thường; theo thứ tự DOC_TYPES
 export function proposeCommand(d:ProposalDraft,held:DocType[]):Checked<{userId;docTypes;expectedTypes;reason}>;
 export function withdrawCommand(row:Pick<DocApprovalProposal,'approvalId'|'state'>,basis:string):Checked<{approvalId;reason}>;   // chỉ dòng pending
@@ -65,17 +73,22 @@ export function checkBasis(raw:string,rule:{max:number;forbidden:RegExp;forbidde
 
 // src/components/doc-approval-proposals.tsx ('use client')
 DocApprovalPanelView({state;proposals:DocApprovalProposal[];approvers:ApproverView[];people:{id;name;role}[];viewerId;busy;error;notice;reloadable;localError;
-  draft:ProposalDraft;onDraft;onPropose:(c:{userId;docTypes;expectedTypes;reason})=>void;onWithdraw:(c:{approvalId;reason})=>void;onInvalid:(m)=>void;onReload?})   // không hook
+  draft:ProposalDraft;onDraft;onPropose:(c:{userId;docTypes;expectedTypes;reason})=>void;onWithdraw:(c:{approvalId;reason})=>void;onInvalid:(m)=>void;onReload?;
+  listHeadingRef?:Ref<HTMLHeadingElement>;withdrawButtonRef?:(approvalId,el:HTMLButtonElement|null)=>void})   // không hook; hai ref chỉ để DocApprovalPanel chuyển focus
 DocApprovalPanel({state;proposals;approvers;people;viewerId;busy;error;notice?;reloadable?;onReload?;
   onPropose?:(c)=>void|Promise<boolean|void>;onWithdraw?:(c)=>void|Promise<boolean|void>})
 //   giữ nháp và lỗi kiểm tại chỗ; lệnh trả khác `false` thì chỉ xoá phần nháp của chính lệnh đó (trình: ô thành viên, các ô loại, căn cứ;
-//   rút: ô rút đang mở và căn cứ rút) — nháp trình đang gõ dở vẫn còn sau khi rút một phiếu khác
+//   rút: ô rút đang mở và căn cứ rút), và chỉ khi phần đó vẫn là cái đã gửi (`settledDraft`) — nháp trình đang gõ dở vẫn còn sau khi rút một
+//   phiếu khác, và phiếu gõ lại trong lúc lệnh trình đang chạy không bị xoá.
+//   Focus: «Hủy» trả focus về «Rút phiếu» của chính dòng đó; rút thành công và ô rút đã đóng → focus tới h3 «Phiếu anh/chị đã trình».
 
 // src/components/review.tsx
 ReviewersPanelView({…như cũ…; approvalNote?:string})   ReviewersPanel({…như cũ…; approvalNote?:string})   // mặc định APPROVAL_NOTE_COPY
 ReviewQueue({…như cũ…; proposals?:ProposalsInitial})   // 'use client'; không có proposals thì y như trước
 //   ReviewQueue giữ trạng thái của khối: danh sách, đang tải, tải lỗi, bị từ chối, đang gửi, lỗi lệnh, thông báo;
 //   canPropose = canProposeFrom(proposals, delegations?.canDesignate === true) — màn hình không tự tính quyền.
+//   onReload của khối = reloadOwn(proposalReloadable): «Tải lại» cạnh một lỗi reloadable đọc lại cả approvers (reloadDelegations) rồi danh sách;
+//   «Thử lại» của trạng thái error chỉ đọc danh sách. reloadOwn bỏ qua khi một lệnh đang chạy.
 //   Khối chỉ dựng khi có cả proposals lẫn delegations (loại đang giữ đọc từ delegations.approvers).
 
 // src/components/team-accounts.tsx (Task 3; Task 4 không đổi tệp này)
@@ -121,7 +134,7 @@ Câu cố định của `empty`/`ready`: «Phiếu cần một thành viên BoM 
 - `approved`: «Đã đủ phiếu, chờ quản trị tài khoản áp» + «Phiếu đã đủ xác nhận nên không rút được ở đây; muốn dừng thì nhờ quản trị tài khoản huỷ.» — không có nút «Rút phiếu» (OQ-51 b).
 **Ô chọn thành viên** (OQ-33): `selectableMembers(people,viewerId)` — không có chính người đang xem (so mã không phân biệt hoa thường), không có người vai «Chỉ đọc»; **có** điều phối khác của dự án (OQ-38 c). Chữ mỗi lựa chọn «<tên> · <nhãn vai>»; lựa chọn đầu «Chọn thành viên».
 **Tám ô loại**: loại người được chọn đang giữ (`heldTypes(approvers,userId)`, đọc từ «Người giữ quyền duyệt bản chuẩn» của khối người nhận xét) hiện đã chọn, `disabled`, nhãn thêm « — đang giữ». `proposeCommand`: `docTypes` = các loại đã chọn trừ loại đang giữ, theo thứ tự `DOC_TYPES`; `expectedTypes` = đúng các loại đang hiện là đang giữ; `reason` = căn cứ đã bỏ dấu cách U+0020 hai đầu.
-**Kiểm tại chỗ** (không gửi đi; câu hiện ở vùng `role="alert"` của khối): «Chọn một thành viên.» · «Chọn thêm ít nhất một loại tài liệu.» · «Căn cứ cần từ 5 đến 300 ký tự.» · «Căn cứ không được chứa ký tự điều khiển hoặc ký tự định dạng ẩn.» · (rút) «Căn cứ cần từ 5 đến 500 ký tự.» · (rút một dòng `approved`) «Phiếu đã đủ xác nhận, không rút được ở đây.» Cả hai ô căn cứ kiểm bằng `checkBasis` với lớp `[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]` của máy chủ, theo đúng thứ tự của máy chủ (T7C-33): (1) ký tự cấm trên chuỗi thô; (2) trần (300 hoặc 500 điểm mã) trên chuỗi thô; (3) sàn 5 điểm mã sau khi bỏ dấu cách U+0020 hai đầu. Ký tự cấm ở đầu hay cuối chuỗi bị từ chối, không bị cắt đi. Máy chủ còn từ chối chuỗi PostgreSQL không lưu được (`storable`); giao diện không kiểm điều đó và để máy chủ trả lời (`INVALID_INPUT` 422).
+**Kiểm tại chỗ** (không gửi đi; câu hiện ở vùng `role="alert"` của khối, và ở bản nhắc `aria-hidden` ngay trên nút vừa bấm — mục 1): «Chọn một thành viên.» · «Chọn thêm ít nhất một loại tài liệu.» · «Căn cứ cần từ 5 đến 300 ký tự.» · «Căn cứ không được chứa ký tự điều khiển hoặc ký tự định dạng ẩn.» · (rút) «Căn cứ cần từ 5 đến 500 ký tự.» · (rút một dòng `approved`) «Phiếu đã đủ xác nhận, không rút được ở đây.» Cả hai ô căn cứ kiểm bằng `checkBasis` với lớp `[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]` của máy chủ, theo đúng thứ tự của máy chủ (T7C-33): (1) ký tự cấm trên chuỗi thô; (2) trần (300 hoặc 500 điểm mã) trên chuỗi thô; (3) sàn 5 điểm mã sau khi bỏ dấu cách U+0020 hai đầu. Ký tự cấm ở đầu hay cuối chuỗi bị từ chối, không bị cắt đi. Máy chủ còn từ chối chuỗi PostgreSQL không lưu được (`storable`); giao diện không kiểm điều đó và để máy chủ trả lời (`INVALID_INPUT` 422).
 **Thành công** (`role="status"`, sau khi danh sách đã được đọc lại): «Đã trình phiếu. Quyền chưa đổi cho tới khi một thành viên BoM đồng ý và quản trị tài khoản áp.» · «Đã rút phiếu. Quyền của người này không đổi.» Lệnh qua mà đọc lại danh sách lỗi: vẫn báo thành công, kèm `role="alert"` «Không tải được phiếu anh/chị đã trình. Dữ liệu đã lưu không bị thay đổi.» và «Tải lại».
 **Lỗi của lệnh** (`proposalFailure`, T7C-35; nháp đang gõ — người được chọn, các ô đã tích, căn cứ, ô rút đang mở và căn cứ rút — được giữ qua mọi lỗi; không bao giờ in một đối tượng thô; không có hàm cắt hậu tố):
 | Mã (HTTP) | Lệnh | Câu hiện | «Tải lại» |
@@ -141,7 +154,8 @@ Câu cố định của `empty`/`ready`: «Phiếu cần một thành viên BoM 
 | mất mạng (`TypeError`) | trình, rút, tải lại | «Không kết nối được máy chủ. Nội dung đang nhập vẫn được giữ.» | không |
 | giá trị khác | — | «Không xử lý được yêu cầu. Nội dung đang nhập vẫn được giữ.» | không |
 `RATE_LIMITED` không có câu cố định ở phía client vì mã đó mang hai câu; giao diện chuyển nguyên `e.message`.
-**Tải lại danh sách** («Tải lại», «Thử lại»): `GET /api/team/doc-approvals?projectId=`; trong lúc tải: `loading`; `SCOPE_DENIED` → `denied` (danh sách rỗng); lỗi khác → `error`. «Tải lại» chỉ đọc lại danh sách phiếu; nó không đọc lại vai, nên sau `MANAGER_REQUIRED` biểu mẫu còn đó tới khi tải lại trang (máy chủ vẫn từ chối). Khi trang không đọc được danh sách lúc mở (`error`, `denied`), có được trình hay không lấy từ `canDesignate` của khối người nhận xét (`canProposeFrom`): «Thử lại» thành công thì điều phối thấy `empty`/`ready` kèm biểu mẫu, người không phải điều phối thấy `denied`/`former`.
+**Tải lại** («Tải lại», «Thử lại»; `reloadProposals`): `GET /api/team/doc-approvals?projectId=`; trong lúc tải: `loading`; `SCOPE_DENIED` → `denied` (danh sách rỗng); lỗi khác → `error`. **«Tải lại» cạnh một lỗi `reloadable` của lệnh** (bảng trên; cả lỗi đọc lại danh sách sau một lệnh đã qua) **đọc lại trước khối người nhận xét** (`GET /api/reviews/delegations?projectId=`, `reloadDelegations` của `ReviewQueue`), rồi mới đọc danh sách — để loại đang giữ và `expectedTypes` của lần trình sau là mới: sau `VERSION_CONFLICT` «Tải lại trước khi trình», bấm «Tải lại» rồi «Trình phiếu» thì lệnh mang đúng bộ loại máy chủ đang giữ (lượt sửa 1, soát mã Important 1). Đọc lại khối người nhận xét lỗi: khối hiện câu của `describeError` (ví dụ «Không kết nối được máy chủ. Nội dung đang nhập vẫn được giữ.») kèm «Tải lại»; danh sách vẫn được đọc. «Thử lại» của trạng thái `error` chỉ đọc danh sách. «Tải lại» bị vô hiệu trong lúc một lệnh đang chạy. Việc đọc lại cập nhật `canDesignate` của khối người nhận xét, nhưng khi trang đã đọc được danh sách lúc mở (`ready`), có được trình hay không vẫn theo câu trả lời của trang (`canProposeFrom`), nên sau `MANAGER_REQUIRED` biểu mẫu còn đó tới khi tải lại trang (máy chủ vẫn từ chối).
+**Focus** (lượt sửa 1, soát giao diện I-1): bấm «Rút phiếu» → ô «Căn cứ rút phiếu» nhận focus; «Hủy» → focus về «Rút phiếu» của chính dòng đó; rút thành công và ô đã đóng → focus tới tiêu đề «Phiếu anh/chị đã trình» (`tabIndex={-1}`), `role="status"` đọc thông báo. Rút xong phiếu cuối cùng ở `former` thì khối thành `denied`, không còn tiêu đề đó; focus không được chuyển đi đâu (giới hạn đã biết, mục «Việc chưa làm»). Khi trang không đọc được danh sách lúc mở (`error`, `denied`), có được trình hay không lấy từ `canDesignate` của khối người nhận xét (`canProposeFrom`): «Thử lại» thành công thì điều phối thấy `empty`/`ready` kèm biểu mẫu, người không phải điều phối thấy `denied`/`former`.
 **Trên `/team`** (Task 3): câu về người trình chỉ ở phiếu của điều phối, ngay trên nút áp, khi `proposerIsCoordinator === false` (mục 1). Nút «Áp đúng bộ quyền đã được duyệt» và đường lưu tay (`AccessActions`) đều gửi `proposerIsCoordinator` đã thấy (`standingEcho`). Máy chủ đọc lại tình trạng người trình lúc áp; thiếu hoặc lệch → `VERSION_CONFLICT` 409 «Tình trạng người trình đã đổi. Tải lại để xem trước khi áp.» — trang hiện câu đó (kèm « [VERSION_CONFLICT]») rồi tải lại danh sách tài khoản (`shouldReloadAccounts`, `reloadAfterConflict`), nên câu về người trình (hoặc việc nó không còn) hiện ngay trên nút; bấm lại thì lệnh đi qua. Tải lại lỗi: câu từ chối giữ nguyên, nối thêm «Không tải lại được danh sách tài khoản: <lỗi>». Lệnh áp không bao giờ bị từ chối chỉ vì người trình đã mất vai. Huỷ thành công: «Đã huỷ phiếu. Phiên bản tài khoản và phiên đăng nhập của thành viên không đổi.»; lỗi của huỷ là câu của máy chủ kèm mã (`APPROVAL_NOT_FOUND` «Không tìm thấy phiếu duyệt.», `APPROVAL_CLOSED`, `BALLOT_CANCEL_NOT_ALLOWED` «Lệnh huỷ chỉ áp cho phiếu do điều phối dự án trình.», `VERSION_CONFLICT`). Enter trong ô «Lý do thay đổi» không áp và không huỷ (mục 1).
 
 ## 5. Breakpoint
@@ -188,6 +202,12 @@ Không phần tử nào rộng cố định trên 328 px; nút và liên kết h
 - [ ] Căn cứ có `<script>alert(1)</script>` hiện nguyên chữ trong ô; căn cứ có ký tự đảo chiều bị từ chối tại chỗ.
 - [ ] Bàn phím: Tab qua ô chọn, các ô loại, ô căn cứ, «Trình phiếu», «Rút phiếu»; vòng focus thấy rõ; Enter trong ô căn cứ không gửi gì.
 - [ ] Trình đọc màn hình: `role="status"` đọc thông báo thành công; `role="alert"` đọc lỗi; nhãn « — đang giữ» được đọc cùng ô.
+- [ ] Focus, bàn phím: Enter trên «Rút phiếu» → focus ở ô «Căn cứ rút phiếu», không rơi về đầu trang.
+- [ ] Focus, bàn phím: «Hủy» → focus về đúng nút «Rút phiếu» của dòng đó.
+- [ ] Focus, bàn phím: «Xác nhận rút» thành công → focus ở tiêu đề «Phiếu anh/chị đã trình»; trình đọc màn hình đọc «Đã rút phiếu…».
+- [ ] 360×740: bấm «Trình phiếu» khi thiếu thành viên → câu lỗi hiện ngay trên nút (bản nhắc), và vùng `role="alert"` ở đầu khối; trình đọc màn hình đọc câu đó một lần.
+- [ ] 360×740: ô rút đang mở, căn cứ ngắn → câu lỗi hiện ngay trên «Xác nhận rút».
+- [ ] `VERSION_CONFLICT` (đổi quyền duyệt của người được chọn ở tab khác rồi trình) → «Tải lại» → ô loại hiện đúng loại đang giữ mới → «Trình phiếu» đi qua.
 - [ ] `/team`: phiếu `approved` của điều phối có «Áp đúng bộ quyền đã được duyệt» và «Huỷ phiếu của điều phối»; phiếu `pending` của điều phối chỉ có «Huỷ phiếu của điều phối»; phiếu của quản trị không có nút huỷ; Enter trong «Lý do thay đổi» không áp và không huỷ.
 - [ ] `/team`: người trình mất vai trong lúc tab đang mở → bấm áp → câu `VERSION_CONFLICT`, danh sách tải lại, câu về người trình hiện trên nút, bấm lại thì áp.
 
@@ -198,4 +218,5 @@ Không phần tử nào rộng cố định trên 328 px; nút và liên kết h
 - Không có lịch sử phiếu đã đóng: phiếu bị rút, bị huỷ, bị từ chối, hết hạn chỉ rời danh sách.
 - Người trình không được báo khi phiếu bị quản trị huỷ (T7C-18); thông báo thuộc lát 4.
 - Người trình bị hạ xuống «Chỉ đọc» không có màn để rút; họ nhờ quản trị tài khoản huỷ.
+- Rút xong phiếu cuối cùng ở `former`: khối thành `denied`, tiêu đề danh sách biến mất nên focus không được chuyển (mục 4, «Focus»).
 - Kiểm tay chưa làm (mục «Kiểm tay»).

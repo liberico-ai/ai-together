@@ -428,3 +428,135 @@ AssertionError: expected false to be true // Object.is equality
 --- Đếm trên đầu ra của giai đoạn C
 $ grep -c 'AssertionError'                  -> 1   (P11 đỏ ở khẳng định canProposeFrom({ state: 'error' }, true) === true)
 $ grep -ci 'timed out'                      -> 0
+
+
+--- Giai đoạn D (lượt sửa 1 theo soát mã và soát giao diện): bốn ca mới P16–P19 viết trước mã
+Mã lúc chạy: hai hàm mới (reloadProposals, settledDraft) là bản giữ chỗ không có hành vi trong src/components/doc-approval-view.ts;
+doc-approval-proposals.tsx và review.tsx như commit 4a60823. 15 ca cũ phải vẫn xanh.
+$ npx vitest run tests/doc-approval-ui.test.tsx
+15:09  up 1 day,  4:40, 1 user, load averages: 3.06 3.60 4.24
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-ui.test.tsx (19 tests | 4 failed) 65ms
+   ❯ the proposal block on the Review screen (19)
+     × P16 after a reloadable refusal «Tải lại» rereads the approvers before the list, so the held types and expectedTypes the form sends are fresh 4ms
+     × P17 a command clears only its own fields, and only while they still hold what was sent; false keeps the whole draft 1ms
+     × P18 focus: the withdrawal box takes focus when it opens; «Hủy» and a successful withdrawal hand it back 2ms
+     × P19 an error is echoed, hidden from screen readers, right above the button that sends; «Tải lại» waits while a command runs 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P16 after a reloadable refusal «Tải lại» rereads the approvers before the list, so the held types and expectedTypes the form sends are fresh
+AssertionError: expected { own: { kind: 'failed' }, …(1) } to deeply equal { own: { kind: 'ok', …(1) }, …(1) }
+
+- Expected
++ Received
+
+  {
+    "delegationsError": "",
+    "own": {
+-     "items": [
+-       {
+-         "addedTypes": [
+-           "design",
+-         ],
+-         "approvalId": "00000000-0000-4000-8000-000000000800",
+-         "expiresAt": "2026-11-18T01:00:00.000Z",
+-         "projectId": "00000000-0000-4000-8000-000000000200",
+-         "replayed": false,
+-         "state": "pending",
+-         "userId": "00000000-0000-4000-8000-000000000003",
+-       },
+-     ],
+-     "kind": "ok",
++     "kind": "failed",
+    },
+  }
+
+ ❯ tests/doc-approval-ui.test.tsx:535:60
+    533|     const stale = proposeCommand(draft, heldTypes(approvers, ENGINEER)…
+    534|     expect(stale.ok && stale.cmd.expectedTypes).toEqual(['design']);
+    535|     expect(await reloadProposals(io, conflict.reloadable)).toEqual({ o…
+       |                                                            ^
+    536|     expect(calls).toEqual(['delegations', 'own']);
+    537|     const fresh = proposeCommand(draft, heldTypes(approvers, ENGINEER)…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P17 a command clears only its own fields, and only while they still hold what was sent; false keeps the whole draft
+AssertionError: expected { …(5) } to deeply equal { userId: '', docTypes: [], …(3) }
+
+- Expected
++ Received
+
+  {
+-   "basis": "",
+-   "docTypes": [],
+-   "userId": "",
++   "basis": "Căn cứ đã gửi",
++   "docTypes": [
++     "plan",
++   ],
++   "userId": "00000000-0000-4000-8000-000000000003",
+    "withdrawBasis": "Đang gõ dở",
+    "withdrawId": "00000000-0000-4000-8000-000000000800",
+  }
+
+ ❯ tests/doc-approval-ui.test.tsx:564:59
+    562|     const PROPOSE_CLEAR = { userId: '', docTypes: [], basis: '' }, WIT…
+    563|     expect(settledDraft(sent, sent, PROPOSE_CLEAR, false)).toBe(sent);
+    564|     expect(settledDraft(sent, sent, PROPOSE_CLEAR, true)).toEqual({ ..…
+       |                                                           ^
+    565|     expect(settledDraft(sent, sent, PROPOSE_CLEAR, undefined)).toEqual…
+    566|     // a proposal typed while the command was in flight is kept whole
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P18 focus: the withdrawal box takes focus when it opens; «Hủy» and a successful withdrawal hand it back
+AssertionError: expected '<section class="review-panel" aria-la…' to match /<input type="text" name="withdrawBasi…/
+
+- Expected:
+/<input type="text" name="withdrawBasis"[^>]*autofocus=""/
+
++ Received:
+"<section class=\"review-panel\" aria-label=\"Trình phiếu cấp quyền duyệt bản chuẩn\"><h2>Trình phiếu cấp quyền duyệt bản chuẩn</h2><p class=\"review-notice\" role=\"status\"></p><p class=\"review-text\">Phiếu cần một thành viên BoM đồng ý. Quyền chỉ có hiệu lực sau khi quản trị tài khoản áp.</p><h3>Phiếu anh/chị đã trình</h3><ul class=\"review-plain\"><li class=\"review-person\" data-state=\"pending\"><strong class=\"review-person-name\"><bdi dir=\"auto\">Kỹ sư mẫu</bdi></strong><span class=\"review-badges\"><span class=\"review-badge\">Thiết kế</span></span><span class=\"review-meta\">Hết hạn lúc 08:00 18/11/2026</span><p class=\"review-text\">Đang chờ một thành viên BoM</p><div class=\"review-inline\"><label class=\"doc-field\">Căn cứ rút phiếu (5–500 ký tự)<input type=\"text\" name=\"withdrawBasis\" value=\"\"/></label><button type=\"button\" class=\"doc-action review-action\">Xác nhận rút</button><button type=\"button\" class=\"doc-action review-action review-secondary\">Hủy</button></div></li></ul><p class=\"review-meta\">Phiếu tự rút thì anh/chị trình lại được ngay. Phiếu bị quản trị tài khoản huỷ, bị từ chối hoặc hết hạn thì phải qua 24 giờ kể từ lúc phiếu đóng mới trình lại được cho cùng người; cần sớm hơn thì nhờ quản trị tài khoản trình. Phiếu hết dùng được vì tài khoản của người được cấp vừa đổi thì có thể phải chờ tới 24 giờ sau hạn của phiếu.</p><div class=\"review-form\" role=\"group\" aria-label=\"Trình phiếu mới\"><h3>Trình phiếu mới</h3><label class=\"doc-field\">Thành viên<select name=\"proposalUserId\"><option value=\"\" selected=\"\">Chọn thành viên</option><option value=\"00000000-0000-4000-8000-000000000002\">Đồng điều phối mẫu · Điều phối</option><option value=\"00000000-0000-4000-8000-000000000003\">Kỹ sư mẫu · Thực hiện</option><option value=\"00000000-0000-4000-8000-000000000004\">Nghiệp vụ mẫu · Nghiệm thu nghiệp vụ</option></select></label><fieldset class=\"review-fieldset\"><legend>Loại tài liệu được duyệt bản chuẩn (chọn thêm ít nhất một)</legend><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:project_index\" value=\"project_index\"/>Mục lục dự án</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:change_brief\" value=\"change_brief\"/>Phiếu thay đổi</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:requirements\" value=\"requirements\"/>Yêu cầu</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:design\" value=\"design\"/>Thiết kế</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:plan\" value=\"plan\"/>Kế hoạch</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:verification\" value=\"verification\"/>Kiểm chứng</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:guide\" value=\"guide\"/>Hướng dẫn</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:other\" value=\"other\"/>Khác</label></fieldset><label class=\"doc-field\">Căn cứ (5–300 ký tự, một dòng)<input type=\"text\" name=\"proposalBasis\" value=\"\"/></label><button type=\"button\" class=\"doc-action review-action\">Trình phiếu</button></div></section>"
+
+ ❯ tests/doc-approval-ui.test.tsx:584:18
+    582|     closed.click('Rút phiếu');
+    583|     const open = closed.html();
+    584|     expect(open).toMatch(/<input type="text" name="withdrawBasis"[^>]*…
+       |                  ^
+    585|     expect(open.split('autofocus').length - 1).toBe(1);
+    586|     // the list heading can take focus from the script and is not a ta…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P19 an error is echoed, hidden from screen readers, right above the button that sends; «Tải lại» waits while a command runs
+AssertionError: expected '<section class="review-panel" aria-la…' to match /<div class="review-problem" aria-…/p><\
+
+- Expected:
+/<div class="review-problem" aria-hidden="true"><p class="review-text">Chọn một thành viên\.<\/p><\/div><button type="button" class="doc-action review-action">Trình phiếu<\/button>/
+
++ Received:
+"<section class=\"review-panel\" aria-label=\"Trình phiếu cấp quyền duyệt bản chuẩn\"><h2>Trình phiếu cấp quyền duyệt bản chuẩn</h2><p class=\"review-notice\" role=\"status\"></p><div role=\"alert\" class=\"review-problem\"><p class=\"review-text\">Chọn một thành viên.</p></div><p class=\"review-text\">Phiếu cần một thành viên BoM đồng ý. Quyền chỉ có hiệu lực sau khi quản trị tài khoản áp.</p><h3>Phiếu anh/chị đã trình</h3><p class=\"review-text\">Anh/chị chưa có phiếu nào đang mở.</p><p class=\"review-meta\">Phiếu tự rút thì anh/chị trình lại được ngay. Phiếu bị quản trị tài khoản huỷ, bị từ chối hoặc hết hạn thì phải qua 24 giờ kể từ lúc phiếu đóng mới trình lại được cho cùng người; cần sớm hơn thì nhờ quản trị tài khoản trình. Phiếu hết dùng được vì tài khoản của người được cấp vừa đổi thì có thể phải chờ tới 24 giờ sau hạn của phiếu.</p><div class=\"review-form\" role=\"group\" aria-label=\"Trình phiếu mới\"><h3>Trình phiếu mới</h3><label class=\"doc-field\">Thành viên<select name=\"proposalUserId\"><option value=\"\" selected=\"\">Chọn thành viên</option><option value=\"00000000-0000-4000-8000-000000000002\">Đồng điều phối mẫu · Điều phối</option><option value=\"00000000-0000-4000-8000-000000000003\">Kỹ sư mẫu · Thực hiện</option><option value=\"00000000-0000-4000-8000-000000000004\">Nghiệp vụ mẫu · Nghiệm thu nghiệp vụ</option></select></label><fieldset class=\"review-fieldset\"><legend>Loại tài liệu được duyệt bản chuẩn (chọn thêm ít nhất một)</legend><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:project_index\" value=\"project_index\"/>Mục lục dự án</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:change_brief\" value=\"change_brief\"/>Phiếu thay đổi</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:requirements\" value=\"requirements\"/>Yêu cầu</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:design\" value=\"design\"/>Thiết kế</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:plan\" value=\"plan\"/>Kế hoạch</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:verification\" value=\"verification\"/>Kiểm chứng</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:guide\" value=\"guide\"/>Hướng dẫn</label><label class=\"review-check\"><input type=\"checkbox\" name=\"proposalType:other\" value=\"other\"/>Khác</label></fieldset><label class=\"doc-field\">Căn cứ (5–300 ký tự, một dòng)<input type=\"text\" name=\"proposalBasis\" value=\"\"/></label><button type=\"button\" class=\"doc-action review-action\">Trình phiếu</button></div></section>"
+
+ ❯ tests/doc-approval-ui.test.tsx:598:19
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 15 passed (19)
+   Start at  15:09:28
+   Duration  196ms (tests 49%, transform 33%, import 17%, worker 1%)
+
+exit=1
+
+--- Đếm trên đầu ra của giai đoạn D
+$ grep -c '^AssertionError'                 -> 4   (P16, P17, P18, P19; mỗi ca đỏ ở một khẳng định)
+$ grep -cE '^(TypeError|Error|ReferenceError|SyntaxError)' -> 0
+$ grep -ci 'timed out'                      -> 0
+Ghi chú: sau lần chạy đỏ này, bộ so của P18 cho ô rút đổi từ một biểu thức đòi `autofocus` đứng sau `name` sang so trên cả thẻ <input …>,
+vì React in `autofocus` trước `name`. Trên mã giữ chỗ (chưa có autoFocus) bộ so mới cũng đỏ.

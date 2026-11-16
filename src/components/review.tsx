@@ -6,7 +6,7 @@ import type { ListedDelegation, ApproverView } from '../server/review-delegation
 import type { DocType } from '../server/types';
 import type { DocApprovalProposal } from '../server/doc-approval-proposals';
 import type { ProposalsInitial } from '../server/review-page';
-import { api, ApiError } from './api';
+import { api } from './api';
 import { formatTime } from './inbox-view';
 import { roleLabel } from './grant-labels';
 import { headingLabel, reviewPageState, eligibilityCopy, diffLabel, approverCopy, decisionStateLabel, hashLabel, fieldLabel, docTypeLabel, describeError, idempotencyKey, postReview, commandFailure, commandSuccess, panelFailure, panelSuccess, panelReloadFailure,
@@ -14,7 +14,7 @@ import { headingLabel, reviewPageState, eligibilityCopy, diffLabel, approverCopy
   DOC_TYPES, EMPTY_PANEL_DRAFT, QUEUE_PAGE_SIZE, queueWindow, queueHref, EMPTY_COPY, DENIED_COPY, ERROR_COPY, NOT_FOUND_COPY, CONFLICT_COPY, NOT_COORDINATOR_COPY, APPROVAL_NOTE_COPY, APPROVAL_NOTE_WITH_PROPOSALS_COPY, REVOKED_NOTICE, DECIDED_COPY, TRUNCATED_COPY, NO_REVISION_COPY,
   type ReviewPageState, type ReviewForm, type DecisionDraft, type CommentDraft, type PanelDraft, type DecisionCmd } from './review-view';
 import { DocApprovalPanel } from './doc-approval-proposals';
-import { proposalPanelState, canProposeFrom, proposeBody, withdrawBody, proposalFailure, PROPOSED_NOTICE, WITHDRAWN_NOTICE, PROPOSALS_LOAD_ERROR_COPY } from './doc-approval-view';
+import { proposalPanelState, canProposeFrom, reloadProposals, proposeBody, withdrawBody, proposalFailure, PROPOSED_NOTICE, WITHDRAWN_NOTICE, PROPOSALS_LOAD_ERROR_COPY } from './doc-approval-view';
 
 // Review screens. Text from the database (titles, summaries, comments, bases, names) is rendered as React text only.
 // Buttons follow the service's `eligibility`, `canDesignate` and the per-comment `canAddress` / `canResolve`; this file computes no permission of its own.
@@ -320,12 +320,18 @@ export function ReviewQueue({ projects, projectId, initial, denied, delegations:
     setBusy(false); return true;
   }
   const ownPath = '/api/team/doc-approvals?projectId=' + encodeURIComponent(projectId);
-  /** «Tải lại» and «Thử lại» of the proposal block: a scope refusal is the denied state, any other failure the error state; the typed draft stays. */
-  async function reloadOwn() {
+  /** «Tải lại» and «Thử lại» of the proposal block: a scope refusal is the denied state, any other failure the error state; the typed draft stays.
+   *  `withDelegations` is true for the «Tải lại» beside a reloadable refusal: the approvers are read again too, so the held types and the
+   *  `expectedTypes` of the next proposal are fresh (VERSION_CONFLICT «Tải lại trước khi trình»). Ignored while a command is running. */
+  async function reloadOwn(withDelegations: boolean) {
+    if (proposalBusy) return;
     setOwnLoading(true); setProposalError(''); setProposalReloadable(false);
-    try { setOwn(await api<DocApprovalProposal[]>(ownPath)); setOwnFailed(false); setOwnDenied(false); }
-    catch (e) { if (e instanceof ApiError && e.code === 'SCOPE_DENIED') { setOwn([]); setOwnDenied(true); setOwnFailed(false); } else setOwnFailed(true); }
-    finally { setOwnLoading(false); }
+    const r = await reloadProposals({ readOwn: () => api<DocApprovalProposal[]>(ownPath), readDelegations: reloadDelegations }, withDelegations);
+    if (r.own.kind === 'ok') { setOwn(r.own.items); setOwnFailed(false); setOwnDenied(false); }
+    else if (r.own.kind === 'denied') { setOwn([]); setOwnDenied(true); setOwnFailed(false); }
+    else setOwnFailed(true);
+    if (r.delegationsError) { setProposalError(r.delegationsError); setProposalReloadable(true); }
+    setOwnLoading(false);
   }
   /** One proposal command. Returns false on failure, so the block keeps the draft; after a success the list is read again, then the notice is shown. */
   async function proposalCommand(path: string, body: unknown, done: string): Promise<boolean> {
@@ -346,7 +352,7 @@ export function ReviewQueue({ projects, projectId, initial, denied, delegations:
       onRevoke={cmd => command('/api/reviews/delegations/' + cmd.delegationId + '/revoke', revokeBody(cmd), REVOKED_NOTICE)} />}
     {delegations && proposals && <DocApprovalPanel state={proposalPanelState({ loading: ownLoading, admin: proposals.state === 'admin', failed: ownFailed, denied: ownDenied, canPropose, count: own.length })}
       proposals={own} approvers={delegations.approvers} people={people} viewerId={viewerId} busy={proposalBusy} error={proposalError} notice={proposalNotice} reloadable={proposalReloadable}
-      onReload={() => void reloadOwn()}
+      onReload={() => void reloadOwn(proposalReloadable)}
       onPropose={cmd => proposalCommand('/api/team/doc-approvals', proposeBody(projectId, cmd), PROPOSED_NOTICE)}
       onWithdraw={cmd => proposalCommand('/api/team/doc-approvals/' + encodeURIComponent(cmd.approvalId) + '/withdraw', withdrawBody(cmd), WITHDRAWN_NOTICE)} />}
   </>);
