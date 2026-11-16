@@ -283,6 +283,20 @@ describe('coordinator proposal HTTP',()=>{
     }
   });
 
+  // Fix wave (code review M4, Task 1b security N6): H1's replacement is a named error class, so the log tells it from every other 500;
+  // the answer itself stays the generic 500, the same bytes as any other unexpected failure.
+  test('an unmapped unique violation is logged as UnmappedUniqueViolation and answers exactly the generic 500',async()=>{
+    const logged:string[]=[];
+    vi.spyOn(console,'error').mockImplementation((...args:unknown[])=>{logged.push(args.map(String).join(' '));});
+    const generic=await call('POST','',{payload:P(),identity:()=>{throw new Error('boom');}});
+    const voterClash=identityOn(w,beforeStatementInTx(w.h.operator,/INSERT INTO identity\.account_approval_voters/,async(tx,sql,params)=>{await tx.query(sql,params);}));
+    const clash=await call('POST','',{payload:P(),identity:()=>voterClash});
+    await expectErr(clash,500,'INTERNAL_ERROR');
+    expect(await shape(clash)).toBe(await shape(generic));
+    expect([...clash.headers.entries()]).toEqual([...generic.headers.entries()]);
+    expect(logged.map(line=>(JSON.parse(line) as {errorType:string}).errorType)).toEqual(['Error','UnmappedUniqueViolation']);
+  });
+
   test('only /api/team/accounts can apply grants',async()=>{
     const walk=async(d:string):Promise<string[]>=>(await Promise.all((await readdir(d)).map(async f=>{const p=path.join(d,f);return (await stat(p)).isDirectory()?walk(p):[p];}))).flat();
     const routes=(await walk('src/app/api')).filter(f=>/route\.tsx?$/.test(f));

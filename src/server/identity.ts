@@ -19,6 +19,10 @@ export class IdentityService {
  constructor(private db:Database,readonly tenantId:string,readonly adminId?:string) { z.uuid().parse(tenantId); if(adminId) z.uuid().parse(adminId); }
  scope<T>(fn:(tx:Queryable)=>Promise<T>) {
   return this.db.transaction(async tx=>{
+   // Database review P2-2: the level is pinned here, never inherited. db.ts:44 opens with a plain BEGIN, so a server, database or login default
+   // of REPEATABLE READ would otherwise apply. The withdraw R5 read of the subject's version and the apply-time read of the proposer's standing
+   // rely on a fresh snapshot per statement after the lock on the admin row (T7C-5 i). It must be the first statement of the transaction.
+   await tx.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
    await tx.query('SET LOCAL ROLE libetech_identity');
    await tx.query("SELECT set_config('app.tenant_id',$1,true)",[this.tenantId]);
    return fn(tx);

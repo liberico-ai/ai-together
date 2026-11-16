@@ -392,4 +392,27 @@ describe('open ballots on the team screen', () => {
     expect(reloads).toBe(1);
     expect(quiet).toEqual([]);
   });
+
+  // Fix wave (code review M3): the account form is keyed by id and version, so the reload after a VERSION_CONFLICT remounts it. The reason
+  // the admin typed comes back in the new form, as the Review block keeps its draft (keepDraft); a successful command clears it.
+  it('the reason typed before a VERSION_CONFLICT is still in the account form after the reload', async () => {
+    const account = { id: 'u-1', username: 'thanh.vien', name: 'Thành viên mẫu', active: true, activated: true, version: 4,
+      grants: [{ projectId: 'p-sales', role: 'engineer' as const, reportPermissions: [] }], githubId: null, accessChange: change() };
+    const reasonField = (reason?: string) => renderToStaticMarkup(<AccountForm user={account} projects={projects} busy={false} expands={false}
+      onSubmit={() => {}} onExpands={() => {}} reason={reason} />).match(/<input\b[^>]*\sname="reason"[^>]*>/)?.[0];
+    expect(reasonField('Áp đúng bộ quyền đã kiểm <b>')).toContain(' value="Áp đúng bộ quyền đã kiểm &lt;b&gt;"');
+    // nothing kept: the field is exactly as it was
+    expect(reasonField()).toBe('<input required="" minLength="5" maxLength="500" name="reason"/>');
+    // and in the source: on a VERSION_CONFLICT the reason is kept for this account before the list reloads; a success clears it
+    const source = await readFile('src/components/team-accounts.tsx', 'utf8');
+    const start = source.indexOf('async function submit(');
+    const submit = source.slice(start, source.indexOf('return <main', start));
+    const tried = submit.slice(0, submit.indexOf('catch(error)'));
+    const caught = submit.slice(submit.indexOf('catch(error)'), submit.indexOf('finally'));
+    expect(caught).toContain('setDraft({userId:user.id,reason:String(reason??\'\')})');
+    expect(caught.indexOf('setDraft(')).toBeLessThan(caught.indexOf('reloadAfterConflict('));
+    expect(caught.indexOf('shouldReloadAccounts(error)')).toBeLessThan(caught.indexOf('setDraft('));
+    expect(tried).toContain('setDraft(null)');
+    expect(source).toContain('reason={draft?.userId===user.id?draft.reason:undefined}');
+  });
 });

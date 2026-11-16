@@ -28,7 +28,7 @@ DecisionFormView({item; draft:{scopeNote;exceptions}; busy; error; onDraft; onSu
 ReviewDecisionForm({item; busy; error; onSubmit})   // giữ draft; draft sống qua mọi lỗi
 CommentFormView({item; draft:{body;anchor}; busy; error; onDraft; onSubmit; onInvalid})   // chỉ hiện khi eligibility.canComment
 ReviewersPanelView({reviewers:ListedDelegation[]; approvers:ApproverView[]; people:{id;name;role}[]; viewerId; canDesignate; busy; error; notice; reloadable; localError; draft:PanelDraft; onDraft; onGrant; onRevoke; onInvalid; onReload?; approvalNote?})   // không hook
-ReviewersPanel({reviewers; approvers; people; viewerId; canDesignate; busy; error; notice?; reloadable?; onReload?; onGrant?; onRevoke?})   // giữ draft; chỉ xoá draft khi lệnh trả khác `false`
+ReviewersPanel({reviewers; approvers; people; viewerId; canDesignate; busy; error; notice?; reloadable?; onReload?; onGrant?; onRevoke?; approvalNote?})   // giữ draft; chỉ xoá draft khi lệnh trả khác `false`
 ReviewQueue({projects; projectId; initial; denied; delegations:{reviewers:ListedDelegation[];reviewersTruncated?:boolean;approvers;canDesignate}|null; people:{id;name;role}[]; viewerId; offset?:number; proposals?})   // 'use client'
 ReviewDetailScreen({detail:ReviewDetail; affectedLinks:DependencyView[]; people:{id;name}[]})   // 'use client'
 ReviewDetailDenied() · ReviewDetailNoRevision() · ReviewDetailNotice({state:'loading'|'error'; onRetry?})

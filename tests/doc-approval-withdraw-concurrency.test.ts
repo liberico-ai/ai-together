@@ -237,4 +237,49 @@ describe.skipIf(!native)('withdraw and cancel concurrency (native PostgreSQL)',(
     expect(await closings(w,second.approvalId,['access_change_withdrawn'])).toBe(1);
     expect(await versionOf(w,reviewer.id)).toBe(2);
   });
+
+  // Fix wave (security review «Task 2 Note 4»): the admin's cancel and a BoM seat's vote on the same live coordinator ballot. The voter holds a
+  // bom_* seat, never the chairman seat: a chairman-seat vote against a cancel is the recorded deadlock limit (database review P2-1, T7C-5 f),
+  // not raced here. The cancel locks admin row, account row, ballot row; the vote locks the ballot row, then KEY SHARE on its own (BoM) row.
+  test("an admin cancel racing a BoM seat's vote on the same live ballot ends one consistent way and never deadlocks",async()=>{
+    /** The cancel's lock of the ballot row: `operator` holds the admin row and the command holds the account row by then. */
+    const CANCEL_BALLOT_LOCK=/FROM identity\.account_approvals WHERE id=\$1 AND kind='access_change' AND subject_user_id=\$2 AND subject_account_version=\$3 FOR UPDATE$/;
+    /** The cancel's write of the ballot state (the same text as the withdrawal's): it holds the admin, account and ballot rows by then. */
+    const CANCEL_UPDATE=WITHDRAW_UPDATE;
+    const seat=w.approvers[2];
+    expect(seat.seat).toMatch(/^bom_/);
+    const cancelledFrom=async(id:string)=>(await rows<{detail:{previousState:string}}>(w,
+      "SELECT detail FROM identity.events WHERE kind='access_change_cancelled' AND detail->>'approvalId'=$1",[id])).map(e=>e.detail.previousState);
+    // (1) the vote first: it holds the ballot row and stops before inserting its vote; the cancel waits on that row, then closes the ballot
+    // the vote approved
+    const first=await propose(w,w.coordinator);
+    let late:Blocked|undefined;
+    const voting=new AccountApprovalService(identityOn(w,beforeStatement(w.h.operator,/INSERT INTO identity\.account_approval_votes/,async()=>{
+      late=await startBlocked(w,()=>cancelWith(w,w.accounts,first.approvalId,w.subject.id));
+    })));
+    const vote=await settle(voting.vote(seat.telegram,seat.telegram,'private',first.approvalId,'agree'));
+    const cancelled=await ran(late).done;
+    noDeadlock(vote,cancelled);
+    expect(ran(late).on).toEqual([expect.stringMatching(CANCEL_BALLOT_LOCK)]);
+    expect([code(vote),code(cancelled)]).toEqual(['ok','ok']);
+    expect(await stateOf(w,first.approvalId)).toBe('expired');
+    expect(await count(w,'identity.account_approval_votes WHERE approval_id=$1',[first.approvalId])).toBe(1);
+    expect(await cancelledFrom(first.approvalId)).toEqual(['approved']);
+    expect(await closings(w,first.approvalId)).toBe(1);
+    // (2) the cancel first: it holds the ballot row and stops before closing it; the vote waits on that row, then finds it closed
+    const second=await propose(w,w.coordinator,{userId:reviewer.id});
+    let voteLate:Blocked|undefined;
+    const admin=new AccountService(identityOn(w,beforeStatement(w.h.operator,CANCEL_UPDATE,async()=>{
+      voteLate=await startBlocked(w,()=>w.ballots.vote(seat.telegram,seat.telegram,'private',second.approvalId,'agree'));
+    })));
+    const done=await settle(cancelWith(w,admin,second.approvalId,reviewer.id));
+    const refused=await ran(voteLate).done;
+    noDeadlock(done,refused);
+    expect(ran(voteLate).on).toEqual([expect.stringMatching(BALLOT_ROW_LOCK)]);
+    expect([code(done),code(refused)]).toEqual(['ok','APPROVAL_CLOSED']);
+    expect(await stateOf(w,second.approvalId)).toBe('expired');
+    expect(await count(w,'identity.account_approval_votes WHERE approval_id=$1',[second.approvalId])).toBe(0);
+    expect(await cancelledFrom(second.approvalId)).toEqual(['pending']);
+    expect(await closings(w,second.approvalId)).toBe(1);
+  });
 });

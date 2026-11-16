@@ -106,9 +106,10 @@ export function readGrants(form:FormData,projects:Project[]):ProjectGrant[] {
 
 /** The form of one existing account; TeamAccounts holds its state and its submit. Its first child is a disabled, hidden submit button (Task 3
  * security review F1): pressing Enter in a text field submits a form through its first submit button, and a disabled one submits nothing, so
- * Enter never applies or cancels the open ballot shown below. Every visible button still submits on click. */
-export function AccountForm({user,projects,busy,expands,onSubmit,onExpands}:{user:Account;projects:Project[];busy:boolean;expands:boolean;
-  onSubmit:(event:FormEvent<HTMLFormElement>)=>void;onExpands:(expands:boolean)=>void}) {
+ * Enter never applies or cancels the open ballot shown below. Every visible button still submits on click. `reason` is the text the admin typed
+ * before a VERSION_CONFLICT (code review M3): the reload remounts this form, which starts from it. */
+export function AccountForm({user,projects,busy,expands,onSubmit,onExpands,reason}:{user:Account;projects:Project[];busy:boolean;expands:boolean;
+  onSubmit:(event:FormEvent<HTMLFormElement>)=>void;onExpands:(expands:boolean)=>void;reason?:string}) {
   return <form className="action-form" onSubmit={onSubmit}
     onChange={event=>onExpands(expandsAccess(user.grants,readGrants(new FormData(event.currentTarget),projects)))}>
     <button type="submit" disabled hidden/>
@@ -121,7 +122,7 @@ export function AccountForm({user,projects,busy,expands,onSubmit,onExpands}:{use
       <button type="submit" className="secondary" disabled={busy} value="verify_github">Xác nhận danh tính</button>
       {user.githubId&&<button type="submit" className="secondary" disabled={busy} value="unlink_github">Gỡ GitHub</button>}
     </details>}
-    <label>Lý do thay đổi<input name="reason" required minLength={5} maxLength={500}/></label>
+    <label>Lý do thay đổi<input name="reason" required minLength={5} maxLength={500} defaultValue={reason}/></label>
     <div className="team-actions">
       <AccessActions expands={expands} busy={busy}/>
       {user.active&&!user.activated&&<><button className="secondary" disabled={busy} value="reissue">Cấp lại lời mời</button>
@@ -138,6 +139,8 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
   const [invitation,setInvitation]=useState(''),[notice,setNotice]=useState(''),[error,setError]=useState('');
   const user=accounts.find(account=>account.id===selected);
   const [expands,setExpands]=useState(false);
+  // Code review M3: the reason typed before a VERSION_CONFLICT, for that account; kept across the reload, cleared by a successful command
+  const [draft,setDraft]=useState<{userId:string;reason:string}|null>(null);
   async function review(event:FormEvent<HTMLFormElement>,requestId:string) {
     event.preventDefault();const form=new FormData(event.currentTarget);
     const button=(event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement|null;
@@ -176,6 +179,7 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
     setBusy(true);setError('');setNotice('');setInvitation('');
     try {
       const result=await api<Result>('/api/team/accounts',command);
+      setDraft(null);
       if(result.invitation) setInvitation(location.origin+'/activate#'+result.invitation.token);
       setAccounts(await api<Account[]>('/api/team/accounts'));
       setNotice(kind==='propose_access_change'?'Đã trình phiếu đổi quyền. Cần ít nhất một thành viên BoM chọn Yes trên nền; quyền chưa đổi cho tới khi áp quyền đã được duyệt.':
@@ -184,7 +188,10 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
     } catch(error) {
       setError((error as Error).message);
       // The account or the proposer's standing changed: show the list as it is now, so the note (or its absence) sits on the button
-      if(shouldReloadAccounts(error)) await reloadAfterConflict(error,async()=>setAccounts(await api<Account[]>('/api/team/accounts')),setError);
+      if(shouldReloadAccounts(error)) {
+        if(user) setDraft({userId:user.id,reason:String(reason??'')});
+        await reloadAfterConflict(error,async()=>setAccounts(await api<Account[]>('/api/team/accounts')),setError);
+      }
     }
     finally {setBusy(false);}
   }
@@ -221,7 +228,7 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
           <option value="">Chọn tài khoản</option>{accounts.map(account=><option key={account.id} value={account.id}>{account.name} · {account.username}</option>)}
         </select></label>
         {user?<AccountForm key={user.id+':'+user.version} user={user} projects={projects} busy={busy} expands={expands}
-          onSubmit={event=>submit(event,false)} onExpands={setExpands}/>:<p className="muted">Chọn một thành viên để xem quyền và quản lý phiên.</p>}
+          onSubmit={event=>submit(event,false)} onExpands={setExpands} reason={draft?.userId===user.id?draft.reason:undefined}/>:<p className="muted">Chọn một thành viên để xem quyền và quản lý phiên.</p>}
       </section>
     </div>
   </main>;

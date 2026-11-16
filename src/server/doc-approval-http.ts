@@ -29,9 +29,12 @@ function noStore(response: Response): Response {
  * H1 of the Task 1a security review: the service maps only the one-open-ballot index to APPROVAL_PENDING and rethrows every other unique
  * violation unchanged (T7C-22). The shared failure() would word such an error as DUPLICATE_CODE, a sentence of the work module; here it is
  * the generic internal error, like any other failure the service did not mean to answer. failure() itself is not changed.
+ * The class is named (code review M4, Task 1b N6) so that failure() logs `errorType:"UnmappedUniqueViolation"`, not the `"Error"` of every
+ * other 500; the answer is the same generic 500. `name` is set as a string, so a minified class name never changes what is logged.
  */
+export class UnmappedUniqueViolation extends Error { override name = 'UnmappedUniqueViolation'; }
 const unexpected = (error: unknown): unknown =>
-  !(error instanceof AppError) && (error as { code?: unknown } | null)?.code === '23505' ? new Error('Unmapped unique violation.') : error;
+  !(error instanceof AppError) && (error as { code?: unknown } | null)?.code === '23505' ? new UnmappedUniqueViolation('Unmapped unique violation.') : error;
 
 export async function handleDocApprovalApi(request: Request, parts: string[], identity: () => IdentityService): Promise<Response> {
   const requestId = randomUUID();
