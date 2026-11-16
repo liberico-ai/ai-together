@@ -13,6 +13,7 @@ import type {Principal,ProjectGrant} from '../src/server/types';
 // Task 7c, Task 1b: the lock order of T7C-5 under real concurrency. Two connections of the pool run at once; the order is built with
 // beforeStatement (the hook runs just before the first matching statement) and waitForBlocked (pg_stat_activity), never with a sleep.
 // No case accepts SQLSTATE 40P01: a deadlock is a failure of the lock order, not an answer.
+// These cases need exclusive use of the test database: waitForBlocked and waiting() count every lock wait in it, from any session.
 const S=ids.sales,T=ids.transport;
 const PENDING='Người này đang có một phiếu đổi quyền chưa xong.';
 const INELIGIBLE='Người được đề xuất phải là thành viên đang hoạt động của dự án.';
@@ -87,7 +88,8 @@ describe.skipIf(!native)('coordinator proposal concurrency (native PostgreSQL)',
     expect(ran(started).on).toEqual([expect.stringMatching(ADMIN_ROW_UPDATE)]);
     expect(code(made)).toBe('ok');expect(code(demotion)).toBe('ok');
     expect(await count(w,'identity.account_approvals')).toBe(1);
-    // created_at is the start time of each transaction; the wait above is what shows the order of the commits
+    // Kept because the plan asks for it, but it is NOT coverage of the lock order: created_at is the start time of each transaction, so this
+    // only checks start order and cannot fail here. The proof of the lock order is the lock-wait assertion above (ADMIN_ROW_UPDATE).
     const order=(await rows<{ballot:boolean}>(w,`SELECT a.created_at<=e.created_at AS ballot FROM identity.account_approvals a,identity.events e
       WHERE e.user_id=$1 AND e.kind='account_access'`,[w.coordinator.id]));
     expect(order).toEqual([{ballot:true}]);
@@ -141,8 +143,13 @@ describe.skipIf(!native)('coordinator proposal concurrency (native PostgreSQL)',
     expect(second.previous_grants).toEqual([g(S,'technical','people_read')]);
     expect(second.grants).toEqual([g(S,'technical','people_read','doc_approve:design')]);
     expect(await versionOf(w,reviewer.id)).toBe(v2+1);
-    // Synthetic: the operations login marks the ballot approved, so the only reason left to refuse the frozen grants is the version they were frozen at.
+    // Synthetic, through the operations login: the ballot is marked approved, and the account's memberships are set back to the frozen
+    // previous_grants (a direct memberships write does not bump account_version). Approval and previous grants then match, so the only
+    // reason left to refuse the frozen grants is the version they were frozen at (security review 1b M1).
     await w.h.operator.query("UPDATE identity.account_approvals SET state='approved',updated_at=now() WHERE id=$1",[second.id]);
+    await w.h.operator.query("UPDATE identity.memberships SET report_permissions=ARRAY['people_read'] WHERE user_id=$1 AND project_id=$2",[reviewer.id,S]);
+    expect(await w.identity.scope(tx=>w.identity.grants(tx,reviewer.id))).toEqual(second.previous_grants);
+    expect(await versionOf(w,reviewer.id)).toBe(v2+1);
     expect(await refusal(applyFrozen(w,reviewer.id))).toMatchObject({code:'TELEGRAM_APPROVAL_REQUIRED',status:409});
   });
 

@@ -275,3 +275,144 @@ $ npx vitest run
  Test Files  60 passed | 11 skipped (71)
       Tests  1012 passed | 50 skipped (1062)
 exit 0
+
+=== Vòng sửa 1 của Task 1b (16/11/2026) — PGlite, ba tệp phủ ===
+$ npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-proposal.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  2 passed | 1 skipped (3)
+      Tests  39 passed | 9 skipped (48)
+   Start at  11:01:52
+   Duration  19.65s (tests 99%, import 1%)
+
+exit 0
+
+=== Vòng sửa 1 — PostgreSQL 16 thật, ba tệp phủ ===
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-proposal.test.ts
+
+ RUN  v5.1.0 <repo>
+
+(node:74644) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:74676) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  3 passed (3)
+      Tests  48 passed (48)
+   Start at  11:02:20
+   Duration  17.48s (tests 99%, import 1%)
+
+exit 0
+
+=== Vòng sửa 1 — M2: phép đột biến listOwn bỏ this.same(p) ===
+=== M2 mutation: listOwn without this.same(p) (PGlite, HTTP file) ===
+diff --git a/src/server/doc-approval-proposals.ts b/src/server/doc-approval-proposals.ts
+index 78659c4..f0436bd 100644
+--- a/src/server/doc-approval-proposals.ts
++++ b/src/server/doc-approval-proposals.ts
+@@ -173,7 +173,6 @@ export class DocApprovalProposalService {
+ 
+   /** The caller's own open ballots that add document-approval codes in this project. Members of the project in any role see them (OQ-50 c). */
+   async listOwn(p:Principal,input:unknown):Promise<DocApprovalProposal[]> {
+-    this.same(p);
+     const {projectId}=listSchema.parse(input);
+     const callerId=p.id.toLowerCase();
+     if(callerId===this.adminId()) return [];
+     × GET requires projectId; a project the caller is not a member of answers the same 404 as an unknown project; a proposer demoted but still in the project still lists the own ballots 476ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: SCOPE_DENIED: expected { status: 200, code: undefined } to deeply equal { status: 404, code: 'SCOPE_DENIED' }
+ ❯ tests/doc-approval-proposal-http.test.ts:131:7
+      Tests  1 failed | 5 passed (6)
+$ git diff --stat -- src/server/doc-approval-proposals.ts   (after revert)
+(empty) exit 0
+
+=== Vòng sửa 1 — M1: hai phép đối chứng dữ liệu tạm (sửa tạm tệp test, đã trả về, cmp bằng) ===
+=== M1 control A (native): with previous grants restored, align ONLY the frozen version with the account version → the refusal must disappear ===
+152a153
+>     await w.h.operator.query("UPDATE identity.account_approvals SET subject_account_version=$2 WHERE id=$1",[second.id,v2+1]);   // CONTROL (temporary)
+     × the frozen grants are the grants the ballot was built from 606ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected { code: 'APPROVAL_NOT_READY', …(2) } to match object { …(2) }
+-   "code": "TELEGRAM_APPROVAL_REQUIRED",
++   "code": "APPROVAL_NOT_READY",
+      Tests  1 failed | 8 skipped (9)
+=== M1 control B (native): as the case was before the fix (no restore of previous grants), align the version → still refused: the second guard held the line ===
+150,151d149
+<     await w.h.operator.query("UPDATE identity.memberships SET report_permissions=ARRAY['people_read'] WHERE user_id=$1 AND project_id=$2",[reviewer.id,S]);
+<     expect(await w.identity.scope(tx=>w.identity.grants(tx,reviewer.id))).toEqual(second.previous_grants);
+152a151
+>     await w.h.operator.query("UPDATE identity.account_approvals SET subject_account_version=$2 WHERE id=$1",[second.id,v2+1]);   // CONTROL (temporary)
+      Tests  1 passed | 8 skipped (9)
+restored (cmp equal)
+
+=== Vòng sửa 1 — typecheck ===
+(.next/types/* 2.ts deleted first: 4)
+$ npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit 0
+
+=== Vòng sửa 1, bổ sung — bot mang mã của một thành viên thật ===
+=== Fix round 1 addition — mutation: listOwn without this.same(p) (PGlite, HTTP file) ===
+diff --git a/src/server/doc-approval-proposals.ts b/src/server/doc-approval-proposals.ts
+index 78659c4..f0436bd 100644
+--- a/src/server/doc-approval-proposals.ts
++++ b/src/server/doc-approval-proposals.ts
+@@ -173,7 +173,6 @@ export class DocApprovalProposalService {
+ 
+   /** The caller's own open ballots that add document-approval codes in this project. Members of the project in any role see them (OQ-50 c). */
+   async listOwn(p:Principal,input:unknown):Promise<DocApprovalProposal[]> {
+-    this.same(p);
+     const {projectId}=listSchema.parse(input);
+     const callerId=p.id.toLowerCase();
+     if(callerId===this.adminId()) return [];
+     × GET requires projectId; a project the caller is not a member of answers the same 404 as an unknown project; a proposer demoted but still in the project still lists the own ballots 515ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: GET bot with member id: expected 200 to be 404 // Object.is equality
+ ❯ tests/doc-approval-proposal-http.test.ts:133:28
+      Tests  1 failed | 5 passed (6)
+$ git diff --stat -- src/server/doc-approval-proposals.ts   (after revert)
+(empty) exit 0
+
+=== Vòng sửa 1, bổ sung — PGlite, ba tệp phủ ===
+$ npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-proposal.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  2 passed | 1 skipped (3)
+      Tests  39 passed | 9 skipped (48)
+   Start at  11:05:12
+   Duration  19.63s (tests 99%, import 1%)
+
+exit 0
+
+=== Vòng sửa 1, bổ sung — PostgreSQL 16 thật, ba tệp phủ ===
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-proposal.test.ts
+
+ RUN  v5.1.0 <repo>
+
+(node:78499) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:78758) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  3 passed (3)
+      Tests  48 passed (48)
+   Start at  11:05:32
+   Duration  18.14s (tests 99%, import 1%)
+
+exit 0
+
+=== Vòng sửa 1, bổ sung — typecheck ===
+(.next/types/* 2.ts deleted first: 0)
+$ npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit 0

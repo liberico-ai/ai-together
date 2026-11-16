@@ -123,6 +123,18 @@ describe('coordinator proposal HTTP',()=>{
     const mine=[{approvalId:made.approvalId,projectId:S,userId:w.subject.id,addedTypes:['design'],state:'pending',expiresAt:made.expiresAt,replayed:false}];
     expect(await listed(w.coordinator)).toEqual(mine);
     expect(await listed(w.coManager)).toEqual([]);
+    // the bot principal, a bot principal carrying the coordinator's own id (an account row and an open ballot exist for it), and a principal
+    // of another tenant with that id get the unknown-project 404 on the read path too, naming no ballot (AR-06; security review 1b M2)
+    const unknownProject=await shape(await call('GET','?projectId='+randomUUID()));
+    const botWithMemberId:Principal={...w.coordinator,role:'bot'};
+    for(const p of [bot,botWithMemberId,{...w.coordinator,tenantId:ids.otherTenant}]) for(const m of ['GET','HEAD']) {
+      const r=await call(m,'?projectId='+S,{as:p});
+      const who=m+' '+(p===bot?'demo bot':p===botWithMemberId?'bot with member id':'other tenant');
+      expect(r.status,who).toBe(404);
+      await expectErr(r,404,'SCOPE_DENIED');
+      expect(await shape(r),who).toBe(unknownProject);
+      expect(JSON.stringify(await json(r))).not.toContain(made.approvalId);
+    }
     // demoted, still a member of the project (any role, viewer included): still lists the own ballot (OQ-50 c)
     for(const role of ['engineer','viewer'] as const) {
       await setProjectRole(w,w.coordinator.id,S,role);
