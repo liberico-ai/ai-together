@@ -42,7 +42,8 @@ export async function openWorld():Promise<World> {
     grants:[{projectId:ids.sales,role:'manager',reportPermissions:[]}]};
   // the account behind seat bom_chu becomes a manager of ids.sales
   await h.operator.query("UPDATE identity.memberships SET project_role='manager' WHERE user_id=$1 AND project_id=$2",[approvers[1].id,ids.sales]);
-  const seatCoordinator:Principal={id:approvers[1].id,tenantId:ids.tenant,name:approvers[1].seat,role:'manager',projectIds:[ids.sales],
+  const seatName=(await h.operator.query<{name:string}>('SELECT name FROM identity.users WHERE id=$1',[approvers[1].id])).rows[0].name;
+  const seatCoordinator:Principal={id:approvers[1].id,tenantId:ids.tenant,name:seatName,role:'manager',projectIds:[ids.sales],
     grants:[{projectId:ids.sales,role:'manager',reportPermissions:[]}]};
   return {h,identity,accounts:new AccountService(identity),ballots:new AccountApprovalService(identity),proposals:new DocApprovalProposalService(identity),
     admin,approvers,coordinator,coManager,seatCoordinator,subject:member,transportMember:transportApprover};

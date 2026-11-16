@@ -26,3 +26,9 @@ $ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-propos
    Start at  09:41:01
    Duration  41.61s (tests 99%, import 1%)
 vitest exit 0
+
+=== Vòng sửa 1 của Task 1a — PostgreSQL 16 thật, phiên Task 7c chạy, 16/11/2026 ===
+$ (cùng danh sách 8 tệp như trên)
+ Test Files  8 passed (8)
+      Tests  101 passed (101)
+vitest exit 0

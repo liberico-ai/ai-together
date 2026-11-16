@@ -2,7 +2,6 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {AppError,invariant} from './errors';
 import {IdentityService} from './identity';
-import type {Queryable} from './db';
 import type {Principal,ProjectGrant} from './types';
 import {notifyVoters,verifiedApprovalSeats} from './account-approval';
 import {grantsSchema,sameGrants} from './accounts';
@@ -174,8 +173,8 @@ export class DocApprovalProposalService {
 
   /** The caller's own open ballots that add document-approval codes in this project. Members of the project in any role see them (OQ-50 c). */
   async listOwn(p:Principal,input:unknown):Promise<DocApprovalProposal[]> {
-    const {projectId}=listSchema.parse(input);
     this.same(p);
+    const {projectId}=listSchema.parse(input);
     const callerId=p.id.toLowerCase();
     if(callerId===this.adminId()) return [];
     return this.identity.scope(async tx=>{

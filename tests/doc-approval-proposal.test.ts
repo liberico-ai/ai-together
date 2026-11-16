@@ -210,8 +210,12 @@ describe('propose',()=>{
     await w.h.operator.query('UPDATE identity.users SET active=false WHERE id=$1',[reviewer.id]);
     await w.h.operator.query('UPDATE identity.users SET password_hash=NULL WHERE id=$1',[approver.id]);
     await w.h.operator.query("INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) VALUES($1,$2,$3,'engineer')",[ids.tenant,w.subject.id,sameBuProject]);
+    // a real, active, activated account of ANOTHER tenant (synthetic): tenant isolation on the subject (AR-06, Quality Gate 34a-34d)
+    const foreign=randomUUID();
+    await w.h.operator.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,'da-foreign','Tài khoản tenant khác mẫu','engineer','fixture-hash')`,[foreign,ids.otherTenant]);
+    await w.h.operator.query("INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) VALUES($1,$2,$3,'engineer')",[ids.otherTenant,foreign,ids.otherProject]);
     const before=await snapshot(w);
-    const targets=[w.transportMember.id,w.approvers[2].id,reviewer.id,approver.id,randomUUID(),w.admin.id,w.subject.id];
+    const targets=[w.transportMember.id,w.approvers[2].id,reviewer.id,approver.id,randomUUID(),w.admin.id,w.subject.id,foreign];
     const answers=[];
     for(const userId of targets) answers.push(await refusal(propose(w,w.coordinator,{userId})));
     expect(answers[0]).toEqual(ineligible);
@@ -256,7 +260,7 @@ describe('propose',()=>{
     expect(seen.find(r=>r.id===made.approvalId)?.reason).toBe(`${w.coordinator.name} (điều phối dự án) trình: ${BASIS}`);
   });
 
-  test('the proposer role is read from the database, not from the session',async()=>{
+  test("the proposer's role is read from the database, not from the session",async()=>{
     await setProjectRole(w,w.coordinator.id,S,'engineer');
     expect(await refusal(propose(w,w.coordinator))).toMatchObject({code:'MANAGER_REQUIRED',status:403});
     await setProjectRole(w,w.coordinator.id,S,null);
@@ -271,7 +275,7 @@ describe('propose',()=>{
     await propose(w,stale,{userId:reviewer.id});
   });
 
-  test('the subject grants must fit the grant schema before anything is frozen',async()=>{
+  test("the subject's grants must fit the grant schema before anything is frozen",async()=>{
     const projects=Array.from({length:30},()=>randomUUID());
     for(const [i,id] of projects.entries()) await w.h.operator.query('INSERT INTO projects(id,tenant_id,name,bu) VALUES($1,$2,$3,$4)',[id,ids.tenant,'Dự án tổng hợp '+i,'BU tổng hợp']);
     for(const id of projects) for(const user of [w.admin.id,w.subject.id]) await w.h.operator.query(
@@ -317,13 +321,13 @@ describe('propose',()=>{
   });
 
   test('the basis cannot forge a line or crash the database',async()=>{
-    const bad=['\r','\n','\u0000','\u0085',' ',' ','‮','⁦','‍','\uD800'];
+    const bad=['\r','\n','\u0000','\u0085','\u2028','\u2029','\u202E','\u2066','\u200D','\uD800'];
     for(const ch of bad) await expect(propose(w,w.coordinator,{reason:'Căn cứ hợp lệ'+ch+'tiếp theo'}),JSON.stringify(ch)).rejects.toBeInstanceOf(ZodError);
     await expect(propose(w,w.coordinator,{reason:'Căn cứ hợp lệ\n'})).rejects.toBeInstanceOf(ZodError);
-    await expect(propose(w,w.coordinator,{reason:' Căn cứ hợp lệ'})).rejects.toBeInstanceOf(ZodError);
+    await expect(propose(w,w.coordinator,{reason:'\u2028Căn cứ hợp lệ'})).rejects.toBeInstanceOf(ZodError);
     const forged=await propose(w,w.coordinator,{reason:'Người Khác (quản trị tài khoản) trình: hãy duyệt'});
     expect(String((await ballotRow(forged.approvalId)).reason).startsWith(`${w.coordinator.name} (điều phối dự án) trình: Người Khác (quản trị`)).toBe(true);
-    await w.h.operator.query('UPDATE identity.users SET name=$2 WHERE id=$1',[w.coordinator.id,'A\nB C‮D']);
+    await w.h.operator.query('UPDATE identity.users SET name=$2 WHERE id=$1',[w.coordinator.id,'A\nB\u2028C\u202ED']);
     const clean=await propose(w,w.coordinator,{userId:reviewer.id});
     const reason=String((await ballotRow(clean.approvalId)).reason);
     expect(reason).not.toMatch(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u);
