@@ -42,7 +42,7 @@ Theo chỉ đạo mới nhất ngày 11/11, [SPEC-009](SPEC-009-PM-BA-DOCUMENTS-
 
 **Trạng thái Task 7c + bước 16b ngày 16/11/2026:** **đã có mã** — Codex vòng 2: PASS, không có finding.
 
-- Nhánh `task-7c-coordinator-proposal`, mã ở `4f7e000`, PR vào `libetech-ai-os` (số PR ghi sau khi mở), **chưa merge** (điểm dừng Chairman). Chưa triển khai, chưa dùng thật, chưa nghiệm thu; chỉ chạy trên dữ liệu tổng hợp. Biên nhận: [DELIVERY-013](DELIVERY-013-coordinator-proposal-20261116.md). Review: [REVIEW-task-7c](reviews/REVIEW-task-7c-20261116.md).
+- Nhánh `task-7c-coordinator-proposal`, mã ở `4f7e000`, PR [#16](https://github.com/liberico-ai/ai-together/pull/16) vào `libetech-ai-os`, **chưa merge** (điểm dừng Chairman). Chưa triển khai, chưa dùng thật, chưa nghiệm thu; chỉ chạy trên dữ liệu tổng hợp. Biên nhận: [DELIVERY-013](DELIVERY-013-coordinator-proposal-20261116.md). Review: [REVIEW-task-7c](reviews/REVIEW-task-7c-20261116.md).
 - Điều phối dự án trình phiếu chỉ thêm `doc_approve:*` của dự án mình cho một thành viên; người trình rút phiếu của mình; quản trị tài khoản huỷ phiếu của điều phối; `/team` nêu rõ người trình còn điều phối hay không trước khi áp; khối trình phiếu ở màn Review.
 - Test, typecheck và build xanh ở `4f7e000`: native 1166/0 bỏ qua, PGlite 1104/62 bỏ qua; pytest 67 ở Task 5 (PR không đụng tệp Python). Hai vòng Codex, một vòng sửa.
 - **Không migration:** brief lát 4 vẫn bắt đầu từ **022**.
