@@ -101,9 +101,10 @@ export class BomService {
   }
 
   /** Read-only: at most 30 proposals of a project for a seat holder (the Decisions screen), and whether more exist. Live ballots come first, newest first: stored `pending`
-   * and not past `expires_at`, the state and expiry conditions the vote command applies below. Every other proposal follows by the time it stopped being live, most
-   * recent first: its closing time (OQ-47 b), or its expiry when nobody closed it. So the cap never drops a ballot that can still be voted on in favour of a closed one,
-   * and a ballot that has just closed stays right below the live ones. Same seat and Telegram checks as read(); no write, no lock. */
+   * and not past `expires_at`, the state and expiry conditions the vote command applies below. Every other proposal follows, most recent first, by its closing time
+   * (OQ-47 b); a ballot past its expiry that nobody closed has no closing time and takes its expiry instead. So the cap never drops a ballot that can still be voted on
+   * in favour of a closed one, and while fewer than 30 ballots are live a ballot that has just closed is listed right below them.
+   * Same seat and Telegram checks as read(); no write, no lock. */
   async pending(p:Principal,projectId:string):Promise<{cards:PendingCard[];truncated:boolean}> {
     // a malformed project id gets the same 404 assertSeat gives, not a database error
     invariant(uuid.safeParse(projectId).success,'SCOPE_DENIED','Không tìm thấy hồ sơ BoM trong phạm vi được cấp.',404);
@@ -114,10 +115,13 @@ export class BomService {
       invariant(eligible.some(member=>member.user_id===p.id&&member.linked),'SCOPE_DENIED','Cần ghép Telegram và có phạm vi dự án.',403);
       const cap=30;
       // «live» is decided here, before the limit; one row more than the cap is fetched only to know that the list was cut.
-      // now() is the start of this short read transaction: one value for both uses, so a ballot cannot count as live in one sort key and as closed in the next
+      // now() is the start of this short read transaction: one value for both uses, so a ballot cannot count as live in one sort key and as closed in the next.
+      // A closed row without finished_at (the schema allows it; finish() always sets it) falls back to its creation, so it cannot stand above a ballot that has really just closed
       const fetched=(await tx.query<Proposal>(`SELECT * FROM bom_proposals WHERE project_id=$1
         ORDER BY (state='pending' AND expires_at>now()) DESC,
-          CASE WHEN state='pending' AND expires_at>now() THEN created_at ELSE COALESCE(finished_at,expires_at) END DESC,
+          CASE WHEN state='pending' AND expires_at>now() THEN created_at
+               WHEN state='pending' THEN expires_at
+               ELSE COALESCE(finished_at,created_at) END DESC,
           created_at DESC,id DESC LIMIT $2::int`,[projectId,cap+1])).rows;
       const proposals=fetched.slice(0,cap);
       const works=new Map((await tx.query<PendingCard['work']>('SELECT id,code,title,version FROM work_items WHERE id=ANY($1::uuid[])',[[...new Set(proposals.map(x=>x.work_id))]])).rows.map(w=>[w.id,w]));

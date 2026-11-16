@@ -411,10 +411,10 @@ describe('P2 the 3/3 cards keep live ballots ahead of the cap and say when they 
  }
  /** Ids of every proposal except the named ones, newest first by creation. */
  const newestFirst=async(...except:string[])=>(await rows<{id:string}>('SELECT id FROM bom_proposals WHERE NOT (id = ANY($1::uuid[])) ORDER BY created_at DESC,id DESC',[except])).map(r=>r.id);
- /** Ids of every proposal except the named ones, by the time each stopped being live (closing time, or expiry when nobody closed it), most recent first.
-  * Stated here independently of the service; the cases below also name exact positions. */
+ /** Ids of every proposal except the named ones, none of them live: most recent first by closing time, a stale pending ballot by its expiry, a closed row with no closing
+  * time by its creation. Stated here apart from the service; the cases below also name exact positions, which follow from the fixture times alone. */
  const byEndOfLife=async(...except:string[])=>(await rows<{id:string}>(
-  'SELECT id FROM bom_proposals WHERE NOT (id = ANY($1::uuid[])) ORDER BY COALESCE(finished_at,expires_at) DESC,created_at DESC,id DESC',[except])).map(r=>r.id);
+  `SELECT id FROM bom_proposals WHERE NOT (id = ANY($1::uuid[])) ORDER BY (CASE WHEN state='pending' THEN expires_at ELSE COALESCE(finished_at,created_at) END) DESC,created_at DESC,id DESC`,[except])).map(r=>r.id);
 
  test('a live ballot older than thirty-one newer closed ballots is still listed, first, and the list says it was cut',async()=>{
   const open=await liveBallot();
@@ -423,7 +423,7 @@ describe('P2 the 3/3 cards keep live ballots ahead of the cap and say when they 
   const cards=reassignments(r.cards);
   expect(cards).toHaveLength(30);
   expect(cards[0]).toMatchObject({decisionId:open,state:'pending',actorEligibility:{canVote:true,reason:null}});
-  expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFirst(open)).slice(0,29));   // the closed ones keep their order, newest first; the two oldest give way
+  expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFirst(open)).slice(0,29));   // the closed copies follow, most recently closed first (for these copies that is also newest first); the last two give way
   expect(cards.slice(1).every(c=>c.state==='rejected')).toBe(true);
   expect(r.reassignmentCardsTruncated).toBe(true);
  });
@@ -490,6 +490,57 @@ describe('P2 the 3/3 cards keep live ballots ahead of the cap and say when they 
   cards=reassignments((await full(pm)).cards);
   expect(cards.slice(0,2).map(c=>c.decisionId)).toEqual([live,open]);
   expect(cards[0].actorEligibility.canVote).toBe(true);
+ });
+
+ test('OQ-47 (b) closed ballots follow by closing time, not by creation time; ties go to the newer ballot, then to the higher id',async()=>{
+  const open=await liveBallot();
+  await copies(open,10,'rejected');                  // created 1 to 10 minutes ago, each closed thirty seconds after its creation
+  const byCreation=await newestFirst(open);
+  const oldest=byCreation[9];                        // last by creation …
+  await h.operator.query("UPDATE bom_proposals SET finished_at=now()-interval '10 seconds' WHERE id=$1",[oldest]);   // … and the most recently closed
+  let cards=reassignments((await full(pm)).cards);
+  expect(cards.map(c=>c.decisionId)).toEqual([open,oldest,...byCreation.slice(0,9)]);
+  // two ballots closed at the same instant, the lower id made the one created later: creation decides before the id does
+  const [low,high]=[byCreation[3],byCreation[6]].sort();
+  await h.operator.query("UPDATE bom_proposals SET finished_at=date_trunc('second',now())-interval '5 seconds' WHERE id=ANY($1::uuid[])",[[low,high]]);
+  await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '75 seconds' WHERE id=$1",[low]);
+  await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '135 seconds' WHERE id=$1",[high]);
+  cards=reassignments((await full(pm)).cards);
+  expect(cards.slice(0,3).map(c=>c.decisionId)).toEqual([open,low,high]);
+  // the same instant for closing and for creation: only then the higher id comes first
+  await h.operator.query('UPDATE bom_proposals SET created_at=(SELECT created_at FROM bom_proposals WHERE id=$1) WHERE id=$2',[low,high]);
+  cards=reassignments((await full(pm)).cards);
+  expect(cards.slice(0,3).map(c=>c.decisionId)).toEqual([open,high,low]);
+ });
+
+ test('OQ-47 (b) a ballot closed after its expiry is ranked by its closing: a late vote closes it as expired and it becomes the first card of the rest',async()=>{
+  const open=await liveBallot();
+  await copies(open,31,'rejected');
+  // expired twenty minutes ago and nobody closed it: no ballot is live, and it sits at the place of its expiry, after the twenty ballots closed since
+  await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '9 days',expires_at=now()-interval '20 minutes' WHERE id=$1",[open]);
+  const voter=seats.roster[0];
+  let cards=reassignments((await full(voter)).cards);
+  expect(cards.findIndex(c=>c.decisionId===open)).toBe(20);
+  expect(cards[20]).toMatchObject({state:'pending',actorEligibility:{canVote:false,reason:'EXPIRED'}});
+  // the command refuses the vote by closing the ballot as expired; from then on its place is its closing
+  const closed=await new BomService(h.db).command(voter,{action:'vote',proposalId:open,choice:'agree',note:'Xác nhận bằng phiên thử nghiệm'},k());
+  expect(closed.proposal.state).toBe('expired');
+  expect(closed.votes).toHaveLength(0);
+  cards=reassignments((await full(voter)).cards);
+  expect(cards[0]).toMatchObject({decisionId:open,state:'expired',actorEligibility:{canVote:false,reason:'CLOSED'}});
+ });
+
+ test('a closed row with no closing time falls back to its creation time and cannot push out a ballot that has just closed',async()=>{
+  const open=await liveBallot();
+  await copies(open,31,'rejected');
+  // inconsistent rows the service never writes (it sets the closing time whenever it closes a ballot): closed, no closing time, expiry still six days ahead
+  await h.operator.query("UPDATE bom_proposals SET finished_at=NULL WHERE state='rejected'");
+  const voter=seats.roster[0];
+  await new BomService(h.db).command(voter,{action:'vote',proposalId:open,choice:'reject',note:'Từ chối trong bản thử nghiệm'},k());
+  const cards=reassignments((await full(voter)).cards);
+  expect(cards).toHaveLength(30);
+  expect(cards[0]).toMatchObject({decisionId:open,state:'rejected'});
+  expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFirst(open)).slice(0,29));
  });
 
  test('a person who holds no seat, a former seat, and a seat without its Telegram link learn nothing about the cut: the same answer with one ballot and with thirty-two',async()=>{
