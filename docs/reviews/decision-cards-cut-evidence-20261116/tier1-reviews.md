@@ -48,3 +48,30 @@ Reviewer trả lời các câu hỏi: khoá sắp xếp không bao giờ NULL, t
 Quét cùng lớp, chỉ để biết: `BomService.read()` lấy 30 phiếu mới nhất của một đầu việc, kể cả đã đóng, không có cờ (có từ trước; đề cấm đụng); nửa thẻ review lấy 200 tài liệu cập nhật gần nhất kể cả đã quyết, có cờ và màn Review có phân trang; không có chỉ mục theo dự án trên `bom_proposals`.
 
 Reviewer không kiểm: PostgreSQL thật, cả bộ test và coverage, build, trình duyệt, kế hoạch truy vấn ở khối lượng lớn.
+
+## `liberico-code-reviewer` — lượt soát riêng vòng sửa OQ-47 (b), commit `058e341`
+
+Dòng đầu: `RECOMMENDATION: READY`. Reviewer ghi khuyến nghị chỉ phủ mã của `058e341`, với hai điều kiện lúc đó chưa thấy: hai lượt chạy cả bộ xanh, và commit hồ sơ vào trước khi cổng đọc head. Không P0, không P1, không P2 trong mã; một P2 về hồ sơ; năm mục P3 trở xuống. Reviewer chạy trên bản sao riêng của cây (PGlite), không ghi vào worktree.
+
+| Mức | Nơi | Nội dung | Xử lý |
+|---|---|---|---|
+| P2 (hồ sơ) | `docs/OPEN-QUESTIONS.md`, `docs/UI-HANDOFF-3-decisions.md`, `docs/DELIVERY-014…`, `docs/IMPLEMENTATION-ROADMAP.md` ở `058e341` | Mã và test đã dẫn «OQ-47 b» trong khi hồ sơ đã commit còn ghi chưa có phương án và mô tả thứ tự cũ | Hồ sơ được commit trước lượt chạy cổng vòng 2; các chỗ giữ chỗ được soát bằng `grep` trước khi commit |
+| P3 | `src/server/bom.ts`, câu `ORDER BY` | Một phiếu được đóng **sau** khi quá hạn (lá phiếu muộn đóng nó thành `expired`) xếp theo lúc bấm, đúng chữ của (b), nhưng không ca nào ghim; `LEAST(finished_at,expires_at)` vẫn qua mọi ca | Thêm ca «a ballot closed after its expiry is ranked by its closing…»; phép đột biến M10. Hồ sơ nói «lúc đóng nếu có, nếu không thì lúc quá hạn» |
+| P3 | `tests/decisions.test.ts`, hàm `copies` | Thứ tự đóng và thứ tự tạo trùng nhau ở mọi bản sao đã đóng, nên luật của Chairman chỉ dựa vào một phiếu | Thêm ca «closed ballots follow by closing time, not by creation time…» (phiếu tạo sớm nhất, đóng muộn nhất, phải đứng đầu nhóm dưới); phép đột biến M8 |
+| P3 | `src/server/bom.ts`, câu `ORDER BY` | Dòng đã đóng mà `finished_at` rỗng (role chạy ứng dụng không ghi ra được dòng như vậy) được xếp theo `expires_at`, có thể ở tương lai: đứng trên thẻ vừa đóng; 31 dòng như thế làm thẻ vừa đóng bị cắt | Đổi khoá: dòng đó lùi về thời điểm tạo; ca «a closed row with no closing time…» đỏ trước, xanh sau (`fix1-red-2.txt`); phép đột biến M11 |
+| P3 | `src/server/bom.ts`, câu `ORDER BY` | Khoá phân định `created_at DESC` sau khoá chính chưa được ghim | Ca về thứ tự theo lúc đóng nay ghim cả `created_at DESC` lẫn `id DESC`; phép đột biến M12, M13 |
+| Góp ý | Chú thích trên `pending()` | «stays right below the live ones» nói quá | Sửa lời: chỉ đúng khi dưới 30 phiếu còn bỏ phiếu được |
+| Góp ý | Lời commit `058e341`, phán quyết 3 của biên nhận | «clock_timestamp() twice»: cây trước chỉ gọi một lần | Biên nhận sửa lời; lời commit giữ nguyên |
+
+Reviewer trả lời các điểm được hỏi:
+1. **Câu `ORDER BY` làm đúng quyết định.** Không khoá sắp xếp nào có thể NULL; thứ tự toàn phần; phiếu không còn bỏ phiếu được không thể đứng trước phiếu còn bỏ phiếu được. Không tìm thấy trạng thái nào trong đó một phiếu bỏ phiếu được nằm ngoài nhóm trên; sai lệch chỉ theo chiều ngược lại (phiếu vừa quá hạn vài mili giây còn được xếp như còn mở trong một lượt đọc). **Một lưu ý:** mô tả của phương án (b) nói thẻ vừa đóng «luôn» đứng ngay sau nhóm còn bỏ phiếu được; vì phiếu quá hạn chưa đóng được xen theo lúc quá hạn (phán quyết của phiên), một phiếu quá hạn sau lúc thẻ kia đóng sẽ đứng trên nó, mỗi phiếu một chỗ. Cách hiểu còn lại — phiếu quá hạn thành một tầng riêng ở cuối — bị ca kiểm hiện tại loại.
+2. **`now()` thay `clock_timestamp()`:** không có hệ quả về đúng sai hay bảo mật. `now()` là lúc `BEGIN` của giao dịch đọc, cũ bốn câu lệnh khi câu đọc phiếu chạy; lệnh bỏ phiếu phải giữ `clock_timestamp()` vì nó chờ khoá. `statement_timestamp()` hoặc một CTE cho giá trị mới hơn mà vẫn giữ được chuỗi SQL các test bám vào; reviewer khuyên giữ `now()`.
+3. **Dòng đã đóng thiếu `finished_at`:** chỉ ảnh hưởng thứ tự; đã đổi khoá như bảng trên. Sửa tận gốc là một ràng buộc CHECK trong migration sau, ngoài PR.
+4. **Không gì ngoài thứ tự đổi:** cùng mệnh đề `WHERE`, cùng `LIMIT`, cùng tập dòng được phép xem; phép kiểm ghế và ghép Telegram không đổi; `decisions.ts` là nơi gọi duy nhất; giao diện không sắp xếp lại.
+5. **Ca kiểm:** theo hành vi, không ca nào rỗng hay tự tham chiếu (hàm `byEndOfLife` lặp lại biểu thức của dịch vụ, nhưng ca còn ghim vị trí tuyệt đối suy từ thời điểm của dữ liệu thử). M8 và M9 có nghĩa.
+6. Danh sách câu trong hồ sơ phải đổi theo thứ tự mới: đã đối chiếu khi viết lại biên nhận.
+7. Không thấy mục nào một reviewer ngoài khắt khe sẽ xếp P0 hay P1.
+
+Phần sửa theo các mục P3 ở trên (một khoá sắp xếp ba nhánh, ba ca kiểm, lời chú thích) được làm **sau** lượt soát này và không có lượt soát tầng 1 nào nữa; phiên đọc diff, cổng Codex vòng 2 xem toàn bộ.
+
+Reviewer không kiểm: cả bộ test, coverage, typecheck, build ở head đó; PostgreSQL thật; kế hoạch truy vấn; trình duyệt.

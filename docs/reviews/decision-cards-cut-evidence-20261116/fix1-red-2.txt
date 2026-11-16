@@ -1,0 +1,41 @@
+# RED, second part of the same fix round (after the scoped tier-1 review of 058e341): the case «a closed row with no closing time…», before the sort key was changed
+# (sources as committed at 058e341). The two other cases added at the same time pin behaviour 058e341 already had; mutations M8, M10, M12 and M13 are their proof. PGlite.
+# Command: npx vitest run tests/decisions.test.ts -t "P2 the 3/3 cards"
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/decisions.test.ts (29 tests | 1 failed | 20 skipped) 4940ms
+   ❯ P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut (9)
+     × a closed row with no closing time falls back to its creation time and cannot push out a ballot that has just closed 524ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a closed row with no closing time falls back to its creation time and cannot push out a ballot that has just closed
+AssertionError: expected { kind: 'reassignment', …(13) } to match object { …(2) }
+(17 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "decisionId": "7d3d3e36-2f87-4791-822b-18697f9fb0f0",
++   "decisionId": "5f0ed5be-3b65-4bfa-b385-2ab7a9c98100",
+    "state": "rejected",
+  }
+
+ ❯ tests/decisions.test.ts:540:20
+    538|   const cards=reassignments((await full(voter)).cards);
+    539|   expect(cards).toHaveLength(30);
+    540|   expect(cards[0]).toMatchObject({decisionId:open,state:'rejected'});
+       |                    ^
+    541|   expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFir…
+    542|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed | 20 skipped (29)
+   Start at  07:26:27
+   Duration  5.07s (tests 99%, import 1%)
+
