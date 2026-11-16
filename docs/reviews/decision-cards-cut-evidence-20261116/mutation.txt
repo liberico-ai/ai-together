@@ -1,28 +1,29 @@
 # Mutations on the green tree (PGlite), final test files. Each one is applied, the two decision test files run, and the three source files restored from a copy.
 # Command per mutation: npx vitest run tests/decisions.test.ts tests/decisions-ui.test.tsx
+# A mutation counts as killed only by assertion failures; the line «timeouts» must read 0 (an earlier run of this script, made while the machine was under load,
+# had hook timeouts in M1 and M2 and was discarded after Codex round 2 pointed at the same thing in red.txt).
 # sha256 of the three source files before the mutations: d8ee1fcec229dc7e64fae3c74407f21524a0b845f56673fc812a0b948d90ab3a
 
 ## M1
 src/server/bom.ts — no live-first order and no closing-time order (the base order)
-      Tests  8 failed | 42 passed (50)
+      Tests  6 failed | 44 passed (50)
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) a ballot closed after its expiry is ranked by its closing: a late vote closes it as expired and it becomes the first card of the rest
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) a ballot that has just closed keeps a place: after the vote it is the first card below the live ones, however old it is
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) closed ballots follow by closing time, not by creation time; ties go to the newer ballot, then to the higher id
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a closed row with no closing time falls back to its creation time and cannot push out a ballot that has just closed
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a live ballot older than thirty-one newer closed ballots is still listed, first, and the list says it was cut
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed
- FAIL  tests/decisions.test.ts > reassignment cards > reassignmentCard reads the viewer id in one normalised form: an upper-case id still holds its seat and its vote
- FAIL  tests/decisions.test.ts > review cards > viewer, bot, another project's member and another tenant get the not-found answer
  Test Files  1 failed | 1 passed (2)
+assertion failures: 6; timeouts: 0
 restored: identical
 
 ## M2
 src/server/bom.ts — every stored pending ballot counts as live, expiry ignored
-      Tests  3 failed | 47 passed (50)
+      Tests  2 failed | 48 passed (50)
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) a ballot closed after its expiry is ranked by its closing: a late vote closes it as expired and it becomes the first card of the rest
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed
- FAIL  tests/decisions.test.ts > review cards > a superseded revision has no card
  Test Files  1 failed | 1 passed (2)
+assertion failures: 2; timeouts: 0
 restored: identical
 
 ## M3
@@ -34,6 +35,7 @@ src/server/bom.ts — the extra row is not fetched
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > reassignmentCardsTruncated is false at exactly thirty ballots and true at thirty-one; the cap stays thirty
  Test Files  1 failed | 1 passed (2)
+assertion failures: 5; timeouts: 0
 restored: identical
 
 ## M4
@@ -41,6 +43,7 @@ src/server/decisions.ts — a refused caller is told the list was cut
       Tests  1 failed | 49 passed (50)
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a person who holds no seat, a former seat, and a seat without its Telegram link learn nothing about the cut: the same answer with one ballot and with thirty-two
  Test Files  1 failed | 1 passed (2)
+assertion failures: 1; timeouts: 0
 restored: identical
 
 ## M5
@@ -48,6 +51,7 @@ src/components/decisions.tsx — the screen ignores the 3/3 flag
       Tests  1 failed | 49 passed (50)
  FAIL  tests/decisions-ui.test.tsx > decisions UI > P2 the screen shows the same single sentence when the 3/3 cards were cut, and never two
  Test Files  1 failed | 1 passed (2)
+assertion failures: 1; timeouts: 0
 restored: identical
 
 ## M6
@@ -55,6 +59,7 @@ src/server/bom.ts — in pending(): a ballot read before the seat and Telegram c
       Tests  1 failed | 49 passed (50)
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > the seat and Telegram checks come before any ballot is read: a refused caller causes no statement on a ballot table
  Test Files  1 failed | 1 passed (2)
+assertion failures: 1; timeouts: 0
 restored: identical
 
 ## M7
@@ -63,6 +68,7 @@ src/server/bom.ts — three tiers: live, closed, then stale pending last
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) a ballot closed after its expiry is ranked by its closing: a late vote closes it as expired and it becomes the first card of the rest
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed
  Test Files  1 failed | 1 passed (2)
+assertion failures: 2; timeouts: 0
 restored: identical
 
 ## M8
@@ -73,6 +79,7 @@ src/server/bom.ts — closed ballots ordered by creation time (the order before 
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) closed ballots follow by closing time, not by creation time; ties go to the newer ballot, then to the higher id
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a closed row with no closing time falls back to its creation time and cannot push out a ballot that has just closed
  Test Files  1 failed | 1 passed (2)
+assertion failures: 4; timeouts: 0
 restored: identical
 
 ## M9
@@ -81,6 +88,7 @@ src/server/bom.ts — a stale pending ballot ranked by its creation, not its exp
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) a ballot closed after its expiry is ranked by its closing: a late vote closes it as expired and it becomes the first card of the rest
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed
  Test Files  1 failed | 1 passed (2)
+assertion failures: 2; timeouts: 0
 restored: identical
 
 ## M10
@@ -88,6 +96,7 @@ src/server/bom.ts — a ballot closed after its expiry keeps the place of its ex
       Tests  1 failed | 49 passed (50)
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) a ballot closed after its expiry is ranked by its closing: a late vote closes it as expired and it becomes the first card of the rest
  Test Files  1 failed | 1 passed (2)
+assertion failures: 1; timeouts: 0
 restored: identical
 
 ## M11
@@ -95,6 +104,7 @@ src/server/bom.ts — a closed row without a closing time ranked by its expiry (
       Tests  1 failed | 49 passed (50)
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a closed row with no closing time falls back to its creation time and cannot push out a ballot that has just closed
  Test Files  1 failed | 1 passed (2)
+assertion failures: 1; timeouts: 0
 restored: identical
 
 ## M12
@@ -102,6 +112,7 @@ src/server/bom.ts — the creation-time tie-break removed
       Tests  1 failed | 49 passed (50)
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) closed ballots follow by closing time, not by creation time; ties go to the newer ballot, then to the higher id
  Test Files  1 failed | 1 passed (2)
+assertion failures: 1; timeouts: 0
 restored: identical
 
 ## M13
@@ -109,6 +120,7 @@ src/server/bom.ts — the id tie-break reversed
       Tests  1 failed | 49 passed (50)
  FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) closed ballots follow by closing time, not by creation time; ties go to the newer ballot, then to the higher id
  Test Files  1 failed | 1 passed (2)
+assertion failures: 1; timeouts: 0
 restored: identical
 
 ## Control
