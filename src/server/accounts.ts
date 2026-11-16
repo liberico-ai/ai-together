@@ -20,6 +20,8 @@ const commandSchema=z.discriminatedUnion('kind',[
     name:z.string().trim().min(2).max(100),grants:grantsSchema,reason}).strict(),
   z.object({kind:z.literal('access'),...edit,grants:grantsSchema}).strict(),
   z.object({kind:z.literal('propose_access_change'),...edit,grants:grantsSchema}).strict(),
+  // Task 7c (OQ-36 d, OQ-49 a): close a coordinator's open access-change ballot of this account; the account itself is not changed
+  z.object({kind:z.literal('cancel_access_change'),...edit,approvalId:z.uuid().transform(value=>value.toLowerCase())}).strict(),
   z.object({kind:z.enum(['reissue','cancel','disable','enable','revoke_sessions','unlink_github']),...edit}).strict(),
   z.object({kind:z.literal('verify_github'),...edit,githubId:z.string().regex(/^[1-9][0-9]{0,19}$/),
     sourceId:z.url({protocol:/^https$/}).max(800).refine(value=>{
@@ -196,6 +198,7 @@ export class AccountService {
       this.validate(before,scope);
       invariant(user.version===cmd.expectedVersion,'VERSION_CONFLICT','Tài khoản đã thay đổi. Tải lại trước khi lưu.',409);
       if(cmd.kind==='propose_access_change') return this.proposeAccessChange(tx,p,scope,user,before,cmd.grants,cmd.reason);
+      if(cmd.kind==='cancel_access_change') return this.cancelAccessChange(tx,p,user,cmd.approvalId,cmd.reason);
       const nextVersion=user.version+1;
       let accessApprovalId:string|undefined;
       if(cmd.kind==='access') {
@@ -279,5 +282,23 @@ export class AccountService {
       {approvalId:proposal.id,accountVersion:user.version,before,after:grants,reason,traceId,...(expired.length?{expiredApprovalIds:expired}:{})});
     // Same {user,invitation} shape as every other command; the account itself is unchanged.
     return {user,invitation:undefined,pendingTelegramApproval:true,approvalId:proposal.id,agreed:0,required:'1bom'};
+  }
+
+  /** Task 7c, OQ-36 (d), OQ-49 (a), OQ-51 (b): the account admin closes an open access-change ballot of this account that a project coordinator
+   * proposed, pending or approved, frozen at the account's current version (R3 of gate round 1: a ballot frozen at an older version is dead and
+   * is not found). Only the ballot state changes, to `expired`; the reason is in the event. Nothing here writes identity.users, sessions,
+   * invitations, Telegram codes or memberships, so the account version stays as it is. */
+  private async cancelAccessChange(tx:Queryable,p:Principal,user:Account,approvalId:string,reason:string) {
+    const ballot=(await tx.query<{id:string;state:string;overdue:boolean;proposer_id:string;subject_account_version:number}>(`SELECT id,state,
+      expires_at<=now() AS overdue,proposer_id,subject_account_version FROM identity.account_approvals
+      WHERE id=$1 AND kind='access_change' AND subject_user_id=$2 AND subject_account_version=$3 FOR UPDATE`,[approvalId,user.id,user.version])).rows[0];
+    invariant(ballot,'APPROVAL_NOT_FOUND','Không tìm thấy phiếu duyệt.',404);
+    invariant(ballot.proposer_id!==this.identity.adminId?.toLowerCase(),
+      'BALLOT_CANCEL_NOT_ALLOWED','Lệnh huỷ chỉ áp cho phiếu do điều phối dự án trình.',403);
+    invariant(!ballot.overdue&&(ballot.state==='pending'||ballot.state==='approved'),'APPROVAL_CLOSED','Phiếu đã kết thúc hoặc hết hạn.',409);
+    await tx.query(`UPDATE identity.account_approvals SET state='expired',updated_at=now() WHERE id=$1`,[ballot.id]);
+    await this.audit(tx,p,user.id,'access_change_cancelled',{approvalId:ballot.id,reason,previousState:ballot.state,proposerId:ballot.proposer_id,
+      frozenVersion:ballot.subject_account_version,accountVersion:user.version});
+    return {user,invitation:undefined,cancelledApprovalId:ballot.id};
   }
 }

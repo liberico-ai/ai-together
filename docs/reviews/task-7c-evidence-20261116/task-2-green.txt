@@ -1,0 +1,120 @@
+=== Task 2 bước 6 — PGlite, danh sách của bước 6 (16/11/2026) ===
+$ npx vitest run tests/doc-approval-withdraw.test.ts tests/doc-approval-proposal.test.ts tests/doc-approval-proposal-http.test.ts tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  10 passed (10)
+      Tests  129 passed | 1 skipped (130)
+   Start at  12:36:51
+   Duration  67.51s (tests 99%, import 1%)
+
+
+exit 0
+
+=== Task 2 bước 6 — PostgreSQL thật (máy chủ tổng hợp loopback), danh sách của bước 6 cùng hai tệp tranh chấp ===
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-withdraw.test.ts tests/doc-approval-proposal.test.ts tests/doc-approval-proposal-http.test.ts tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-withdraw-concurrency.test.ts
+
+ RUN  v5.1.0 <repo>
+
+(node:92905) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:92930) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:92940) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:92943) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:92965) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:92966) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  12 passed (12)
+      Tests  146 passed (146)
+   Start at  12:38:06
+   Duration  56.58s (tests 99%, import 1%)
+
+
+exit 0
+
+=== Task 2 bước 6 — typecheck (đã xoá .next/types/* 2.ts và .next/cache/* 2* trước: 0 tệp) ===
+$ npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+
+exit 0
+
+=== Kiểm thêm — toàn bộ bộ vitest trên PGlite ===
+$ npm run test
+ Test Files  61 passed | 12 skipped (73)
+      Tests  1045 passed | 57 skipped (1102)
+   Duration  405.74s (tests 99%, import 1%)
+
+exit 0
+
+=== Kiểm thêm — pytest của cầu nối bot (bot-plugin không đổi) ===
+$ python3 -m pytest tests/test_bot_bridge.py -q
+67 passed, 69 subtests passed
+
+=== Task 2 bước 7 — đột biến tạm (PGlite trừ (h)); mỗi lần sửa lại bằng bản sao, git diff --stat như trước ===
+--- (a) bỏ phép so proposer_id ở R2 → W3 đỏ
+     × only the proposer withdraws: another manager of the project, the subject, an outsider and the account admin get the same 404 659ms
+      Tests  1 failed | 19 skipped (20)
+Error: expected a refusal, the call succeeded
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (b) bỏ phép kiểm của quyết định OQ-49 → H4 đỏ
+     × OQ-49 the cancel command refuses a ballot the admin proposed 658ms
+      Tests  1 failed | 19 skipped (20)
+Error: expected a refusal, the call succeeded
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (c) chuyển return this.cancelAccessChange(…) xuống sau UPDATE identity.users … account_version → H1 đỏ
+     × OQ-36 the account admin cancels a coordinator ballot with a basis; the account version and the member's sessions do not change 664ms
+      Tests  1 failed | 19 skipped (20)
+AssertionError: expected 2 to be 1 // Object.is equality
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (d) bỏ nhánh approved ở R5 → W2 đỏ
+     × OQ-51 (b): a ballot a BoM seat has approved cannot be withdrawn by the proposer, and the admin's cancel still closes it 712ms
+      Tests  1 failed | 19 skipped (20)
+Error: expected a refusal, the call succeeded
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (e) R4 đòi vai manager → W4 đỏ
+     × OQ-50 a proposer demoted but still a member of the project withdraws and lists the own ballots 667ms
+      Tests  1 failed | 19 skipped (20)
+Error: Không tìm thấy mục trong phạm vi được cấp.
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (f) bỏ NOT EXISTS (… access_change_withdrawn …) ở P14 → W9 đỏ
+     × OQ-48 after the proposer's own withdrawal the same member can be proposed again at once 673ms
+      Tests  1 failed | 19 skipped (20)
+Error: Anh/chị chưa trình lại được cho người này: phiếu trước của anh/chị cho họ không được áp, và khoảng chờ 24 giờ sau phiếu đó chưa hết. Thử lại sau, hoặc nhờ quản trị tài khoản trình.
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (g) bỏ phép so phiên bản ở R5 → W12 đỏ
+     × a ballot already dead by an account change cannot be withdrawn, so a withdrawal cannot buy an immediate re-proposal 643ms
+      Tests  1 failed | 19 skipped (20)
+Error: expected a refusal, the call succeeded
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (h) (thêm, ngoài kế hoạch; PostgreSQL thật) bỏ FOR KEY SHARE trên dòng quản trị ở R3 → ba ca tranh chấp đỏ
+     × a withdrawal racing the admin's cancel writes one closing event 5381ms
+     × an admin command on the proposer racing a withdrawal never deadlocks 5480ms
+     × an admin change to the subject racing a withdrawal is seen by it 5353ms
+      Tests  3 failed | 4 passed (7)
+AssertionError: the hook ran: expected undefined to be defined
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+
+$ git diff --stat -- src/server/doc-approval-proposals.ts src/server/accounts.ts   (sau mọi lần khôi phục, bằng lúc trước đột biến)
+ src/server/accounts.ts               | 21 ++++++++++++++++
+ src/server/doc-approval-proposals.ts | 48 ++++++++++++++++++++++++++++++++++++
+ 2 files changed, 69 insertions(+)
+
+=== Task 2 bước 8 — kiểm giới hạn ===
+$ git diff --stat 679ff6c -- src/server/account-approval.ts bot-plugin AGENTS.md CLAUDE.md migrations
+(rỗng)
+$ git diff -U0 679ff6c -- src/server/accounts.ts | grep "^@@"
+@@ -12 +12 @@ const grantPermission=z.enum(['people_read','quality_review','report_approve',..
+@@ -22,0 +23,2 @@ const commandSchema=z.discriminatedUnion('kind',[
+@@ -38 +40 @@ const reviewRegistration=z.discriminatedUnion('kind',[
+@@ -198,0 +201 @@ export class AccountService {
+@@ -282,0 +286,18 @@ export class AccountService {
+thân proposeAccessChange (dòng 261–285 của tệp hiện tại) không nằm trong khoảng nào ở trên; so chữ với 679ff6c: giống hệt

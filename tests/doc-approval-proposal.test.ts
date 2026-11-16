@@ -380,7 +380,7 @@ describe('propose',()=>{
     expect(await refusal(propose(w,w.coordinator))).toEqual({code:'RATE_LIMITED',status:429,message:'Thử lại sau ít phút.'});
   });
 
-  // Three layers: the rule is the decision OQ-48 (b); "counted from the closing" in (b) is the reading awaiting the Chairman (point A);
+  // Three layers: the rule is the decision OQ-48 (b); "counted from the closing" in (b) is the Chairman's decision of 16/11/2026 (point A);
   // (c) and (d) are rulings of the Task 7c session (point C). Withdrawn and cancelled ballots are Task 2 (W9, H2, H7).
   test('OQ-48 a ballot that was rejected, expired or overtaken by an account change makes the same proposer wait 24 hours from its closing for the same member',async()=>{
     // (a) rejected by the Chairman; (e) the wait is per pair of people

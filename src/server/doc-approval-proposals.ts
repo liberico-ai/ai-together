@@ -40,6 +40,9 @@ const basis=(max:number)=>z.string().transform((raw,ctx)=>{
 const types=(min:number)=>z.array(z.enum(DOC_APPROVAL_TYPES)).min(min).max(DOC_APPROVAL_TYPES.length).refine(list=>new Set(list).size===list.length);
 const proposeSchema=z.object({projectId:uuid,userId:uuid,docTypes:types(1),expectedTypes:types(0),reason:basis(300)}).strict();
 const listSchema=z.object({projectId:uuid}).strict();
+// The ballot id of a withdrawal comes from the path, never from the body (T7C-31): an `approvalId` key in the body is an unknown key.
+const withdrawSchema=z.object({reason:basis(500)}).strict();
+const APPROVAL_CLOSED=()=>new AppError('APPROVAL_CLOSED','Phiếu đã kết thúc hoặc hết hạn.',409);
 
 /** The fixed part of the frozen reason: 26 code points (false) or 73 (true). The name is database text a person chose: every forbidden
  * character becomes a space and only the first 100 code points are kept (T7C-7, T7C-21). */
@@ -196,6 +199,51 @@ export class DocApprovalProposalService {
         own.push({approvalId:row.id,projectId,userId:row.subject_user_id,addedTypes:delta.added,state:row.state,expiresAt:iso(row.expires_at),replayed:false});
       }
       return own;
+    });
+  }
+
+  /** OQ-36 (b), OQ-50 (c), OQ-51 (b), N3 of gate round 2. `approvalId` comes from the path, not from the body (T7C-31); `input` is strict
+   * {reason:5..500}. Only the person who proposed that ballot, still a member of its project in any role, and only while the ballot is
+   * `pending`, unexpired and frozen at the subject's current account version. The ballot is closed as `expired`; the reason is in the event. */
+  async withdraw(p:Principal,approvalId:string,input:unknown):Promise<{approvalId:string;state:'withdrawn'}> {
+    const id=uuid.safeParse(approvalId);                                                              // R0: the path id, before the body
+    if(!id.success) throw SCOPE_DENIED();
+    const {reason}=withdrawSchema.parse(input);
+    this.same(p);                                                                                     // R1
+    const callerId=p.id.toLowerCase(),adminId=this.adminId();
+    // the admin uses the cancel command; without this line the admin could withdraw an own ballot and bypass decision OQ-49 (a)
+    if(!adminId||callerId===adminId) throw SCOPE_DENIED();
+    return this.identity.scope(async tx=>{
+      // R2: plain read; kind, proposer, subject, frozen version and both grant sets never change after the insert (the role may update only
+      // state and updated_at), so no lock is needed for them. State and deadline are read again under the lock at R5.
+      const row=(await tx.query<{id:string;kind:string;proposer_id:string;subject_user_id:string;subject_account_version:number;previous_grants:unknown;grants:unknown}>(
+       `SELECT id,kind,state,expires_at,proposer_id,subject_user_id,subject_account_version,previous_grants,grants FROM identity.account_approvals WHERE id=$1`,
+       [id.data])).rows[0];
+      if(!row||row.kind!=='access_change'||row.proposer_id!==callerId||row.proposer_id===adminId) throw SCOPE_DENIED();
+      const grants=grantsSchema.safeParse(row.grants),previous=grantsSchema.safeParse(row.previous_grants);
+      const delta=grants.success&&previous.success?docApprovalDelta(previous.data,grants.data):null;
+      if(!delta) throw SCOPE_DENIED();
+      // R3: the account-admin row first (T7C-5), then the caller's own row
+      if(!(await tx.query('SELECT id FROM identity.users WHERE id=$1 FOR KEY SHARE',[adminId])).rows.length) throw SCOPE_DENIED();
+      if(!(await tx.query('SELECT id FROM identity.users WHERE id=$1 AND active AND password_hash IS NOT NULL FOR SHARE',[callerId])).rows.length) throw SCOPE_DENIED();
+      // R4: decision OQ-50 (c): a member of that project in any role, viewer included; removed is the 404 of an unknown ballot
+      if(await this.identity.activeProjectRole(tx,callerId,delta.projectId)===null) throw SCOPE_DENIED();
+      // R5: the ballot row, then in this order: closed or past the deadline; dead by an account change (N3, T7C-30); approved (OQ-51 b)
+      const locked=(await tx.query<{state:string;overdue:boolean}>(
+       'SELECT state,expires_at<=now() AS overdue FROM identity.account_approvals WHERE id=$1 FOR UPDATE',[row.id])).rows[0];
+      if(!locked||locked.overdue||!['pending','approved'].includes(locked.state)) throw APPROVAL_CLOSED();
+      // Plain read of the subject's version (T7C-5 i): the only application write of account_version runs inside AccountService.command,
+      // after `operator` locked the admin row FOR UPDATE, which the KEY SHARE above excludes. Under READ COMMITTED this is the committed value.
+      const subject=(await tx.query<{account_version:number}>('SELECT account_version FROM identity.users WHERE id=$1',[row.subject_user_id])).rows[0];
+      if(!subject||subject.account_version!==row.subject_account_version) throw APPROVAL_CLOSED();
+      if(locked.state==='approved') throw new AppError('BALLOT_ALREADY_APPROVED',
+        'Phiếu đã đủ xác nhận, không còn rút được ở đây. Nhờ quản trị tài khoản huỷ nếu cần.',409);
+      if(locked.state!=='pending') throw APPROVAL_CLOSED();
+      // R6: the lower-case ballot id in the event is what P14 of `propose` matches to exempt the pair from the wait
+      await tx.query(`UPDATE identity.account_approvals SET state='expired',updated_at=now() WHERE id=$1`,[row.id]);
+      await tx.query(`INSERT INTO identity.events(tenant_id,user_id,actor_id,kind,detail) VALUES($1,$2,$3,'access_change_withdrawn',$4)`,
+       [this.identity.tenantId,row.subject_user_id,callerId,JSON.stringify({approvalId:row.id,reason,previousState:'pending',projectId:delta.projectId})]);
+      return {approvalId:row.id,state:'withdrawn'};                                                   // R7
     });
   }
 }

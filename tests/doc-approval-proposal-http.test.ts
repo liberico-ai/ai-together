@@ -163,6 +163,84 @@ describe('coordinator proposal HTTP',()=>{
     expect(await snapshot(w)).toMatchObject({approvals:0});
   });
 
+  // Task 2: POST /<approvalId>/withdraw with the body {reason}. The id comes from the path only (T7C-31).
+  const WITHDRAW='Đã trình nhầm loại tài liệu, xin rút lại';
+  const withdrawCall=(id:string,o:{as?:Principal|null;payload?:unknown;raw?:string;origin?:string}={})=>call('POST','/'+id+'/withdraw',{payload:{reason:WITHDRAW},...o});
+  const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT state FROM identity.account_approvals WHERE id=$1',[id]))[0].state;
+
+  test('withdraw through the handler keeps each status and code',async()=>{
+    const b1=await propose(w,w.coordinator);
+    const b2=await propose(w,w.coordinator,{userId:reviewer.id});
+    const b3=await propose(w,w.coordinator,{userId:approver.id});
+    await say(w,2,b3.approvalId);
+    // a ballot dead by an account change of its subject (as in W12)
+    const b4=await propose(w,w.coordinator,{userId:w.coManager.id});
+    const version=(await rows<{v:number}>(w,'SELECT account_version v FROM identity.users WHERE id=$1',[w.coManager.id]))[0].v;
+    await w.accounts.command(w.admin,{kind:'revoke_sessions',userId:w.coManager.id,expectedVersion:version,reason:'Thu hồi phiên của đồng điều phối mẫu'});
+    // 200
+    const ok=await withdrawCall(b1.approvalId);
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get('cache-control')).toBe('no-store');
+    expect(await json(ok)).toMatchObject({data:{approvalId:b1.approvalId,state:'withdrawn'},error:null});
+    expect(Object.keys((await json(ok)).data).sort()).toEqual(['approvalId','state']);
+    // 409: closed (a second withdrawal; a ballot dead by an account change); approved (OQ-51 b)
+    await expectErr(await withdrawCall(b1.approvalId),409,'APPROVAL_CLOSED','Phiếu đã kết thúc hoặc hết hạn.');
+    await expectErr(await withdrawCall(b4.approvalId),409,'APPROVAL_CLOSED','Phiếu đã kết thúc hoặc hết hạn.');
+    await expectErr(await withdrawCall(b3.approvalId),409,'BALLOT_ALREADY_APPROVED','Phiếu đã đủ xác nhận, không còn rút được ở đây. Nhờ quản trị tài khoản huỷ nếu cần.');
+    // 404: not the proposer; an id in the path that is not a uuid
+    await expectErr(await withdrawCall(b2.approvalId,{as:w.coManager}),404,'SCOPE_DENIED','Không tìm thấy mục trong phạm vi được cấp.');
+    await expectErr(await withdrawCall('x'),404,'SCOPE_DENIED');
+    // 422: an unknown key in the body, expectedState of plan 0.1 included; a body that is not JSON
+    for(const extra of [{expectedState:'pending'},{state:'expired'},{proposerId:w.coordinator.id},{tenantId:ids.tenant}])
+      await expectErr(await withdrawCall(b2.approvalId,{payload:{reason:WITHDRAW,...extra}}),422,'INVALID_INPUT');
+    await expectErr(await withdrawCall(b2.approvalId,{raw:'{nope'}),422,'INVALID_INPUT');
+    // 401 without a session; 403 from another origin
+    await expectErr(await withdrawCall(b2.approvalId,{as:null}),401,'UNAUTHENTICATED');
+    await expectErr(await withdrawCall(b2.approvalId,{origin:'https://evil.example'}),403,'ORIGIN_DENIED');
+    expect(await stateOf(b2.approvalId)).toBe('pending');
+    // 404: the proposer removed from the project, the same body as an unknown ballot
+    await setProjectRole(w,w.coordinator.id,S,null);
+    const removed=await withdrawCall(b2.approvalId);
+    await expectErr(removed,404,'SCOPE_DENIED');
+    expect(await shape(removed)).toBe(await shape(await withdrawCall(randomUUID())));
+    expect(await stateOf(b2.approvalId)).toBe('pending');
+    expect(await stateOf(b3.approvalId)).toBe('approved');
+    expect(await stateOf(b4.approvalId)).toBe('pending');
+  });
+
+  test('withdraw takes the ballot id from the path only',async()=>{
+    const b1=await propose(w,w.coordinator);
+    const b2=await propose(w,w.coordinator,{userId:reviewer.id});
+    // the same id as the path is still an unknown key
+    await expectErr(await withdrawCall(b1.approvalId,{payload:{approvalId:b1.approvalId,reason:WITHDRAW}}),422,'INVALID_INPUT');
+    expect(await stateOf(b1.approvalId)).toBe('pending');
+    // another id: the body does not override the path, and the path does not silently win
+    await expectErr(await withdrawCall(b1.approvalId,{payload:{approvalId:b2.approvalId,reason:WITHDRAW}}),422,'INVALID_INPUT');
+    expect([await stateOf(b1.approvalId),await stateOf(b2.approvalId)]).toEqual(['pending','pending']);
+    const ok=await withdrawCall(b1.approvalId);
+    expect(ok.status).toBe(200);
+    expect((await json(ok)).data).toEqual({approvalId:b1.approvalId,state:'withdrawn'});
+    expect([await stateOf(b1.approvalId),await stateOf(b2.approvalId)]).toEqual(['expired','pending']);
+    // a body without reason
+    await expectErr(await withdrawCall(b2.approvalId,{payload:{}}),422,'INVALID_INPUT');
+    expect(await stateOf(b2.approvalId)).toBe('pending');
+  });
+
+  test('paths under an approval id that the handler does not serve answer the common 404',async()=>{
+    const {approvalId:id}=await propose(w,w.coordinator);
+    const payload={reason:WITHDRAW};
+    const answers=[await call('GET','/'+id+'/withdraw'),await call('HEAD','/'+id+'/withdraw'),await call('POST','/'+id,{payload}),
+      await call('POST','/'+id+'/withdraw/x',{payload}),await call('PUT','/'+id+'/withdraw',{payload}),await call('PATCH','/'+id+'/withdraw',{payload}),
+      await call('DELETE','/'+id+'/withdraw',{payload}),await call('POST','/'+id+'/WITHDRAW',{payload})];
+    const common=await shape(await call('GET','/x'));
+    for(const r of answers) {
+      await expectErr(r,404,'SCOPE_DENIED','Không tìm thấy mục trong phạm vi được cấp.');
+      expect(await shape(r)).toBe(common);
+    }
+    await expectErr(await call('HEAD','?x=1'),422,'INVALID_INPUT');
+    expect(await stateOf(id)).toBe('pending');
+  });
+
   test('identity not configured answers 503 and an unexpected failure answers 500, both through the handler and both no-store',async()=>{
     const logged:string[]=[];
     vi.spyOn(console,'error').mockImplementation((...args:unknown[])=>{logged.push(args.map(String).join(' '));});

@@ -5,7 +5,8 @@ import { body, failure, success } from './http';
 import { DocApprovalProposalService } from './doc-approval-proposals';
 import type { IdentityService } from './identity';
 
-// Task 7c: thin adapter for /api/team/doc-approvals. A project coordinator proposes a document-approval ballot and lists the own open ones.
+// Task 7c: thin adapter for /api/team/doc-approvals. A project coordinator proposes a document-approval ballot, lists the own open ones and
+// withdraws an own pending one.
 // The principal comes from the session, never from the body or the query; the service reads every role from the database. Nothing here
 // applies grants: only the account admin does, through /api/team/accounts.
 
@@ -45,7 +46,9 @@ export async function handleDocApprovalApi(request: Request, parts: string[], id
       if (m === 'GET') return ok(await proposals.listOwn(principal, query(request)));
       if (m === 'POST') return ok(await proposals.propose(principal, await body(request)));
     }
-    // one branch per further path (Task 2: POST /<approvalId>/withdraw); everything else is the common not-found
+    // Task 2: the path segment and the body go to the service as they are; the ballot id is never read from or merged into the body (T7C-31)
+    if (parts.length === 2 && parts[1] === 'withdraw' && m === 'POST') return ok(await proposals.withdraw(principal, parts[0], await body(request)));
+    // everything else is the common not-found
     throw notFound();
   } catch (error) { return noStore(failure(unexpected(error), requestId)); }
 }
