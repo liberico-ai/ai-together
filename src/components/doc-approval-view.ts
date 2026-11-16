@@ -43,6 +43,14 @@ export function canProposeFrom(initial: ProposalsInitial | undefined, canDesigna
   return initial?.state === 'ready' ? initial.canPropose : canDesignate;
 }
 
+/** The page's answer once the screen has read the reviewers panel again (Codex gate round 1, P2; OQ-50 c). A list the page read carries the
+ *  standing of page time; from this reread on it carries the `canDesignate` just read, so `canProposeFrom` follows the fresh answer: a coordinator
+ *  demoted while the page is open sees `former` (own ballots left) or `denied` (none) after «Tải lại», and a member promoted meanwhile sees the
+ *  form. Every other state carries no standing and is returned as it is; the items are never touched. */
+export function standingAfterReread(initial: ProposalsInitial | undefined, canDesignate: boolean): ProposalsInitial | undefined {
+  return initial?.state === 'ready' ? { ...initial, canPropose: canDesignate } : initial;
+}
+
 export type ProposalDraft = { userId: string; docTypes: DocType[]; basis: string; withdrawId: string | null; withdrawBasis: string };
 export const EMPTY_PROPOSAL_DRAFT: ProposalDraft = { userId: '', docTypes: [], basis: '', withdrawId: null, withdrawBasis: '' };
 

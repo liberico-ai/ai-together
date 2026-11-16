@@ -1,0 +1,16 @@
+Codex fix round 1 - PGlite run. Command: npm run test (vitest run, native database variables unset with env -u). HEAD acbd11ca9d08f9cd52b0299258e3ddcb1c8c87af (a docs-only session commit over 2dd7812; code at 7a11c1b) plus the uncommitted Codex fix-1 working tree. Exit: 0. Files: 65 passed | 12 skipped (77). Tests: 1103 passed | 62 skipped (1165). Failed: 0. Passed went from 1095 (final-fix-wave-pglite.txt) to 1103: +7 in the new tests/doc-approval-statement-clock.test.ts (both engines), +1 in tests/doc-approval-ui.test.tsx (P20). Skipped went from 58 to 62: the four new native-only cases of tests/doc-approval-withdraw-concurrency.test.ts. One more file (76 to 77): the new statement-clock file. Redaction: checkout path replaced by <repo>.
+-----
+
+> libetech-ai-os@0.7.1 test
+> vitest run
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  65 passed | 12 skipped (77)
+      Tests  1103 passed | 62 skipped (1165)
+   Start at  17:20:50
+   Duration  451.11s (tests 99%, import 1%)
+
+EXIT=0

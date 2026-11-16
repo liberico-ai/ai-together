@@ -127,9 +127,10 @@ export class DocApprovalProposalService {
       if(!grantsSchema.safeParse(after).success||!delta||delta.projectId!==projectId||!sameTypes(delta.added,added)||!widensAccess(before,after))
         throw new Error('Doc-approval proposal built grants that are not a pure addition.');
       const reason=reasonPrefix(proposer.name,subjectIsCoordinator)+cmd.reason;                      // P12
-      // P13: the open, living ballot of the subject
+      // P13: the open, living ballot of the subject. P13 to P15 read every deadline on the statement clock (Codex gate round 1, P1): now() is
+      // the start of this transaction, which may have waited on the admin row and on the two account rows (T7C-5).
       const open=(await tx.query<OpenRow>(`SELECT id,proposer_id,grants,previous_grants,reason,state,expires_at FROM identity.account_approvals
-       WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved') AND expires_at>now() AND subject_account_version=$2`,
+       WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved') AND expires_at>clock_timestamp() AND subject_account_version=$2`,
        [subject.id,subject.version])).rows[0];
       if(open) {
         const grants=grantsSchema.safeParse(open.grants),previous=grantsSchema.safeParse(open.previous_grants);
@@ -144,12 +145,13 @@ export class DocApprovalProposalService {
          WHERE e.user_id=a.subject_user_id AND e.kind='access_change_withdrawn' AND e.detail->>'approvalId'=a.id::text
           AND e.actor_id=a.proposer_id)
         AND (CASE WHEN a.state IN ('rejected','expired') THEN LEAST(a.updated_at,a.expires_at)
-         ELSE LEAST(a.expires_at,now()) END) > now()-interval '24 hours'
+         ELSE LEAST(a.expires_at,clock_timestamp()) END) > clock_timestamp()-interval '24 hours'
        LIMIT 1`,[proposer.id,subject.id])).rows.length;
       if(blocked) throw new AppError('RATE_LIMITED',PAIR_WAIT,429);
-      // P15: close ballots that can no longer apply before the insert, as the admin path does
-      const expired=(await tx.query<{id:string}>(`UPDATE identity.account_approvals SET state='expired',updated_at=now()
-       WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved') AND (expires_at<=now() OR subject_account_version<>$2) RETURNING id`,
+      // P15: close ballots that can no longer apply before the insert, as the admin path does. The stamp is the statement clock too; an UPDATE
+      // that waits on a ballot row another transaction holds without changing it judges and stamps that row as of the moment before the wait.
+      const expired=(await tx.query<{id:string}>(`UPDATE identity.account_approvals SET state='expired',updated_at=clock_timestamp()
+       WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved') AND (expires_at<=clock_timestamp() OR subject_account_version<>$2) RETURNING id`,
        [subject.id,subject.version])).rows.map(row=>row.id);
       // P16
       const traceId=randomUUID();
@@ -182,11 +184,12 @@ export class DocApprovalProposalService {
     if(callerId===this.adminId()) return [];
     return this.identity.scope(async tx=>{
       if(await this.identity.activeProjectRole(tx,callerId,projectId)===null) throw SCOPE_DENIED();
+      // open = unexpired on the statement clock, the one rule of every ballot read of this module (Codex gate round 1, P1)
       const found=(await tx.query<{id:string;subject_user_id:string;grants:unknown;previous_grants:unknown;state:'pending'|'approved';expires_at:string|Date}>(
        `SELECT a.id,a.subject_user_id,a.grants,a.previous_grants,a.state,a.expires_at
         FROM identity.account_approvals a
         JOIN identity.users u ON (u.id,u.tenant_id)=(a.subject_user_id,a.tenant_id) AND u.account_version=a.subject_account_version
-        WHERE a.kind='access_change' AND a.proposer_id=$1 AND a.state IN ('pending','approved') AND a.expires_at>now()
+        WHERE a.kind='access_change' AND a.proposer_id=$1 AND a.state IN ('pending','approved') AND a.expires_at>clock_timestamp()
          AND EXISTS (SELECT 1 FROM jsonb_array_elements(a.grants) AS g(v) JOIN jsonb_array_elements(a.previous_grants) AS q(v)
            ON lower(q.v->>'projectId')=lower(g.v->>'projectId')
           WHERE lower(g.v->>'projectId')=$2 AND NOT ((g.v->'reportPermissions') <@ (q.v->'reportPermissions')))
@@ -232,9 +235,12 @@ export class DocApprovalProposalService {
       // R4: decision OQ-50 (c): a member of that project in any role, viewer included; removed is the 404 of an unknown ballot
       if(await this.identity.activeProjectRole(tx,callerId,delta.projectId)===null) throw SCOPE_DENIED();
       // R5: the ballot row, then in this order: closed or past the deadline; dead by an account change (N3, T7C-30); approved (OQ-51 b)
-      const locked=(await tx.query<{state:string;overdue:boolean}>(
-       'SELECT state,expires_at<=now() AS overdue FROM identity.account_approvals WHERE id=$1 FOR UPDATE',[row.id])).rows[0];
-      if(!locked||locked.overdue||!['pending','approved'].includes(locked.state)) throw APPROVAL_CLOSED();
+      const locked=(await tx.query<{state:string}>('SELECT state FROM identity.account_approvals WHERE id=$1 FOR UPDATE',[row.id])).rows[0];
+      // Codex gate round 1, P1: the deadline is read on the statement clock, in a statement of its own once the row lock is held. now() is the
+      // start of this transaction, which may have waited at R3; and a FOR UPDATE that waited on the row returns what it computed before the wait
+      // unless the holder changed the row (a vote that changes no state does not). expires_at never changes after the insert.
+      const deadline=locked?(await tx.query<{overdue:boolean}>('SELECT expires_at<=clock_timestamp() AS overdue FROM identity.account_approvals WHERE id=$1',[row.id])).rows[0]:undefined;
+      if(!locked||deadline?.overdue!==false||!['pending','approved'].includes(locked.state)) throw APPROVAL_CLOSED();
       // Plain read of the subject's version (T7C-5 i): the only application write of account_version runs inside AccountService.command,
       // after `operator` locked the admin row FOR UPDATE, which the KEY SHARE above excludes. Under READ COMMITTED this is the committed value.
       const subject=(await tx.query<{account_version:number}>('SELECT account_version FROM identity.users WHERE id=$1',[row.subject_user_id])).rows[0];
@@ -242,8 +248,9 @@ export class DocApprovalProposalService {
       if(locked.state==='approved') throw new AppError('BALLOT_ALREADY_APPROVED',
         'Phiếu đã đủ xác nhận, không còn rút được ở đây. Nhờ quản trị tài khoản huỷ nếu cần.',409);
       if(locked.state!=='pending') throw APPROVAL_CLOSED();
-      // R6: the lower-case ballot id in the event is what P14 of `propose` matches to exempt the pair from the wait
-      await tx.query(`UPDATE identity.account_approvals SET state='expired',updated_at=now() WHERE id=$1`,[row.id]);
+      // R6: the lower-case ballot id in the event is what P14 of `propose` matches to exempt the pair from the wait; the stamp is the statement
+      // clock, as every closing time P14 may read
+      await tx.query(`UPDATE identity.account_approvals SET state='expired',updated_at=clock_timestamp() WHERE id=$1`,[row.id]);
       await tx.query(`INSERT INTO identity.events(tenant_id,user_id,actor_id,kind,detail) VALUES($1,$2,$3,'access_change_withdrawn',$4)`,
        [this.identity.tenantId,row.subject_user_id,callerId,JSON.stringify({approvalId:row.id,reason,previousState:'pending',projectId:delta.projectId})]);
       return {approvalId:row.id,state:'withdrawn'};                                                   // R7

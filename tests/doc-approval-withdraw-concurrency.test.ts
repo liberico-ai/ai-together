@@ -17,7 +17,7 @@ const CANCEL_BASIS='Huỷ phiếu trình chưa đúng của điều phối';
 /** The admin command's lock of the TARGET account row: `operator` has already locked the admin row FOR UPDATE when this statement runs. */
 const TARGET_LOCK=/account_version AS version FROM identity\.users WHERE id=\$1 FOR UPDATE/;
 /** The withdrawal's write of the ballot state: it holds the ballot row FOR UPDATE by then. */
-const WITHDRAW_UPDATE=/^UPDATE identity\.account_approvals SET state='expired',updated_at=now\(\) WHERE id=\$1$/;
+const WITHDRAW_UPDATE=/^UPDATE identity\.account_approvals SET state='expired',updated_at=clock_timestamp\(\) WHERE id=\$1$/;
 /** The coordinator write's FIRST lock (T7C-5): KEY SHARE on the account-admin row. */
 const ADMIN_ROW_SHARE=/^SELECT id FROM identity\.users WHERE id=\$1 FOR KEY SHARE$/;
 /** `operator` of the admin path: FOR UPDATE on the admin's own row, before any other lock of an admin command. */
@@ -281,5 +281,82 @@ describe.skipIf(!native)('withdraw and cancel concurrency (native PostgreSQL)',(
     expect(await count(w,'identity.account_approval_votes WHERE approval_id=$1',[second.approvalId])).toBe(0);
     expect(await cancelledFrom(second.approvalId)).toEqual(['pending']);
     expect(await closings(w,second.approvalId)).toBe(1);
+  });
+
+  // Codex gate round 1, finding P1: now() is the start of the transaction, and these commands wait on row locks before they read whether the
+  // ballot is still open. A test session holds the lock; the command starts before the ballot's deadline (pg_stat_activity.xact_start, which
+  // is now() of the waiting transaction, is earlier than expires_at) and waits; the deadline passes; the holder commits without changing any
+  // row the command reads. Same-engine cases without a lock wait: tests/doc-approval-statement-clock.test.ts.
+  describe('a deadline that passes while the command waits on a lock (Codex round 1, P1)',()=>{
+    const MARGIN_MS=1500;
+    /** The admin cancel's lock of the ballot row, as pg_stat_activity shows it (white space folded). */
+    const CANCEL_ROW_LOCK=/FROM identity\.account_approvals WHERE id=\$1 AND kind='access_change' AND subject_user_id=\$2 AND subject_account_version=\$3 FOR UPDATE$/;
+    const deadlineSoon=(id:string)=>w.h.operator.query(
+      "UPDATE identity.account_approvals SET expires_at=clock_timestamp()+$2::int*interval '1 millisecond' WHERE id=$1",[id,MARGIN_MS]);
+    /** Whether every transaction waiting on a lock right now began before the ballot's deadline. */
+    const waitersStartedBefore=async(id:string)=>(await rows<{b:boolean|null}>(w,`SELECT bool_and(s.xact_start<a.expires_at) AS b
+      FROM pg_stat_activity s CROSS JOIN identity.account_approvals a WHERE s.datname=current_database() AND s.wait_event_type='Lock' AND a.id=$1`,[id]))[0].b;
+    type Held={on:string[];startedBefore:boolean|null;locked:number};
+    /** A test session locks `lockSql` FOR UPDATE, starts `run`, waits until `run` waits on that lock, sleeps past the ballot's deadline on the
+     *  database clock, then commits without writing. */
+    const holdPastDeadline=async(id:string,lockSql:string,lockParams:unknown[],run:()=>Promise<unknown>)=>{
+      let held:Held|undefined,blocked:Blocked|undefined;
+      await w.h.operator.transaction(async tx=>{
+        const locked=(await tx.query(lockSql,lockParams)).rows.length;
+        blocked=await startBlocked(w,run);
+        held={on:blocked.on,startedBefore:await waitersStartedBefore(id),locked};
+        await tx.query("SELECT pg_sleep(greatest(0,extract(epoch FROM expires_at-clock_timestamp()))::float8+0.25) FROM identity.account_approvals WHERE id=$1",[id]);
+      });
+      return {held:held!,done:await ran(blocked).done};
+    };
+    const ADMIN_ROW='SELECT id FROM identity.users WHERE id=$1 FOR UPDATE';
+    const BALLOT_ROW='SELECT id FROM identity.account_approvals WHERE id=$1 FOR UPDATE';
+
+    test('Codex P1 (d) a withdrawal that waits on the account-admin row past the deadline answers APPROVAL_CLOSED, writes no event, and the pair wait still holds',async()=>{
+      const made=await propose(w,w.coordinator);
+      await deadlineSoon(made.approvalId);
+      const {held,done}=await holdPastDeadline(made.approvalId,ADMIN_ROW,[w.admin.id],()=>withdrawWith(w.proposals,w.coordinator,made.approvalId));
+      noDeadlock(done);
+      expect(held).toEqual({on:[expect.stringMatching(ADMIN_ROW_SHARE)],startedBefore:true,locked:1});
+      expect(code(done)).toBe('APPROVAL_CLOSED');
+      expect(await closings(w,made.approvalId)).toBe(0);
+      expect(await stateOf(w,made.approvalId)).toBe('pending');
+      expect(code(await settle(propose(w,w.coordinator)))).toBe('RATE_LIMITED');
+    });
+
+    test('Codex P1 (d) a withdrawal that waits on the ballot row at R5 past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED',async()=>{
+      // a FOR UPDATE that waited returns what it computed before the wait unless the holder changed the row (a vote that changes no state,
+      // or a refused one, does exactly this), so the deadline is read in a statement of its own once the row lock is held
+      const made=await propose(w,w.coordinator);
+      await deadlineSoon(made.approvalId);
+      const {held,done}=await holdPastDeadline(made.approvalId,BALLOT_ROW,[made.approvalId],()=>withdrawWith(w.proposals,w.coordinator,made.approvalId));
+      noDeadlock(done);
+      expect(held).toEqual({on:[expect.stringMatching(BALLOT_ROW_LOCK)],startedBefore:true,locked:1});
+      expect(code(done)).toBe('APPROVAL_CLOSED');
+      expect(await closings(w,made.approvalId)).toBe(0);
+      expect(await stateOf(w,made.approvalId)).toBe('pending');
+    });
+
+    test('Codex P1 (d) the admin cancel that waits on the ballot row past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED and writes no event',async()=>{
+      const made=await propose(w,w.coordinator);
+      await deadlineSoon(made.approvalId);
+      const {held,done}=await holdPastDeadline(made.approvalId,BALLOT_ROW,[made.approvalId],()=>cancelWith(w,w.accounts,made.approvalId,w.subject.id));
+      noDeadlock(done);
+      expect(held).toEqual({on:[expect.stringMatching(CANCEL_ROW_LOCK)],startedBefore:true,locked:1});
+      expect(code(done)).toBe('APPROVAL_CLOSED');
+      expect(await closings(w,made.approvalId)).toBe(0);
+      expect(await stateOf(w,made.approvalId)).toBe('pending');
+    });
+
+    test("Codex P1 (d) a proposal that waits on the account-admin row past the deadline of a co-manager's open ballot closes it and opens the new one",async()=>{
+      const other=await propose(w,w.coManager);
+      await deadlineSoon(other.approvalId);
+      const {held,done}=await holdPastDeadline(other.approvalId,ADMIN_ROW,[w.admin.id],()=>propose(w,w.coordinator));
+      noDeadlock(done);
+      expect(held).toEqual({on:[expect.stringMatching(ADMIN_ROW_SHARE)],startedBefore:true,locked:1});
+      expect(code(done)).toBe('ok');
+      expect(await stateOf(w,other.approvalId)).toBe('expired');
+      expect(await openFor(w,w.subject.id)).toBe(1);
+    });
   });
 });

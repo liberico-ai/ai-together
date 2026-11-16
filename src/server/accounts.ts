@@ -85,11 +85,12 @@ export class AccountService {
 
   /** Task 7c (OQ-37 c, T7C-11, T7C-15): the open access-change ballot of one account, whoever proposed it; at most one row (index
    * account_approval_active_access_change). A ballot whose stored grants do not parse is not shown. For a coordinator ballot the proposer's
-   * standing is read in this transaction, which holds the account-admin row: the same reading the `access` command makes. */
+   * standing is read in this transaction, which holds the account-admin row: the same reading the `access` command makes. Unexpired is judged
+   * on the statement clock, as in every Task 7c ballot read (Codex gate round 1, P1): `operator` may have waited for the admin row. */
   private async openAccessChange(tx:Queryable,user:Account):Promise<OpenAccessChange|null> {
     const row=(await tx.query<{id:string;state:'pending'|'approved';reason:string;expires_at:string|Date;grants:unknown;previous_grants:unknown;proposer_id:string}>(
       `SELECT id,state,reason,expires_at,grants,previous_grants,proposer_id FROM identity.account_approvals
-      WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved') AND expires_at>now() AND subject_account_version=$2
+      WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved') AND expires_at>clock_timestamp() AND subject_account_version=$2
       ORDER BY created_at DESC LIMIT 1`,[user.id,user.version])).rows[0];
     if(!row) return null;
     const grants=grantsSchema.safeParse(row.grants),previous=grantsSchema.safeParse(row.previous_grants);
@@ -335,14 +336,18 @@ export class AccountService {
    * is not found). Only the ballot state changes, to `expired`; the reason is in the event. Nothing here writes identity.users, sessions,
    * invitations, Telegram codes or memberships, so the account version stays as it is. */
   private async cancelAccessChange(tx:Queryable,p:Principal,user:Account,approvalId:string,reason:string) {
-    const ballot=(await tx.query<{id:string;state:string;overdue:boolean;proposer_id:string;subject_account_version:number}>(`SELECT id,state,
-      expires_at<=now() AS overdue,proposer_id,subject_account_version FROM identity.account_approvals
+    const ballot=(await tx.query<{id:string;state:string;proposer_id:string;subject_account_version:number}>(`SELECT id,state,
+      proposer_id,subject_account_version FROM identity.account_approvals
       WHERE id=$1 AND kind='access_change' AND subject_user_id=$2 AND subject_account_version=$3 FOR UPDATE`,[approvalId,user.id,user.version])).rows[0];
     invariant(ballot,'APPROVAL_NOT_FOUND','Không tìm thấy phiếu duyệt.',404);
     invariant(ballot.proposer_id!==this.identity.adminId?.toLowerCase(),
       'BALLOT_CANCEL_NOT_ALLOWED','Lệnh huỷ chỉ áp cho phiếu do điều phối dự án trình.',403);
-    invariant(!ballot.overdue&&(ballot.state==='pending'||ballot.state==='approved'),'APPROVAL_CLOSED','Phiếu đã kết thúc hoặc hết hạn.',409);
-    await tx.query(`UPDATE identity.account_approvals SET state='expired',updated_at=now() WHERE id=$1`,[ballot.id]);
+    // Codex gate round 1, P1: the deadline is read on the statement clock, in a statement of its own once the row lock is held. now() is the
+    // start of this transaction, which may have waited at `operator`; and a FOR UPDATE that waited on the row (a vote holds it) returns what it
+    // computed before the wait unless the holder changed the row. expires_at never changes after the insert. The stamp is the statement clock too.
+    const deadline=(await tx.query<{overdue:boolean}>('SELECT expires_at<=clock_timestamp() AS overdue FROM identity.account_approvals WHERE id=$1',[ballot.id])).rows[0];
+    invariant(deadline?.overdue===false&&(ballot.state==='pending'||ballot.state==='approved'),'APPROVAL_CLOSED','Phiếu đã kết thúc hoặc hết hạn.',409);
+    await tx.query(`UPDATE identity.account_approvals SET state='expired',updated_at=clock_timestamp() WHERE id=$1`,[ballot.id]);
     await this.audit(tx,p,user.id,'access_change_cancelled',{approvalId:ballot.id,reason,previousState:ballot.state,proposerId:ballot.proposer_id,
       frozenVersion:ballot.subject_account_version,accountVersion:user.version});
     return {user,invitation:undefined,cancelledApprovalId:ballot.id};

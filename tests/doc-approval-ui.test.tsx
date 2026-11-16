@@ -13,6 +13,8 @@ import { loadOwnProposals } from '../src/server/review-page';
 import { AppError } from '../src/server/errors';
 import type { DocApprovalProposal } from '../src/server/doc-approval-proposals';
 import type { ApproverView } from '../src/server/review-delegations';
+import { standingAfterReread } from '../src/components/doc-approval-view';
+import type { ProposalsInitial } from '../src/server/review-page';
 
 // Task 4 of Task 7c (step 16b): the coordinator's proposal block on the Review screen. Every id, name and text below is synthetic.
 // This file keeps its own minimal hosts/textOf/buttonsOf and its own driver (T7C-32); it imports nothing from another test file.
@@ -613,5 +615,33 @@ describe('the proposal block on the Review screen', () => {
       .all().find(h => h.type === 'button' && textOf(h.props.children) === 'Tải lại');
     expect(reload(true)?.props.disabled).toBe(true);
     expect(reload(false)?.props.disabled).toBe(false);
+  });
+
+  // ---- Codex gate round 1, P2 (OQ-50 c; docs/UI-HANDOFF-3-doc-approval.md §4) ----
+  it('P20 after the reviewers panel is read again the block follows the fresh canDesignate, not the standing the page read: a demoted coordinator gets former or denied, a promoted member the form', async () => {
+    expect(typeof standingAfterReread, 'standingAfterReread is exported by doc-approval-view.ts').toBe('function');
+    const read = (canPropose: boolean, items: DocApprovalProposal[]): ProposalsInitial => ({ state: 'ready', items, canPropose });
+    /** The block's state once a reread of the reviewers panel brought `fresh` as canDesignate, the own list holding `count` ballots. */
+    const afterReread = (initial: ProposalsInitial, fresh: boolean, count: number) => proposalPanelState({ loading: false, admin: false, failed: false, denied: false,
+      canPropose: canProposeFrom(standingAfterReread(initial, fresh), fresh), count });
+    // a coordinator demoted while the page is open: «Trình phiếu» answers MANAGER_REQUIRED, which is reloadable; «Tải lại» brings canDesignate=false
+    expect(proposalFailure(new ApiError('Chỉ điều phối dự án được thực hiện thao tác này. [MANAGER_REQUIRED]', 'MANAGER_REQUIRED', 403)).reloadable).toBe(true);
+    expect(afterReread(read(true, [ballot()]), false, 1)).toBe('former');
+    expect(afterReread(read(true, []), false, 0)).toBe('denied');
+    // a member promoted while the page is open gets the form
+    expect(afterReread(read(false, []), true, 0)).toBe('empty');
+    expect(afterReread(read(false, [ballot()]), true, 1)).toBe('ready');
+    // an unchanged standing changes nothing; the list the page read is kept as it is
+    expect(standingAfterReread(read(true, [ballot()]), true)).toEqual(read(true, [ballot()]));
+    expect(standingAfterReread(read(true, [ballot()]), false)).toEqual(read(false, [ballot()]));
+    // the states without a standing of their own are returned as they are: canProposeFrom already reads canDesignate for them
+    for (const s of [{ state: 'error' }, { state: 'denied' }, { state: 'admin' }] as ProposalsInitial[]) expect(standingAfterReread(s, true)).toBe(s);
+    expect(standingAfterReread(undefined, true)).toBeUndefined();
+    // wiring: every reread of the reviewers panel (the block's «Tải lại», the panel's «Tải lại», after a grant or revoke) goes through
+    // reloadDelegations, which hands the fresh canDesignate to the block's standing; the first render reads canProposeFrom as before
+    const src = await readFile('src/components/review.tsx', 'utf8');
+    expect(src).toMatch(/async function reloadDelegations\(\) \{[^}]*setDelegations\(fresh\);[^}]*setProposals\(p => standingAfterReread\(p, fresh\.canDesignate === true\)\);/);
+    expect(src).toContain('const [proposals, setProposals] = useState(pageProposals)');
+    expect(src).toContain('canProposeFrom(proposals, delegations?.canDesignate === true)');
   });
 });
