@@ -1,0 +1,198 @@
+=== Task 4 bước 4–5 — xanh sau khi có khối trình phiếu ở màn Review (16/11/2026) ===
+Mọi đường dẫn của bản checkout đã thay bằng <repo> lúc ghi. Không chạy PostgreSQL thật; không nạp tệp môi trường.
+Các mục 1–4 chạy lại sau vòng sửa canProposeFrom (giai đoạn C của task-4-red.txt).
+
+--- 1. Danh sách của bước 4
+$ npx vitest run tests/doc-approval-ui.test.tsx tests/review-ui.test.tsx tests/review-page.test.ts tests/rsc-boundary.test.ts tests/doc-approver-ui.test.tsx tests/inbox-ui.test.tsx tests/documents-ui.test.tsx
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  7 passed (7)
+      Tests  146 passed (146)
+   Start at  14:50:09
+   Duration  1.15s (tests 51%, import 33%, transform 14%, worker 2%)
+
+    Isolate  7 workers spawned · ~59ms startup each (spawn + environment, per file)
+             at least ~353ms faster with isolate: false — reuses workers across files instead of one per file
+
+exit=0
+
+--- 2. Thêm: hai tệp khác cùng nạp mô-đun của màn Review (PGlite)
+$ npx vitest run tests/review-http.test.ts tests/decisions-ui.test.tsx
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  2 passed (2)
+      Tests  40 passed (40)
+   Start at  14:50:10
+   Duration  12.65s (tests 99%, import 1%)
+
+exit=0
+
+--- 3. Kiểm kiểu (sau khi xoá bản sao iCloud trong .next)
+$ find .next -name '* 2*' -delete
+$ npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit=0
+
+--- 4. Dựng
+$ rm -rf .next && npm run build
+
+> libetech-ai-os@0.7.1 build
+> next build
+
+▲ Next.js 16.4.5 (Turbopack)
+✓ Running next.config.ts took 48ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1874ms
+  Running TypeScript ...
+  Finished TypeScript in 874ms ...
+  Collecting page data using 17 workers ...
+  Generating static pages using 17 workers (0/4) ...
+  Generating static pages using 17 workers (1/4) 
+  Generating static pages using 17 workers (2/4) 
+  Generating static pages using 17 workers (3/4) 
+✓ Generating static pages using 17 workers (4/4) in 142ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /activate
+├ ƒ /api/auth/[action]
+├ ƒ /api/bridge
+├ ƒ /api/bridge/[...path]
+├ ƒ /api/decisions
+├ ƒ /api/demo/session
+├ ƒ /api/documents/[[...path]]
+├ ƒ /api/health
+├ ƒ /api/inbox/[[...path]]
+├ ƒ /api/projects/[...path]
+├ ƒ /api/reviews/[[...path]]
+├ ƒ /api/team/accounts
+├ ƒ /api/team/approvals
+├ ƒ /api/team/bom
+├ ƒ /api/team/doc-approvals/[[...path]]
+├ ƒ /api/team/feedback
+├ ƒ /api/team/registrations
+├ ƒ /api/team/reports
+├ ƒ /api/v1/[...path]
+├ ƒ /approvals
+├ ƒ /bom
+├ ƒ /decisions
+├ ƒ /documents
+├ ƒ /documents/[id]
+├ ƒ /feedback
+├ ƒ /inbox
+├ ƒ /login
+├ ƒ /portfolio
+├ ƒ /register
+├ ƒ /reports
+├ ƒ /review
+├ ƒ /review/[documentId]
+└ ƒ /team
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+exit=0
+
+--- 5. Thêm: toàn bộ bộ kiểm trên PGlite
+$ npx vitest run    (lần 1, trước vòng sửa canProposeFrom)
+14:40  up 1 day,  4:11, 1 user, load averages: 3.52 3.71 3.59
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  63 passed | 12 skipped (75)
+      Tests  1082 passed | 57 skipped (1139)
+   Start at  14:40:08
+   Duration  439.25s (tests 99%, import 1%)
+
+exit 0
+
+$ npx vitest run    (lần 2, sau vòng sửa; chỉ giữ các dòng tổng và dòng lỗi nếu có)
+14:51  up 1 day,  4:22, 1 user, load averages: 6.05 4.76 4.23
+ RUN  v5.1.0 <repo>
+ Test Files  63 passed | 12 skipped (75)
+      Tests  1082 passed | 57 skipped (1139)
+   Start at  14:51:06
+   Duration  458.21s (tests 99%, import 1%)
+exit=0
+
+--- Bước 5 — kiểm giới hạn (đầu ra đầy đủ, không lược)
+$ git diff --stat 679ff6c -- tests/review-ui.test.tsx tests/review-page.test.ts src/app/globals.css
+(end)
+
+$ git diff 679ff6c -- src/components/review-view.ts
+diff --git a/src/components/review-view.ts b/src/components/review-view.ts
+index 1b76ba6..9dffa85 100644
+--- a/src/components/review-view.ts
++++ b/src/components/review-view.ts
+@@ -30,6 +30,7 @@ export const NETWORK_COPY = 'Không kết nối được máy chủ. Nội dung
+ export const GENERIC_COPY = 'Không xử lý được yêu cầu. Nội dung đang nhập vẫn được giữ.';
+ export const NOT_COORDINATOR_COPY = 'Chỉ điều phối của dự án này chỉ định và thu hồi được người nhận xét.';
+ export const APPROVAL_NOTE_COPY = 'Quyền duyệt bản chuẩn không chỉ định ở đây: quyền này cấp qua phiếu đổi quyền, cần một thành viên BoM đồng ý, ở trang Quản trị tài khoản.';
++export const APPROVAL_NOTE_WITH_PROPOSALS_COPY = 'Quyền duyệt bản chuẩn cấp qua phiếu đổi quyền: điều phối dự án hoặc quản trị tài khoản trình, một thành viên BoM đồng ý, quản trị tài khoản áp.';
+ export const REVOKED_NOTICE = 'Đã thu hồi. Người này không còn nhận xét được từ lệnh kế tiếp; nhận xét và quyết định đã ghi vẫn giữ nguyên.';
+ 
+ const ELIGIBILITY_COPY: Record<EligibilityReason, string> = {
+@@ -143,11 +144,16 @@ const points = (s: string) => Array.from(s).length;
+ const CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
+ const trimSpaces = (s: string) => s.replace(/^ +| +$/g, '');
+ const BASIS_COPY = 'Căn cứ cần từ 5 đến 500 ký tự.';
++/** The body of `basisCheck` with the rule as parameters, one rule for every basis box (T7C-33): a forbidden character on the raw text, then the cap
++ *  on the raw text, then the floor of 5 after removing U+0020 at both ends. `cmd` is the trimmed text. `forbidden` is a regular expression without the g flag. */
++export function checkBasis(raw: string, rule: { max: number; forbidden: RegExp; forbiddenCopy: string; lengthCopy: string }): Checked<string> {
++  if (rule.forbidden.test(raw)) return { ok: false, error: rule.forbiddenCopy };
++  const b = trimSpaces(raw);
++  return points(raw) > rule.max || points(b) < 5 ? { ok: false, error: rule.lengthCopy } : { ok: true, cmd: b };
++}
+ /** Mirrors the service rule (5 to 500 characters after trimming spaces, no control characters) so a person is told before sending; the service decides in the end. */
+ function basisCheck(raw: string): Checked<string> {
+-  if (CONTROL.test(raw)) return { ok: false, error: 'Căn cứ không được chứa ký tự điều khiển.' };
+-  const b = trimSpaces(raw);
+-  return points(raw) > 500 || points(b) < 5 ? { ok: false, error: BASIS_COPY } : { ok: true, cmd: b };
++  return checkBasis(raw, { max: 500, forbidden: CONTROL, forbiddenCopy: 'Căn cứ không được chứa ký tự điều khiển.', lengthCopy: BASIS_COPY });
+ }
+ 
+ export function decisionCommand(result: DecisionCmd['result'], d: DecisionDraft): Checked<DecisionCmd> {
+(end)
+
+$ git diff --name-only 679ff6c -- migrations src/server/account-approval.ts bot-plugin AGENTS.md CLAUDE.md
+(end)
+
+$ git diff --stat HEAD -- src/components/team-accounts.tsx tests/doc-approver-ui.test.tsx tests/inbox-ui.test.tsx tests/decisions-ui.test.tsx tests/rsc-boundary.test.ts src/server/doc-approval-proposals.ts src/server/doc-approval-http.ts src/server/accounts.ts package.json package-lock.json vitest.config.ts
+(end)
+
+$ git status --short
+ M docs/UI-HANDOFF-3-review.md
+ M src/app/review/page.tsx
+ M src/components/review-view.ts
+ M src/components/review.tsx
+ M src/server/review-page.ts
+?? docs/UI-HANDOFF-3-doc-approval.md
+?? docs/reviews/task-7c-evidence-20261116/task-4-red.txt
+?? src/components/doc-approval-proposals.tsx
+?? src/components/doc-approval-view.ts
+?? tests/doc-approval-ui.test.tsx
+(end)
+
+$ git diff --stat HEAD
+ docs/UI-HANDOFF-3-review.md   | 12 +++++------
+ src/app/review/page.tsx       | 10 ++++++++-
+ src/components/review-view.ts | 12 ++++++++---
+ src/components/review.tsx     | 50 ++++++++++++++++++++++++++++++++++++-------
+ src/server/review-page.ts     | 20 +++++++++++++++++
+ 5 files changed, 86 insertions(+), 18 deletions(-)
+(end)
+

@@ -1,0 +1,430 @@
+=== Task 4 bước 2 — đỏ trước khi có khối trình phiếu ở màn Review (16/11/2026) ===
+Bản ca kiểm: tests/doc-approval-ui.test.tsx, đúng bản cuối cùng của bước 1 (P1-P15). Mã ở HEAD b3742e1, chưa sửa tệp nào của src/.
+Tải máy trước khi chạy (uptime): load averages 3.47 3.23 3.39.
+
+--- Giai đoạn A: hai mô-đun mới chưa tồn tại (src/components/doc-approval-view.ts, src/components/doc-approval-proposals.tsx)
+$ npx vitest run tests/doc-approval-ui.test.tsx
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-ui.test.tsx (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx [ tests/doc-approval-ui.test.tsx ]
+Error: Cannot find module '../src/components/doc-approval-view' imported from <repo>/tests/doc-approval-ui.test.tsx
+ ❯ tests/doc-approval-ui.test.tsx:5:1
+      3| import { renderToStaticMarkup } from 'react-dom/server';
+      4| import { Fragment, isValidElement, type ReactElement, type ReactNode }…
+      5| import { proposalPanelState, heldTypes, proposeCommand, withdrawComman…
+       | ^
+      6|   PROPOSED_NOTICE, WITHDRAWN_NOTICE, type ProposalDraft, type Proposal…
+      7| import { DocApprovalPanelView, type DocApprovalPanelViewProps } from '…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  14:32:39
+   Duration  117ms (worker 98%, environment 2%)
+
+exit 1
+
+--- Giai đoạn B: hai mô-đun mới tạm đặt bằng bản giữ chỗ — có đủ mọi tên được xuất, không có hành vi nào
+    (proposalPanelState luôn trả "ready", các hàm lệnh trả {ok:false,error:""}, hai hàm dựng thân trả {}, proposalFailure trả câu rỗng,
+     DocApprovalPanelView dựng <section/> rỗng). review-view.ts, review.tsx, review-page.ts, page.tsx vẫn ở HEAD.
+    Bản giữ chỗ bị thay bằng mã thật ở bước 3; không có trong diff cuối.
+$ npx vitest run tests/doc-approval-ui.test.tsx
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-ui.test.tsx (15 tests | 15 failed) 18ms
+   ❯ the proposal block on the Review screen (15)
+     × P1 renders seven states with different wording: loading, admin, error, denied, former, empty and ready 8ms
+     × P2 the denied state has no form, no button and names nobody 1ms
+     × P3 OQ-33 the form offers members who read in the project, never the viewer and never a read-only member; a co-manager is offered and flagged 1ms
+     × P4 types already held are shown ticked and locked, go to expectedTypes and never to docTypes; a proposal needs one new type 1ms
+     × P5 the basis is 5 to 300 visible characters on one line, checked on the raw text 0ms
+     × P6 the request bodies carry only the fields the service takes 1ms
+     × P7 OQ-51 (b): only a pending ballot offers Rút phiếu; a withdrawal needs a basis 0ms
+     × P8 each refusal has its sentence, the draft survives every error, and a reload is offered where the list is stale 1ms
+     × P9 no control in the panel grants anything by itself 1ms
+     × P10 text written by people is rendered as text inside bdi 1ms
+     × P11 the queue screen shows the panel only when it is handed proposals, and nothing else changes without them 0ms
+     × P12 loadOwnProposals: the account admin is answered without a read; everyone else is read; a scope refusal is denied; any other failure is the error state, never a throw 0ms
+     × P13 the panel uses existing review classes only 1ms
+     × P14 the review page hands the panel data only, and reads the list for every reader of the project 2ms
+     × P15 OQ-50 a former coordinator who is still a member sees the own ballots and Rút phiếu, and no proposal form 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 15 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P1 renders seven states with different wording: loading, admin, error, denied, former, empty and ready
+AssertionError: loading: expected '<section></section>' to contain 'aria-label="Trình phiếu cấp quyền duy…'
+
+Expected: "aria-label="Trình phiếu cấp quyền duyệt bản chuẩn""
+Received: "<section></section>"
+
+ ❯ tests/doc-approval-ui.test.tsx:94:81
+     92|     const out: Record<ProposalPanelState, string> = { loading: at('loa…
+     93|       former: at('former', two).html(), empty: at('empty').html(), rea…
+     94|     for (const s of Object.keys(out) as ProposalPanelState[]) expect(o…
+       |                                                                                 ^
+     95|     expect(out.loading).toContain('aria-busy="true"');
+     96|     expect(out.loading).toContain('aria-label="Đang tải phiếu đã trình…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P2 the denied state has no form, no button and names nobody
+AssertionError: expected '<section></section>' to contain 'Chỉ điều phối của dự án này trình đượ…'
+
+Expected: "Chỉ điều phối của dự án này trình được phiếu cấp quyền duyệt bản chuẩn."
+Received: "<section></section>"
+
+ ❯ tests/doc-approval-ui.test.tsx:136:17
+    134|     const p = driveProposals({ state: 'denied', proposals: [ballot()] …
+    135|     const out = p.html();
+    136|     expect(out).toContain(DENIED_PANEL_COPY);
+       |                 ^
+    137|     expect(out).not.toContain('<select');
+    138|     expect(out).not.toContain('<input');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P3 OQ-33 the form offers members who read in the project, never the viewer and never a read-only member; a co-manager is offered and flagged
+AssertionError: no field proposalUserId: expected undefined to be defined
+ ❯ field tests/doc-approval-ui.test.tsx:74:131
+     72|     onReload={() => {}} {...rest} draft={draft} onDraft={p => { draft …
+     73|     onInvalid={m => { errors.push(m); }} />;
+     74|   const field = (name: string): Host => { const f = hosts(view()).find…
+       |                                                                                                                                   ^
+     75|   return { html: () => renderToStaticMarkup(view()), buttons: () => bu…
+     76|     options: () => hosts(field('proposalUserId').props.children).filte…
+ ❯ Object.options tests/doc-approval-ui.test.tsx:76:26
+ ❯ tests/doc-approval-ui.test.tsx:147:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P4 types already held are shown ticked and locked, go to expectedTypes and never to docTypes; a proposal needs one new type
+AssertionError: expected [] to deeply equal [ 'design' ]
+
+- Expected
++ Received
+
+- [
+-   "design",
+- ]
++ []
+
+ ❯ tests/doc-approval-ui.test.tsx:166:44
+    164|   it('P4 types already held are shown ticked and locked, go to expecte…
+    165|     const approvers: ApproverView[] = [{ userId: ENGINEER.toUpperCase(…
+    166|     expect(heldTypes(approvers, ENGINEER)).toEqual(['design']);
+       |                                            ^
+    167|     expect(heldTypes([{ userId: ENGINEER, docTypes: ['plan', 'design']…
+    168|     expect(heldTypes(approvers, BUSINESS)).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P5 the basis is 5 to 300 visible characters on one line, checked on the raw text
+AssertionError: no field proposalBasis: expected undefined to be defined
+ ❯ Object.field tests/doc-approval-ui.test.tsx:74:131
+     72|     onReload={() => {}} {...rest} draft={draft} onDraft={p => { draft …
+     73|     onInvalid={m => { errors.push(m); }} />;
+     74|   const field = (name: string): Host => { const f = hosts(view()).find…
+       |                                                                                                                                   ^
+     75|   return { html: () => renderToStaticMarkup(view()), buttons: () => bu…
+     76|     options: () => hosts(field('proposalUserId').props.children).filte…
+ ❯ tests/doc-approval-ui.test.tsx:201:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P6 the request bodies carry only the fields the service takes
+AssertionError: expected [] to deeply equal [ 'docTypes', 'expectedTypes', …(3) ]
+
+- Expected
++ Received
+
+- [
+-   "docTypes",
+-   "expectedTypes",
+-   "projectId",
+-   "reason",
+-   "userId",
+- ]
++ []
+
+ ❯ tests/doc-approval-ui.test.tsx:264:38
+    262|     const cmd = { userId: ENGINEER, docTypes: ['plan' as const], expec…
+    263|     const body = proposeBody(PROJECT, cmd);
+    264|     expect(Object.keys(body).sort()).toEqual(['docTypes', 'expectedTyp…
+       |                                      ^
+    265|     expect(body).toEqual({ projectId: PROJECT, ...cmd });
+    266|     // whatever else a caller hands in is dropped
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P7 OQ-51 (b): only a pending ballot offers Rút phiếu; a withdrawal needs a basis
+AssertionError: expected '' to be 'Đang chờ một thành viên BoM' // Object.is equality
+
+- Expected
++ Received
+
+- Đang chờ một thành viên BoM
+
+ ❯ tests/doc-approval-ui.test.tsx:280:43
+    278|     const pending = ballot(), approved = ballot({ approvalId: U(801), …
+    279|     const p = driveProposals({ proposals: [pending, approved] });
+    280|     expect(proposalStateLabel('pending')).toBe(PENDING_LABEL);
+       |                                           ^
+    281|     expect(proposalStateLabel('approved')).toBe(APPROVED_LABEL);
+    282|     const out = p.html();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P8 each refusal has its sentence, the draft survives every error, and a reload is offered where the list is stale
+AssertionError: APPROVAL_PENDING: expected { Object (message, reloadable, ...) } to deeply equal { …(3) }
+
+- Expected
++ Received
+
+  {
+    "keepDraft": true,
+-   "message": "Người này đang có một phiếu đổi quyền chưa xong.",
++   "message": "",
+    "reloadable": false,
+  }
+
+ ❯ tests/doc-approval-ui.test.tsx:328:99
+    326|       BALLOT_ALREADY_APPROVED: 'Phiếu đã đủ xác nhận, không còn rút đư…
+    327|     for (const [code, status, sentence, reloadable] of fixed) {
+    328|       expect(proposalFailure(new ApiError(server[code] + ' [' + code +…
+       |                                                                                                   ^
+    329|     }
+    330|     const passed: [string, number, string, boolean][] = [
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P9 no control in the panel grants anything by itself
+AssertionError: expected [] to deeply equal [ 'Rút phiếu', 'Rút phiếu', …(1) ]
+
+- Expected
++ Received
+
+- [
+-   "Rút phiếu",
+-   "Rút phiếu",
+-   "Trình phiếu",
+- ]
++ []
+
+ ❯ tests/doc-approval-ui.test.tsx:367:37
+    365|     const p = driveProposals({ proposals: [ballot(), ballot({ approval…
+    366|     const allowed = ['Trình phiếu', 'Rút phiếu', 'Xác nhận rút', 'Hủy'…
+    367|     expect([...p.buttons()].sort()).toEqual(['Rút phiếu', 'Rút phiếu',…
+       |                                     ^
+    368|     p.click('Rút phiếu');
+    369|     expect([...p.buttons()].sort()).toEqual(['Hủy', 'Rút phiếu', 'Trìn…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P10 text written by people is rendered as text inside bdi
+AssertionError: expected '<section></section>' to contain '&lt;script&gt;alert(1)&lt;/script&gt;…'
+
+Expected: "&lt;script&gt;alert(1)&lt;/script&gt; căn cứ"
+Received: "<section></section>"
+
+ ❯ tests/doc-approval-ui.test.tsx:394:17
+    392|     expect(out).not.toContain('<b>');
+    393|     expect(out).not.toContain('<script');
+    394|     expect(out).toContain('&lt;script&gt;alert(1)&lt;/script&gt; căn c…
+       |                 ^
+    395|     expect(out).toMatch(/<bdi dir="auto">&lt;b&gt;Tên đậm&lt;\/b&gt;<\…
+    396|     expect(out).toMatch(/<bdi dir="auto">Thành viên chưa rõ tên<\/bdi>…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P11 the queue screen shows the panel only when it is handed proposals, and nothing else changes without them
+AssertionError: expected undefined to be 'Quyền duyệt bản chuẩn cấp qua phiếu đ…' // Object.is equality
+
+- Expected:
+"Quyền duyệt bản chuẩn cấp qua phiếu đổi quyền: điều phối dự án hoặc quản trị tài khoản trình, một thành viên BoM đồng ý, quản trị tài khoản áp."
+
++ Received:
+undefined
+
+ ❯ tests/doc-approval-ui.test.tsx:401:47
+    399|
+    400|   it('P11 the queue screen shows the panel only when it is handed prop…
+    401|     expect(APPROVAL_NOTE_WITH_PROPOSALS_COPY).toBe(WITH_PROPOSALS_NOTE…
+       |                                               ^
+    402|     const without = queue(undefined);
+    403|     expect(without).not.toContain('Trình phiếu');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P12 loadOwnProposals: the account admin is answered without a read; everyone else is read; a scope refusal is denied; any other failure is the error state, never a throw
+AssertionError: expected 'undefined' to be 'function' // Object.is equality
+
+Expected: "function"
+Received: "undefined"
+
+ ❯ tests/doc-approval-ui.test.tsx:434:37
+    432|
+    433|   it('P12 loadOwnProposals: the account admin is answered without a re…
+    434|     expect(typeof loadOwnProposals).toBe('function');
+       |                                     ^
+    435|     const logged = vi.spyOn(console, 'error').mockImplementation(() =>…
+    436|     try {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P13 the panel uses existing review classes only
+AssertionError: expected 0 to be greater than 10
+ ❯ tests/doc-approval-ui.test.tsx:469:25
+    467|       + 'review-textarea review-fieldset review-check doc-field doc-ac…
+    468|     const used = [...src.matchAll(/className="([^"]*)"/g)].flatMap(m =…
+    469|     expect(used.length).toBeGreaterThan(10);
+       |                         ^
+    470|     expect(used.filter(c => !allowed.has(c))).toEqual([]);
+    471|     expect(src).not.toMatch(/className=\{/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P14 the review page hands the panel data only, and reads the list for every reader of the project
+AssertionError: expected 'import { redirect } from \'next/navig…' to contain 'loadOwnProposals('
+
+- Expected
++ Received
+
+- loadOwnProposals(
++ import { redirect } from 'next/navigation';
++ import { pagePrincipal } from '@/server/page-session';
++ import { database } from '@/server/db';
++ import { projectRole } from '@/server/types';
++ import { WorkService } from '@/server/service';
++ import { ReviewService, reader } from '@/server/document-review';
++ import { DelegationService } from '@/server/review-delegations';
++ import { AppError } from '@/server/errors';
++ import { ReviewQueue } from '@/components/review';
++ import { QUEUE_PAGE_SIZE, parseQueueOffset } from '@/components/review-view';
++ export const dynamic = 'force-dynamic';
++
++ export default async function ReviewPage({ searchParams }: { searchParams: Promise<{ projectId?: string | string[]; offset?: string | string[] }> }) {
++   let principal;
++   try { principal = await pagePrincipal(); }
++   catch { redirect('/login'); }
++   const params = await searchParams;
++   const raw = params.projectId;
++   const offset = parseQueueOffset(params.offset);
++   const projectId = typeof raw === 'string' && raw ? raw : null;
++   // The same reading rule as the service, asked of the service's own function so the page and the API cannot drift.
++   const mayRead = (id: string) => reader(principal, id);
++   const denied = <ReviewQueue key="denied" projects={[]} projectId={projectId} initial={null} denied delegations={null} people={[]} viewerId="" />;
++   if (projectId && !mayRead(projectId)) return denied;
++   const db = await database();
++   const workspace = await new WorkService(db).workspace(principal);
++   const projects = workspace.projects.filter(p => mayRead(p.id)).map(p => ({ id: p.id, name: p.name }));
++   if (!projectId && projects.length === 1) redirect('/review?projectId=' + projects[0].id);
++   if (!projectId) return <ReviewQueue key="picker" projects={projects} projectId={null} initial={null} denied={false} delegations={null} people={[]} viewerId={principal.id} />;
++   try {
++     const initial = await new ReviewService(db).queue(principal, { projectId, limit: QUEUE_PAGE_SIZE, offset });
++     // a stale link past the last page would read as «no documents»: go back to the first page instead
++     if (offset > 0 && initial.items.length === 0) redirect('/review?projectId=' + projectId);
++     // Only the members of this project, and only id, name and the role they hold here: nothing else of a directory entry reaches the browser.
++     const people = workspace.people.filter(x => x.projectIds.includes(projectId) && x.role !== 'bot').map(x => ({ id: x.id, name: x.name, role: projectRole(x, projectId) as string }));
++     let delegations = null;
++     try { delegations = await new DelegationService(db).list(principal, { projectId }); }
++     catch (e) { if (!(e instanceof AppError && e.code === 'SCOPE_DENIED')) throw e; }
++     return <ReviewQueue key={projectId} projects={projects} projectId={projectId} initial={JSON.parse(JSON.stringify(initial))} denied={false}
++       delegations={delegations && JSON.parse(JSON.stringify(delegations))} people={people} viewerId={principal.id} offset={offset} />;
++   } catch (e) {
++     if (e instanceof AppError && e.code === 'SCOPE_DENIED') return denied;
++     throw e;
++   }
++ }
++
+
+ ❯ tests/doc-approval-ui.test.tsx:478:17
+    476|   it('P14 the review page hands the panel data only, and reads the lis…
+    477|     const src = await readFile('src/app/review/page.tsx', 'utf8');
+    478|     expect(src).toContain('loadOwnProposals(');
+       |                 ^
+    479|     expect(src).toContain('listOwn(');
+    480|     expect(src).not.toContain('.catch(');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/15]⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P15 OQ-50 a former coordinator who is still a member sees the own ballots and Rút phiếu, and no proposal form
+AssertionError: expected '<section></section>' to contain 'Anh/chị không còn là điều phối của dự…'
+
+Expected: "Anh/chị không còn là điều phối của dự án này nên không trình được phiếu mới. Phiếu đã trình còn chờ thì vẫn rút được ở đây."
+Received: "<section></section>"
+
+ ❯ tests/doc-approval-ui.test.tsx:493:17
+    491|     const p = driveProposals({ state: 'former', proposals: [pending, a…
+    492|     const out = p.html();
+    493|     expect(out).toContain(FORMER_COPY);
+       |                 ^
+    494|     expect(out).toContain('Phiếu anh/chị đã trình');
+    495|     expect(rowsOf(p.all(), 'pending')).toHaveLength(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/15]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  15 failed (15)
+   Start at  14:32:57
+   Duration  143ms (transform 39%, import 32%, tests 27%, worker 2%)
+
+exit 1
+
+--- Đếm trên đầu ra của giai đoạn B
+$ grep -c '^AssertionError'                 -> 15   (15 ca đỏ, mỗi ca đỏ ở một khẳng định)
+$ grep -cE '^(TypeError|Error|ReferenceError|SyntaxError)' -> 0
+$ grep -c 'timed out\|PGlite is closed'      -> 0
+
+
+--- Giai đoạn C (vòng tự soát sau khi đã xanh): lỗi canPropose
+Lỗi: ProposalsInitial `error`/`denied` không mang canPropose, nên sau «Thử lại» thành công một điều phối thấy `denied`/`former`.
+Bản sửa: canProposeFrom(initial, canDesignate) trong src/components/doc-approval-view.ts; review.tsx gọi canProposeFrom(proposals, delegations?.canDesignate === true).
+Các khẳng định mới viết vào P11. Để thấy đỏ, tạm đặt lại logic cũ (thân canProposeFrom = `initial?.state === 'ready' && initial.canPropose`,
+dòng của review.tsx = `(proposals?.state === 'ready' && proposals.canPropose)`), chạy P11, rồi chép lại hai tệp từ bản sao lưu (cmp: giống hệt).
+$ npx vitest run tests/doc-approval-ui.test.tsx -t "P11"
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-ui.test.tsx (15 tests | 1 failed | 14 skipped) 20ms
+   ❯ the proposal block on the Review screen (15)
+     × P11 the queue screen shows the panel only when it is handed proposals, and nothing else changes without them 19ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P11 the queue screen shows the panel only when it is handed proposals, and nothing else changes without them
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/doc-approval-ui.test.tsx:435:54
+    433|     expect(canProposeFrom({ state: 'ready', items: [], canPropose: fal…
+    434|     expect(canProposeFrom({ state: 'ready', items: [], canPropose: tru…
+    435|     expect(canProposeFrom({ state: 'error' }, true)).toBe(true);
+       |                                                      ^
+    436|     expect(canProposeFrom({ state: 'error' }, false)).toBe(false);
+    437|     expect(canProposeFrom({ state: 'denied' }, true)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 skipped (15)
+   Start at  14:49:55
+   Duration  197ms (transform 56%, import 26%, tests 16%, worker 2%)
+
+--- Đếm trên đầu ra của giai đoạn C
+$ grep -c 'AssertionError'                  -> 1   (P11 đỏ ở khẳng định canProposeFrom({ state: 'error' }, true) === true)
+$ grep -ci 'timed out'                      -> 0
