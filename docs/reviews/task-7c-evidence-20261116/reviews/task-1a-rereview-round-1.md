@@ -1,0 +1,16 @@
+### Finding Verdicts
+- **Security M3 (no real foreign-tenant account in case 12)** — ADDRESSED. `tests/doc-approval-proposal.test.ts:213-217` inserts an active user with a password hash in `ids.otherTenant`, plus a membership in `ids.otherProject`. That user's id (`foreign`) is appended to `targets` at :217. Each answer must equal `answers[0]` (the INELIGIBLE answer, :220-221), and `snapshot(w)` must be unchanged (:222). The row is a real active, activated account, so the answer is INELIGIBLE because of tenant scoping and not because the id is unknown. The snapshot covers ballots, voters, outbox and events, per the implementer report. The schema accepts the insert: role `engineer` is allowed, the username matches the regex, and the (tenant, user) membership foreign key holds. The task-1a-green.txt run is green. Case 12 does not use a random uuid for this branch.
+- **Security M1 (raw invisible characters)** — ADDRESSED. A scan of the three touched files finds no U+0085, U+2028, U+2029, U+200B-200D, U+2060, U+FEFF, U+202A-202E or U+2066-2069. The `bad` array at :324 is `\u0000 \u0085 \u2028 \u2029 \u202e \u2066 \u200d \uD800`, with `\r` and `\n` first. These are the same code points the raw characters stood for, checked against the `cat -v` bytes of the old lines. The inline strings at :327 (`'\u2028…'`) and :331 (`'A\nB\u2028C\u202eD'`) match the originals: U+2028, then U+2028 and U+202E.
+- **Code review Minor 1 (titles of ca 17 and ca 18)** — ADDRESSED. The titles are now `"the proposer's role is read from the database, not from the session"` and `"the subject's grants must fit the grant schema before anything is frozen"` (:259 and :278 in the new file).
+- **Code review Minor 2 (unused `Queryable` import)** — ADDRESSED. `src/server/doc-approval-proposals.ts:5` is removed. A grep for `Queryable` in that file returns nothing, and typecheck exit 0 is reported.
+- **Code review Minor 3 (`listOwn` order, P1 first)** — ADDRESSED. `src/server/doc-approval-proposals.ts:176-177` now calls `this.same(p)` before `listSchema.parse`.
+- **Code review Minor 5 (`seatCoordinator.name`)** — ADDRESSED. `tests/doc-approval-fixtures.ts:45` reads `identity.users.name` for the account. This is the field the service reads for the reason prefix. The value is unchanged, because `provisionApprovers` (`tests/account-approval-fixture.ts:17-19`) stores the seat code as both username and name. The fixture therefore no longer assumes it.
+
+### New Breakage in the Fix Diff
+None found.
+- Minor: `listOwn` now returns the principal error (404) before the 422 body error for a bot or foreign-tenant caller. Legitimate callers see no change, because their principal check passes first. No existing case is reported to depend on the old order, and the 8-file run is green.
+- Minor: the new `foreign` username `da-foreign` is only unique inside `ids.otherTenant`. The world is rebuilt for every case, so there is no collision.
+
+### Out-of-Scope Observations
+- Case 12 compares answers by equality only. A foreign-tenant subject therefore also passes if INELIGIBLE came from the RLS-hidden row and not from an explicit tenant check. The brief only requires INELIGIBLE and no side effects, so this is acceptable.
+- The native PostgreSQL run is reported by the session (8 files, 101 passed). I did not run it.

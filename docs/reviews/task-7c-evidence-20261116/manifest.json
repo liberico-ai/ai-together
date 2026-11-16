@@ -1,0 +1,136 @@
+{
+  "task": "7c",
+  "branch": "task-7c-coordinator-proposal",
+  "codeHead": "0c7ab7ff11cdc72c176935caec1bf871b68af2ff",
+  "headAtRun": "0c7ab7ff11cdc72c176935caec1bf871b68af2ff",
+  "base": "460653e905f4a897a98b470a380f9c5ff652bf28",
+  "observedAt": "2026-11-16T15:55:00+07:00",
+  "runner": "scout agent (Task 5: commands and evidence logs only; no source, test, migration or config file changed), local machine",
+  "nativeDatabase": "PostgreSQL 16, Docker container on loopback only, synthetic data (environment file loaded from $TASK7C_ENV_FILE, not echoed)",
+  "redaction": "checkout path replaced by <repo>; home and scratch paths replaced; connection strings replaced by <redacted-url>; no environment values stored; ANSI escapes removed; bidi/format/line-separator characters scanned: 0 found",
+  "commands": [
+    {
+      "name": "vitest-pglite",
+      "command": "npm run test",
+      "exit": 0,
+      "result": "63 files passed | 12 skipped (75); 1086 passed | 57 skipped (1143); 0 failed; 57 skips = 41 baseline native-only + 9 + 7 in the two new *-concurrency files",
+      "log": "task-5-pglite.txt"
+    },
+    {
+      "name": "vitest-pglite-verbose",
+      "command": "npx vitest run --reporter=verbose (native variable not loaded: PGlite)",
+      "exit": 0,
+      "result": "1086 passed | 57 skipped (1143); used to look up case titles",
+      "log": "task-5-pglite-verbose.txt"
+    },
+    {
+      "name": "vitest-native",
+      "command": "set -a; . $TASK7C_ENV_FILE; set +a; npx vitest run --reporter=verbose",
+      "exit": 0,
+      "result": "75 files passed (75); 1143 passed (1143); 0 skipped; 0 failed; no line contains 40P01; 1086 + 57 = 1143",
+      "log": "task-5-native.txt"
+    },
+    {
+      "name": "coverage",
+      "command": "npx vitest run --coverage (native database loaded)",
+      "exit": 0,
+      "result": "statements 96.44, branches 91.66, functions 98.02, lines 97.69; threshold 60 holds; doc-approval-proposals.ts 96.56/91.83/100/99.25; doc-approval-http.ts 100/100/100/100",
+      "log": "task-5-coverage.txt"
+    },
+    {
+      "name": "pytest",
+      "command": "python3 -m pytest tests/test_bot_bridge.py -q",
+      "exit": 0,
+      "result": "67 passed, 69 subtests passed",
+      "log": "task-5-pytest.txt"
+    },
+    {
+      "name": "typecheck",
+      "command": "find .next -name '* 2*' -delete; npm run typecheck",
+      "exit": 0,
+      "result": "tsc --noEmit, no output; 0 iCloud copies found",
+      "log": "task-5-typecheck-build.txt"
+    },
+    {
+      "name": "build",
+      "command": "rm -rf .next && npm run build",
+      "exit": 0,
+      "result": "routes present: /api/team/doc-approvals/[[...path]], /review, /team, /approvals; git status clean afterwards",
+      "log": "task-5-typecheck-build.txt"
+    },
+    {
+      "name": "limits",
+      "command": "git diff / grep limit checks L1-L8 against base 679ff6c (see log)",
+      "exit": 0,
+      "result": "L1-L8 all PASS",
+      "log": "task-5-limits.txt"
+    },
+    {
+      "name": "negative-cases",
+      "command": "33 rows of the negative-case table resolved to full titles in both verbose runs",
+      "exit": 0,
+      "result": "33 PASS, 0 FAIL; concurrency cases pass native and skip on PGlite",
+      "log": "task-5-negative-cases.md"
+    }
+  ],
+  "finalCodeHead": "4f7e000c93bdaaf254a970d8c2f40569f1b2bba6",
+  "laterRuns": [
+    {
+      "name": "final-fix-wave",
+      "codeAt": "7a11c1b",
+      "runner": "builder agent, local machine",
+      "results": {
+        "pglite": "64 files passed | 12 skipped (76); 1095 passed | 58 skipped (1153); 0 failed",
+        "native": "76 files passed; 1153 passed; 0 skipped; 0 failed; no 40P01 line"
+      },
+      "logs": [
+        "final-fix-wave-red.txt",
+        "final-fix-wave-pglite.txt",
+        "final-fix-wave-native.txt",
+        "final-fix-wave-mutation.txt",
+        "final-fix-wave-typecheck-build.txt"
+      ]
+    },
+    {
+      "name": "codex-fix-1",
+      "codeAt": "986285f",
+      "runner": "builder agent, local machine",
+      "results": {
+        "red": "21 AssertionError lines, no timeout",
+        "pglite": "65 files passed | 12 skipped (77); 1103 passed | 62 skipped (1165); 0 failed",
+        "native": "77 files passed; 1165 passed; 0 skipped; 0 failed; no 40P01 line",
+        "typecheck": "exit 0",
+        "build": "exit 0; routes /api/team/doc-approvals/[[...path]], /review, /team, /approvals"
+      },
+      "logs": [
+        "codex-fix1-red.txt",
+        "codex-fix1-pglite.txt",
+        "codex-fix1-native.txt",
+        "codex-fix1-typecheck-build.txt"
+      ]
+    },
+    {
+      "name": "codex-fix-1-n1",
+      "codeAt": "4f7e000",
+      "runner": "builder agent, local machine",
+      "results": {
+        "red": "2 AssertionError lines, no timeout",
+        "pglite": "65 files passed | 12 skipped (77); 1104 passed | 62 skipped (1166); 0 failed",
+        "native": "77 files passed; 1166 passed; 0 skipped; 0 failed; no 40P01 line; 1104 + 62 = 1166",
+        "typecheck": "exit 0",
+        "build": "exit 0; routes /api/team/doc-approvals/[[...path]], /review, /team, /approvals"
+      },
+      "logs": [
+        "codex-fix1b-red.txt",
+        "codex-fix1b-pglite.txt",
+        "codex-fix1b-native.txt",
+        "codex-fix1b-typecheck-build.txt"
+      ]
+    }
+  ],
+  "notRunAfterTask5": [
+    "coverage (last run at 0c7ab7f)",
+    "manual browser check at 360 and 1280 px"
+  ],
+  "pytestNote": "pytest (67 passed, 69 subtests) was run at 0c7ab7f only (task-5-pytest.txt); the PR touches no Python file"
+}

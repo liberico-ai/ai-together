@@ -1,0 +1,137 @@
+Task 7c fix wave - red runs before each fix (tests first). Base of the fix wave: HEAD 53b3277; each run was taken before its own fix was applied.
+W2 (database review P2-2): the new case of tests/doc-approval-isolation.test.ts, run before SET TRANSACTION ISOLATION LEVEL READ COMMITTED was added to IdentityService.scope. Red on PGlite (a session SET on its one connection) and on PostgreSQL (a dedicated pool whose connections carry default_transaction_isolation=repeatable read through the libpq options parameter). The control line just before it (a plain transaction reads 'repeatable read') passed in both runs, so the session default was in force.
+W4/M4 (code review M4, Task 1b security N6): the new case of tests/doc-approval-proposal-http.test.ts, run before UnmappedUniqueViolation existed; the logged errorType was 'Error'.
+W4/M3 (code review M3): the new case of tests/doc-approver-ui.test.tsx, run before AccountForm took a kept reason; the reason field had no value.
+Count of AssertionError lines (grep -c "^AssertionError" on this file): 4 (W2 PGlite 1, W2 PostgreSQL 1, M4 1, M3 1). No hook timeout and no other error class in these runs.
+Redaction: checkout path replaced by <repo>; no environment values and no connection string.
+-----
+===== W2 PGlite (file red-w2-pglite.txt; AssertionError lines: 1) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-isolation.test.ts (7 tests | 1 failed | 6 skipped) 669ms
+   ❯ isolation level of IdentityService.scope (1)
+     × IdentityService.scope runs READ COMMITTED when the session default of its connection is REPEATABLE READ (database review P2-2, T7C-5 i) 668ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-isolation.test.ts > isolation level of IdentityService.scope > IdentityService.scope runs READ COMMITTED when the session default of its connection is REPEATABLE READ (database review P2-2, T7C-5 i)
+AssertionError: expected 'repeatable read' to be 'read committed' // Object.is equality
+
+Expected: "read committed"
+Received: "repeatable read"
+
+ ❯ tests/doc-approval-isolation.test.ts:174:45
+    172|       try {
+    173|         expect(await inPlainTransaction(w.h.operator)).toBe('repeatabl…
+    174|         expect(await inScope(w.h.operator)).toBe('read committed');
+       |                                             ^
+    175|       } finally {await w.h.operator.query('RESET default_transaction_i…
+    176|       expect(await inPlainTransaction(w.h.operator)).toBe('read commit…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 skipped (7)
+   Start at  16:29:00
+   Duration  782ms (tests 91%, import 6%, transform 2%)
+===== W2 PostgreSQL (file red-w2-native.txt; AssertionError lines: 1) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-isolation.test.ts (7 tests | 1 failed | 6 skipped) 353ms
+   ❯ isolation level of IdentityService.scope (1)
+     × IdentityService.scope runs READ COMMITTED when the session default of its connection is REPEATABLE READ (database review P2-2, T7C-5 i) 352ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-isolation.test.ts > isolation level of IdentityService.scope > IdentityService.scope runs READ COMMITTED when the session default of its connection is REPEATABLE READ (database review P2-2, T7C-5 i)
+AssertionError: expected 'repeatable read' to be 'read committed' // Object.is equality
+
+Expected: "read committed"
+Received: "repeatable read"
+
+ ❯ tests/doc-approval-isolation.test.ts:184:33
+    182|     try {
+    183|       expect(await inPlainTransaction(db)).toBe('repeatable read');
+    184|       expect(await inScope(db)).toBe('read committed');
+       |                                 ^
+    185|     } finally {await db.close();}
+    186|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 skipped (7)
+   Start at  16:29:01
+   Duration  474ms (tests 83%, import 12%, transform 5%)
+===== W4/M4 PGlite (file red-m4.txt; AssertionError lines: 1) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-proposal-http.test.ts (11 tests | 1 failed | 10 skipped) 661ms
+   ❯ coordinator proposal HTTP (11)
+     × an unmapped unique violation is logged as UnmappedUniqueViolation and answers exactly the generic 500 660ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-proposal-http.test.ts > coordinator proposal HTTP > an unmapped unique violation is logged as UnmappedUniqueViolation and answers exactly the generic 500
+AssertionError: expected [ 'Error', 'Error' ] to deeply equal [ 'Error', 'UnmappedUniqueViolation' ]
+
+- Expected
++ Received
+
+  [
+    "Error",
+-   "UnmappedUniqueViolation",
++   "Error",
+  ]
+
+ ❯ tests/doc-approval-proposal-http.test.ts:297:82
+    295|     expect(await shape(clash)).toBe(await shape(generic));
+    296|     expect([...clash.headers.entries()]).toEqual([...generic.headers.e…
+    297|     expect(logged.map(line=>(JSON.parse(line) as {errorType:string}).e…
+       |                                                                                  ^
+    298|   });
+    299|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 skipped (11)
+   Start at  16:31:13
+   Duration  805ms (tests 87%, import 6%, transform 6%)
+===== W4/M3 (file red-m3.txt; AssertionError lines: 1) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approver-ui.test.tsx (20 tests | 1 failed | 19 skipped) 9ms
+   ❯ open ballots on the team screen (12)
+     × the reason typed before a VERSION_CONFLICT is still in the account form after the reload 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > open ballots on the team screen > the reason typed before a VERSION_CONFLICT is still in the account form after the reload
+AssertionError: expected '<input required="" minLength="5" maxL…' to contain ' value="Áp đúng bộ quyền đã kiểm &lt;…'
+
+Expected: " value="Áp đúng bộ quyền đã kiểm &lt;b&gt;""
+Received: "<input required="" minLength="5" maxLength="500" name="reason"/>"
+
+ ❯ tests/doc-approver-ui.test.tsx:403:57
+    401|     const reasonField = (reason?: string) => renderToStaticMarkup(<Acc…
+    402|       onSubmit={() => {}} onExpands={() => {}} reason={reason} />).mat…
+    403|     expect(reasonField('Áp đúng bộ quyền đã kiểm <b>')).toContain(' va…
+       |                                                         ^
+    404|     // nothing kept: the field is exactly as it was
+    405|     expect(reasonField()).toBe('<input required="" minLength="5" maxLe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 skipped (20)
+   Start at  16:31:54
+   Duration  146ms (import 54%, transform 35%, tests 9%, worker 1%)

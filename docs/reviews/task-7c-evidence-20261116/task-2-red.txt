@@ -1,0 +1,1184 @@
+=== Task 2 bước 4 — đỏ trước khi có withdraw và cancel_access_change (PGlite, 16/11/2026) ===
+$ npx vitest run tests/doc-approval-withdraw.test.ts tests/doc-approval-proposal-http.test.ts tests/doc-approval-withdraw-concurrency.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-withdraw.test.ts (20 tests | 18 failed) 10271ms
+   ❯ withdraw (12)
+     × OQ-36 the proposer withdraws the own pending ballot with a basis, and nothing else changes 660ms
+     × OQ-51 (b): a ballot a BoM seat has approved cannot be withdrawn by the proposer, and the admin's cancel still closes it 512ms
+     × only the proposer withdraws: another manager of the project, the subject, an outsider and the account admin get the same 404 509ms
+     × OQ-50 a proposer demoted but still a member of the project withdraws and lists the own ballots 506ms
+     × OQ-50 a proposer removed from the project can neither withdraw nor list, and gets the 404 of an unknown project 491ms
+     × a closed ballot cannot be withdrawn, and a repeated withdrawal writes nothing 523ms
+     × the withdrawal command is strict, takes the ballot id from its argument only, and its basis is checked like every basis 500ms
+     × OQ-48 after the proposer's own withdrawal the same member can be proposed again at once 540ms
+     × OQ-50 a proposer who coordinates two projects and is demoted in one keeps the own ballot there and sees nothing of it from the other project 489ms
+     × the membership guard refuses a document-approval code whose only ballot was withdrawn 514ms
+     × a ballot already dead by an account change cannot be withdrawn, so a withdrawal cannot buy an immediate re-proposal 504ms
+   ❯ cancel_access_change (8)
+     × OQ-36 the account admin cancels a coordinator ballot with a basis; the account version and the member's sessions do not change 505ms
+     × OQ-48 after the cancel the admin proposes at once, and the proposer waits 24 hours from the cancel 488ms
+     × only the account admin cancels 493ms
+     × OQ-49 the cancel command refuses a ballot the admin proposed 523ms
+     × the cancel names the ballot and the account version it saw 503ms
+     × OQ-48 a cancel at hour 25 of the ballot still makes the same coordinator wait 24 hours from the cancel 501ms
+     × a ballot frozen at an older account version cannot be cancelled 541ms
+ ❯ tests/doc-approval-proposal-http.test.ts (9 tests | 2 failed) 4775ms
+   ❯ coordinator proposal HTTP (9)
+     × withdraw through the handler keeps each status and code 497ms
+     × withdraw takes the ballot id from the path only 485ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 20 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-proposal-http.test.ts > coordinator proposal HTTP > withdraw through the handler keeps each status and code
+AssertionError: expected 404 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 404
+
+ ❯ tests/doc-approval-proposal-http.test.ts:182:23
+    180|     // 200
+    181|     const ok=await withdrawCall(b1.approvalId);
+    182|     expect(ok.status).toBe(200);
+       |                       ^
+    183|     expect(ok.headers.get('cache-control')).toBe('no-store');
+    184|     expect(await json(ok)).toMatchObject({data:{approvalId:b1.approval…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/20]⎯
+
+ FAIL  tests/doc-approval-proposal-http.test.ts > coordinator proposal HTTP > withdraw takes the ballot id from the path only
+AssertionError: INVALID_INPUT: expected { status: 404, code: 'SCOPE_DENIED' } to deeply equal { status: 422, code: 'INVALID_INPUT' }
+
+- Expected
++ Received
+
+  {
+-   "code": "INVALID_INPUT",
+-   "status": 422,
++   "code": "SCOPE_DENIED",
++   "status": 404,
+  }
+
+ ❯ expectErr tests/doc-approval-proposal-http.test.ts:50:53
+     48| const expectErr=async(r:Response,status:number,code:string,message?:st…
+     49|   const b=await json(r);
+     50|   expect({status:r.status,code:b.error?.code},code).toEqual({status,co…
+       |                                                     ^
+     51|   if(message!==undefined) expect(b.error?.message).toBe(message);
+     52|   expect(b.data).toBeNull();
+ ❯ tests/doc-approval-proposal-http.test.ts:215:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-36 the proposer withdraws the own pending ballot with a basis, and nothing else changes
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:90:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-51 (b): a ballot a BoM seat has approved cannot be withdrawn by the proposer, and the admin's cancel still closes it
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:116:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > only the proposer withdraws: another manager of the project, the subject, an outsider and the account admin get the same 404
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:139:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-50 a proposer demoted but still a member of the project withdraws and lists the own ballots
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:164:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-50 a proposer removed from the project can neither withdraw nor list, and gets the 404 of an unknown project
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:176:32
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > a closed ballot cannot be withdrawn, and a repeated withdrawal writes nothing
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:209:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > the withdrawal command is strict, takes the ballot id from its argument only, and its basis is checked like every basis
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:245:43
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-48 after the proposer's own withdrawal the same member can be proposed again at once
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:277:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-50 a proposer who coordinates two projects and is demoted in one keeps the own ballot there and sees nothing of it from the other project
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:309:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > the membership guard refuses a document-approval code whose only ballot was withdrawn
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:320:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > a ballot already dead by an account change cannot be withdrawn, so a withdrawal cannot buy an immediate re-proposal
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:343:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > OQ-36 the account admin cancels a coordinator ballot with a basis; the account version and the member's sessions do not change
+ZodError: [
+  {
+    "code": "invalid_union",
+    "errors": [],
+    "note": "No matching discriminator",
+    "discriminator": "kind",
+    "options": [
+      "invite",
+      "access",
+      "propose_access_change",
+      "reissue",
+      "cancel",
+      "disable",
+      "enable",
+      "revoke_sessions",
+      "unlink_github",
+      "verify_github"
+    ],
+    "path": [
+      "kind"
+    ],
+    "message": "Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'"
+  }
+]
+ ❯ AccountService.command src/server/accounts.ts:185:29
+    183|
+    184|   async command(p:Principal,input:unknown) {
+    185|     const cmd=commandSchema.parse(input);
+       |                             ^
+    186|     return this.identity.scope(async tx=>{
+    187|       const scope=await this.operator(tx,p);
+ ❯ cancel tests/doc-approval-withdraw.test.ts:45:20
+ ❯ tests/doc-approval-withdraw.test.ts:367:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > OQ-48 after the cancel the admin proposes at once, and the proposer waits 24 hours from the cancel
+ZodError: [
+  {
+    "code": "invalid_union",
+    "errors": [],
+    "note": "No matching discriminator",
+    "discriminator": "kind",
+    "options": [
+      "invite",
+      "access",
+      "propose_access_change",
+      "reissue",
+      "cancel",
+      "disable",
+      "enable",
+      "revoke_sessions",
+      "unlink_github",
+      "verify_github"
+    ],
+    "path": [
+      "kind"
+    ],
+    "message": "Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'"
+  }
+]
+ ❯ AccountService.command src/server/accounts.ts:185:29
+    183|
+    184|   async command(p:Principal,input:unknown) {
+    185|     const cmd=commandSchema.parse(input);
+       |                             ^
+    186|     return this.identity.scope(async tx=>{
+    187|       const scope=await this.operator(tx,p);
+ ❯ cancel tests/doc-approval-withdraw.test.ts:45:20
+ ❯ tests/doc-approval-withdraw.test.ts:395:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > only the account admin cancels
+AssertionError: Điều phối mẫu: expected { code: undefined, …(2) } to deeply equal { Object (code, status, ...) }
+
+- Expected
++ Received
+
+  {
+-   "code": "ACCOUNT_ADMIN_REQUIRED",
+-   "message": "Cần quyền quản trị tài khoản.",
+-   "status": 403,
++   "code": undefined,
++   "message": "[
++   {
++     \"code\": \"invalid_union\",
++     \"errors\": [],
++     \"note\": \"No matching discriminator\",
++     \"discriminator\": \"kind\",
++     \"options\": [
++       \"invite\",
++       \"access\",
++       \"propose_access_change\",
++       \"reissue\",
++       \"cancel\",
++       \"disable\",
++       \"enable\",
++       \"revoke_sessions\",
++       \"unlink_github\",
++       \"verify_github\"
++     ],
++     \"path\": [
++       \"kind\"
++     ],
++     \"message\": \"Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'\"
++   }
++ ]",
++   "status": undefined,
+  }
+
+ ❯ tests/doc-approval-withdraw.test.ts:409:79
+    409|   });
+    410|
+    411|   test('OQ-49 the cancel command refuses a ballot the admin proposed',…
+       |                                                                        ^
+    412|     // decision OQ-49 (a) of the Chairman, no longer a placeholder
+    413|     const adminBallot=await adminDocBallot();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > OQ-49 the cancel command refuses a ballot the admin proposed
+AssertionError: expected { code: undefined, …(2) } to deeply equal { …(3) }
+
+- Expected
++ Received
+
+  {
+-   "code": "BALLOT_CANCEL_NOT_ALLOWED",
+-   "message": "Lệnh huỷ chỉ áp cho phiếu do điều phối dự án trình.",
+-   "status": 403,
++   "code": undefined,
++   "message": "[
++   {
++     \"code\": \"invalid_union\",
++     \"errors\": [],
++     \"note\": \"No matching discriminator\",
++     \"discriminator\": \"kind\",
++     \"options\": [
++       \"invite\",
++       \"access\",
++       \"propose_access_change\",
++       \"reissue\",
++       \"cancel\",
++       \"disable\",
++       \"enable\",
++       \"revoke_sessions\",
++       \"unlink_github\",
++       \"verify_github\"
++     ],
++     \"path\": [
++       \"kind\"
++     ],
++     \"message\": \"Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'\"
++   }
++ ]",
++   "status": undefined,
+  }
+
+ ❯ tests/doc-approval-withdraw.test.ts:419:60
+    418|     expect(await refusal(cancel(registration,w.subject.id))).toEqual(N…
+    419|     expect(await stateOf(registration)).toBe('pending');
+    420|     expect(await snapshot(w)).toEqual(before);
+       |   ^
+    421|   });
+    422|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > the cancel names the ballot and the account version it saw
+AssertionError: expected { code: undefined, …(2) } to deeply equal { code: 'APPROVAL_NOT_FOUND', …(2) }
+
+- Expected
++ Received
+
+  {
+-   "code": "APPROVAL_NOT_FOUND",
+-   "message": "Không tìm thấy phiếu duyệt.",
+-   "status": 404,
++   "code": undefined,
++   "message": "[
++   {
++     \"code\": \"invalid_union\",
++     \"errors\": [],
++     \"note\": \"No matching discriminator\",
++     \"discriminator\": \"kind\",
++     \"options\": [
++       \"invite\",
++       \"access\",
++       \"propose_access_change\",
++       \"reissue\",
++       \"cancel\",
++       \"disable\",
++       \"enable\",
++       \"revoke_sessions\",
++       \"unlink_github\",
++       \"verify_github\"
++     ],
++     \"path\": [
++       \"kind\"
++     ],
++     \"message\": \"Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'\"
++   }
++ ]",
++   "status": undefined,
+  }
+
+ ❯ tests/doc-approval-withdraw.test.ts:432:49
+    430|     expect(await refusal(cancel(elsewhere.approvalId))).toEqual(NOT_FO…
+    431|     expect(await refusal(cancel(made.approvalId,w.subject.id,{expected…
+    432|       .toEqual({code:'VERSION_CONFLICT',status:409,message:'Tài khoản …
+       |                                                 ^
+    433|     expect(await refusal(cancel(rejected.approvalId,approver.id))).toE…
+    434|     for(const over of [{reason:'abcd'},{reason:'  abcd  '},{proposerId…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > OQ-48 a cancel at hour 25 of the ballot still makes the same coordinator wait 24 hours from the cancel
+ZodError: [
+  {
+    "code": "invalid_union",
+    "errors": [],
+    "note": "No matching discriminator",
+    "discriminator": "kind",
+    "options": [
+      "invite",
+      "access",
+      "propose_access_change",
+      "reissue",
+      "cancel",
+      "disable",
+      "enable",
+      "revoke_sessions",
+      "unlink_github",
+      "verify_github"
+    ],
+    "path": [
+      "kind"
+    ],
+    "message": "Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'"
+  }
+]
+ ❯ AccountService.command src/server/accounts.ts:185:29
+    183|
+    184|   async command(p:Principal,input:unknown) {
+    185|     const cmd=commandSchema.parse(input);
+       |                             ^
+    186|     return this.identity.scope(async tx=>{
+    187|       const scope=await this.operator(tx,p);
+ ❯ cancel tests/doc-approval-withdraw.test.ts:45:20
+ ❯ tests/doc-approval-withdraw.test.ts:465:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/20]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > a ballot frozen at an older account version cannot be cancelled
+AssertionError: expected { code: undefined, …(2) } to deeply equal { code: 'APPROVAL_NOT_FOUND', …(2) }
+
+- Expected
++ Received
+
+  {
+-   "code": "APPROVAL_NOT_FOUND",
+-   "message": "Không tìm thấy phiếu duyệt.",
+-   "status": 404,
++   "code": undefined,
++   "message": "[
++   {
++     \"code\": \"invalid_union\",
++     \"errors\": [],
++     \"note\": \"No matching discriminator\",
++     \"discriminator\": \"kind\",
++     \"options\": [
++       \"invite\",
++       \"access\",
++       \"propose_access_change\",
++       \"reissue\",
++       \"cancel\",
++       \"disable\",
++       \"enable\",
++       \"revoke_sessions\",
++       \"unlink_github\",
++       \"verify_github\"
++     ],
++     \"path\": [
++       \"kind\"
++     ],
++     \"message\": \"Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'\"
++   }
++ ]",
++   "status": undefined,
+  }
+
+ ❯ tests/doc-approval-withdraw.test.ts:486:52
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/20]⎯
+
+
+ Test Files  2 failed | 1 skipped (3)
+      Tests  20 failed | 9 passed | 7 skipped (36)
+   Start at  12:34:20
+   Duration  15.47s (tests 98%, import 1%)
+
+
+exit 1
+
+=== Task 2 bước 4 — đỏ, PostgreSQL thật (máy chủ tổng hợp loopback), cùng ba tệp ===
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-withdraw.test.ts tests/doc-approval-proposal-http.test.ts tests/doc-approval-withdraw-concurrency.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-withdraw.test.ts (20 tests | 18 failed) 6574ms
+   ❯ withdraw (12)
+     × OQ-36 the proposer withdraws the own pending ballot with a basis, and nothing else changes 368ms
+     × OQ-51 (b): a ballot a BoM seat has approved cannot be withdrawn by the proposer, and the admin's cancel still closes it 320ms
+     × only the proposer withdraws: another manager of the project, the subject, an outsider and the account admin get the same 404 340ms
+     × OQ-50 a proposer demoted but still a member of the project withdraws and lists the own ballots 331ms
+     × OQ-50 a proposer removed from the project can neither withdraw nor list, and gets the 404 of an unknown project 324ms
+     × a closed ballot cannot be withdrawn, and a repeated withdrawal writes nothing 309ms
+     × the withdrawal command is strict, takes the ballot id from its argument only, and its basis is checked like every basis 320ms
+     × OQ-48 after the proposer's own withdrawal the same member can be proposed again at once 312ms
+     × OQ-50 a proposer who coordinates two projects and is demoted in one keeps the own ballot there and sees nothing of it from the other project 330ms
+     × the membership guard refuses a document-approval code whose only ballot was withdrawn 325ms
+     × a ballot already dead by an account change cannot be withdrawn, so a withdrawal cannot buy an immediate re-proposal 332ms
+   ❯ cancel_access_change (8)
+     × OQ-36 the account admin cancels a coordinator ballot with a basis; the account version and the member's sessions do not change 325ms
+     × OQ-48 after the cancel the admin proposes at once, and the proposer waits 24 hours from the cancel 319ms
+     × only the account admin cancels 313ms
+     × OQ-49 the cancel command refuses a ballot the admin proposed 319ms
+     × the cancel names the ballot and the account version it saw 379ms
+     × OQ-48 a cancel at hour 25 of the ballot still makes the same coordinator wait 24 hours from the cancel 308ms
+     × a ballot frozen at an older account version cannot be cancelled 322ms
+ ❯ tests/doc-approval-proposal-http.test.ts (9 tests | 2 failed) 3220ms
+   ❯ coordinator proposal HTTP (9)
+     × withdraw through the handler keeps each status and code 354ms
+     × withdraw takes the ballot id from the path only 347ms
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts (7 tests | 7 failed) 2364ms
+   ❯ withdraw and cancel concurrency (native PostgreSQL) (7)
+     × two withdrawals at once write one event 345ms
+     × a withdrawal racing a vote never drops the vote silently 328ms
+     × a withdrawal racing the admin's cancel writes one closing event 336ms
+     × an admin command on the proposer racing a withdrawal never deadlocks 329ms
+     × an admin cancel racing a coordinator's proposal for the same member leaves at most one open ballot 335ms
+     × a cancel and a vote on a ballot frozen at an older version do not deadlock 354ms
+     × an admin change to the subject racing a withdrawal is seen by it 336ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 27 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-proposal-http.test.ts > coordinator proposal HTTP > withdraw through the handler keeps each status and code
+AssertionError: expected 404 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 404
+
+ ❯ tests/doc-approval-proposal-http.test.ts:182:23
+    180|     // 200
+    181|     const ok=await withdrawCall(b1.approvalId);
+    182|     expect(ok.status).toBe(200);
+       |                       ^
+    183|     expect(ok.headers.get('cache-control')).toBe('no-store');
+    184|     expect(await json(ok)).toMatchObject({data:{approvalId:b1.approval…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/27]⎯
+
+ FAIL  tests/doc-approval-proposal-http.test.ts > coordinator proposal HTTP > withdraw takes the ballot id from the path only
+AssertionError: INVALID_INPUT: expected { status: 404, code: 'SCOPE_DENIED' } to deeply equal { status: 422, code: 'INVALID_INPUT' }
+
+- Expected
++ Received
+
+  {
+-   "code": "INVALID_INPUT",
+-   "status": 422,
++   "code": "SCOPE_DENIED",
++   "status": 404,
+  }
+
+ ❯ expectErr tests/doc-approval-proposal-http.test.ts:50:53
+     48| const expectErr=async(r:Response,status:number,code:string,message?:st…
+     49|   const b=await json(r);
+     50|   expect({status:r.status,code:b.error?.code},code).toEqual({status,co…
+       |                                                     ^
+     51|   if(message!==undefined) expect(b.error?.message).toBe(message);
+     52|   expect(b.data).toBeNull();
+ ❯ tests/doc-approval-proposal-http.test.ts:215:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/27]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > two withdrawals at once write one event
+TypeError: proposals.withdraw is not a function
+ ❯ withdrawWith tests/doc-approval-withdraw-concurrency.test.ts:48:92
+     46| const startBlocked=async(w:World,run:()=>Promise<unknown>):Promise<Blo…
+     47| const ran=(b:Blocked|undefined):Blocked=>{expect(b,'the hook ran').toB…
+     48| const withdrawWith=(proposals:DocApprovalProposalService,p:Principal,i…
+       |                                                                                            ^
+     49| const cancelWith=async(w:World,accounts:AccountService,id:string,userI…
+     50|   accounts.command(w.admin,{kind:'cancel_access_change',userId,expecte…
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:59:45
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/27]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a withdrawal racing a vote never drops the vote silently
+AssertionError: the hook ran: expected undefined to be defined
+ ❯ ran tests/doc-approval-withdraw-concurrency.test.ts:47:68
+     45| /** Called inside a hook: starts `run`, returns once it waits on a loc…
+     46| const startBlocked=async(w:World,run:()=>Promise<unknown>):Promise<Blo…
+     47| const ran=(b:Blocked|undefined):Blocked=>{expect(b,'the hook ran').toB…
+       |                                                                    ^
+     48| const withdrawWith=(proposals:DocApprovalProposalService,p:Principal,i…
+     49| const cancelWith=async(w:World,accounts:AccountService,id:string,userI…
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:75:28
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/27]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a withdrawal racing the admin's cancel writes one closing event
+AssertionError: the hook ran: expected undefined to be defined
+ ❯ ran tests/doc-approval-withdraw-concurrency.test.ts:47:68
+     45| /** Called inside a hook: starts `run`, returns once it waits on a loc…
+     46| const startBlocked=async(w:World,run:()=>Promise<unknown>):Promise<Blo…
+     47| const ran=(b:Blocked|undefined):Blocked=>{expect(b,'the hook ran').toB…
+       |                                                                    ^
+     48| const withdrawWith=(proposals:DocApprovalProposalService,p:Principal,i…
+     49| const cancelWith=async(w:World,accounts:AccountService,id:string,userI…
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:105:28
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/27]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin command on the proposer racing a withdrawal never deadlocks
+AssertionError: the hook ran: expected undefined to be defined
+ ❯ ran tests/doc-approval-withdraw-concurrency.test.ts:47:68
+     45| /** Called inside a hook: starts `run`, returns once it waits on a loc…
+     46| const startBlocked=async(w:World,run:()=>Promise<unknown>):Promise<Blo…
+     47| const ran=(b:Blocked|undefined):Blocked=>{expect(b,'the hook ran').toB…
+       |                                                                    ^
+     48| const withdrawWith=(proposals:DocApprovalProposalService,p:Principal,i…
+     49| const cancelWith=async(w:World,accounts:AccountService,id:string,userI…
+ ❯ race tests/doc-approval-withdraw-concurrency.test.ts:134:30
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:141:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/27]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin cancel racing a coordinator's proposal for the same member leaves at most one open ballot
+AssertionError: the hook ran: expected undefined to be defined
+ ❯ ran tests/doc-approval-withdraw-concurrency.test.ts:47:68
+     45| /** Called inside a hook: starts `run`, returns once it waits on a loc…
+     46| const startBlocked=async(w:World,run:()=>Promise<unknown>):Promise<Blo…
+     47| const ran=(b:Blocked|undefined):Blocked=>{expect(b,'the hook ran').toB…
+       |                                                                    ^
+     48| const withdrawWith=(proposals:DocApprovalProposalService,p:Principal,i…
+     49| const cancelWith=async(w:World,accounts:AccountService,id:string,userI…
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:157:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/27]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a cancel and a vote on a ballot frozen at an older version do not deadlock
+AssertionError: expected [ …(2) ] to deeply equal [ 'APPROVAL_NOT_FOUND', …(1) ]
+
+- Expected
++ Received
+
+  [
+-   "APPROVAL_NOT_FOUND",
++   "[
++   {
++     \"code\": \"invalid_union\",
++     \"errors\": [],
++     \"note\": \"No matching discriminator\",
++     \"discriminator\": \"kind\",
++     \"options\": [
++       \"invite\",
++       \"access\",
++       \"propose_access_change\",
++       \"reissue\",
++       \"cancel\",
++       \"disable\",
++       \"enable\",
++       \"revoke_sessions\",
++       \"unlink_github\",
++       \"verify_github\"
++     ],
++     \"path\": [
++       \"kind\"
++     ],
++     \"message\": \"Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'\"
++   }
++ ]",
+    "APPROVAL_CLOSED",
+  ]
+
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:202:42
+    200|       settle(w.ballots.vote(seat.telegram,seat.telegram,'private',made…
+    201|     noDeadlock(cancelled,vote);
+    202|     expect([code(cancelled),code(vote)]).toEqual(['APPROVAL_NOT_FOUND'…
+       |                                          ^
+    203|     expect(await stateOf(w,made.approvalId)).toBe('expired');
+    204|     expect(await count(w,"identity.events WHERE kind='access_change_ex…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/27]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin change to the subject racing a withdrawal is seen by it
+AssertionError: the hook ran: expected undefined to be defined
+ ❯ ran tests/doc-approval-withdraw-concurrency.test.ts:47:68
+     45| /** Called inside a hook: starts `run`, returns once it waits on a loc…
+     46| const startBlocked=async(w:World,run:()=>Promise<unknown>):Promise<Blo…
+     47| const ran=(b:Blocked|undefined):Blocked=>{expect(b,'the hook ran').toB…
+       |                                                                    ^
+     48| const withdrawWith=(proposals:DocApprovalProposalService,p:Principal,i…
+     49| const cancelWith=async(w:World,accounts:AccountService,id:string,userI…
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:220:28
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-36 the proposer withdraws the own pending ballot with a basis, and nothing else changes
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:90:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-51 (b): a ballot a BoM seat has approved cannot be withdrawn by the proposer, and the admin's cancel still closes it
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:116:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > only the proposer withdraws: another manager of the project, the subject, an outsider and the account admin get the same 404
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:139:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-50 a proposer demoted but still a member of the project withdraws and lists the own ballots
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:164:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-50 a proposer removed from the project can neither withdraw nor list, and gets the 404 of an unknown project
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:176:32
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > a closed ballot cannot be withdrawn, and a repeated withdrawal writes nothing
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:209:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > the withdrawal command is strict, takes the ballot id from its argument only, and its basis is checked like every basis
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:245:43
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-48 after the proposer's own withdrawal the same member can be proposed again at once
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:277:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > OQ-50 a proposer who coordinates two projects and is demoted in one keeps the own ballot there and sees nothing of it from the other project
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:309:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > the membership guard refuses a document-approval code whose only ballot was withdrawn
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:320:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > withdraw > a ballot already dead by an account change cannot be withdrawn, so a withdrawal cannot buy an immediate re-proposal
+TypeError: w.proposals.withdraw is not a function
+ ❯ withdraw tests/doc-approval-withdraw.test.ts:34:114
+     32| const seatPrincipal=(seat:number):Principal=>({id:w.approvers[seat].id…
+     33|
+     34| const withdraw=(p:Principal,approvalId:string,input:Record<string,unkn…
+       |                                                                                                                  ^
+     35| const stateOf=async(id:string)=>(await rows<{state:string}>(w,'SELECT …
+     36| const versionOf=async(userId:string)=>(await rows<{v:number}>(w,'SELEC…
+ ❯ tests/doc-approval-withdraw.test.ts:343:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > OQ-36 the account admin cancels a coordinator ballot with a basis; the account version and the member's sessions do not change
+ZodError: [
+  {
+    "code": "invalid_union",
+    "errors": [],
+    "note": "No matching discriminator",
+    "discriminator": "kind",
+    "options": [
+      "invite",
+      "access",
+      "propose_access_change",
+      "reissue",
+      "cancel",
+      "disable",
+      "enable",
+      "revoke_sessions",
+      "unlink_github",
+      "verify_github"
+    ],
+    "path": [
+      "kind"
+    ],
+    "message": "Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'"
+  }
+]
+ ❯ AccountService.command src/server/accounts.ts:185:29
+    183|
+    184|   async command(p:Principal,input:unknown) {
+    185|     const cmd=commandSchema.parse(input);
+       |                             ^
+    186|     return this.identity.scope(async tx=>{
+    187|       const scope=await this.operator(tx,p);
+ ❯ cancel tests/doc-approval-withdraw.test.ts:45:20
+ ❯ tests/doc-approval-withdraw.test.ts:367:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > OQ-48 after the cancel the admin proposes at once, and the proposer waits 24 hours from the cancel
+ZodError: [
+  {
+    "code": "invalid_union",
+    "errors": [],
+    "note": "No matching discriminator",
+    "discriminator": "kind",
+    "options": [
+      "invite",
+      "access",
+      "propose_access_change",
+      "reissue",
+      "cancel",
+      "disable",
+      "enable",
+      "revoke_sessions",
+      "unlink_github",
+      "verify_github"
+    ],
+    "path": [
+      "kind"
+    ],
+    "message": "Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'"
+  }
+]
+ ❯ AccountService.command src/server/accounts.ts:185:29
+    183|
+    184|   async command(p:Principal,input:unknown) {
+    185|     const cmd=commandSchema.parse(input);
+       |                             ^
+    186|     return this.identity.scope(async tx=>{
+    187|       const scope=await this.operator(tx,p);
+ ❯ cancel tests/doc-approval-withdraw.test.ts:45:20
+ ❯ tests/doc-approval-withdraw.test.ts:395:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > only the account admin cancels
+AssertionError: Điều phối mẫu: expected { code: undefined, …(2) } to deeply equal { Object (code, status, ...) }
+
+- Expected
++ Received
+
+  {
+-   "code": "ACCOUNT_ADMIN_REQUIRED",
+-   "message": "Cần quyền quản trị tài khoản.",
+-   "status": 403,
++   "code": undefined,
++   "message": "[
++   {
++     \"code\": \"invalid_union\",
++     \"errors\": [],
++     \"note\": \"No matching discriminator\",
++     \"discriminator\": \"kind\",
++     \"options\": [
++       \"invite\",
++       \"access\",
++       \"propose_access_change\",
++       \"reissue\",
++       \"cancel\",
++       \"disable\",
++       \"enable\",
++       \"revoke_sessions\",
++       \"unlink_github\",
++       \"verify_github\"
++     ],
++     \"path\": [
++       \"kind\"
++     ],
++     \"message\": \"Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'\"
++   }
++ ]",
++   "status": undefined,
+  }
+
+ ❯ tests/doc-approval-withdraw.test.ts:409:79
+    409|   });
+    410|
+    411|   test('OQ-49 the cancel command refuses a ballot the admin proposed',…
+       |                                                                        ^
+    412|     // decision OQ-49 (a) of the Chairman, no longer a placeholder
+    413|     const adminBallot=await adminDocBallot();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > OQ-49 the cancel command refuses a ballot the admin proposed
+AssertionError: expected { code: undefined, …(2) } to deeply equal { …(3) }
+
+- Expected
++ Received
+
+  {
+-   "code": "BALLOT_CANCEL_NOT_ALLOWED",
+-   "message": "Lệnh huỷ chỉ áp cho phiếu do điều phối dự án trình.",
+-   "status": 403,
++   "code": undefined,
++   "message": "[
++   {
++     \"code\": \"invalid_union\",
++     \"errors\": [],
++     \"note\": \"No matching discriminator\",
++     \"discriminator\": \"kind\",
++     \"options\": [
++       \"invite\",
++       \"access\",
++       \"propose_access_change\",
++       \"reissue\",
++       \"cancel\",
++       \"disable\",
++       \"enable\",
++       \"revoke_sessions\",
++       \"unlink_github\",
++       \"verify_github\"
++     ],
++     \"path\": [
++       \"kind\"
++     ],
++     \"message\": \"Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'\"
++   }
++ ]",
++   "status": undefined,
+  }
+
+ ❯ tests/doc-approval-withdraw.test.ts:419:60
+    418|     expect(await refusal(cancel(registration,w.subject.id))).toEqual(N…
+    419|     expect(await stateOf(registration)).toBe('pending');
+    420|     expect(await snapshot(w)).toEqual(before);
+       |   ^
+    421|   });
+    422|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > the cancel names the ballot and the account version it saw
+AssertionError: expected { code: undefined, …(2) } to deeply equal { code: 'APPROVAL_NOT_FOUND', …(2) }
+
+- Expected
++ Received
+
+  {
+-   "code": "APPROVAL_NOT_FOUND",
+-   "message": "Không tìm thấy phiếu duyệt.",
+-   "status": 404,
++   "code": undefined,
++   "message": "[
++   {
++     \"code\": \"invalid_union\",
++     \"errors\": [],
++     \"note\": \"No matching discriminator\",
++     \"discriminator\": \"kind\",
++     \"options\": [
++       \"invite\",
++       \"access\",
++       \"propose_access_change\",
++       \"reissue\",
++       \"cancel\",
++       \"disable\",
++       \"enable\",
++       \"revoke_sessions\",
++       \"unlink_github\",
++       \"verify_github\"
++     ],
++     \"path\": [
++       \"kind\"
++     ],
++     \"message\": \"Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'\"
++   }
++ ]",
++   "status": undefined,
+  }
+
+ ❯ tests/doc-approval-withdraw.test.ts:432:49
+    430|     expect(await refusal(cancel(elsewhere.approvalId))).toEqual(NOT_FO…
+    431|     expect(await refusal(cancel(made.approvalId,w.subject.id,{expected…
+    432|       .toEqual({code:'VERSION_CONFLICT',status:409,message:'Tài khoản …
+       |                                                 ^
+    433|     expect(await refusal(cancel(rejected.approvalId,approver.id))).toE…
+    434|     for(const over of [{reason:'abcd'},{reason:'  abcd  '},{proposerId…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > OQ-48 a cancel at hour 25 of the ballot still makes the same coordinator wait 24 hours from the cancel
+ZodError: [
+  {
+    "code": "invalid_union",
+    "errors": [],
+    "note": "No matching discriminator",
+    "discriminator": "kind",
+    "options": [
+      "invite",
+      "access",
+      "propose_access_change",
+      "reissue",
+      "cancel",
+      "disable",
+      "enable",
+      "revoke_sessions",
+      "unlink_github",
+      "verify_github"
+    ],
+    "path": [
+      "kind"
+    ],
+    "message": "Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'"
+  }
+]
+ ❯ AccountService.command src/server/accounts.ts:185:29
+    183|
+    184|   async command(p:Principal,input:unknown) {
+    185|     const cmd=commandSchema.parse(input);
+       |                             ^
+    186|     return this.identity.scope(async tx=>{
+    187|       const scope=await this.operator(tx,p);
+ ❯ cancel tests/doc-approval-withdraw.test.ts:45:20
+ ❯ tests/doc-approval-withdraw.test.ts:465:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/27]⎯
+
+ FAIL  tests/doc-approval-withdraw.test.ts > cancel_access_change > a ballot frozen at an older account version cannot be cancelled
+AssertionError: expected { code: undefined, …(2) } to deeply equal { code: 'APPROVAL_NOT_FOUND', …(2) }
+
+- Expected
++ Received
+
+  {
+-   "code": "APPROVAL_NOT_FOUND",
+-   "message": "Không tìm thấy phiếu duyệt.",
+-   "status": 404,
++   "code": undefined,
++   "message": "[
++   {
++     \"code\": \"invalid_union\",
++     \"errors\": [],
++     \"note\": \"No matching discriminator\",
++     \"discriminator\": \"kind\",
++     \"options\": [
++       \"invite\",
++       \"access\",
++       \"propose_access_change\",
++       \"reissue\",
++       \"cancel\",
++       \"disable\",
++       \"enable\",
++       \"revoke_sessions\",
++       \"unlink_github\",
++       \"verify_github\"
++     ],
++     \"path\": [
++       \"kind\"
++     ],
++     \"message\": \"Invalid discriminator value. Expected 'invite' | 'access' | 'propose_access_change' | 'reissue' | 'cancel' | 'disable' | 'enable' | 'revoke_sessions' | 'unlink_github' | 'verify_github'\"
++   }
++ ]",
++   "status": undefined,
+  }
+
+ ❯ tests/doc-approval-withdraw.test.ts:486:52
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/27]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  27 failed | 9 passed (36)
+   Start at  12:34:49
+   Duration  12.51s (tests 99%, import 1%)
+
+
+exit 1

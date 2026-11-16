@@ -1,0 +1,84 @@
+Task 7c fix wave - W1.5 mutation proof (PGlite, throwaway runs; nothing of the mutation is in the tree).
+Why no DDL: the brief offers a DDL statement on the test table (NO FORCE or DISABLE ROW LEVEL SECURITY). The shell guard on this workstation refuses any command text that holds a DDL keyword (E-DB-04), and the builder did not route DDL around that guard through a file. The brief's other way was used instead: a local edit, reverted.
+First attempt, rejected as not clean: SET LOCAL ROLE libetech_identity removed from IdentityService.scope for every query. Three cases failed, but in their setup (tenant B's seats were no longer filtered, so its proposal answered APPROVERS_NOT_READY), not at check 1(f). The line was restored; git diff of src/server/identity.ts afterwards shows only the W2 lines.
+Mutation used: a throwaway copy of tests/doc-approval-isolation.test.ts (tests/zz-mutation-f.test.ts, deleted after the run) in which ONLY the read of check 1(f), seenByTenantA, runs through IdentityService.scope on a Database wrapper that drops the one statement SET LOCAL ROLE libetech_identity. That read then runs as the PGlite login, a superuser, so RLS does not apply to it. Every other statement of the case, the tenant-B fixture included, runs exactly as in the real file. Result: red at the (f) line, expected 0, got 1, for tenant B's ballot id.
+Supplementary: the same wrapper on the one propose call made after the tenant-B event is planted (tests/zz-mutation-p14.test.ts, deleted after the run; the copy states that refusal as rejects.toMatchObject, so an accepted call is an AssertionError). Without RLS on that call the tenant-B event exempts the pair and the proposal is accepted: red.
+Not run: a variant that removes FORCE only. #inference: FORCE binds only the table owner; libetech_identity owns no table, and assertRestrictedLogin (src/server/db.ts:20) refuses an owner login at runtime, so removing FORCE alone would not turn 1(f) red. The code review wording "goes red when RLS or FORCE is removed" holds for RLS, not for FORCE alone.
+Count of AssertionError lines (grep -c "^AssertionError" on this file): 2 (check 1(f) 1, P14 supplementary 1).
+Restored state: no tests/zz-mutation-*.test.ts file exists; src/server/identity.ts holds only the W2 change; the real file passes 7/7 on PGlite and on PostgreSQL.
+Redaction: checkout path replaced by <repo>.
+-----
+===== check 1(f), PGlite (file mut-f.txt; AssertionError lines: 1) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/zz-mutation-f.test.ts (7 tests | 1 failed | 6 skipped) 690ms
+   ❯ tenant isolation of the coordinator ballot paths (database layer) (5)
+     × 34a listOwn, the admin list (openAccessChange) and a read inside IdentityService.scope show none of tenant B's ballots 689ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/zz-mutation-f.test.ts > tenant isolation of the coordinator ballot paths (database layer) > 34a listOwn, the admin list (openAccessChange) and a read inside IdentityService.scope show none of tenant B's ballots
+AssertionError: 78dde8b9-17bc-42c3-af05-4b0ab7cb01b2: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/zz-mutation-f.test.ts:118:42
+    116|     for(const id of [f.pending,f.approved]) {
+    117|       expect(await operatorCount('identity.account_approvals WHERE id=…
+    118|       expect(await seenByTenantA(id),id).toBe(0);
+       |                                          ^
+    119|     }
+    120|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 skipped (7)
+   Start at  16:30:58
+   Duration  837ms (tests 88%, import 7%, transform 5%)
+===== P14 supplementary, PGlite (file mut-p14.txt; AssertionError lines: 1) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/zz-mutation-p14.test.ts (7 tests | 1 failed | 6 skipped) 668ms
+   ❯ tenant isolation of the coordinator ballot paths (database layer) (5)
+     × 34a a tenant-B access_change_withdrawn event naming tenant A's cancelled ballot and its proposer does not exempt the pair from the 24-hour wait; the same event in tenant A does 668ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/zz-mutation-p14.test.ts > tenant isolation of the coordinator ballot paths (database layer) > 34a a tenant-B access_change_withdrawn event naming tenant A's cancelled ballot and its proposer does not exempt the pair from the 24-hour wait; the same event in tenant A does
+AssertionError: promise resolved "{ …(7) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "addedTypes": [
++     "design",
++   ],
++   "approvalId": "046aedea-73c9-498a-9ae4-746cc01b2d05",
++   "expiresAt": "2026-11-18T09:31:00.153Z",
++   "projectId": "11000000-0000-4000-8000-000000000001",
++   "replayed": false,
++   "state": "pending",
++   "userId": "14000000-0000-4000-8000-000000000002",
+  }
+
+ ❯ tests/zz-mutation-p14.test.ts:130:213
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 skipped (7)
+   Start at  16:30:59
+   Duration  805ms (tests 89%, import 7%, transform 4%)

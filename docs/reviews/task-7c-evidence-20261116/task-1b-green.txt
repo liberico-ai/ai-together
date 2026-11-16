@@ -1,0 +1,418 @@
+=== Task 1b bước 5 — PGlite, danh sách của bước 5 (16/11/2026) ===
+$ npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal.test.ts tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts tests/rsc-boundary.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  10 passed (10)
+      Tests  108 passed | 1 skipped (109)
+   Start at  10:21:59
+   Duration  54.89s (tests 99%, import 1%)
+
+exit 0
+
+=== Task 1b bước 5 — PostgreSQL 16 thật (container tổng hợp loopback), danh sách của bước 5 cùng tệp tranh chấp ===
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal.test.ts tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts tests/rsc-boundary.test.ts tests/doc-approval-proposal-concurrency.test.ts
+
+ RUN  v5.1.0 <repo>
+
+(node:51573) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:51576) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:51584) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:51591) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:51605) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  11 passed (11)
+      Tests  118 passed (118)
+   Start at  10:23:08
+   Duration  45.46s (tests 99%, import 1%)
+
+exit 0
+
+=== Task 1b bước 5 — typecheck (đã xoá .next/types/* 2.ts trước: 0 tệp) ===
+$ npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit 0
+
+=== Task 1b bước 5 — build ===
+$ rm -rf .next && npm run build
+
+> libetech-ai-os@0.7.1 build
+> next build
+
+▲ Next.js 16.4.5 (Turbopack)
+✓ Running next.config.ts took 13ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1117ms
+  Running TypeScript ...
+  Finished TypeScript in 398ms ...
+  Collecting page data using 17 workers ...
+  Generating static pages using 17 workers (0/4) ...
+  Generating static pages using 17 workers (1/4) 
+  Generating static pages using 17 workers (2/4) 
+  Generating static pages using 17 workers (3/4) 
+✓ Generating static pages using 17 workers (4/4) in 57ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /activate
+├ ƒ /api/auth/[action]
+├ ƒ /api/bridge
+├ ƒ /api/bridge/[...path]
+├ ƒ /api/decisions
+├ ƒ /api/demo/session
+├ ƒ /api/documents/[[...path]]
+├ ƒ /api/health
+├ ƒ /api/inbox/[[...path]]
+├ ƒ /api/projects/[...path]
+├ ƒ /api/reviews/[[...path]]
+├ ƒ /api/team/accounts
+├ ƒ /api/team/approvals
+├ ƒ /api/team/bom
+├ ƒ /api/team/doc-approvals/[[...path]]
+├ ƒ /api/team/feedback
+├ ƒ /api/team/registrations
+├ ƒ /api/team/reports
+├ ƒ /api/v1/[...path]
+├ ƒ /approvals
+├ ƒ /bom
+├ ƒ /decisions
+├ ƒ /documents
+├ ƒ /documents/[id]
+├ ƒ /feedback
+├ ƒ /inbox
+├ ƒ /login
+├ ƒ /portfolio
+├ ƒ /register
+├ ƒ /reports
+├ ƒ /review
+├ ƒ /review/[documentId]
+└ ƒ /team
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+exit 0
+
+=== Task 1b bước 6 — phép đột biến (a), PostgreSQL thật ===
+=== mutation (a): P4 without FOR KEY SHARE on the admin row ===
+diff --git a/src/server/doc-approval-proposals.ts b/src/server/doc-approval-proposals.ts
+index 78659c4..38a88d4 100644
+--- a/src/server/doc-approval-proposals.ts
++++ b/src/server/doc-approval-proposals.ts
+@@ -82,7 +82,7 @@ export class DocApprovalProposalService {
+       if(early===null) throw SCOPE_DENIED();
+       if(early!=='manager') throw MANAGER_REQUIRED();
+       // The account-admin row is the FIRST lock of every coordinator write (T7C-5): it orders this command before or after a whole admin command.
+-      if(!(await tx.query('SELECT id FROM identity.users WHERE id=$1 FOR KEY SHARE',[adminId])).rows.length) throw INELIGIBLE();
++      if(!(await tx.query('SELECT id FROM identity.users WHERE id=$1',[adminId])).rows.length) throw INELIGIBLE();
+       // P5: both account rows in one statement, in id order (T7C-5 c, d)
+       const locked=(await tx.query<UserRow>(`SELECT id,name,active,password_hash IS NOT NULL AS activated,account_version AS version
+        FROM identity.users WHERE id=ANY($1::uuid[]) ORDER BY id FOR NO KEY UPDATE`,[[callerId,cmd.userId]])).rows;
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-proposal-concurrency.test.ts
+
+ RUN  v5.1.0 <repo>
+
+(node:50861) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ❯ tests/doc-approval-proposal-concurrency.test.ts (9 tests | 3 failed) 6474ms
+   ❯ coordinator proposal concurrency (native PostgreSQL) (9)
+     × a demotion that already holds the admin row makes the proposal wait and then see it 1453ms
+     × a proposal about to insert makes the admin command wait, and the ballot predates the demotion 1399ms
+     × the frozen grants are the grants the ballot was built from 1406ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > a demotion that already holds the admin row makes the proposal wait and then see it
+AssertionError: a deadlock is never an answer: expected '40P01' not to be '40P01' // Object.is equality
+ ❯ noDeadlock tests/doc-approval-proposal-concurrency.test.ts:27:111
+     25| const settle=(run:Promise<unknown>):Promise<Settled>=>run.then(value=>…
+     26| const code=(s:Settled)=>s.ok?'ok':String((s.error as {code?:string})?.…
+     27| const noDeadlock=(...all:Settled[])=>{for(const s of all) expect(code(…
+       |                                                                                                               ^
+     28| const g=(projectId:string,role:ProjectGrant['role'],...perms:string[])…
+     29| const count=async(w:World,sql:string,params:unknown[]=[])=>Number((awa…
+ ❯ run tests/doc-approval-proposal-concurrency.test.ts:60:7
+ ❯ tests/doc-approval-proposal-concurrency.test.ts:65:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > a proposal about to insert makes the admin command wait, and the ballot predates the demotion
+AssertionError: a deadlock is never an answer: expected '40P01' not to be '40P01' // Object.is equality
+ ❯ noDeadlock tests/doc-approval-proposal-concurrency.test.ts:27:111
+     25| const settle=(run:Promise<unknown>):Promise<Settled>=>run.then(value=>…
+     26| const code=(s:Settled)=>s.ok?'ok':String((s.error as {code?:string})?.…
+     27| const noDeadlock=(...all:Settled[])=>{for(const s of all) expect(code(…
+       |                                                                                                               ^
+     28| const g=(projectId:string,role:ProjectGrant['role'],...perms:string[])…
+     29| const count=async(w:World,sql:string,params:unknown[]=[])=>Number((awa…
+ ❯ tests/doc-approval-proposal-concurrency.test.ts:85:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > the frozen grants are the grants the ballot was built from
+AssertionError: a deadlock is never an answer: expected '40P01' not to be '40P01' // Object.is equality
+ ❯ noDeadlock tests/doc-approval-proposal-concurrency.test.ts:27:111
+     25| const settle=(run:Promise<unknown>):Promise<Settled>=>run.then(value=>…
+     26| const code=(s:Settled)=>s.ok?'ok':String((s.error as {code?:string})?.…
+     27| const noDeadlock=(...all:Settled[])=>{for(const s of all) expect(code(…
+       |                                                                                                               ^
+     28| const g=(projectId:string,role:ProjectGrant['role'],...perms:string[])…
+     29| const count=async(w:World,sql:string,params:unknown[]=[])=>Number((awa…
+ ❯ tests/doc-approval-proposal-concurrency.test.ts:116:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 6 passed (9)
+   Start at  10:21:38
+   Duration  6.60s (tests 99%, import 1%)
+
+exit 1
+$ git diff --stat -- src/server/doc-approval-proposals.ts   (after revert)
+(empty) exit 0
+
+=== Phép đột biến thêm (ngoài (a)), mỗi lần sửa tạm một dòng, chạy, rồi trả tệp về nguyên (cmp/git diff --stat rỗng) ===
+-- (h1) src/server/doc-approval-http.ts: failure(error) thay cho failure(unexpected(error)) — PGlite
+     × identity not configured answers 503 and an unexpected failure answers 500, both through the handler and both no-store
+AssertionError: INTERNAL_ERROR: expected { status: 409, code: 'DUPLICATE_CODE' } to deeply equal { status: 500, code: 'INTERNAL_ERROR' }
+      Tests  1 failed | 5 passed (6)
+-- (no-store) catch trả failure(...) không bọc noStore — PGlite
+     × no session answers 401, a cross-origin POST answers 403, forged fields answer 422
+     × each refusal keeps its status and code through the handler
+     × GET requires projectId; ...
+     × identity not configured answers 503 and an unexpected failure answers 500, ...
+AssertionError: INVALID_INPUT: expected null to be 'no-store'   (x2), AssertionError: expected null to be 'no-store', AssertionError: INTERNAL_ERROR: expected null to be 'no-store'
+      Tests  4 failed | 2 passed (6)
+-- (query) tham số lặp lấy giá trị cuối thay cho danh sách — PGlite
+     × GET requires projectId; ...
+AssertionError: INVALID_INPUT: expected { status: 200, code: undefined } to deeply equal { status: 422, code: 'INVALID_INPUT' }
+      Tests  1 failed | 5 passed (6)
+-- (origin) bỏ checkOrigin cho phương thức ghi — PGlite
+     × no session answers 401, a cross-origin POST answers 403, forged fields answer 422
+AssertionError: ORIGIN_DENIED: expected { status: 200, code: undefined } to deeply equal { status: 403, code: 'ORIGIN_DENIED' }
+      Tests  1 failed | 5 passed (6)
+   (sau bốn phép trên: cmp src/server/doc-approval-http.ts <bản gốc> → restored)
+-- (P3b) src/server/doc-approval-proposals.ts: bỏ `||cmd.userId===adminId` ở P3b — PostgreSQL thật, -t "admin as subject"
+     × the admin as subject is refused without touching a lock 10421ms
+AssertionError: expected { code: '57014', …(2) } to deeply equal { …(3) }   (canceling statement due to statement timeout: lệnh trình chạm khoá dòng quản trị)
+      Tests  1 failed | 8 skipped (9)
+   git checkout -- src/server/doc-approval-proposals.ts; git diff --stat → rỗng
+-- (P5) src/server/doc-approval-proposals.ts: bỏ `FOR NO KEY UPDATE` ở câu khoá hai dòng — PostgreSQL thật
+     × two identical proposals at once store one ballot
+     × OQ-38 a co-manager's proposal waits for the other's row locks and then succeeds
+AssertionError: expected [ 'ok', 'APPROVAL_PENDING' ] to deeply equal [ 'ok', 'ok' ]
+AssertionError: expected [ …(2) ] to deeply equal [ 'ok', 'ok' ]
+      Tests  2 failed | 7 passed (9)
+   git checkout -- src/server/doc-approval-proposals.ts; git diff --stat → rỗng
+
+=== Task 1b bước 7 — kiểm giới hạn ===
+$ git diff --stat 0560a4f -- src/server/account-approval.ts bot-plugin AGENTS.md CLAUDE.md migrations
+(exit 0, empty above = unchanged)
+$ git diff --name-only 0560a4f -- migrations
+(exit 0)
+$ git diff 0560a4f -- src/server/accounts.ts
+diff --git a/src/server/accounts.ts b/src/server/accounts.ts
+index c748513..a372cba 100644
+--- a/src/server/accounts.ts
++++ b/src/server/accounts.ts
+@@ -9,7 +9,7 @@ import {DOC_APPROVAL_PREFIX,DOC_APPROVAL_TYPES,docApprovalCode,widensAccess} fro
+ 
+ // The three report permissions and the eight doc_approve codes (OQ-31 b). Duplicate values are handled exactly as before: not refused here.
+ const grantPermission=z.enum(['people_read','quality_review','report_approve',...DOC_APPROVAL_TYPES.map(docApprovalCode)] as [GrantPermission,...GrantPermission[]]);
+-const grantsSchema=z.array(z.object({
++export const grantsSchema=z.array(z.object({
+   projectId:z.uuid(),role:z.enum(['manager','engineer','technical','business','viewer']),
+   reportPermissions:z.array(grantPermission).max(11),
+ }).strict()).min(1).max(30).refine(grants=>new Set(grants.map(grant=>grant.projectId)).size===grants.length);
+@@ -35,7 +35,7 @@ const reviewRegistration=z.discriminatedUnion('kind',[
+  z.object({kind:z.literal('reject_registration'),requestId:z.uuid(),reason}).strict(),
+ ]);
+ /** Grants compared as a set: entries ordered by projectId, report permissions ordered within each entry. */
+-function sameGrants(a:ProjectGrant[],b:ProjectGrant[]) {
++export function sameGrants(a:ProjectGrant[],b:ProjectGrant[]) {
+  const norm=(grants:ProjectGrant[])=>JSON.stringify([...grants]
+   .map(grant=>({projectId:grant.projectId,role:grant.role,reportPermissions:[...grant.reportPermissions].sort()}))
+   .sort((x,y)=>x.projectId<y.projectId?-1:x.projectId>y.projectId?1:0));
+$ diff <(git show 0560a4f:vitest.config.ts | tr ',' '\n') <(tr ',' '\n' < vitest.config.ts)   (coverage.include split at commas: only two paths appended)
+48c48,50
+< 'src/server/bom.ts']
+---
+> 'src/server/bom.ts'
+> 'src/server/doc-approval-proposals.ts'
+> 'src/server/doc-approval-http.ts']
+$ git diff --stat 0560a4f -- src/server/http.ts src/server/review-http.ts
+(exit 0)
+$ git diff --stat 0560a4f -- <protected test files>
+(exit 0)
+$ git diff --stat -- src/server/doc-approval-proposals.ts tests/doc-approval-fixtures.ts tests/doc-approval-proposal.test.ts   (vs 1a commit HEAD)
+(exit 0)
+$ git status --short
+ M vitest.config.ts
+?? docs/reviews/task-7c-evidence-20261116/task-1b-red.txt
+?? src/app/api/team/doc-approvals/
+?? src/server/doc-approval-http.ts
+?? tests/doc-approval-proposal-concurrency.test.ts
+?? tests/doc-approval-proposal-http.test.ts
+
+=== Suite đầy đủ trên PGlite (không nạp biến PostgreSQL thật), 16/11/2026 — chỉ dòng tổng ===
+$ npx vitest run
+ Test Files  60 passed | 11 skipped (71)
+      Tests  1012 passed | 50 skipped (1062)
+exit 0
+
+=== Vòng sửa 1 của Task 1b (16/11/2026) — PGlite, ba tệp phủ ===
+$ npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-proposal.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  2 passed | 1 skipped (3)
+      Tests  39 passed | 9 skipped (48)
+   Start at  11:01:52
+   Duration  19.65s (tests 99%, import 1%)
+
+exit 0
+
+=== Vòng sửa 1 — PostgreSQL 16 thật, ba tệp phủ ===
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-proposal.test.ts
+
+ RUN  v5.1.0 <repo>
+
+(node:74644) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:74676) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  3 passed (3)
+      Tests  48 passed (48)
+   Start at  11:02:20
+   Duration  17.48s (tests 99%, import 1%)
+
+exit 0
+
+=== Vòng sửa 1 — M2: phép đột biến listOwn bỏ this.same(p) ===
+=== M2 mutation: listOwn without this.same(p) (PGlite, HTTP file) ===
+diff --git a/src/server/doc-approval-proposals.ts b/src/server/doc-approval-proposals.ts
+index 78659c4..f0436bd 100644
+--- a/src/server/doc-approval-proposals.ts
++++ b/src/server/doc-approval-proposals.ts
+@@ -173,7 +173,6 @@ export class DocApprovalProposalService {
+ 
+   /** The caller's own open ballots that add document-approval codes in this project. Members of the project in any role see them (OQ-50 c). */
+   async listOwn(p:Principal,input:unknown):Promise<DocApprovalProposal[]> {
+-    this.same(p);
+     const {projectId}=listSchema.parse(input);
+     const callerId=p.id.toLowerCase();
+     if(callerId===this.adminId()) return [];
+     × GET requires projectId; a project the caller is not a member of answers the same 404 as an unknown project; a proposer demoted but still in the project still lists the own ballots 476ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: SCOPE_DENIED: expected { status: 200, code: undefined } to deeply equal { status: 404, code: 'SCOPE_DENIED' }
+ ❯ tests/doc-approval-proposal-http.test.ts:131:7
+      Tests  1 failed | 5 passed (6)
+$ git diff --stat -- src/server/doc-approval-proposals.ts   (after revert)
+(empty) exit 0
+
+=== Vòng sửa 1 — M1: hai phép đối chứng dữ liệu tạm (sửa tạm tệp test, đã trả về, cmp bằng) ===
+=== M1 control A (native): with previous grants restored, align ONLY the frozen version with the account version → the refusal must disappear ===
+152a153
+>     await w.h.operator.query("UPDATE identity.account_approvals SET subject_account_version=$2 WHERE id=$1",[second.id,v2+1]);   // CONTROL (temporary)
+     × the frozen grants are the grants the ballot was built from 606ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected { code: 'APPROVAL_NOT_READY', …(2) } to match object { …(2) }
+-   "code": "TELEGRAM_APPROVAL_REQUIRED",
++   "code": "APPROVAL_NOT_READY",
+      Tests  1 failed | 8 skipped (9)
+=== M1 control B (native): as the case was before the fix (no restore of previous grants), align the version → still refused: the second guard held the line ===
+150,151d149
+<     await w.h.operator.query("UPDATE identity.memberships SET report_permissions=ARRAY['people_read'] WHERE user_id=$1 AND project_id=$2",[reviewer.id,S]);
+<     expect(await w.identity.scope(tx=>w.identity.grants(tx,reviewer.id))).toEqual(second.previous_grants);
+152a151
+>     await w.h.operator.query("UPDATE identity.account_approvals SET subject_account_version=$2 WHERE id=$1",[second.id,v2+1]);   // CONTROL (temporary)
+      Tests  1 passed | 8 skipped (9)
+restored (cmp equal)
+
+=== Vòng sửa 1 — typecheck ===
+(.next/types/* 2.ts deleted first: 4)
+$ npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit 0
+
+=== Vòng sửa 1, bổ sung — bot mang mã của một thành viên thật ===
+=== Fix round 1 addition — mutation: listOwn without this.same(p) (PGlite, HTTP file) ===
+diff --git a/src/server/doc-approval-proposals.ts b/src/server/doc-approval-proposals.ts
+index 78659c4..f0436bd 100644
+--- a/src/server/doc-approval-proposals.ts
++++ b/src/server/doc-approval-proposals.ts
+@@ -173,7 +173,6 @@ export class DocApprovalProposalService {
+ 
+   /** The caller's own open ballots that add document-approval codes in this project. Members of the project in any role see them (OQ-50 c). */
+   async listOwn(p:Principal,input:unknown):Promise<DocApprovalProposal[]> {
+-    this.same(p);
+     const {projectId}=listSchema.parse(input);
+     const callerId=p.id.toLowerCase();
+     if(callerId===this.adminId()) return [];
+     × GET requires projectId; a project the caller is not a member of answers the same 404 as an unknown project; a proposer demoted but still in the project still lists the own ballots 515ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: GET bot with member id: expected 200 to be 404 // Object.is equality
+ ❯ tests/doc-approval-proposal-http.test.ts:133:28
+      Tests  1 failed | 5 passed (6)
+$ git diff --stat -- src/server/doc-approval-proposals.ts   (after revert)
+(empty) exit 0
+
+=== Vòng sửa 1, bổ sung — PGlite, ba tệp phủ ===
+$ npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-proposal.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  2 passed | 1 skipped (3)
+      Tests  39 passed | 9 skipped (48)
+   Start at  11:05:12
+   Duration  19.63s (tests 99%, import 1%)
+
+exit 0
+
+=== Vòng sửa 1, bổ sung — PostgreSQL 16 thật, ba tệp phủ ===
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-proposal.test.ts
+
+ RUN  v5.1.0 <repo>
+
+(node:78499) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:78758) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  3 passed (3)
+      Tests  48 passed (48)
+   Start at  11:05:32
+   Duration  18.14s (tests 99%, import 1%)
+
+exit 0
+
+=== Vòng sửa 1, bổ sung — typecheck ===
+(.next/types/* 2.ts deleted first: 0)
+$ npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit 0

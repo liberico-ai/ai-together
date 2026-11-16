@@ -1,12 +1,15 @@
 'use client';
 import { useState,type FormEvent } from 'react';
-import { api } from './api';
+import { api,ApiError } from './api';
 import type { GrantPermission,Project,ProjectGrant,ReportPermission } from '@/server/types';
+import type { OpenAccessChange } from '@/server/accounts';
 import { DOC_APPROVAL_TYPES,docApprovalCode,widensAccess } from '../server/access-grants';
 import { PERMISSION_LABELS,ROLE_LABELS } from './grant-labels';
 import { TYPE_NAMES } from './documents-view';
+import { grantText } from './approvals';
 
-type Account={id:string;username:string;name:string;active:boolean;activated:boolean;version:number;grants:ProjectGrant[];githubId:string|null};
+type Account={id:string;username:string;name:string;active:boolean;activated:boolean;version:number;grants:ProjectGrant[];githubId:string|null;
+  accessChange?:OpenAccessChange|null};
 type Result={invitation?:{token:string;expiresInHours:number};pendingTelegramApproval?:boolean;approvalId?:string};
 type RegistrationRequest={id:string;username:string;name:string;project_interest:string;note:string;created_at:string;
   approval_id:string|null;approval_state:string|null;approval_agreed:number;chairman_agreed:boolean;bom_agreed:number;approval_grants:ProjectGrant[]|null};
@@ -45,6 +48,54 @@ export function AccessActions({expands,busy}:{expands:boolean;busy:boolean}) {
   </>:<button type="submit" className="primary" disabled={busy} value="access">Lưu quyền</button>;
 }
 
+/** Task 7c (T7C-15, OQ-37 c, OQ-49 a): the open access-change ballot of the selected account, as the server listed it. The screen computes no
+ * right: the stage, the proposer's standing and who may cancel all come from `accessChange`; every refusal comes from the server. */
+export function OpenBallot({change,projects,busy}:{change:OpenAccessChange|null|undefined;projects:Project[];busy:boolean}) {
+  if(!change) return null;
+  // the shape grantText of /approvals takes; a project that is not in the list is shown by its id (F10)
+  const named=(grants:ProjectGrant[])=>grants.map(grant=>({name:projects.find(project=>project.id===grant.projectId)?.name??grant.projectId,
+    role:grant.role,reportPermissions:grant.reportPermissions}));
+  const coordinator=change.viaProjectManager;
+  return <div className="action-form" data-ballot={change.state}>
+    {change.state==='approved'?<>
+      <p>Phiếu đổi quyền đã đủ xác nhận.</p>
+      <p>Quyền hiện tại: {grantText(named(change.previousGrants),'chưa có quyền nào')}<br/>
+        <span aria-hidden="true">→</span> Quyền đề nghị: {grantText(named(change.grants),'chưa có')}</p>
+    </>:<p>Đang có phiếu đổi quyền chờ một thành viên BoM.</p>}
+    <p className="muted">Căn cứ: <bdi dir="auto">{change.reason}</bdi></p>
+    {coordinator&&<p>Phiếu này do điều phối dự án trình. Huỷ phiếu không đổi tài khoản và không thu hồi phiên của thành viên.</p>}
+    {coordinator&&change.proposerIsCoordinator===false&&<p role="note">Người trình không còn là điều phối đang hoạt động của dự án này. Phiếu vẫn áp được; cân nhắc trước khi áp.</p>}
+    {(change.state==='approved'||coordinator)&&<div className="team-actions">
+      {change.state==='approved'&&<button type="submit" className="primary" disabled={busy} value="apply_frozen">Áp đúng bộ quyền đã được duyệt</button>}
+      {coordinator&&<button type="submit" className="secondary" disabled={busy} value="cancel_access_change">Huỷ phiếu của điều phối</button>}
+    </div>}
+  </div>;
+}
+
+/** {proposerIsCoordinator} when the account has an open coordinator ballot (the boolean of accessChange); otherwise {}. */
+export function standingEcho(user:{accessChange?:OpenAccessChange|null}):{proposerIsCoordinator?:boolean} {
+  const standing=user.accessChange?.proposerIsCoordinator;
+  return typeof standing==='boolean'?{proposerIsCoordinator:standing}:{};
+}
+
+/** The two ballot commands, built from the ballot the server listed, never from the ticked boxes. */
+export function ballotCommand(action:'apply_frozen'|'cancel_access_change',user:{id:string;version:number;accessChange:OpenAccessChange},reason:unknown):Record<string,unknown> {
+  return action==='apply_frozen'
+    ?{kind:'access',userId:user.id,expectedVersion:user.version,reason,grants:user.accessChange.grants,...standingEcho(user)}
+    :{kind:'cancel_access_change',userId:user.id,expectedVersion:user.version,reason,approvalId:user.accessChange.approvalId};
+}
+
+/** A VERSION_CONFLICT means what the page shows is stale (the account, or the proposer's standing): reload the list. */
+export function shouldReloadAccounts(e:unknown):boolean {
+  return e instanceof ApiError&&e.code==='VERSION_CONFLICT';
+}
+
+/** The reload after a VERSION_CONFLICT. A failed reload is added after the refusal, never in its place: the admin still sees why the
+ * command was refused. */
+export async function reloadAfterConflict(refusal:unknown,reload:()=>Promise<void>,show:(message:string)=>void):Promise<void> {
+  try {await reload();} catch(failed) {show(`${(refusal as Error).message} Không tải lại được danh sách tài khoản: ${(failed as Error).message}`);}
+}
+
 /** Every checked box of a project, old report permissions and doc_approve codes alike (they share the field name). */
 export function readGrants(form:FormData,projects:Project[]):ProjectGrant[] {
   return projects.flatMap(({id})=>{
@@ -53,12 +104,43 @@ export function readGrants(form:FormData,projects:Project[]):ProjectGrant[] {
   });
 }
 
+/** The form of one existing account; TeamAccounts holds its state and its submit. Its first child is a disabled, hidden submit button (Task 3
+ * security review F1): pressing Enter in a text field submits a form through its first submit button, and a disabled one submits nothing, so
+ * Enter never applies or cancels the open ballot shown below. Every visible button still submits on click. `reason` is the text the admin typed
+ * before a VERSION_CONFLICT (code review M3): the reload remounts this form, which starts from it. */
+export function AccountForm({user,projects,busy,expands,onSubmit,onExpands,reason}:{user:Account;projects:Project[];busy:boolean;expands:boolean;
+  onSubmit:(event:FormEvent<HTMLFormElement>)=>void;onExpands:(expands:boolean)=>void;reason?:string}) {
+  return <form className="action-form" onSubmit={onSubmit}
+    onChange={event=>onExpands(expandsAccess(user.grants,readGrants(new FormData(event.currentTarget),projects)))}>
+    <button type="submit" disabled hidden/>
+    <p>{!user.active?'Đã khóa':user.activated?'Đang hoạt động':'Chờ kích hoạt'}</p>
+    <OpenBallot change={user.accessChange} projects={projects} busy={busy}/>
+    <Grants projects={projects} initial={user.grants} withDocApproval/>
+    {user.active&&user.activated&&<details><summary>Xác minh tài khoản GitHub</summary>
+      <label>ID GitHub bất biến<input name="githubId" inputMode="numeric" defaultValue={user.githubId??''}/></label>
+      <label>Đường dẫn căn cứ đã kiểm<input name="sourceId" type="url"/></label>
+      <button type="submit" className="secondary" disabled={busy} value="verify_github">Xác nhận danh tính</button>
+      {user.githubId&&<button type="submit" className="secondary" disabled={busy} value="unlink_github">Gỡ GitHub</button>}
+    </details>}
+    <label>Lý do thay đổi<input name="reason" required minLength={5} maxLength={500} defaultValue={reason}/></label>
+    <div className="team-actions">
+      <AccessActions expands={expands} busy={busy}/>
+      {user.active&&!user.activated&&<><button className="secondary" disabled={busy} value="reissue">Cấp lại lời mời</button>
+        <button className="secondary" disabled={busy} value="cancel">Hủy lời mời</button></>}
+      {user.active&&user.activated&&<button className="secondary" disabled={busy} value="revoke_sessions">Thu hồi phiên</button>}
+      <button className="secondary" disabled={busy} value={user.active?'disable':'enable'}>{user.active?'Khóa tài khoản':'Mở khóa'}</button>
+    </div>
+  </form>;
+}
+
 export function TeamAccounts({initial,requests:initialRequests,projects}:{initial:Account[];requests:RegistrationRequest[];projects:Project[]}) {
   const [accounts,setAccounts]=useState(initial),[selected,setSelected]=useState(''),[busy,setBusy]=useState(false);
   const [requests,setRequests]=useState(initialRequests);
   const [invitation,setInvitation]=useState(''),[notice,setNotice]=useState(''),[error,setError]=useState('');
   const user=accounts.find(account=>account.id===selected);
   const [expands,setExpands]=useState(false);
+  // Code review M3: the reason typed before a VERSION_CONFLICT, for that account; kept across the reload, cleared by a successful command
+  const [draft,setDraft]=useState<{userId:string;reason:string}|null>(null);
   async function review(event:FormEvent<HTMLFormElement>,requestId:string) {
     event.preventDefault();const form=new FormData(event.currentTarget);
     const button=(event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement|null;
@@ -82,19 +164,35 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
     const kind=isNew?'invite':button?.value;
     if(!kind||(!isNew&&!user)) return;
     const reason=form.get('reason'),grants=readGrants(form,projects);
+    // The two ballot buttons of OpenBallot: the body comes from the listed ballot, not from the boxes
+    const onBallot=kind==='apply_frozen'||kind==='cancel_access_change';
+    const change=user?.accessChange;
+    if(onBallot&&(!user||!change)) return;
     const command=isNew?{kind,username:form.get('username'),name:form.get('name'),reason,grants}:
+      onBallot&&user&&change?ballotCommand(kind,{id:user.id,version:user.version,accessChange:change},reason):
       {kind,userId:user?.id,expectedVersion:user?.version,reason,
         ...(kind==='access'||kind==='propose_access_change'?{grants}:{}),
+        // T7C-11: the manual save also echoes the standing this page showed; the server reads it only when a coordinator ballot is applied
+        ...(kind==='access'?standingEcho(user??{}):{}),
         ...(kind==='verify_github'?{githubId:form.get('githubId'),sourceId:form.get('sourceId')}:{}),
       };
     setBusy(true);setError('');setNotice('');setInvitation('');
     try {
       const result=await api<Result>('/api/team/accounts',command);
+      setDraft(null);
       if(result.invitation) setInvitation(location.origin+'/activate#'+result.invitation.token);
       setAccounts(await api<Account[]>('/api/team/accounts'));
-      setNotice(kind==='propose_access_change'?'Đã trình phiếu đổi quyền. Cần ít nhất một thành viên BoM chọn Yes trên nền; quyền chưa đổi cho tới khi áp quyền đã được duyệt.':'Đã lưu thay đổi tài khoản.');
+      setNotice(kind==='propose_access_change'?'Đã trình phiếu đổi quyền. Cần ít nhất một thành viên BoM chọn Yes trên nền; quyền chưa đổi cho tới khi áp quyền đã được duyệt.':
+        kind==='cancel_access_change'?'Đã huỷ phiếu. Phiên bản tài khoản và phiên đăng nhập của thành viên không đổi.':'Đã lưu thay đổi tài khoản.');
       if(isNew) element.reset();
-    } catch(error) { setError((error as Error).message); }
+    } catch(error) {
+      setError((error as Error).message);
+      // The account or the proposer's standing changed: show the list as it is now, so the note (or its absence) sits on the button
+      if(shouldReloadAccounts(error)) {
+        if(user) setDraft({userId:user.id,reason:String(reason??'')});
+        await reloadAfterConflict(error,async()=>setAccounts(await api<Account[]>('/api/team/accounts')),setError);
+      }
+    }
     finally {setBusy(false);}
   }
   return <main className="team-page">
@@ -129,25 +227,8 @@ export function TeamAccounts({initial,requests:initialRequests,projects}:{initia
         <label>Thành viên<select value={selected} onChange={event=>{setSelected(event.target.value);setExpands(false);}}>
           <option value="">Chọn tài khoản</option>{accounts.map(account=><option key={account.id} value={account.id}>{account.name} · {account.username}</option>)}
         </select></label>
-        {user?<form key={user.id+':'+user.version} className="action-form" onSubmit={event=>submit(event,false)}
-          onChange={event=>setExpands(expandsAccess(user.grants,readGrants(new FormData(event.currentTarget),projects)))}>
-          <p>{!user.active?'Đã khóa':user.activated?'Đang hoạt động':'Chờ kích hoạt'}</p>
-          <Grants projects={projects} initial={user.grants} withDocApproval/>
-          {user.active&&user.activated&&<details><summary>Xác minh tài khoản GitHub</summary>
-            <label>ID GitHub bất biến<input name="githubId" inputMode="numeric" defaultValue={user.githubId??''}/></label>
-            <label>Đường dẫn căn cứ đã kiểm<input name="sourceId" type="url"/></label>
-            <button type="submit" className="secondary" disabled={busy} value="verify_github">Xác nhận danh tính</button>
-            {user.githubId&&<button type="submit" className="secondary" disabled={busy} value="unlink_github">Gỡ GitHub</button>}
-          </details>}
-          <label>Lý do thay đổi<input name="reason" required minLength={5} maxLength={500}/></label>
-          <div className="team-actions">
-            <AccessActions expands={expands} busy={busy}/>
-            {user.active&&!user.activated&&<><button className="secondary" disabled={busy} value="reissue">Cấp lại lời mời</button>
-              <button className="secondary" disabled={busy} value="cancel">Hủy lời mời</button></>}
-            {user.active&&user.activated&&<button className="secondary" disabled={busy} value="revoke_sessions">Thu hồi phiên</button>}
-            <button className="secondary" disabled={busy} value={user.active?'disable':'enable'}>{user.active?'Khóa tài khoản':'Mở khóa'}</button>
-          </div>
-        </form>:<p className="muted">Chọn một thành viên để xem quyền và quản lý phiên.</p>}
+        {user?<AccountForm key={user.id+':'+user.version} user={user} projects={projects} busy={busy} expands={expands}
+          onSubmit={event=>submit(event,false)} onExpands={setExpands} reason={draft?.userId===user.id?draft.reason:undefined}/>:<p className="muted">Chọn một thành viên để xem quyền và quản lý phiên.</p>}
       </section>
     </div>
   </main>;

@@ -30,6 +30,7 @@ export const NETWORK_COPY = 'Không kết nối được máy chủ. Nội dung 
 export const GENERIC_COPY = 'Không xử lý được yêu cầu. Nội dung đang nhập vẫn được giữ.';
 export const NOT_COORDINATOR_COPY = 'Chỉ điều phối của dự án này chỉ định và thu hồi được người nhận xét.';
 export const APPROVAL_NOTE_COPY = 'Quyền duyệt bản chuẩn không chỉ định ở đây: quyền này cấp qua phiếu đổi quyền, cần một thành viên BoM đồng ý, ở trang Quản trị tài khoản.';
+export const APPROVAL_NOTE_WITH_PROPOSALS_COPY = 'Quyền duyệt bản chuẩn cấp qua phiếu đổi quyền: điều phối dự án hoặc quản trị tài khoản trình, một thành viên BoM đồng ý, quản trị tài khoản áp.';
 export const REVOKED_NOTICE = 'Đã thu hồi. Người này không còn nhận xét được từ lệnh kế tiếp; nhận xét và quyết định đã ghi vẫn giữ nguyên.';
 
 const ELIGIBILITY_COPY: Record<EligibilityReason, string> = {
@@ -143,11 +144,16 @@ const points = (s: string) => Array.from(s).length;
 const CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
 const trimSpaces = (s: string) => s.replace(/^ +| +$/g, '');
 const BASIS_COPY = 'Căn cứ cần từ 5 đến 500 ký tự.';
+/** The body of `basisCheck` with the rule as parameters, one rule for every basis box (T7C-33): a forbidden character on the raw text, then the cap
+ *  on the raw text, then the floor of 5 after removing U+0020 at both ends. `cmd` is the trimmed text. `forbidden` is a regular expression without the g flag. */
+export function checkBasis(raw: string, rule: { max: number; forbidden: RegExp; forbiddenCopy: string; lengthCopy: string }): Checked<string> {
+  if (rule.forbidden.test(raw)) return { ok: false, error: rule.forbiddenCopy };
+  const b = trimSpaces(raw);
+  return points(raw) > rule.max || points(b) < 5 ? { ok: false, error: rule.lengthCopy } : { ok: true, cmd: b };
+}
 /** Mirrors the service rule (5 to 500 characters after trimming spaces, no control characters) so a person is told before sending; the service decides in the end. */
 function basisCheck(raw: string): Checked<string> {
-  if (CONTROL.test(raw)) return { ok: false, error: 'Căn cứ không được chứa ký tự điều khiển.' };
-  const b = trimSpaces(raw);
-  return points(raw) > 500 || points(b) < 5 ? { ok: false, error: BASIS_COPY } : { ok: true, cmd: b };
+  return checkBasis(raw, { max: 500, forbidden: CONTROL, forbiddenCopy: 'Căn cứ không được chứa ký tự điều khiển.', lengthCopy: BASIS_COPY });
 }
 
 export function decisionCommand(result: DecisionCmd['result'], d: DecisionDraft): Checked<DecisionCmd> {

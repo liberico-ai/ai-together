@@ -1,0 +1,16 @@
+Task 5 - PGlite run. Command: npm run test (vitest run, no native database variable set). HEAD 0c7ab7ff11cdc72c176935caec1bf871b68af2ff. Exit: 0. Files: 63 passed | 12 skipped (75). Tests: 1086 passed | 57 skipped (1143). Failed: 0. Skips: 57 = 41 baseline native-only skips + 9 (tests/doc-approval-proposal-concurrency.test.ts) + 7 (tests/doc-approval-withdraw-concurrency.test.ts); 41+16=57, checked with the verbose run in task-5-pglite-verbose.txt (57 lines marked skipped; every one in a *-concurrency or native-only block). 40P01 occurrences: 0. Default reporter prints no per-test lines.
+-----
+
+> libetech-ai-os@0.7.1 test
+> vitest run
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  63 passed | 12 skipped (75)
+      Tests  1086 passed | 57 skipped (1143)
+   Start at  15:18:14
+   Duration  405.32s (tests 99%, import 1%)
+
+EXIT=0

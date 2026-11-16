@@ -1,0 +1,15 @@
+Codex fix round 1 follow-up N1 - PGlite run. Command: npm run test (vitest run, native database variables unset with env -u). HEAD 56a7362 (code at 986285f) plus the uncommitted N1 working tree. Exit: 0. Files: 65 passed | 12 skipped (77). Tests: 1104 passed | 62 skipped (1166). Failed: 0. Passed went from 1103 (codex-fix1-pglite.txt) to 1104: +1 in tests/doc-approval-ui.test.tsx (P21). Skipped unchanged at 62. Lines starting with AssertionError or containing 'timed out': 0. Redaction: checkout path replaced by <repo>.
+-----
+
+> libetech-ai-os@0.7.1 test
+> vitest run
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  65 passed | 12 skipped (77)
+      Tests  1104 passed | 62 skipped (1166)
+   Start at  18:01:48
+   Duration  467.09s (tests 99%, import 1%)
+

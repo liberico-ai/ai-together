@@ -6,6 +6,9 @@ import { WorkService } from '@/server/service';
 import { ReviewService, reader } from '@/server/document-review';
 import { DelegationService } from '@/server/review-delegations';
 import { AppError } from '@/server/errors';
+import { DocApprovalProposalService } from '@/server/doc-approval-proposals';
+import { identityService } from '@/server/identity';
+import { loadOwnProposals } from '@/server/review-page';
 import { ReviewQueue } from '@/components/review';
 import { QUEUE_PAGE_SIZE, parseQueueOffset } from '@/components/review-view';
 export const dynamic = 'force-dynamic';
@@ -36,8 +39,13 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
     let delegations = null;
     try { delegations = await new DelegationService(db).list(principal, { projectId }); }
     catch (e) { if (!(e instanceof AppError && e.code === 'SCOPE_DENIED')) throw e; }
+    // Task 7c, step 16b: every reader of the project may have proposed a ballot (OQ-50 c), so the own list is read whenever the reviewers panel is
+    // shown; the account admin is answered without a read. loadOwnProposals never throws: its failures are states of the block.
+    const proposals = delegations ? await loadOwnProposals({ coordinator: delegations.canDesignate, accountAdmin: principal.accountAdmin === true },
+      () => new DocApprovalProposalService(identityService()).listOwn(principal, { projectId })) : null;
     return <ReviewQueue key={projectId} projects={projects} projectId={projectId} initial={JSON.parse(JSON.stringify(initial))} denied={false}
-      delegations={delegations && JSON.parse(JSON.stringify(delegations))} people={people} viewerId={principal.id} offset={offset} />;
+      delegations={delegations && JSON.parse(JSON.stringify(delegations))} people={people} viewerId={principal.id} offset={offset}
+      proposals={proposals ? JSON.parse(JSON.stringify(proposals)) : undefined} />;
   } catch (e) {
     if (e instanceof AppError && e.code === 'SCOPE_DENIED') return denied;
     throw e;

@@ -4,13 +4,17 @@ import type { ReviewItem, ReviewRevision, ReviewDetail, DiffEntry, CommentView }
 import type { DependencyView } from '../server/document-dependencies';
 import type { ListedDelegation, ApproverView } from '../server/review-delegations';
 import type { DocType } from '../server/types';
+import type { DocApprovalProposal } from '../server/doc-approval-proposals';
+import type { ProposalsInitial } from '../server/review-page';
 import { api } from './api';
 import { formatTime } from './inbox-view';
 import { roleLabel } from './grant-labels';
 import { headingLabel, reviewPageState, eligibilityCopy, diffLabel, approverCopy, decisionStateLabel, hashLabel, fieldLabel, docTypeLabel, describeError, idempotencyKey, postReview, commandFailure, commandSuccess, panelFailure, panelSuccess, panelReloadFailure,
   decisionBody, commentBody, grantBody, revokeBody, decisionCommand, commentCommand, replyCommand, grantCommand, revokeCommand, selectableMembers, sameId,
-  DOC_TYPES, EMPTY_PANEL_DRAFT, QUEUE_PAGE_SIZE, queueWindow, queueHref, EMPTY_COPY, DENIED_COPY, ERROR_COPY, NOT_FOUND_COPY, CONFLICT_COPY, NOT_COORDINATOR_COPY, APPROVAL_NOTE_COPY, REVOKED_NOTICE, DECIDED_COPY, TRUNCATED_COPY, NO_REVISION_COPY,
+  DOC_TYPES, EMPTY_PANEL_DRAFT, QUEUE_PAGE_SIZE, queueWindow, queueHref, EMPTY_COPY, DENIED_COPY, ERROR_COPY, NOT_FOUND_COPY, CONFLICT_COPY, NOT_COORDINATOR_COPY, APPROVAL_NOTE_COPY, APPROVAL_NOTE_WITH_PROPOSALS_COPY, REVOKED_NOTICE, DECIDED_COPY, TRUNCATED_COPY, NO_REVISION_COPY,
   type ReviewPageState, type ReviewForm, type DecisionDraft, type CommentDraft, type PanelDraft, type DecisionCmd } from './review-view';
+import { DocApprovalPanel } from './doc-approval-proposals';
+import { proposalPanelState, canProposeFrom, standingAfterReread, standingAfterRereadFailure, reloadProposals, proposeBody, withdrawBody, proposalFailure, PROPOSED_NOTICE, WITHDRAWN_NOTICE, PROPOSALS_LOAD_ERROR_COPY } from './doc-approval-view';
 
 // Review screens. Text from the database (titles, summaries, comments, bases, names) is rendered as React text only.
 // Buttons follow the service's `eligibility`, `canDesignate` and the per-comment `canAddress` / `canResolve`; this file computes no permission of its own.
@@ -47,7 +51,7 @@ export function ReviewQueueBody({ state, items, total, error, projectLabel, onRe
 export type PanelViewProps = { reviewers: ListedDelegation[]; approvers: ApproverView[]; people: { id: string; name: string; role: string }[]; viewerId: string; canDesignate: boolean; busy: boolean; truncated?: boolean;
   error: string; notice: string; reloadable: boolean; localError: string; draft: PanelDraft; onDraft: (p: Partial<PanelDraft>) => void;
   onGrant: (c: { delegateId: string; docTypes: DocType[]; basis: string }) => void; onRevoke: (c: { delegationId: string; expectedVersion: number; basis: string }) => void;
-  onInvalid: (m: string) => void; onReload?: () => void };
+  onInvalid: (m: string) => void; onReload?: () => void; approvalNote?: string };
 
 /** Block «Người nhận xét của dự án», without state of its own. Nothing here touches document approval: that right is granted only through an access-change ballot. */
 export function ReviewersPanelView(p: PanelViewProps) {
@@ -88,7 +92,7 @@ export function ReviewersPanelView(p: PanelViewProps) {
     <h3>Người giữ quyền duyệt bản chuẩn</h3>
     {approvers.length === 0 ? <p className="review-text">{approverCopy('unassigned')}</p> : <ul className="review-plain">
       {approvers.map(a => <li key={a.userId} className="review-person"><strong className="review-person-name">{nameOf(people, a.userId)}</strong><TypeBadges types={a.docTypes} /></li>)}</ul>}
-    <p className="review-meta">{APPROVAL_NOTE_COPY}</p>
+    <p className="review-meta">{p.approvalNote ?? APPROVAL_NOTE_COPY}</p>
     {canDesignate ? <div className="review-form" role="group" aria-label="Chỉ định người nhận xét">
       <h3>Chỉ định người nhận xét</h3>
       <label className="doc-field">Thành viên<select name="delegateId" value={draft.delegateId} onChange={e => p.onDraft({ delegateId: e.target.value })}>
@@ -103,7 +107,7 @@ export function ReviewersPanelView(p: PanelViewProps) {
 }
 
 export type PanelProps = { reviewers: ListedDelegation[]; approvers: ApproverView[]; people: { id: string; name: string; role: string }[]; viewerId: string; canDesignate: boolean; busy: boolean; truncated?: boolean; error: string;
-  notice?: string; reloadable?: boolean; onReload?: () => void;
+  notice?: string; reloadable?: boolean; onReload?: () => void; approvalNote?: string;
   onGrant?: (cmd: { delegateId: string; docTypes: DocType[]; basis: string }) => void | Promise<boolean | void>;
   onRevoke?: (cmd: { delegationId: string; expectedVersion: number; basis: string }) => void | Promise<boolean | void> };
 
@@ -280,11 +284,21 @@ export function ReviewDetailScreen({ detail: initial, affectedLinks, people }: {
 }
 
 export type QueueProps = { projects: { id: string; name: string }[]; projectId: string | null; initial: { items: ReviewItem[]; total: number } | null; denied: boolean;
-  delegations: { reviewers: ListedDelegation[]; reviewersTruncated?: boolean; approvers: ApproverView[]; canDesignate: boolean } | null; people: { id: string; name: string; role: string }[]; viewerId: string; offset?: number };
+  delegations: { reviewers: ListedDelegation[]; reviewersTruncated?: boolean; approvers: ApproverView[]; canDesignate: boolean } | null; people: { id: string; name: string; role: string }[]; viewerId: string; offset?: number;
+  proposals?: ProposalsInitial };
 
-export function ReviewQueue({ projects, projectId, initial, denied, delegations: initialDelegations, people, viewerId, offset = 0 }: QueueProps) {
+/** Without `proposals` the screen is exactly as before. With it, the reviewers panel carries the other approval note and the proposal block sits right under it. */
+export function ReviewQueue({ projects, projectId, initial, denied, delegations: initialDelegations, people, viewerId, offset = 0, proposals: pageProposals }: QueueProps) {
+  // what the page read about the own list; its standing follows every later read of the reviewers panel (reloadDelegations, standingAfterReread),
+  // a refused one included (rereadFailed, standingAfterRereadFailure)
+  const [proposals, setProposals] = useState(pageProposals);
   const [page, setPage] = useState(initial), [loading, setLoading] = useState(false), [error, setError] = useState<string | null>(null),
     [delegations, setDelegations] = useState(initialDelegations), [busy, setBusy] = useState(false), [panelError, setPanelError] = useState(''), [reloadable, setReloadable] = useState(false), [notice, setNotice] = useState('');
+  // the proposal block (Task 7c, step 16b): the own open ballots, whether the list is loading, failed or refused, and the outcome of the last command
+  const [own, setOwn] = useState<DocApprovalProposal[]>(proposals?.state === 'ready' ? proposals.items : []), [ownLoading, setOwnLoading] = useState(false),
+    [ownFailed, setOwnFailed] = useState(proposals?.state === 'error'), [ownDenied, setOwnDenied] = useState(proposals?.state === 'denied'),
+    [proposalBusy, setProposalBusy] = useState(false), [proposalError, setProposalError] = useState(''), [proposalReloadable, setProposalReloadable] = useState(false), [proposalNotice, setProposalNotice] = useState('');
+  const canPropose = canProposeFrom(proposals, delegations?.canDesignate === true); // the service's answer when the page read the list, else canDesignate
   const keys = useRef<KeyStore>({ current: null });
   const shell = (children: ReactNode) => <main className="doc-page"><a className="doc-action review-action doc-back" href="/">← Về không gian làm việc</a><h1>Review tài liệu</h1>{children}</main>;
   if (denied) return shell(<ReviewQueueBody state="denied" items={[]} total={0} error={null} projectLabel="" />);
@@ -296,7 +310,16 @@ export function ReviewQueue({ projects, projectId, initial, denied, delegations:
     setLoading(true); setError(null);
     try { setPage(await api<{ items: ReviewItem[]; total: number }>('/api/reviews?projectId=' + projectId + '&limit=' + QUEUE_PAGE_SIZE + '&offset=' + offset)); } catch { setError(ERROR_COPY); } finally { setLoading(false); }
   }
-  async function reloadDelegations() { setDelegations(await api('/api/reviews/delegations?projectId=' + projectId)); }
+  /** A failed reread hands its error to the block's standing first (a scope refusal ends the form; anything else changes nothing), then goes on,
+   *  so the line that says it stays: reloadAll, reloadProposals and command() catch it as before (Codex round 1 re-review, N1). */
+  function rereadFailed(e: unknown): never { setProposals(p => standingAfterRereadFailure(p, e)); throw e; }
+  /** Every reread of the reviewers panel: the block's «Tải lại», the panel's «Tải lại», after a grant or a revoke. The block then follows the
+   *  canDesignate just read, not the standing of page time (Codex gate round 1, P2). */
+  async function reloadDelegations() {
+    const fresh = await api<NonNullable<QueueProps['delegations']>>('/api/reviews/delegations?projectId=' + projectId).catch(rereadFailed);
+    setDelegations(fresh);
+    setProposals(p => standingAfterReread(p, fresh.canDesignate === true));
+  }
   async function reloadAll() { setPanelError(''); setReloadable(false); await reloadQueue(); try { await reloadDelegations(); } catch (e) { setPanelError(describeError(e).text); } }
   async function command(path: string, body: unknown, done: string): Promise<boolean> {
     setBusy(true); setPanelError(''); setReloadable(false); setNotice('');
@@ -308,12 +331,41 @@ export function ReviewQueue({ projects, projectId, initial, denied, delegations:
     try { if (ok.reload) await reloadDelegations(); setNotice(done); } catch (e) { const f = panelReloadFailure(e); setPanelError(f.message); setReloadable(f.reloadable); }
     setBusy(false); return true;
   }
+  const ownPath = '/api/team/doc-approvals?projectId=' + encodeURIComponent(projectId);
+  /** «Tải lại» and «Thử lại» of the proposal block: a scope refusal is the denied state, any other failure the error state; the typed draft stays.
+   *  `withDelegations` is true for the «Tải lại» beside a reloadable refusal: the approvers are read again too, so the held types and the
+   *  `expectedTypes` of the next proposal are fresh (VERSION_CONFLICT «Tải lại trước khi trình»). Ignored while a command is running. */
+  async function reloadOwn(withDelegations: boolean) {
+    if (proposalBusy) return;
+    setOwnLoading(true); setProposalError(''); setProposalReloadable(false);
+    const r = await reloadProposals({ readOwn: () => api<DocApprovalProposal[]>(ownPath), readDelegations: reloadDelegations }, withDelegations);
+    if (r.own.kind === 'ok') { setOwn(r.own.items); setOwnFailed(false); setOwnDenied(false); }
+    else if (r.own.kind === 'denied') { setOwn([]); setOwnDenied(true); setOwnFailed(false); }
+    else setOwnFailed(true);
+    if (r.delegationsError) { setProposalError(r.delegationsError); setProposalReloadable(true); }
+    setOwnLoading(false);
+  }
+  /** One proposal command. Returns false on failure, so the block keeps the draft; after a success the list is read again, then the notice is shown. */
+  async function proposalCommand(path: string, body: unknown, done: string): Promise<boolean> {
+    setProposalBusy(true); setProposalError(''); setProposalReloadable(false); setProposalNotice('');
+    try { await api(path, body); } catch (e) {
+      const f = proposalFailure(e); setProposalError(f.message); setProposalReloadable(f.reloadable); setProposalBusy(false); return false;
+    }
+    // the command went through; a list that cannot be read again is said with a reload, never as a failed command
+    try { setOwn(await api<DocApprovalProposal[]>(ownPath)); } catch { setProposalError(PROPOSALS_LOAD_ERROR_COPY); setProposalReloadable(true); }
+    setProposalNotice(done); setProposalBusy(false); return true;
+  }
   return shell(<>
     <p className="review-meta">{projectLabel}</p>
     <ReviewQueueBody state={state} items={page?.items ?? []} total={page?.total ?? 0} error={error} projectLabel={projectLabel} onRetry={() => void reloadQueue()} projectId={projectId} offset={offset} />
     {delegations && <ReviewersPanel reviewers={delegations.reviewers} approvers={delegations.approvers} people={people} viewerId={viewerId} canDesignate={delegations.canDesignate} truncated={delegations.reviewersTruncated}
-      busy={busy} error={panelError} notice={notice} reloadable={reloadable} onReload={() => void reloadAll()}
+      busy={busy} error={panelError} notice={notice} reloadable={reloadable} onReload={() => void reloadAll()} approvalNote={proposals ? APPROVAL_NOTE_WITH_PROPOSALS_COPY : undefined}
       onGrant={cmd => command('/api/reviews/delegations', grantBody(projectId, cmd), 'Đã chỉ định người nhận xét.')}
       onRevoke={cmd => command('/api/reviews/delegations/' + cmd.delegationId + '/revoke', revokeBody(cmd), REVOKED_NOTICE)} />}
+    {delegations && proposals && <DocApprovalPanel state={proposalPanelState({ loading: ownLoading, admin: proposals.state === 'admin', failed: ownFailed, denied: ownDenied, canPropose, count: own.length })}
+      proposals={own} approvers={delegations.approvers} people={people} viewerId={viewerId} busy={proposalBusy} error={proposalError} notice={proposalNotice} reloadable={proposalReloadable}
+      onReload={() => void reloadOwn(proposalReloadable)}
+      onPropose={cmd => proposalCommand('/api/team/doc-approvals', proposeBody(projectId, cmd), PROPOSED_NOTICE)}
+      onWithdraw={cmd => proposalCommand('/api/team/doc-approvals/' + encodeURIComponent(cmd.approvalId) + '/withdraw', withdrawBody(cmd), WITHDRAWN_NOTICE)} />}
   </>);
 }

@@ -1,0 +1,4 @@
+Task 5 - bot bridge. Command: python3 -m pytest tests/test_bot_bridge.py -q. HEAD 0c7ab7ff11cdc72c176935caec1bf871b68af2ff. Exit: 0. 67 passed, 69 subtests passed.
+-----
+...................................................................         [100%]
+67 passed, 69 subtests passed in 5.42s

@@ -19,6 +19,10 @@ export class IdentityService {
  constructor(private db:Database,readonly tenantId:string,readonly adminId?:string) { z.uuid().parse(tenantId); if(adminId) z.uuid().parse(adminId); }
  scope<T>(fn:(tx:Queryable)=>Promise<T>) {
   return this.db.transaction(async tx=>{
+   // Database review P2-2: the level is pinned here, never inherited. db.ts:44 opens with a plain BEGIN, so a server, database or login default
+   // of REPEATABLE READ would otherwise apply. The withdraw R5 read of the subject's version and the apply-time read of the proposer's standing
+   // rely on a fresh snapshot per statement after the lock on the admin row (T7C-5 i). It must be the first statement of the transaction.
+   await tx.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
    await tx.query('SET LOCAL ROLE libetech_identity');
    await tx.query("SELECT set_config('app.tenant_id',$1,true)",[this.tenantId]);
    return fn(tx);
@@ -40,6 +44,15 @@ export class IdentityService {
     FROM identity.memberships m JOIN identity.users u ON (u.id,u.tenant_id)=(m.user_id,m.tenant_id)
     WHERE m.user_id=$1 ORDER BY m.project_id`,[id])).rows;
   return rows.map(row=>({projectId:row.project_id,role:row.role,reportPermissions:row.report_permissions}));
+ }
+ /** Effective role (the project role first, else the account role) of an active, activated account in one project; null when the account is
+  * missing, disabled, not activated or not a member. Plain read, no lock. */
+ async activeProjectRole(tx:Queryable,userId:string,projectId:string):Promise<ProjectGrant['role']|null> {
+  const row=(await tx.query<{role:string}>(`SELECT coalesce(m.project_role,u.role) AS role FROM identity.users u
+   JOIN identity.memberships m ON (m.user_id,m.tenant_id)=(u.id,u.tenant_id)
+   WHERE u.id=$1 AND m.project_id=$2 AND u.tenant_id=$3 AND u.active AND u.password_hash IS NOT NULL`,[userId,projectId,this.tenantId])).rows[0];
+  const roles:string[]=['manager','engineer','technical','business','viewer'];
+  return row&&roles.includes(row.role)?row.role as ProjectGrant['role']:null;
  }
  private async principal(tx:Queryable,id:string):Promise<Principal> {
   const u=(await tx.query<User>('SELECT id,tenant_id,name,role,active FROM identity.users WHERE id=$1 AND active',[id])).rows[0];

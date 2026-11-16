@@ -1,0 +1,16 @@
+Final fix wave - PGlite run. Command: npm run test (vitest run, native database variables unset with env -u). HEAD 606e62093710dbe1957fea7bbacb0b8204682020 plus the uncommitted fix-wave working tree. Exit: 0. Files: 64 passed | 12 skipped (76). Tests: 1095 passed | 58 skipped (1153). Failed: 0. Passed went from 1086 (task-5-pglite.txt) to 1095: +7 in the new tests/doc-approval-isolation.test.ts, +1 in tests/doc-approval-proposal-http.test.ts (M4), +1 in tests/doc-approver-ui.test.tsx (M3). Skips: 58 = 41 baseline native-only skips + 9 (tests/doc-approval-proposal-concurrency.test.ts) + 8 (tests/doc-approval-withdraw-concurrency.test.ts, 7 before plus the W3 race). Lines containing 40P01: 0. Default reporter prints no per-test lines. Redaction: checkout path replaced by <repo>.
+-----
+
+> libetech-ai-os@0.7.1 test
+> vitest run
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  64 passed | 12 skipped (76)
+      Tests  1095 passed | 58 skipped (1153)
+   Start at  16:33:57
+   Duration  428.44s (tests 99%, import 1%)
+
+EXIT=0

@@ -15,7 +15,7 @@ const permissionText=(permissions:string[]|undefined)=>{
  const approve=docTypes.map(t=>TYPE_NAMES[t]).join(', ');
  return (report?', quyền báo cáo: '+report:'')+(approve?(report?' · ':', ')+'duyệt bản chuẩn: '+approve:'');
 };
-const grantText=(grants:Grant[]|null|undefined,empty:string)=>grants?.length?grants.map(g=>
+export const grantText=(grants:Grant[]|null|undefined,empty:string)=>grants?.length?grants.map(g=>
   `${g.name} (${roleLabel(g.role)}${permissionText(g.reportPermissions)})`).join('; '):empty;
 
 /** A ballot shows what it is. An access change names the account and puts the frozen current grants next to the proposed ones, so a voter never approves a widening they cannot see. */

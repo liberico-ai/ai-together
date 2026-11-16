@@ -1,0 +1,408 @@
+=== Task 3 bước 3 — đỏ trước khi có accessChange, proposerIsCoordinator và khối OpenBallot (PGlite, 16/11/2026) ===
+Chạy trên bản ca kiểm cuối cùng: bốn tệp mã và fixture (src/server/accounts.ts, src/components/team-accounts.tsx,
+src/components/approvals.tsx, tests/doc-approval-fixtures.ts) tạm đặt về bản HEAD 87d6f02, rồi chép lại bản mới; cmp: giống hệt.
+$ npx vitest run tests/doc-approval-apply.test.ts tests/doc-approver-ui.test.tsx
+
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-apply.test.ts (8 tests | 8 failed) 4583ms
+   ❯ the admin applies a coordinator ballot (8)
+     × end to end: a coordinator proposes, one BoM agrees, the admin applies exactly the frozen grants, and only then the member approves a frozen design revision 779ms
+     × a coordinator ballot that widens beyond doc_approve cannot be applied 610ms
+     × OQ-37 a ballot whose proposer no longer coordinates the project is still applied by the admin once the list has said so 533ms
+     × a ballot frozen at an older account version is dead everywhere 552ms
+     × the admin list shows the open ballot of each account and nothing for an account without one 541ms
+     × ballots the admin proposed apply exactly as before, with or without the standing field 512ms
+     × OQ-37 a stale proposer standing is answered VERSION_CONFLICT, and after a reload the note is there and the apply goes through 505ms
+     × the standing field changes nothing where no coordinator ballot is used 550ms
+ ❯ tests/doc-approver-ui.test.tsx (17 tests | 8 failed) 32ms
+   ❯ open ballots on the team screen (9)
+     × an account with an approved ballot shows the frozen grants and one button that applies exactly them 3ms
+     × a pending ballot shows that it waits for a BoM member and offers no apply button 0ms
+     × OQ-37 a coordinator ballot whose proposer no longer coordinates says so above the apply button, and still offers it 0ms
+     × OQ-49 only a coordinator ballot offers Huỷ phiếu của điều phối 0ms
+     × ballotCommand builds both bodies from the ballot, never from the ticked boxes, and echoes the standing the page showed 0ms
+     × the basis is rendered as plain text 0ms
+     × an account without an open ballot renders nothing new 0ms
+     × OQ-37 the manual save echoes the standing too, and a VERSION_CONFLICT reloads the account list 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 16 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-apply.test.ts > the admin applies a coordinator ballot > end to end: a coordinator proposes, one BoM agrees, the admin applies exactly the frozen grants, and only then the member approves a frozen design revision
+AssertionError: expected undefined to match object { …(4) }
+
+- Expected:
+{
+  "approvalId": "067aea5e-0380-4223-9241-7ea301bac226",
+  "proposerIsCoordinator": true,
+  "state": "approved",
+  "viaProjectManager": true,
+}
+
++ Received:
+undefined
+
+ ❯ tests/doc-approval-apply.test.ts:88:40
+     86|     expect(await refusal(decide())).toMatchObject(NOT_AUTHORIZED);
+     87|     expect(await pointer()).toBeNull();
+     88|     expect(await openOf(w.subject.id)).toMatchObject({approvalId:made.…
+       |                                        ^
+     89|     // the admin applies exactly the frozen grants
+     90|     await expect(applyFrozen(w,w.subject.id)).resolves.toHaveProperty(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/16]⎯
+
+ FAIL  tests/doc-approval-apply.test.ts > the admin applies a coordinator ballot > a coordinator ballot that widens beyond doc_approve cannot be applied
+AssertionError: {"proposerIsCoordinator":true}: expected ZodError: [
+  {
+    "code": "unrecognized… { …(2) } to match object { …(3) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+- {
+-   "code": "TELEGRAM_APPROVAL_REQUIRED",
+-   "message": "Mở rộng quyền cần phiếu duyệt Telegram mới.",
+-   "status": 409,
++ ZodError {
++   "message": "[
++   {
++     \"code\": \"unrecognized_keys\",
++     \"keys\": [
++       \"proposerIsCoordinator\"
++     ],
++     \"path\": [],
++     \"message\": \"Unrecognized key: \\\"proposerIsCoordinator\\\"\"
++   }
++ ]",
+  }
+
+ ❯ tests/doc-approval-apply.test.ts:121:57
+    119|     const command=(extra:Record<string,unknown>)=>w.accounts.command(w…
+    120|     for(const extra of [{proposerIsCoordinator:true},{proposerIsCoordi…
+    121|       await expect(command(extra),JSON.stringify(extra)).rejects.toMat…
+       |                                                         ^
+    122|     expect(await membershipsOf(w.subject.id)).toEqual(memberships);
+    123|     expect(await stateOf(id)).toBe('approved');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/16]⎯
+
+ FAIL  tests/doc-approval-apply.test.ts > the admin applies a coordinator ballot > OQ-37 a ballot whose proposer no longer coordinates the project is still applied by the admin once the list has said so
+AssertionError: demoted to viewer in the project: expected undefined to match object { …(3) }
+
+- Expected:
+{
+  "approvalId": "2e1f574d-b4c1-4b66-8583-9990ac4e6477",
+  "proposerIsCoordinator": true,
+  "viaProjectManager": true,
+}
+
++ Received:
+undefined
+
+ ❯ tests/doc-approval-apply.test.ts:145:47
+    143|       const control=await propose(w,w.coordinator,{userId:reviewer.id}…
+    144|       await say(w,2,control.approvalId);
+    145|       expect(await openOf(w.subject.id),name).toMatchObject({approvalI…
+       |                                               ^
+    146|       // control: while the proposer still coordinates, the event name…
+    147|       await expect(applyFrozen(w,reviewer.id),name).resolves.toHavePro…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/16]⎯
+
+ FAIL  tests/doc-approval-apply.test.ts > the admin applies a coordinator ballot > a ballot frozen at an older account version is dead everywhere
+AssertionError: expected undefined to match object { …(2) }
+
+- Expected:
+{
+  "approvalId": "ad3abad9-da6c-478b-8d83-fd681794d0e3",
+  "state": "approved",
+}
+
++ Received:
+undefined
+
+ ❯ tests/doc-approval-apply.test.ts:171:40
+    169|     await say(w,2,made.approvalId);
+    170|     expect(await stateOf(made.approvalId)).toBe('approved');
+    171|     expect(await openOf(w.subject.id)).toMatchObject({approvalId:made.…
+       |                                        ^
+    172|     // the admin removes another permission of the member: a narrowing…
+    173|     await adminAccess(w.subject.id,[g(S,'engineer')]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/16]⎯
+
+ FAIL  tests/doc-approval-apply.test.ts > the admin applies a coordinator ballot > the admin list shows the open ballot of each account and nothing for an account without one
+AssertionError: expected undefined to deeply equal { …(8) }
+
+- Expected:
+{
+  "approvalId": "a35f77e1-c98a-4cab-86de-3ab82f0f4c2f",
+  "expiresAt": "2026-11-18T06:39:20.065Z",
+  "grants": [
+    {
+      "projectId": "11000000-0000-4000-8000-000000000001",
+      "reportPermissions": [
+        "doc_approve:design",
+      ],
+      "role": "engineer",
+    },
+  ],
+  "previousGrants": [
+    {
+      "projectId": "11000000-0000-4000-8000-000000000001",
+      "reportPermissions": [],
+      "role": "engineer",
+    },
+  ],
+  "proposerIsCoordinator": true,
+  "reason": "Điều phối mẫu (điều phối dự án) trình: Cần người duyệt bản thiết kế của dự án",
+  "state": "pending",
+  "viaProjectManager": true,
+}
+
++ Received:
+undefined
+
+ ❯ tests/doc-approval-apply.test.ts:209:40
+    207|     const row=await ballotRow(made.approvalId);
+    208|     expect(row.reason).toBe(reasonPrefix('Điều phối mẫu',false)+BASIS);
+    209|     expect(await openOf(w.subject.id)).toEqual({approvalId:made.approv…
+       |                                        ^
+    210|       grants:row.grants,previousGrants:row.previous_grants,viaProjectM…
+    211|     expect((await openOf(w.subject.id))?.grants).toEqual([g(S,'enginee…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/16]⎯
+
+ FAIL  tests/doc-approval-apply.test.ts > the admin applies a coordinator ballot > ballots the admin proposed apply exactly as before, with or without the standing field
+AssertionError: 0: expected undefined to match object { …(4) }
+
+- Expected:
+{
+  "approvalId": "a37e641e-a9a0-40fa-8ae0-f9f541341c57",
+  "proposerIsCoordinator": null,
+  "state": "approved",
+  "viaProjectManager": false,
+}
+
++ Received:
+undefined
+
+ ❯ tests/doc-approval-apply.test.ts:236:46
+    234|         reason:'Quản trị trình mở rộng thường',grants:after})) as {app…
+    235|       await say(w,2,made);
+    236|       expect(await openOf(userId),String(i)).toMatchObject({approvalId…
+       |                                              ^
+    237|       const version=await versionOf(userId);
+    238|       await expect(applyFrozen(w,userId,fields[i]),String(i)).resolves…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/16]⎯
+
+ FAIL  tests/doc-approval-apply.test.ts > the admin applies a coordinator ballot > OQ-37 a stale proposer standing is answered VERSION_CONFLICT, and after a reload the note is there and the apply goes through
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/doc-approval-apply.test.ts:251:65
+    249|     const other=await propose(w,w.coordinator,{userId:reviewer.id});
+    250|     await say(w,2,other.approvalId);
+    251|     expect((await openOf(w.subject.id))?.proposerIsCoordinator).toBe(t…
+       |                                                                 ^
+    252|     // the admin demotes the proposer to viewer in the project
+    253|     await adminAccess(w.coordinator.id,[g(S,'viewer'),g(T,'viewer')]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/16]⎯
+
+ FAIL  tests/doc-approval-apply.test.ts > the admin applies a coordinator ballot > the standing field changes nothing where no coordinator ballot is used
+ZodError: [
+  {
+    "code": "unrecognized_keys",
+    "keys": [
+      "proposerIsCoordinator"
+    ],
+    "path": [],
+    "message": "Unrecognized key: \"proposerIsCoordinator\""
+  }
+]
+ ❯ AccountService.command src/server/accounts.ts:187:29
+    185|
+    186|   async command(p:Principal,input:unknown) {
+    187|     const cmd=commandSchema.parse(input);
+       |                             ^
+    188|     return this.identity.scope(async tx=>{
+    189|       const scope=await this.operator(tx,p);
+ ❯ adminAccess tests/doc-approval-apply.test.ts:63:14
+ ❯ tests/doc-approval-apply.test.ts:291:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/16]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > open ballots on the team screen > an account with an approved ballot shows the frozen grants and one button that applies exactly them
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6446:15
+ ❯ retryNode node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6783:21
+ ❯ performWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:7919:19
+ ❯ startWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8807:7
+ ❯ renderToStringImpl node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8933:7
+ ❯ process.env.NODE_ENV.exports.renderToStaticMarkup node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:10426:14
+ ❯ ballot tests/doc-approver-ui.test.tsx:230:62
+    228|     grants: [{ projectId: 'p-sales', role: 'engineer', reportPermissio…
+    229|     viaProjectManager: true, proposerIsCoordinator: true, ...over });
+    230|   const ballot = (c: OpenAccessChange | null | undefined) => renderToS…
+       |                                                              ^
+    231|   const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>…
+    232|   const withValue = (html: string, value: string) => buttons(html).fil…
+ ❯ tests/doc-approver-ui.test.tsx:236:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/16]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > open ballots on the team screen > a pending ballot shows that it waits for a BoM member and offers no apply button
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6446:15
+ ❯ retryNode node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6783:21
+ ❯ performWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:7919:19
+ ❯ startWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8807:7
+ ❯ renderToStringImpl node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8933:7
+ ❯ process.env.NODE_ENV.exports.renderToStaticMarkup node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:10426:14
+ ❯ ballot tests/doc-approver-ui.test.tsx:230:62
+    228|     grants: [{ projectId: 'p-sales', role: 'engineer', reportPermissio…
+    229|     viaProjectManager: true, proposerIsCoordinator: true, ...over });
+    230|   const ballot = (c: OpenAccessChange | null | undefined) => renderToS…
+       |                                                              ^
+    231|   const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>…
+    232|   const withValue = (html: string, value: string) => buttons(html).fil…
+ ❯ tests/doc-approver-ui.test.tsx:257:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/16]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > open ballots on the team screen > OQ-37 a coordinator ballot whose proposer no longer coordinates says so above the apply button, and still offers it
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6446:15
+ ❯ retryNode node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6783:21
+ ❯ performWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:7919:19
+ ❯ startWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8807:7
+ ❯ renderToStringImpl node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8933:7
+ ❯ process.env.NODE_ENV.exports.renderToStaticMarkup node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:10426:14
+ ❯ ballot tests/doc-approver-ui.test.tsx:230:62
+    228|     grants: [{ projectId: 'p-sales', role: 'engineer', reportPermissio…
+    229|     viaProjectManager: true, proposerIsCoordinator: true, ...over });
+    230|   const ballot = (c: OpenAccessChange | null | undefined) => renderToS…
+       |                                                              ^
+    231|   const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>…
+    232|   const withValue = (html: string, value: string) => buttons(html).fil…
+ ❯ tests/doc-approver-ui.test.tsx:267:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/16]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > open ballots on the team screen > OQ-49 only a coordinator ballot offers Huỷ phiếu của điều phối
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6446:15
+ ❯ retryNode node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6783:21
+ ❯ performWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:7919:19
+ ❯ startWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8807:7
+ ❯ renderToStringImpl node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8933:7
+ ❯ process.env.NODE_ENV.exports.renderToStaticMarkup node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:10426:14
+ ❯ ballot tests/doc-approver-ui.test.tsx:230:62
+    228|     grants: [{ projectId: 'p-sales', role: 'engineer', reportPermissio…
+    229|     viaProjectManager: true, proposerIsCoordinator: true, ...over });
+    230|   const ballot = (c: OpenAccessChange | null | undefined) => renderToS…
+       |                                                              ^
+    231|   const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>…
+    232|   const withValue = (html: string, value: string) => buttons(html).fil…
+ ❯ tests/doc-approver-ui.test.tsx:282:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/16]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > open ballots on the team screen > ballotCommand builds both bodies from the ballot, never from the ticked boxes, and echoes the standing the page showed
+TypeError: ballotCommand is not a function
+ ❯ tests/doc-approver-ui.test.tsx:297:19
+    295|     const user = (c: OpenAccessChange) => ({ id: 'u-1', version: 3, ac…
+    296|     const stale = user(change({ proposerIsCoordinator: false }));
+    297|     const apply = ballotCommand('apply_frozen', stale, 'Lý do áp phiếu…
+       |                   ^
+    298|     expect(apply).toEqual({ kind: 'access', userId: 'u-1', expectedVer…
+    299|     expect(Object.keys(apply).sort()).toEqual(['expectedVersion', 'gra…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/16]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > open ballots on the team screen > the basis is rendered as plain text
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6446:15
+ ❯ retryNode node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6783:21
+ ❯ performWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:7919:19
+ ❯ startWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8807:7
+ ❯ renderToStringImpl node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8933:7
+ ❯ process.env.NODE_ENV.exports.renderToStaticMarkup node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:10426:14
+ ❯ ballot tests/doc-approver-ui.test.tsx:230:62
+    228|     grants: [{ projectId: 'p-sales', role: 'engineer', reportPermissio…
+    229|     viaProjectManager: true, proposerIsCoordinator: true, ...over });
+    230|   const ballot = (c: OpenAccessChange | null | undefined) => renderToS…
+       |                                                              ^
+    231|   const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>…
+    232|   const withValue = (html: string, value: string) => buttons(html).fil…
+ ❯ tests/doc-approver-ui.test.tsx:312:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/16]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > open ballots on the team screen > an account without an open ballot renders nothing new
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file it's defined in, or you might have mixed up default and named imports.
+ ❯ renderElement node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6446:15
+ ❯ retryNode node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:6783:21
+ ❯ performWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:7919:19
+ ❯ startWork node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8807:7
+ ❯ renderToStringImpl node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:8933:7
+ ❯ process.env.NODE_ENV.exports.renderToStaticMarkup node_modules/react-dom/cjs/react-dom-server-legacy.node.development.js:10426:14
+ ❯ ballot tests/doc-approver-ui.test.tsx:230:62
+    228|     grants: [{ projectId: 'p-sales', role: 'engineer', reportPermissio…
+    229|     viaProjectManager: true, proposerIsCoordinator: true, ...over });
+    230|   const ballot = (c: OpenAccessChange | null | undefined) => renderToS…
+       |                                                              ^
+    231|   const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>…
+    232|   const withValue = (html: string, value: string) => buttons(html).fil…
+ ❯ tests/doc-approver-ui.test.tsx:319:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/16]⎯
+
+ FAIL  tests/doc-approver-ui.test.tsx > open ballots on the team screen > OQ-37 the manual save echoes the standing too, and a VERSION_CONFLICT reloads the account list
+TypeError: standingEcho is not a function
+ ❯ tests/doc-approver-ui.test.tsx:336:12
+    334|
+    335|   it('OQ-37 the manual save echoes the standing too, and a VERSION_CON…
+    336|     expect(standingEcho({ accessChange: change({ proposerIsCoordinator…
+       |            ^
+    337|     expect(standingEcho({ accessChange: change({ proposerIsCoordinator…
+    338|     expect(standingEcho({ accessChange: change({ viaProjectManager: fa…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/16]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  16 failed | 9 passed (25)
+   Start at  13:39:16
+   Duration  4.91s (tests 97%, import 2%, transform 1%)
+
+exit 1
+
+Phân loại lỗi đỏ (dòng đầu của từng lỗi, đếm):
+   1 AssertionError: 0: expected undefined to match object { …(4) }
+   1 AssertionError: demoted to viewer in the project: expected undefined to match object { …(3) }
+   1 AssertionError: expected undefined to be true // Object.is equality
+   1 AssertionError: expected undefined to deeply equal { …(8) }
+   1 AssertionError: expected undefined to match object { …(2) }
+   1 AssertionError: expected undefined to match object { …(4) }
+   1 AssertionError: {"proposerIsCoordinator":true}: expected ZodError: [
+   6 Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite component
+   1 TypeError: ballotCommand is not a function
+   1 TypeError: standingEcho is not a function
+   1 ZodError: [
+
+Ghi chú: 8/8 ca dịch vụ đỏ — 7 bằng AssertionError (list chưa có accessChange nên undefined; A2: lệnh access bị lược đồ strict
+từ chối bằng ZodError thay vì TELEGRAM_APPROVAL_REQUIRED) và 1 bằng ZodError (A8: lược đồ strict của access chưa có khoá
+proposerIsCoordinator). 8/9 ca giao diện mới đỏ vì OpenBallot, ballotCommand, standingEcho, shouldReloadAccounts chưa được xuất
+(React báo kiểu phần tử undefined, hoặc TypeError). Ca U8 (thẻ /approvals in căn cứ đồng điều phối như chữ) xanh ngay: nó ghim
+ApprovalItem, mà task này không sửa. 8 ca có sẵn của tests/doc-approver-ui.test.tsx vẫn xanh.

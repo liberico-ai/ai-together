@@ -1,0 +1,41 @@
+=== Task 1b bước 3 — đỏ trước khi có handler (PGlite, 16/11/2026) ===
+$ npx vitest run tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-proposal-http.test.ts (0 test)
+ ❯ tests/doc-approval-proposal-concurrency.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-proposal-concurrency.test.ts [ tests/doc-approval-proposal-concurrency.test.ts ]
+Error: Cannot find module '../src/server/doc-approval-http' imported from <repo>/tests/doc-approval-proposal-concurrency.test.ts
+ ❯ tests/doc-approval-proposal-concurrency.test.ts:9:1
+      7| import {AccountService} from '../src/server/accounts';
+      8| import {DocApprovalProposalService} from '../src/server/doc-approval-p…
+      9| import {handleDocApprovalApi} from '../src/server/doc-approval-http';
+       | ^
+     10| import {ids} from '../src/server/identities';
+     11| import type {Principal,ProjectGrant} from '../src/server/types';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/doc-approval-proposal-http.test.ts [ tests/doc-approval-proposal-http.test.ts ]
+Error: Cannot find module '../src/server/doc-approval-http' imported from <repo>/tests/doc-approval-proposal-http.test.ts
+ ❯ tests/doc-approval-proposal-http.test.ts:9:1
+      7| import {approver,grantDocApproval,reviewer} from './slice3-fixtures';
+      8| import {COOKIE} from '../src/server/auth';
+      9| import {handleDocApprovalApi} from '../src/server/doc-approval-http';
+       | ^
+     10| import {AppError} from '../src/server/errors';
+     11| import {digest,type IdentityService} from '../src/server/identity';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  no tests
+   Start at  10:13:45
+   Duration  261ms (worker 97%, environment 3%)
+
+exit 1

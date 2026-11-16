@@ -1,0 +1,548 @@
+Codex fix round 1 - red runs before each fix (tests first). Branch task-7c-coordinator-proposal, HEAD 2dd7812 (code at 7a11c1b); every run below used the code of HEAD for the file it was fixing.
+C1 (Codex P1): the seven cases of the new tests/doc-approval-statement-clock.test.ts, (a) withdraw, (b) admin cancel, three (c) propose cases (P13/P15 with another proposer's ballot, P13/P14 with the proposer's own ballot, the P14 24-hour end), (e) listOwn and (f) the admin list. Each case's precondition line (the transaction began before the moment and the moment passed before the statement) passed in every run; the AssertionError is the outcome line right after it. Red on PGlite and on PostgreSQL. The PostgreSQL run was taken together with tests/doc-approval-proposal-concurrency.test.ts, a native-only file whose nine cases ran (they are skipped on PGlite), so the database variables were loaded.
+C1 (d) (Codex P1, the lock wait itself): the four new native-only cases of tests/doc-approval-withdraw-concurrency.test.ts; the eight existing cases of that file passed in the same run.
+C1 statement-split check (not a red-before-fix run; a throwaway variant, reverted): every in-scope now() replaced by clock_timestamp() IN THE SAME STATEMENT, the withdraw R5 and cancel reads keeping 'expires_at<=clock_timestamp() AS overdue' inside their SELECT ... FOR UPDATE. Two of the native cases stay red: a FOR UPDATE that waited on a row whose holder did not change it returns the value it computed before the wait. This is why the shipped fix reads the deadline in a statement of its own once the lock is held. The other seventeen cases of the two files passed in that run.
+C2 (Codex P2): the new case P20 of tests/doc-approval-ui.test.tsx, run before standingAfterReread existed; the other nineteen cases of the file passed.
+Count of AssertionError lines (grep -c "^AssertionError" on this file): 21 (C1 PGlite 7, C1 PostgreSQL 7, C1 (d) PostgreSQL 4, statement-split check 2, C2 1). No hook timeout, no 'timed out' line and no other error class in these runs.
+Redaction: checkout path replaced by <repo>, scratch path by <scratchpad>; no environment value and no connection string.
+-----
+===== C1 PGlite (AssertionError lines: 7) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-statement-clock.test.ts (7 tests | 7 failed) 15750ms
+   × Codex P1 (a) a withdrawal whose ballot passes its deadline inside the withdrawing transaction answers APPROVAL_CLOSED, writes no event, does not close the ballot, and the pair wait still holds (OQ-48 b, OQ-51 b, T7C-30) 2397ms
+   × Codex P1 (b) the admin cancel of a coordinator ballot that passes its deadline inside the cancelling transaction answers APPROVAL_CLOSED and writes no event (OQ-49 a, OQ-51 b) 2238ms
+   × Codex P1 (c) a co-manager's open ballot that passes its deadline inside the proposing transaction is closed by P15 and the new ballot is opened, never answered APPROVAL_PENDING (T7C-19) 2235ms
+   × Codex P1 (c) the proposer's own ballot that passes its deadline inside the proposing transaction is neither replayed nor answered APPROVAL_PENDING: the pair wait refuses and marks nothing (T7C-19 2, 8) 2220ms
+   × Codex P1 (c) a 24-hour pair wait that ends inside the proposing transaction no longer refuses: P14 reads its end on the statement clock (T7C-19 2) 2218ms
+   × Codex P1 (e) the own list does not show a ballot that passes its deadline inside the listing transaction (OQ-50 c) 2213ms
+   × Codex P1 (f) the admin list does not show as open a ballot that passes its deadline inside the listing transaction (T7C-9, T7C-15) 2229ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (a) a withdrawal whose ballot passes its deadline inside the withdrawing transaction answers APPROVAL_CLOSED, writes no event, does not close the ballot, and the pair wait still holds (OQ-48 b, OQ-51 b, T7C-30)
+AssertionError: expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+
+Expected: "APPROVAL_CLOSED"
+Received: "ok"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:71:28
+     69|   const withdrawal=await settle(proposals.withdraw(w.coordinator,made.…
+     70|   expect(seen,'the withdrawing transaction began before the deadline, …
+     71|   expect(code(withdrawal)).toBe('APPROVAL_CLOSED');
+       |                            ^
+     72|   expect(await closings(made.approvalId,['access_change_withdrawn'])).…
+     73|   expect(await stateOf(made.approvalId)).toBe('pending');            /…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (b) the admin cancel of a coordinator ballot that passes its deadline inside the cancelling transaction answers APPROVAL_CLOSED and writes no event (OQ-49 a, OQ-51 b)
+AssertionError: expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+
+Expected: "APPROVAL_CLOSED"
+Received: "ok"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:88:27
+     86|   const cancelled=await settle(accounts.command(w.admin,{kind:'cancel_…
+     87|   expect(seen,'the cancelling transaction began before the deadline, w…
+     88|   expect(code(cancelled)).toBe('APPROVAL_CLOSED');
+       |                           ^
+     89|   expect(await closings(made.approvalId,['access_change_cancelled'])).…
+     90|   expect(await stateOf(made.approvalId)).toBe('pending');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (c) a co-manager's open ballot that passes its deadline inside the proposing transaction is closed by P15 and the new ballot is opened, never answered APPROVAL_PENDING (T7C-19)
+AssertionError: expected 'APPROVAL_PENDING' to be 'ok' // Object.is equality
+
+Expected: "ok"
+Received: "APPROVAL_PENDING"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:101:24
+     99|   const opened=await settle(proposals.propose(w.coordinator,{...propos…
+    100|   expect(seen,'the proposing transaction began before the deadline, wh…
+    101|   expect(code(opened)).toBe('ok');
+       |                        ^
+    102|   const made=(opened as {ok:true;value:DocApprovalProposal}).value;
+    103|   expect(made).toMatchObject({state:'pending',replayed:false});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (c) the proposer's own ballot that passes its deadline inside the proposing transaction is neither replayed nor answered APPROVAL_PENDING: the pair wait refuses and marks nothing (T7C-19 2, 8)
+AssertionError: expected 'ok' to be 'RATE_LIMITED' // Object.is equality
+
+Expected: "RATE_LIMITED"
+Received: "ok"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:118:23
+    116|   const again=await settle(proposals.propose(w.coordinator,{...propose…
+    117|   expect(seen,'the proposing transaction began before the deadline, wh…
+    118|   expect(code(again)).toBe('RATE_LIMITED');
+       |                       ^
+    119|   expect(messageOf(again)).toBe(PAIR_WAIT);
+    120|   expect(await stateOf(mine.approvalId)).toBe('pending');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (c) a 24-hour pair wait that ends inside the proposing transaction no longer refuses: P14 reads its end on the statement clock (T7C-19 2)
+AssertionError: expected 'RATE_LIMITED' to be 'ok' // Object.is equality
+
+Expected: "ok"
+Received: "RATE_LIMITED"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:136:24
+    134|   const opened=await settle(proposals.propose(w.coordinator,{...propos…
+    135|   expect(seen,'the proposing transaction began inside the 24 hours, wh…
+    136|   expect(code(opened)).toBe('ok');
+       |                        ^
+    137|   expect((opened as {ok:true;value:DocApprovalProposal}).value).toMatc…
+    138| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (e) the own list does not show a ballot that passes its deadline inside the listing transaction (OQ-50 c)
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "dcf2802d-e1ec-4a72-ad4d-f138c04417ca",
++ ]
+
+ ❯ tests/doc-approval-statement-clock.test.ts:147:43
+    145|   const listed=await proposals.listOwn(w.coordinator,{projectId:S});
+    146|   expect(seen,'the listing transaction began before the deadline, whic…
+    147|   expect(listed.map(row=>row.approvalId)).toEqual([]);
+       |                                           ^
+    148| });
+    149|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (f) the admin list does not show as open a ballot that passes its deadline inside the listing transaction (T7C-9, T7C-15)
+AssertionError: expected { …(8) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "approvalId": "7c106242-29b1-41ba-98e6-17aea2cf703d",
+  "expiresAt": "2026-11-16T10:11:51.891Z",
+  "grants": [
+    {
+      "projectId": "11000000-0000-4000-8000-000000000001",
+      "reportPermissions": [
+        "doc_approve:design",
+      ],
+      "role": "engineer",
+    },
+  ],
+  "previousGrants": [
+    {
+      "projectId": "11000000-0000-4000-8000-000000000001",
+      "reportPermissions": [],
+      "role": "engineer",
+    },
+  ],
+  "proposerIsCoordinator": true,
+  "reason": "Điều phối mẫu (điều phối dự án) trình: Cần người duyệt bản thiết kế của dự án",
+  "state": "pending",
+  "viaProjectManager": true,
+}
+
+ ❯ tests/doc-approval-statement-clock.test.ts:158:32
+    156|   expect(seen,'the listing transaction began before the deadline, whic…
+    157|   expect(listed,'the subject is listed').toBeDefined();
+    158|   expect(listed?.accessChange).toBeNull();
+       |                                ^
+    159| });
+    160|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed (7)
+   Start at  17:11:36
+   Duration  15.91s (tests 99%)
+
+
+===== C1 PostgreSQL, with a native-only file beside it (AssertionError lines: 7) =====
+
+ RUN  v5.1.0 <repo>
+
+ × tests/doc-approval-statement-clock.test.ts > Codex P1 (a) a withdrawal whose ballot passes its deadline inside the withdrawing transaction answers APPROVAL_CLOSED, writes no event, does not close the ballot, and the pair wait still holds (OQ-48 b, OQ-51 b, T7C-30) 2134ms
+   → expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+ × tests/doc-approval-statement-clock.test.ts > Codex P1 (b) the admin cancel of a coordinator ballot that passes its deadline inside the cancelling transaction answers APPROVAL_CLOSED and writes no event (OQ-49 a, OQ-51 b) 2097ms
+   → expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+ × tests/doc-approval-statement-clock.test.ts > Codex P1 (c) a co-manager's open ballot that passes its deadline inside the proposing transaction is closed by P15 and the new ballot is opened, never answered APPROVAL_PENDING (T7C-19) 2098ms
+   → expected 'APPROVAL_PENDING' to be 'ok' // Object.is equality
+ × tests/doc-approval-statement-clock.test.ts > Codex P1 (c) the proposer's own ballot that passes its deadline inside the proposing transaction is neither replayed nor answered APPROVAL_PENDING: the pair wait refuses and marks nothing (T7C-19 2, 8) 2156ms
+   → expected 'ok' to be 'RATE_LIMITED' // Object.is equality
+ × tests/doc-approval-statement-clock.test.ts > Codex P1 (c) a 24-hour pair wait that ends inside the proposing transaction no longer refuses: P14 reads its end on the statement clock (T7C-19 2) 2126ms
+   → expected 'RATE_LIMITED' to be 'ok' // Object.is equality
+ × tests/doc-approval-statement-clock.test.ts > Codex P1 (e) the own list does not show a ballot that passes its deadline inside the listing transaction (OQ-50 c) 2103ms
+   → expected [ Array(1) ] to deeply equal []
+(node:94477) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ × tests/doc-approval-statement-clock.test.ts > Codex P1 (f) the admin list does not show as open a ballot that passes its deadline inside the listing transaction (T7C-9, T7C-15) 2101ms
+   → expected { …(8) } to be null
+(node:94734) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > a demotion that already holds the admin row makes the proposal wait and then see it 467ms
+ ✓ tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > a proposal about to insert makes the admin command wait, and the ballot predates the demotion 397ms
+ ✓ tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > the frozen grants are the grants the ballot was built from 539ms
+ ✓ tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > the admin as subject is refused without touching a lock 313ms
+ ✓ tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > two identical proposals at once store one ballot 321ms
+ ✓ tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > two managers proposing for the same member at once store one ballot 320ms
+ ✓ tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > OQ-38 two co-managers proposing for each other at once both succeed without a deadlock 320ms
+ ✓ tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > OQ-38 a co-manager's proposal waits for the other's row locks and then succeeds 376ms
+ ✓ tests/doc-approval-proposal-concurrency.test.ts > coordinator proposal concurrency (native PostgreSQL) > a unique-index conflict is answered APPROVAL_PENDING 324ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (a) a withdrawal whose ballot passes its deadline inside the withdrawing transaction answers APPROVAL_CLOSED, writes no event, does not close the ballot, and the pair wait still holds (OQ-48 b, OQ-51 b, T7C-30)
+AssertionError: expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+
+Expected: "APPROVAL_CLOSED"
+Received: "ok"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:71:28
+     69|   const withdrawal=await settle(proposals.withdraw(w.coordinator,made.…
+     70|   expect(seen,'the withdrawing transaction began before the deadline, …
+     71|   expect(code(withdrawal)).toBe('APPROVAL_CLOSED');
+       |                            ^
+     72|   expect(await closings(made.approvalId,['access_change_withdrawn'])).…
+     73|   expect(await stateOf(made.approvalId)).toBe('pending');            /…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (b) the admin cancel of a coordinator ballot that passes its deadline inside the cancelling transaction answers APPROVAL_CLOSED and writes no event (OQ-49 a, OQ-51 b)
+AssertionError: expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+
+Expected: "APPROVAL_CLOSED"
+Received: "ok"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:88:27
+     86|   const cancelled=await settle(accounts.command(w.admin,{kind:'cancel_…
+     87|   expect(seen,'the cancelling transaction began before the deadline, w…
+     88|   expect(code(cancelled)).toBe('APPROVAL_CLOSED');
+       |                           ^
+     89|   expect(await closings(made.approvalId,['access_change_cancelled'])).…
+     90|   expect(await stateOf(made.approvalId)).toBe('pending');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (c) a co-manager's open ballot that passes its deadline inside the proposing transaction is closed by P15 and the new ballot is opened, never answered APPROVAL_PENDING (T7C-19)
+AssertionError: expected 'APPROVAL_PENDING' to be 'ok' // Object.is equality
+
+Expected: "ok"
+Received: "APPROVAL_PENDING"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:101:24
+     99|   const opened=await settle(proposals.propose(w.coordinator,{...propos…
+    100|   expect(seen,'the proposing transaction began before the deadline, wh…
+    101|   expect(code(opened)).toBe('ok');
+       |                        ^
+    102|   const made=(opened as {ok:true;value:DocApprovalProposal}).value;
+    103|   expect(made).toMatchObject({state:'pending',replayed:false});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (c) the proposer's own ballot that passes its deadline inside the proposing transaction is neither replayed nor answered APPROVAL_PENDING: the pair wait refuses and marks nothing (T7C-19 2, 8)
+AssertionError: expected 'ok' to be 'RATE_LIMITED' // Object.is equality
+
+Expected: "RATE_LIMITED"
+Received: "ok"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:118:23
+    116|   const again=await settle(proposals.propose(w.coordinator,{...propose…
+    117|   expect(seen,'the proposing transaction began before the deadline, wh…
+    118|   expect(code(again)).toBe('RATE_LIMITED');
+       |                       ^
+    119|   expect(messageOf(again)).toBe(PAIR_WAIT);
+    120|   expect(await stateOf(mine.approvalId)).toBe('pending');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (c) a 24-hour pair wait that ends inside the proposing transaction no longer refuses: P14 reads its end on the statement clock (T7C-19 2)
+AssertionError: expected 'RATE_LIMITED' to be 'ok' // Object.is equality
+
+Expected: "ok"
+Received: "RATE_LIMITED"
+
+ ❯ tests/doc-approval-statement-clock.test.ts:136:24
+    134|   const opened=await settle(proposals.propose(w.coordinator,{...propos…
+    135|   expect(seen,'the proposing transaction began inside the 24 hours, wh…
+    136|   expect(code(opened)).toBe('ok');
+       |                        ^
+    137|   expect((opened as {ok:true;value:DocApprovalProposal}).value).toMatc…
+    138| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (e) the own list does not show a ballot that passes its deadline inside the listing transaction (OQ-50 c)
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "eb19cfea-962d-45d2-b1a9-d36355d2cfb5",
++ ]
+
+ ❯ tests/doc-approval-statement-clock.test.ts:147:43
+    145|   const listed=await proposals.listOwn(w.coordinator,{projectId:S});
+    146|   expect(seen,'the listing transaction began before the deadline, whic…
+    147|   expect(listed.map(row=>row.approvalId)).toEqual([]);
+       |                                           ^
+    148| });
+    149|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/doc-approval-statement-clock.test.ts > Codex P1 (f) the admin list does not show as open a ballot that passes its deadline inside the listing transaction (T7C-9, T7C-15)
+AssertionError: expected { …(8) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "approvalId": "eda70f89-ea65-4b2a-af9c-70baaa1e9a92",
+  "expiresAt": "2026-11-16T10:28:55.731Z",
+  "grants": [
+    {
+      "projectId": "11000000-0000-4000-8000-000000000001",
+      "reportPermissions": [
+        "doc_approve:design",
+      ],
+      "role": "engineer",
+    },
+  ],
+  "previousGrants": [
+    {
+      "projectId": "11000000-0000-4000-8000-000000000001",
+      "reportPermissions": [],
+      "role": "engineer",
+    },
+  ],
+  "proposerIsCoordinator": true,
+  "reason": "Điều phối mẫu (điều phối dự án) trình: Cần người duyệt bản thiết kế của dự án",
+  "state": "pending",
+  "viaProjectManager": true,
+}
+
+ ❯ tests/doc-approval-statement-clock.test.ts:158:32
+    156|   expect(seen,'the listing transaction began before the deadline, whic…
+    157|   expect(listed,'the subject is listed').toBeDefined();
+    158|   expect(listed?.accessChange).toBeNull();
+       |                                ^
+    159| });
+    160|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  7 failed | 9 passed (16)
+   Start at  17:28:41
+   Duration  18.43s (tests 99%, import 1%)
+
+
+===== C1 (d) PostgreSQL lock waits (AssertionError lines: 4) =====
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > two withdrawals at once write one event 356ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a withdrawal racing a vote never drops the vote silently 457ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a withdrawal racing the admin's cancel writes one closing event 448ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin command on the proposer racing a withdrawal never deadlocks 448ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin cancel racing a coordinator's proposal for the same member leaves at most one open ballot 535ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a cancel and a vote on a ballot frozen at an older version do not deadlock 327ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin change to the subject racing a withdrawal is seen by it 462ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin cancel racing a BoM seat's vote on the same live ballot ends one consistent way and never deadlocks 462ms
+ × tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a withdrawal that waits on the account-admin row past the deadline answers APPROVAL_CLOSED, writes no event, and the pair wait still holds 2121ms
+   → expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+ × tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a withdrawal that waits on the ballot row at R5 past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED 2100ms
+   → expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+ × tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) the admin cancel that waits on the ballot row past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED and writes no event 2107ms
+   → expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+ × tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a proposal that waits on the account-admin row past the deadline of a co-manager's open ballot closes it and opens the new one 2105ms
+   → expected 'APPROVAL_PENDING' to be 'ok' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a withdrawal that waits on the account-admin row past the deadline answers APPROVAL_CLOSED, writes no event, and the pair wait still holds
+AssertionError: expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+
+Expected: "APPROVAL_CLOSED"
+Received: "ok"
+
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:321:26
+    319|       noDeadlock(done);
+    320|       expect(held).toEqual({on:[expect.stringMatching(ADMIN_ROW_SHARE)…
+    321|       expect(code(done)).toBe('APPROVAL_CLOSED');
+       |                          ^
+    322|       expect(await closings(w,made.approvalId)).toBe(0);
+    323|       expect(await stateOf(w,made.approvalId)).toBe('pending');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a withdrawal that waits on the ballot row at R5 past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED
+AssertionError: expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+
+Expected: "APPROVAL_CLOSED"
+Received: "ok"
+
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:335:26
+    333|       noDeadlock(done);
+    334|       expect(held).toEqual({on:[expect.stringMatching(BALLOT_ROW_LOCK)…
+    335|       expect(code(done)).toBe('APPROVAL_CLOSED');
+       |                          ^
+    336|       expect(await closings(w,made.approvalId)).toBe(0);
+    337|       expect(await stateOf(w,made.approvalId)).toBe('pending');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) the admin cancel that waits on the ballot row past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED and writes no event
+AssertionError: expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+
+Expected: "APPROVAL_CLOSED"
+Received: "ok"
+
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:346:26
+    344|       noDeadlock(done);
+    345|       expect(held).toEqual({on:[expect.stringMatching(CANCEL_ROW_LOCK)…
+    346|       expect(code(done)).toBe('APPROVAL_CLOSED');
+       |                          ^
+    347|       expect(await closings(w,made.approvalId)).toBe(0);
+    348|       expect(await stateOf(w,made.approvalId)).toBe('pending');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a proposal that waits on the account-admin row past the deadline of a co-manager's open ballot closes it and opens the new one
+AssertionError: expected 'APPROVAL_PENDING' to be 'ok' // Object.is equality
+
+Expected: "ok"
+Received: "APPROVAL_PENDING"
+
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:357:26
+    355|       noDeadlock(done);
+    356|       expect(held).toEqual({on:[expect.stringMatching(ADMIN_ROW_SHARE)…
+    357|       expect(code(done)).toBe('ok');
+       |                          ^
+    358|       expect(await stateOf(w,other.approvalId)).toBe('expired');
+    359|       expect(await openFor(w,w.subject.id)).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 8 passed (12)
+   Start at  17:12:55
+   Duration  12.06s (tests 99%)
+
+
+===== C1 statement-split check, PostgreSQL (throwaway variant) (AssertionError lines: 2) =====
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/doc-approval-statement-clock.test.ts > Codex P1 (a) a withdrawal whose ballot passes its deadline inside the withdrawing transaction answers APPROVAL_CLOSED, writes no event, does not close the ballot, and the pair wait still holds (OQ-48 b, OQ-51 b, T7C-30) 2138ms
+ ✓ tests/doc-approval-statement-clock.test.ts > Codex P1 (b) the admin cancel of a coordinator ballot that passes its deadline inside the cancelling transaction answers APPROVAL_CLOSED and writes no event (OQ-49 a, OQ-51 b) 2111ms
+ ✓ tests/doc-approval-statement-clock.test.ts > Codex P1 (c) a co-manager's open ballot that passes its deadline inside the proposing transaction is closed by P15 and the new ballot is opened, never answered APPROVAL_PENDING (T7C-19) 2114ms
+ ✓ tests/doc-approval-statement-clock.test.ts > Codex P1 (c) the proposer's own ballot that passes its deadline inside the proposing transaction is neither replayed nor answered APPROVAL_PENDING: the pair wait refuses and marks nothing (T7C-19 2, 8) 2122ms
+ ✓ tests/doc-approval-statement-clock.test.ts > Codex P1 (c) a 24-hour pair wait that ends inside the proposing transaction no longer refuses: P14 reads its end on the statement clock (T7C-19 2) 2103ms
+ ✓ tests/doc-approval-statement-clock.test.ts > Codex P1 (e) the own list does not show a ballot that passes its deadline inside the listing transaction (OQ-50 c) 2089ms
+(node:85071) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ tests/doc-approval-statement-clock.test.ts > Codex P1 (f) the admin list does not show as open a ballot that passes its deadline inside the listing transaction (T7C-9, T7C-15) 2095ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > two withdrawals at once write one event 336ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a withdrawal racing a vote never drops the vote silently 454ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a withdrawal racing the admin's cancel writes one closing event 460ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin command on the proposer racing a withdrawal never deadlocks 441ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin cancel racing a coordinator's proposal for the same member leaves at most one open ballot 541ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a cancel and a vote on a ballot frozen at an older version do not deadlock 323ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin change to the subject racing a withdrawal is seen by it 456ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > an admin cancel racing a BoM seat's vote on the same live ballot ends one consistent way and never deadlocks 449ms
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a withdrawal that waits on the account-admin row past the deadline answers APPROVAL_CLOSED, writes no event, and the pair wait still holds 2105ms
+ × tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a withdrawal that waits on the ballot row at R5 past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED 2119ms
+   → expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+ × tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) the admin cancel that waits on the ballot row past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED and writes no event 2093ms
+   → expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+ ✓ tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a proposal that waits on the account-admin row past the deadline of a co-manager's open ballot closes it and opens the new one 2097ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) a withdrawal that waits on the ballot row at R5 past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED
+AssertionError: expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+
+Expected: "APPROVAL_CLOSED"
+Received: "ok"
+
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:335:26
+    333|       noDeadlock(done);
+    334|       expect(held).toEqual({on:[expect.stringMatching(BALLOT_ROW_LOCK)…
+    335|       expect(code(done)).toBe('APPROVAL_CLOSED');
+       |                          ^
+    336|       expect(await closings(w,made.approvalId)).toBe(0);
+    337|       expect(await stateOf(w,made.approvalId)).toBe('pending');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/doc-approval-withdraw-concurrency.test.ts > withdraw and cancel concurrency (native PostgreSQL) > a deadline that passes while the command waits on a lock (Codex round 1, P1) > Codex P1 (d) the admin cancel that waits on the ballot row past the deadline, held by a session that leaves the row unchanged, answers APPROVAL_CLOSED and writes no event
+AssertionError: expected 'ok' to be 'APPROVAL_CLOSED' // Object.is equality
+
+Expected: "APPROVAL_CLOSED"
+Received: "ok"
+
+ ❯ tests/doc-approval-withdraw-concurrency.test.ts:346:26
+    344|       noDeadlock(done);
+    345|       expect(held).toEqual({on:[expect.stringMatching(CANCEL_ROW_LOCK)…
+    346|       expect(code(done)).toBe('APPROVAL_CLOSED');
+       |                          ^
+    347|       expect(await closings(w,made.approvalId)).toBe(0);
+    348|       expect(await stateOf(w,made.approvalId)).toBe('pending');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  2 failed | 17 passed (19)
+   Start at  17:13:43
+   Duration  26.91s (tests 99%)
+
+
+===== C2 PGlite (AssertionError lines: 1) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-ui.test.tsx (20 tests | 1 failed) 66ms
+   ❯ the proposal block on the Review screen (20)
+     × P20 after the reviewers panel is read again the block follows the fresh canDesignate, not the standing the page read: a demoted coordinator gets former or denied, a promoted member the form 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P20 after the reviewers panel is read again the block follows the fresh canDesignate, not the standing the page read: a demoted coordinator gets former or denied, a promoted member the form
+AssertionError: standingAfterReread is exported by doc-approval-view.ts: expected 'undefined' to be 'function' // Object.is equality
+
+Expected: "function"
+Received: "undefined"
+
+ ❯ tests/doc-approval-ui.test.tsx:622:99
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+   Start at  17:19:27
+   Duration  170ms (tests 55%, transform 27%, import 17%, worker 1%)
+
+
