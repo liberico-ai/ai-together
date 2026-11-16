@@ -51,6 +51,14 @@ export function standingAfterReread(initial: ProposalsInitial | undefined, canDe
   return initial?.state === 'ready' ? { ...initial, canPropose: canDesignate } : initial;
 }
 
+/** The page's answer once a reread of the reviewers panel failed (Codex round 1 re-review, N1). The panel answers `SCOPE_DENIED` to every role
+ *  outside its readers, so a coordinator demoted to «Chỉ đọc» while the page is open gets no fresh `canDesignate`; the refusal itself says they may
+ *  not propose, so the block takes `standingAfterReread(initial, false)`: `former` with own ballots left, `denied` with none. Any other failure
+ *  (network, server, a code that is not a scope refusal) says nothing about the standing, and the very same value comes back. */
+export function standingAfterRereadFailure(initial: ProposalsInitial | undefined, e: unknown): ProposalsInitial | undefined {
+  return e instanceof ApiError && e.code === 'SCOPE_DENIED' ? standingAfterReread(initial, false) : initial;
+}
+
 export type ProposalDraft = { userId: string; docTypes: DocType[]; basis: string; withdrawId: string | null; withdrawBasis: string };
 export const EMPTY_PROPOSAL_DRAFT: ProposalDraft = { userId: '', docTypes: [], basis: '', withdrawId: null, withdrawBasis: '' };
 

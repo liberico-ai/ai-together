@@ -14,7 +14,7 @@ import { headingLabel, reviewPageState, eligibilityCopy, diffLabel, approverCopy
   DOC_TYPES, EMPTY_PANEL_DRAFT, QUEUE_PAGE_SIZE, queueWindow, queueHref, EMPTY_COPY, DENIED_COPY, ERROR_COPY, NOT_FOUND_COPY, CONFLICT_COPY, NOT_COORDINATOR_COPY, APPROVAL_NOTE_COPY, APPROVAL_NOTE_WITH_PROPOSALS_COPY, REVOKED_NOTICE, DECIDED_COPY, TRUNCATED_COPY, NO_REVISION_COPY,
   type ReviewPageState, type ReviewForm, type DecisionDraft, type CommentDraft, type PanelDraft, type DecisionCmd } from './review-view';
 import { DocApprovalPanel } from './doc-approval-proposals';
-import { proposalPanelState, canProposeFrom, standingAfterReread, reloadProposals, proposeBody, withdrawBody, proposalFailure, PROPOSED_NOTICE, WITHDRAWN_NOTICE, PROPOSALS_LOAD_ERROR_COPY } from './doc-approval-view';
+import { proposalPanelState, canProposeFrom, standingAfterReread, standingAfterRereadFailure, reloadProposals, proposeBody, withdrawBody, proposalFailure, PROPOSED_NOTICE, WITHDRAWN_NOTICE, PROPOSALS_LOAD_ERROR_COPY } from './doc-approval-view';
 
 // Review screens. Text from the database (titles, summaries, comments, bases, names) is rendered as React text only.
 // Buttons follow the service's `eligibility`, `canDesignate` and the per-comment `canAddress` / `canResolve`; this file computes no permission of its own.
@@ -289,7 +289,8 @@ export type QueueProps = { projects: { id: string; name: string }[]; projectId: 
 
 /** Without `proposals` the screen is exactly as before. With it, the reviewers panel carries the other approval note and the proposal block sits right under it. */
 export function ReviewQueue({ projects, projectId, initial, denied, delegations: initialDelegations, people, viewerId, offset = 0, proposals: pageProposals }: QueueProps) {
-  // what the page read about the own list; its standing follows every later read of the reviewers panel (reloadDelegations, standingAfterReread)
+  // what the page read about the own list; its standing follows every later read of the reviewers panel (reloadDelegations, standingAfterReread),
+  // a refused one included (rereadFailed, standingAfterRereadFailure)
   const [proposals, setProposals] = useState(pageProposals);
   const [page, setPage] = useState(initial), [loading, setLoading] = useState(false), [error, setError] = useState<string | null>(null),
     [delegations, setDelegations] = useState(initialDelegations), [busy, setBusy] = useState(false), [panelError, setPanelError] = useState(''), [reloadable, setReloadable] = useState(false), [notice, setNotice] = useState('');
@@ -309,10 +310,13 @@ export function ReviewQueue({ projects, projectId, initial, denied, delegations:
     setLoading(true); setError(null);
     try { setPage(await api<{ items: ReviewItem[]; total: number }>('/api/reviews?projectId=' + projectId + '&limit=' + QUEUE_PAGE_SIZE + '&offset=' + offset)); } catch { setError(ERROR_COPY); } finally { setLoading(false); }
   }
+  /** A failed reread hands its error to the block's standing first (a scope refusal ends the form; anything else changes nothing), then goes on,
+   *  so the line that says it stays: reloadAll, reloadProposals and command() catch it as before (Codex round 1 re-review, N1). */
+  function rereadFailed(e: unknown): never { setProposals(p => standingAfterRereadFailure(p, e)); throw e; }
   /** Every reread of the reviewers panel: the block's «Tải lại», the panel's «Tải lại», after a grant or a revoke. The block then follows the
    *  canDesignate just read, not the standing of page time (Codex gate round 1, P2). */
   async function reloadDelegations() {
-    const fresh = await api<NonNullable<QueueProps['delegations']>>('/api/reviews/delegations?projectId=' + projectId);
+    const fresh = await api<NonNullable<QueueProps['delegations']>>('/api/reviews/delegations?projectId=' + projectId).catch(rereadFailed);
     setDelegations(fresh);
     setProposals(p => standingAfterReread(p, fresh.canDesignate === true));
   }

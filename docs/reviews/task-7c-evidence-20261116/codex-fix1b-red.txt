@@ -1,0 +1,68 @@
+Codex fix round 1 follow-up N1 (viewer demotion) - red runs before the fix (tests first). Branch task-7c-coordinator-proposal, HEAD 56a7362 (code at 986285f).
+The new case P21 of tests/doc-approval-ui.test.tsx, run on PGlite (the file takes no database; native variables unset with env -u). Two stages:
+Stage 1: P21 against the code of HEAD, before standingAfterRereadFailure existed. The first assertion (the export) is red; the twenty existing cases of the file passed.
+Stage 2: standingAfterRereadFailure added to src/components/doc-approval-view.ts, review.tsx not yet wired. Every behaviour assertion of P21 passed (former, denied, the list kept, other failures change nothing, the error line of reloadProposals); the source pin of the wiring is red. The twenty existing cases passed.
+Count of AssertionError lines (grep -c "^AssertionError" on this file): 2 (stage 1: 1, stage 2: 1). No hook timeout, no 'timed out' line and no other error class in these runs.
+Redaction: checkout path replaced by <repo>, scratch path by <scratchpad>; no environment value and no connection string. In stage 2 the diff vitest prints after "+ Received" is the whole source file; it is cut, as said in place.
+-----
+===== Stage 1: P21 before standingAfterRereadFailure (AssertionError lines: 1) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-ui.test.tsx (21 tests | 1 failed) 69ms
+   ❯ the proposal block on the Review screen (21)
+     × P21 a reread of the reviewers panel refused for scope (a coordinator demoted to viewer while the page is open) ends the form: former or denied, the error line stays; any other failure changes nothing 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P21 a reread of the reviewers panel refused for scope (a coordinator demoted to viewer while the page is open) ends the form: former or denied, the error line stays; any other failure changes nothing
+AssertionError: standingAfterRereadFailure is exported by doc-approval-view.ts: expected 'undefined' to be 'function' // Object.is equality
+
+Expected: "function"
+Received: "undefined"
+
+ ❯ tests/doc-approval-ui.test.tsx:650:113
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 passed (21)
+   Start at  17:58:16
+   Duration  190ms (tests 52%, transform 28%, import 18%, worker 1%)
+
+===== Stage 2: helper present, wiring not yet (AssertionError lines: 1) =====
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-ui.test.tsx (21 tests | 1 failed) 65ms
+   ❯ the proposal block on the Review screen (21)
+     × P21 a reread of the reviewers panel refused for scope (a coordinator demoted to viewer while the page is open) ends the form: former or denied, the error line stays; any other failure changes nothing 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-ui.test.tsx > the proposal block on the Review screen > P21 a reread of the reviewers panel refused for scope (a coordinator demoted to viewer while the page is open) ends the form: former or denied, the error line stays; any other failure changes nothing
+AssertionError: expected '\'use client\';\nimport { useRef, use…' to contain 'function rereadFailed(e: unknown): ne…'
+
+- Expected
++ Received
+
+- function rereadFailed(e: unknown): never { setProposals(p => standingAfterRereadFailure(p, e)); throw e; }
+[the "+" lines, the whole of src/components/review.tsx at that moment (367 lines at HEAD, 368 diff lines with the end of file), are left out of this log]
+
+ ❯ tests/doc-approval-ui.test.tsx:678:17
+    676|     // wiring: the failed read hands its error to the block's standing…
+    677|     const src = await readFile('src/components/review.tsx', 'utf8');
+    678|     expect(src).toContain('function rereadFailed(e: unknown): never { …
+       |                 ^
+    679|     expect(src).toMatch(/async function reloadDelegations\(\) \{[^}]*\…
+    680|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 passed (21)
+   Start at  17:58:33
+   Duration  155ms (tests 61%, import 19%, transform 18%, worker 1%)

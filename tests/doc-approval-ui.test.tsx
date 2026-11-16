@@ -14,6 +14,7 @@ import { AppError } from '../src/server/errors';
 import type { DocApprovalProposal } from '../src/server/doc-approval-proposals';
 import type { ApproverView } from '../src/server/review-delegations';
 import { standingAfterReread } from '../src/components/doc-approval-view';
+import { standingAfterRereadFailure } from '../src/components/doc-approval-view';
 import type { ProposalsInitial } from '../src/server/review-page';
 
 // Task 4 of Task 7c (step 16b): the coordinator's proposal block on the Review screen. Every id, name and text below is synthetic.
@@ -643,5 +644,38 @@ describe('the proposal block on the Review screen', () => {
     expect(src).toMatch(/async function reloadDelegations\(\) \{[^}]*setDelegations\(fresh\);[^}]*setProposals\(p => standingAfterReread\(p, fresh\.canDesignate === true\)\);/);
     expect(src).toContain('const [proposals, setProposals] = useState(pageProposals)');
     expect(src).toContain('canProposeFrom(proposals, delegations?.canDesignate === true)');
+  });
+
+  it('P21 a reread of the reviewers panel refused for scope (a coordinator demoted to viewer while the page is open) ends the form: former or denied, the error line stays; any other failure changes nothing', async () => {
+    expect(typeof standingAfterRereadFailure, 'standingAfterRereadFailure is exported by doc-approval-view.ts').toBe('function');
+    const read = (canPropose: boolean, items: DocApprovalProposal[]): ProposalsInitial => ({ state: 'ready', items, canPropose });
+    // a viewer is outside the panel's reading roles, so the reread answers SCOPE_DENIED and brings no canDesignate: the panel keeps the one of page time
+    const refused = new ApiError('Không tìm thấy tài liệu trong phạm vi được cấp.', 'SCOPE_DENIED', 404);
+    const staleCanDesignate = true;
+    const afterFailure = (initial: ProposalsInitial, e: unknown, count: number) => proposalPanelState({ loading: false, admin: false, failed: false, denied: false,
+      canPropose: canProposeFrom(standingAfterRereadFailure(initial, e), staleCanDesignate), count });
+    // «Trình phiếu» answered MANAGER_REQUIRED (reloadable, P20); «Tải lại» is refused for scope and the own list still reads (OQ-50 c)
+    expect(afterFailure(read(true, [ballot()]), refused, 1)).toBe('former');
+    expect(afterFailure(read(true, []), refused, 0)).toBe('denied');
+    // the same answer as a reread that brought canDesignate=false; the list the page read is kept as it is
+    expect(standingAfterRereadFailure(read(true, [ballot()]), refused)).toEqual(standingAfterReread(read(true, [ballot()]), false));
+    expect(standingAfterRereadFailure(read(true, [ballot()]), refused)).toEqual(read(false, [ballot()]));
+    // any other failure of the reread says nothing about the standing: the very same value comes back and the form stays
+    const others: unknown[] = [new TypeError('Failed to fetch'), new ApiError('Không xử lý được yêu cầu. [INTERNAL_ERROR]', 'INTERNAL_ERROR', 500),
+      new ApiError('Thử lại sau ít phút. [RATE_LIMITED]', 'RATE_LIMITED', 429), new Error('lỗi lạ'), undefined, { code: 'SCOPE_DENIED' }];
+    for (const e of others) {
+      const initial = read(true, [ballot()]);
+      expect(standingAfterRereadFailure(initial, e)).toBe(initial);
+      expect(afterFailure(initial, e, 1)).toBe('ready');
+    }
+    expect(standingAfterRereadFailure({ state: 'admin' }, refused)).toEqual({ state: 'admin' });
+    expect(standingAfterRereadFailure(undefined, refused)).toBeUndefined();
+    // the error line stays: the block's «Tải lại» says the refusal of the panel and still reads the own list
+    const r = await reloadProposals({ readOwn: async () => [ballot()], readDelegations: async () => { throw refused; } }, true);
+    expect(r).toEqual({ own: { kind: 'ok', items: [ballot()] }, delegationsError: 'Không tìm thấy tài liệu trong phạm vi được cấp.' });
+    // wiring: the failed read hands its error to the block's standing first, then goes on, so reloadAll, reloadProposals and command() still say it
+    const src = await readFile('src/components/review.tsx', 'utf8');
+    expect(src).toContain('function rereadFailed(e: unknown): never { setProposals(p => standingAfterRereadFailure(p, e)); throw e; }');
+    expect(src).toMatch(/async function reloadDelegations\(\) \{[^}]*\.catch\(rereadFailed\);[^}]*setDelegations\(fresh\);/);
   });
 });
