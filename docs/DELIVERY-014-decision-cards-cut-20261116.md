@@ -6,7 +6,7 @@ Sửa mục 44 của `docs/DELIVERY-012-review-skills-20261115.md` (reviewer mã
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | **Mã ở `fba0134`**, PR [#14](https://github.com/liberico-ai/ai-together/pull/14), **chưa merge**. Test trên hai động cơ, coverage, typecheck và build xanh với mã thoát 0 ở đúng mã đó; mười ca mới đỏ trên mã gốc và xanh sau khi sửa. Review tầng 1: xem bảng bằng chứng. **Cổng Codex:** vòng 1 `VERDICT: CHANGES_REQUIRED` (một P2, một P3; không P0/P1); Chairman chọn phương án (b) của OQ-47; một vòng sửa; **vòng 2 (base `0560a4f`, head `3f5a947`): dòng đầu là `VERDICT: PASS`**, kèm một góp ý P3 về tệp bằng chứng, đã sửa ở commit ghi kết quả cổng (commit đó chỉ có tài liệu và log; cổng chưa xem nó) | Bảng «Bằng chứng kiểm» bên dưới |
+| **Đã có mã** | **Mã ở `fba0134`**, PR [#14](https://github.com/liberico-ai/ai-together/pull/14), **merge vào `libetech-ai-os` ngày 16/11/2026 (`679ff6c`, «Merge pull request #14»)**, head lúc merge `24897ba`. Test trên hai động cơ, coverage, typecheck và build xanh với mã thoát 0 ở đúng mã đó; mười ca mới đỏ trên mã gốc và xanh sau khi sửa. Review tầng 1: xem bảng bằng chứng. **Cổng Codex:** vòng 1 `VERDICT: CHANGES_REQUIRED` (một P2, một P3; không P0/P1); Chairman chọn phương án (b) của OQ-47; một vòng sửa; **vòng 2 (base `0560a4f`, head `3f5a947`): dòng đầu là `VERDICT: PASS`**, kèm một góp ý P3 về tệp bằng chứng, đã sửa ở commit ghi kết quả cổng (commit đó chỉ có tài liệu và log; cổng chưa xem nó) | Bảng «Bằng chứng kiểm» bên dưới |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1; PR này không có migration | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Chỉ chạy trên dữ liệu tổng hợp; chưa người giữ ghế nào dùng màn Quyết định trên dữ liệu thật | — |
 | Đã nghiệm thu | **Chưa.** Chưa có chữ ký nghiệm thu | — |
@@ -87,9 +87,20 @@ Không chạy: `pytest` (PR không đụng `bot-plugin/` hay tệp Python nào);
 14. Reviewer bảo mật tầng 1 chỉ soát cây trước vòng sửa OQ-47. Vòng sửa đó chỉ đổi thứ tự trong cùng tập dòng đã được phép xem (reviewer mã xác nhận ở `058e341`: cùng mệnh đề `WHERE`, cùng `LIMIT`, phép kiểm ghế không đổi). Commit `fba0134` (khoá sắp xếp ba nhánh, ba ca kiểm, lời chú thích) được làm sau lượt soát riêng và không có lượt soát tầng 1 nào nữa; phiên đọc diff, cổng Codex vòng 2 xem toàn bộ.
 15. Bốn mục 45–48 của `DELIVERY-012` còn nguyên.
 
+## Kiểm lại của phiên điều phối và merge
+
+Phiên điều phối kiểm lại độc lập tại head `24897ba` ngày 16/11/2026, trong một worktree riêng, trước khi trình Chairman merge:
+
+- `npx vitest run` trên PostgreSQL 16 thật: 68 tệp, 1024 test đạt, 0 bỏ qua. Trên PGlite: 58 tệp đạt và 10 bỏ qua, 983 test đạt và 41 bỏ qua (ca chỉ chạy native).
+- `python3 -m pytest tests/test_bot_bridge.py -q`: 67 đạt, 69 subtest đạt (PR không đụng tệp Python; chạy để chắc cây vẫn xanh). `npm run typecheck` và `rm -rf .next && npm run build`: mã thoát 0.
+- Kiểm tĩnh: sau `fba0134` chỉ có commit tài liệu; dòng đầu `codex-round-2.md` là `VERDICT: PASS`; quét 959 dòng có nội dung mà PR thêm (1 200 dòng tính cả dòng trống) không thấy khoá, token, chuỗi kết nối, đường dẫn thư mục máy hay mã nhóm Telegram thật; PR không đụng `AGENTS.md`, `CLAUDE.md`, `.env`, `data/`, `package.json`, `bot-plugin/`, `migrations/`.
+- Không làm: không chạy coverage, không kiểm tay giao diện, không chạy lại Codex, không soát tầng 1 cho `fba0134` (khoảng trống 14 vẫn đúng).
+
+PR #14 merge vào `libetech-ai-os` ngày 16/11/2026 (`679ff6c`, hai commit cha là `0560a4f` và `24897ba`) sau khi Chairman duyệt: «Merge PR #14». Cây sau merge trùng cây ở head `24897ba`; `main` không đổi (`d23e516`); không có lượt GitHub Actions mới. Đây là kết quả kiểm mã và việc merge; không nói gì về triển khai, dùng thật hay nghiệm thu.
+
 ## Điểm dừng — không làm, chờ Chairman
 
-Merge PR này · triển khai d1-ai1 · kiểm tay thẻ 3/3 bằng trình duyệt với người giữ ghế thật.
+Triển khai d1-ai1 · kiểm tay thẻ 3/3 bằng trình duyệt với người giữ ghế thật. (Merge PR này đã làm ngày 16/11/2026 theo lời Chairman «Merge PR #14»; xem «Kiểm lại của phiên điều phối và merge».)
 
 ## Câu hỏi mở
 
