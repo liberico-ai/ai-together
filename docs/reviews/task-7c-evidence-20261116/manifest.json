@@ -72,5 +72,65 @@
       "result": "33 PASS, 0 FAIL; concurrency cases pass native and skip on PGlite",
       "log": "task-5-negative-cases.md"
     }
+  ],
+  "finalCodeHead": "4f7e000c93bdaaf254a970d8c2f40569f1b2bba6",
+  "laterRuns": [
+    {
+      "name": "final-fix-wave",
+      "codeAt": "7a11c1b",
+      "runner": "builder agent, local machine",
+      "results": {
+        "pglite": "64 files passed | 12 skipped (76); 1095 passed | 58 skipped (1153); 0 failed",
+        "native": "76 files passed; 1153 passed; 0 skipped; 0 failed; no 40P01 line"
+      },
+      "logs": [
+        "final-fix-wave-red.txt",
+        "final-fix-wave-pglite.txt",
+        "final-fix-wave-native.txt",
+        "final-fix-wave-mutation.txt",
+        "final-fix-wave-typecheck-build.txt"
+      ]
+    },
+    {
+      "name": "codex-fix-1",
+      "codeAt": "986285f",
+      "runner": "builder agent, local machine",
+      "results": {
+        "red": "21 AssertionError lines, no timeout",
+        "pglite": "65 files passed | 12 skipped (77); 1103 passed | 62 skipped (1165); 0 failed",
+        "native": "77 files passed; 1165 passed; 0 skipped; 0 failed; no 40P01 line",
+        "typecheck": "exit 0",
+        "build": "exit 0; routes /api/team/doc-approvals/[[...path]], /review, /team, /approvals",
+        "pytest": "67 passed, 69 subtests passed"
+      },
+      "logs": [
+        "codex-fix1-red.txt",
+        "codex-fix1-pglite.txt",
+        "codex-fix1-native.txt",
+        "codex-fix1-typecheck-build.txt"
+      ]
+    },
+    {
+      "name": "codex-fix-1-n1",
+      "codeAt": "4f7e000",
+      "runner": "builder agent, local machine",
+      "results": {
+        "red": "2 AssertionError lines, no timeout",
+        "pglite": "65 files passed | 12 skipped (77); 1104 passed | 62 skipped (1166); 0 failed",
+        "native": "77 files passed; 1166 passed; 0 skipped; 0 failed; no 40P01 line; 1104 + 62 = 1166",
+        "typecheck": "exit 0",
+        "build": "exit 0; routes /api/team/doc-approvals/[[...path]], /review, /team, /approvals"
+      },
+      "logs": [
+        "codex-fix1b-red.txt",
+        "codex-fix1b-pglite.txt",
+        "codex-fix1b-native.txt",
+        "codex-fix1b-typecheck-build.txt"
+      ]
+    }
+  ],
+  "notRunAfterTask5": [
+    "coverage (last run at 0c7ab7f)",
+    "manual browser check at 360 and 1280 px"
   ]
 }
