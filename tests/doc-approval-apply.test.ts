@@ -52,10 +52,10 @@ const applyEvent=async(approvalId:string)=>{
 };
 const accessEvents=async()=>(await rows(w,"SELECT 1 FROM identity.events WHERE kind='account_access'")).length;
 /** The admin's `access` with the frozen grants of the approved ballot; the standing field is sent only when `standing` is a boolean. */
-const applyWith=async(userId:string,standing?:boolean)=>{
+const applyWith=async(userId:string,standing?:boolean,p:Principal=w.admin)=>{
   const frozen=(await rows<{grants:ProjectGrant[]}>(w,`SELECT grants FROM identity.account_approvals WHERE kind='access_change' AND subject_user_id=$1
     AND state='approved' ORDER BY created_at DESC LIMIT 1`,[userId]))[0].grants;
-  return w.accounts.command(w.admin,{kind:'access',userId,expectedVersion:await versionOf(userId),reason:APPLY,grants:frozen,
+  return w.accounts.command(p,{kind:'access',userId,expectedVersion:await versionOf(userId),reason:APPLY,grants:frozen,
     ...(standing===undefined?{}:{proposerIsCoordinator:standing})});
 };
 /** The admin's own direct save of an account's grants (a narrowing needs no ballot). */
@@ -219,7 +219,7 @@ describe('the admin applies a coordinator ballot',()=>{
     await say(w,2,made.approvalId);
     expect(await openOf(w.subject.id)).toMatchObject({approvalId:made.approvalId,state:'approved',proposerIsCoordinator:true});
     // still only the account admin reads the list
-    for(const p of [w.coordinator,w.subject,{...w.admin,role:'bot'} as Principal])
+    for(const p of [w.coordinator,w.subject,{...w.admin,role:'bot'} as Principal,{...w.admin,tenantId:ids.otherTenant} as Principal])
       expect(await refusal(w.accounts.list(p)),p.name).toEqual(ADMIN_ONLY);
   });
 
@@ -263,6 +263,10 @@ describe('the admin applies a coordinator ballot',()=>{
     }
     // reloaded: the list says false; sending false applies
     expect((await openOf(w.subject.id))?.proposerIsCoordinator).toBe(false);
+    // AR-06, Quality Gate 34a: the admin's own id under another tenant is refused, with the right echo, and nothing changes
+    await expect(applyWith(w.subject.id,false,{...w.admin,tenantId:ids.otherTenant} as Principal)).rejects.toMatchObject(ADMIN_ONLY);
+    expect(await snapshot(w)).toEqual(before);
+    expect(await accessEvents()).toBe(events);
     await expect(applyWith(w.subject.id,false)).resolves.toHaveProperty('user.id',w.subject.id);
     expect(await stateOf(made.approvalId)).toBe('issued');
     expect((await applyEvent(made.approvalId)).detail).toMatchObject({proposedBy:w.coordinator.id,proposerNoLongerCoordinator:true});

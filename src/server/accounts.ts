@@ -74,9 +74,12 @@ export class AccountService {
         AND EXISTS (SELECT 1 FROM identity.memberships WHERE user_id=u.id)
         AND NOT EXISTS (SELECT 1 FROM identity.memberships WHERE user_id=u.id AND NOT project_id=ANY($2::uuid[]))
         ORDER BY username LIMIT 200`,[p.id,[...scope]])).rows;
+      // Task 7c: the open ballots are read one account at a time, before the Promise.all below, so this task issues no query on a busy client
+      const changes=new Map<string,OpenAccessChange|null>();
+      for(const user of rows) changes.set(user.id,await this.openAccessChange(tx,user));
       return Promise.all(rows.map(async user=>({...user,grants:await this.identity.grants(tx,user.id),
         githubId:(await tx.query<{github_id:string}>('SELECT github_id FROM identity.github_links WHERE user_id=$1 AND ended_at IS NULL',[user.id])).rows[0]?.github_id??null,
-        accessChange:await this.openAccessChange(tx,user)})));
+        accessChange:changes.get(user.id)??null})));
     });
   }
 
@@ -250,6 +253,9 @@ export class AccountService {
             invariant(delta,'TELEGRAM_APPROVAL_REQUIRED','Mở rộng quyền cần phiếu duyệt Telegram mới.',409);
             // (2) OQ-37 (c), N2 of gate round 1: read in this transaction, which holds the account-admin row FOR UPDATE (`operator`). The admin
             // applies what the page showed: a missing or different value is a conflict, never applied. An equal value goes on, even false.
+            // Plain read, no lock: every application write of memberships, users.active or account_version runs in this service, after
+            // `operator` locked the admin row. Under READ COMMITTED (a plain BEGIN, db.ts) this is the committed value. Under REPEATABLE READ
+            // the snapshot would predate that lock, so this read would have to lock, or the echo could match a stale value.
             const actual=(await this.identity.activeProjectRole(tx,ballot.proposer_id,delta.projectId))==='manager';
             invariant(cmd.proposerIsCoordinator===actual,'VERSION_CONFLICT','Tình trạng người trình đã đổi. Tải lại để xem trước khi áp.',409);
             proposerDetail={proposedBy:ballot.proposer_id,...(actual?{}:{proposerNoLongerCoordinator:true as const})};

@@ -12,6 +12,7 @@ import { OpenBallot, ballotCommand, shouldReloadAccounts, standingEcho } from '.
 import { ApiError } from '../src/components/api';
 import { reasonPrefix } from '../src/server/doc-approval-proposals';
 import type { OpenAccessChange } from '../src/server/accounts';
+import { AccountForm, reloadAfterConflict } from '../src/components/team-accounts';
 
 // Static markup only; every name and id below is synthetic. Task 7b: the account form shows and keeps the eight document-approval codes,
 // a ballot card names the document types it adds, and nothing in the registration form can carry the right (OQ-31 b).
@@ -352,5 +353,43 @@ describe('open ballots on the team screen', () => {
     expect(submit).not.toMatch(/kind==='propose_access_change'\?standingEcho\(/);
     const caught = submit.slice(submit.indexOf('catch(error)'), submit.indexOf('finally'));
     expect(caught).toContain('shouldReloadAccounts(error)');
+  });
+
+  // Task 3 fix round 1 (security review F1): pressing Enter in a text field submits a form through its first submit button
+  it('pressing Enter in the account form applies and cancels nothing: its first submit button is disabled and hidden, before the ballot buttons', () => {
+    const account = (c: OpenAccessChange) => ({ id: 'u-1', username: 'thanh.vien', name: 'Thành viên mẫu', active: true, activated: true, version: 3,
+      grants: [{ projectId: 'p-sales', role: 'engineer' as const, reportPermissions: [] }], githubId: null, accessChange: c });
+    const form = (c: OpenAccessChange) => renderToStaticMarkup(<AccountForm user={account(c)} projects={projects} busy={false} expands={false}
+      onSubmit={() => {}} onExpands={() => {}} />);
+    // a button with no type attribute submits too
+    const submits = (html: string) => buttons(html).filter(b => !/\stype="(button|reset)"/.test(b));
+    const approved = form(change());
+    expect(submits(approved)[0]).toBe('<button type="submit" disabled="" hidden="">');
+    expect(approved.indexOf(submits(approved)[0])).toBeLessThan(approved.indexOf('value="apply_frozen"'));
+    expect(approved).toMatch(/^<form\b[^>]*><button type="submit" disabled="" hidden=""><\/button>/);
+    expect(buttons(approved).filter(b => b.includes('hidden'))).toHaveLength(1);
+    // the ballot buttons still submit, with their values, on click
+    for (const value of ['apply_frozen', 'cancel_access_change']) {
+      expect(withValue(approved, value), value).toHaveLength(1);
+      expect(withValue(approved, value)[0], value).toContain('type="submit"');
+      expect(withValue(approved, value)[0], value).not.toContain('disabled');
+    }
+    // a pending coordinator ballot: the guard comes before Huỷ phiếu của điều phối
+    const pending = form(change({ state: 'pending' }));
+    expect(submits(pending)[0]).toBe('<button type="submit" disabled="" hidden="">');
+    expect(pending.indexOf(submits(pending)[0])).toBeLessThan(pending.indexOf('value="cancel_access_change"'));
+  });
+
+  it('a failed reload after a VERSION_CONFLICT keeps the refusal on screen and adds the reload error after it', async () => {
+    const refused = new ApiError('Tình trạng người trình đã đổi. Tải lại để xem trước khi áp. [VERSION_CONFLICT]', 'VERSION_CONFLICT', 409);
+    const shown: string[] = [];
+    await reloadAfterConflict(refused, async () => { throw new TypeError('Failed to fetch'); }, message => shown.push(message));
+    expect(shown).toEqual([refused.message + ' Không tải lại được danh sách tài khoản: Failed to fetch']);
+    // a reload that works shows nothing more: the refusal shown before it stays
+    const quiet: string[] = [];
+    let reloads = 0;
+    await reloadAfterConflict(refused, async () => { reloads++; }, message => quiet.push(message));
+    expect(reloads).toBe(1);
+    expect(quiet).toEqual([]);
   });
 });

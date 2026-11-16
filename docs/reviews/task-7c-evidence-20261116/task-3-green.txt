@@ -166,3 +166,107 @@ $ npm run test
       Tests  1065 passed | 57 skipped (1122)
    Duration  432.61s (tests 99%, import 1%)
 exit 0
+
+=== Fix round 1 — lượt sửa 1 sau review Task 3 (security F1, F2; code-review minor 2, 3; security note 1), 16/11/2026 ===
+Nền: HEAD a350b1a. Năm mục, chưa commit.
+
+--- Ca mới chạy đỏ trước khi sửa (PGlite). AccountForm đã được tách ra nhưng chưa có nút chặn; reloadAfterConflict còn giữ hành vi cũ (lỗi tải lại thay cho lời từ chối)
+$ npx vitest run tests/doc-approver-ui.test.tsx tests/inbox-ui.test.tsx
+     × pressing Enter in the account form applies and cancels nothing: its first submit button is disabled and hidden, before the ballot buttons 4ms
+     × a failed reload after a VERSION_CONFLICT keeps the refusal on screen and adds the reload error after it 1ms
+AssertionError: expected '<button type="submit" class="primary"…' to be '<button type="submit" disabled="" hid…' // Object.is equality
+Expected: "<button type="submit" disabled="" hidden="">"
+Received: "<button type="submit" class="primary" value="apply_frozen">"
+ ❯ tests/doc-approver-ui.test.tsx:367:34
+AssertionError: expected [ 'Failed to fetch' ] to deeply equal [ Array(1) ]
+-   "Tình trạng người trình đã đổi. Tải lại để xem trước khi áp. [VERSION_CONFLICT] Không tải lại được danh sách tài khoản: Failed to fetch",
++   "Failed to fetch",
+ ❯ tests/doc-approver-ui.test.tsx:387:19
+ Test Files  1 failed | 1 passed (2)
+      Tests  2 failed | 43 passed (45)
+exit 1
+
+--- Sau khi thêm nút chặn ẩn và sửa thông báo
+$ npx vitest run tests/doc-approver-ui.test.tsx tests/inbox-ui.test.tsx
+ Test Files  2 passed (2)
+      Tests  45 passed (45)
+exit 0
+
+--- F2: thêm quản trị mang tenant khác vào vòng từ chối của A5 và một lần áp ở A7 (PGlite)
+$ npx vitest run tests/doc-approval-apply.test.ts
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+exit 0
+
+--- Đột biến (e) (PGlite): bỏ vế p.tenantId===this.identity.tenantId khỏi invariant của operator
+-    invariant(p.tenantId===this.identity.tenantId && p.role!=='bot' && p.id===this.identity.adminId,
++    invariant(p.role!=='bot' && p.id===this.identity.adminId,
+$ npx vitest run tests/doc-approval-apply.test.ts
+     × the admin list shows the open ballot of each account and nothing for an account without one 530ms
+     × OQ-37 a stale proposer standing is answered VERSION_CONFLICT, and after a reload the note is there and the apply goes through 489ms
+Error: expected a refusal, the call succeeded          (A5: hàm refusal của fixture báo lời gọi list thành công)
+ ❯ tests/doc-approval-apply.test.ts:223:14
+AssertionError: promise resolved "{ user: { …(6) }, …(1) }" instead of rejecting          (A7: lần áp với tenant khác)
+ ❯ tests/doc-approval-apply.test.ts:267:99
+      Tests  2 failed | 6 passed (8)
+exit 1
+    khôi phục: cmp với bản sao trước đột biến = giống hệt; git diff --stat -- src/server/accounts.ts trước và sau: giống nhau (7 dòng thêm, 1 dòng xoá so với HEAD)
+
+--- typecheck (đã xoá .next/**/* 2* trước; 0 bản sao)
+$ npm run typecheck
+> tsc --noEmit
+exit 0
+
+--- PGlite, danh sách của bước 5
+$ npx vitest run tests/doc-approval-apply.test.ts tests/doc-approver-ui.test.tsx tests/doc-approval-proposal.test.ts tests/doc-approval-proposal-http.test.ts tests/doc-approval-withdraw.test.ts tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts tests/rsc-boundary.test.ts
+ RUN  v5.1.0 <repo>
+ Test Files  13 passed (13)
+      Tests  161 passed | 1 skipped (162)
+   Duration  78.01s (tests 99%, import 1%)
+exit 0
+
+--- PostgreSQL thật, danh sách của bước 5 cùng hai tệp tranh chấp
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run <13 tệp trên> tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-withdraw-concurrency.test.ts
+ RUN  v5.1.0 <repo>
+ Test Files  15 passed (15)
+      Tests  178 passed (178)
+   Duration  67.88s (tests 99%, import 1%)
+exit 0
+
+--- Số dòng DeprecationWarning của pg trong lần chạy PostgreSQL thật ở trên
+$ grep -c DeprecationWarning <đầu ra>
+trước khi sửa (HEAD a350b1a, src và tests sạch; 15 tệp, 176 passed): 7
+sau khi sửa (15 tệp, 178 passed): 7
+Vì sao không giảm: pg 8.23.1 phát cảnh báo này qua util.deprecate, nên mỗi tiến trình chỉ in một lần, lần đầu có lệnh query trên client đang bận.
+$ NODE_OPTIONS=--trace-deprecation, cùng lệnh (sau khi sửa): 7 dòng; cả 7 có cùng vị trí trong repo
+    at IdentityService.grants (<repo>/src/server/identity.ts:39:24)
+    at <repo>/src/server/accounts.ts:80:84          (Promise.all có từ trước của list: grants và githubId cho từng tài khoản)
+    at Array.map (<anonymous>)
+    lời gọi từ: doc-approval-proposal, doc-approval-withdraw (applyFrozen), doc-approver-grant, access-change, doc-approval-apply, doc-approval-proposal-concurrency, doc-approver-flow
+Phép thử tạm (không giữ lại): cho Promise.all có từ trước ở accounts.ts:80 chạy lần lượt, chạy lại cùng lệnh với --trace-deprecation
+ Test Files  15 passed (15)
+      Tests  178 passed (178)
+DeprecationWarning: 0
+    khôi phục: cmp với bản sao trước phép thử = giống hệt
+⇒ các lần đọc mới của task này không còn gửi query nào lên client đang bận. Bảy dòng còn lại đều do Promise.all có từ trước, mà lượt sửa này được dặn không đụng.
+
+--- Kiểm giới hạn
+$ git diff --name-only 679ff6c -- migrations src/server/account-approval.ts bot-plugin AGENTS.md CLAUDE.md
+(rỗng)
+$ md5 thân hàm proposeAccessChange tại 679ff6c / HEAD / bản sửa
+af9c7c4ab8f13779ea2016ec34d43cac / af9c7c4ab8f13779ea2016ec34d43cac / af9c7c4ab8f13779ea2016ec34d43cac
+$ md5 thân hàm cancelAccessChange tại HEAD / bản sửa
+8e34ae16c1564a11f5667794ba4370b1 / 8e34ae16c1564a11f5667794ba4370b1
+$ git diff -U0 HEAD -- tests/doc-approver-ui.test.tsx | grep -c "^-[^-]"
+0
+$ git diff --stat HEAD -- (12 tệp kiểm phải giữ nguyên) tests/doc-approval-fixtures.ts tests/inbox-ui.test.tsx src/components/approvals.tsx
+(rỗng)
+$ git diff --stat HEAD
+ src/components/team-accounts.tsx | 58 +++++++++++++++++++++++++---------------
+ src/server/accounts.ts           |  8 +++++-
+ tests/doc-approval-apply.test.ts | 10 ++++---
+ tests/doc-approver-ui.test.tsx   | 39 +++++++++++++++++++++++++++
+ 4 files changed, 90 insertions(+), 25 deletions(-)
+
+--- Quét byte (lượt sửa 1): accounts.ts, team-accounts.tsx, doc-approver-ui.test.tsx, doc-approval-apply.test.ts, task-3-green.txt, task-3-report.md
+U+202A–U+202E, U+2066–U+2069, U+200B–U+200F, U+2028, U+2029, U+FEFF, U+00AD, ký tự điều khiển C0/C1 (trừ LF, TAB), CR: 0 trong mọi tệp
