@@ -5,7 +5,7 @@ import { digest, IdentityService, secret } from './identity';
 import type { Queryable } from './db';
 import type { GrantPermission, Principal, ProjectGrant } from './types';
 import {approvalReady,notifyVoters,verifiedApprovalSeats} from './account-approval';
-import {DOC_APPROVAL_PREFIX,DOC_APPROVAL_TYPES,docApprovalCode,widensAccess} from './access-grants';
+import {DOC_APPROVAL_PREFIX,DOC_APPROVAL_TYPES,docApprovalCode,docApprovalDelta,widensAccess} from './access-grants';
 
 // The three report permissions and the eight doc_approve codes (OQ-31 b). Duplicate values are handled exactly as before: not refused here.
 const grantPermission=z.enum(['people_read','quality_review','report_approve',...DOC_APPROVAL_TYPES.map(docApprovalCode)] as [GrantPermission,...GrantPermission[]]);
@@ -18,7 +18,8 @@ const edit={userId:z.uuid(),expectedVersion:z.number().int().positive(),reason};
 const commandSchema=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('invite'),username:z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9._-]{2,63}$/),
     name:z.string().trim().min(2).max(100),grants:grantsSchema,reason}).strict(),
-  z.object({kind:z.literal('access'),...edit,grants:grantsSchema}).strict(),
+  // Task 7c (OQ-37 c, T7C-11): `proposerIsCoordinator` is the proposer standing the admin saw; read only when a coordinator ballot is applied
+  z.object({kind:z.literal('access'),...edit,grants:grantsSchema,proposerIsCoordinator:z.boolean().optional()}).strict(),
   z.object({kind:z.literal('propose_access_change'),...edit,grants:grantsSchema}).strict(),
   // Task 7c (OQ-36 d, OQ-49 a): close a coordinator's open access-change ballot of this account; the account itself is not changed
   z.object({kind:z.literal('cancel_access_change'),...edit,approvalId:z.uuid().transform(value=>value.toLowerCase())}).strict(),
@@ -30,6 +31,11 @@ const commandSchema=z.discriminatedUnion('kind',[
     })}).strict(),
 ]);
 type Account={id:string;username:string;name:string;active:boolean;activated:boolean;version:number};
+/** Task 7c: the open access-change ballot of an account, as the admin list shows it. Open = pending or approved, unexpired and frozen at the
+ * account's current version (T7C-9). */
+export type OpenAccessChange={approvalId:string;state:'pending'|'approved';reason:string;expiresAt:string;grants:ProjectGrant[];previousGrants:ProjectGrant[];
+  viaProjectManager:boolean;            // the proposer is not the account admin
+  proposerIsCoordinator:boolean|null};  // null for a ballot the admin proposed; else: the proposer IS STILL an active, activated manager of the project the ballot adds codes in
 const summary='id,username,name,active,password_hash IS NOT NULL AS activated,account_version AS version';
 const reviewRegistration=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('approve_registration'),requestId:z.uuid(),grants:grantsSchema,reason}).strict(),
@@ -69,8 +75,30 @@ export class AccountService {
         AND NOT EXISTS (SELECT 1 FROM identity.memberships WHERE user_id=u.id AND NOT project_id=ANY($2::uuid[]))
         ORDER BY username LIMIT 200`,[p.id,[...scope]])).rows;
       return Promise.all(rows.map(async user=>({...user,grants:await this.identity.grants(tx,user.id),
-        githubId:(await tx.query<{github_id:string}>('SELECT github_id FROM identity.github_links WHERE user_id=$1 AND ended_at IS NULL',[user.id])).rows[0]?.github_id??null})));
+        githubId:(await tx.query<{github_id:string}>('SELECT github_id FROM identity.github_links WHERE user_id=$1 AND ended_at IS NULL',[user.id])).rows[0]?.github_id??null,
+        accessChange:await this.openAccessChange(tx,user)})));
     });
+  }
+
+  /** Task 7c (OQ-37 c, T7C-11, T7C-15): the open access-change ballot of one account, whoever proposed it; at most one row (index
+   * account_approval_active_access_change). A ballot whose stored grants do not parse is not shown. For a coordinator ballot the proposer's
+   * standing is read in this transaction, which holds the account-admin row: the same reading the `access` command makes. */
+  private async openAccessChange(tx:Queryable,user:Account):Promise<OpenAccessChange|null> {
+    const row=(await tx.query<{id:string;state:'pending'|'approved';reason:string;expires_at:string|Date;grants:unknown;previous_grants:unknown;proposer_id:string}>(
+      `SELECT id,state,reason,expires_at,grants,previous_grants,proposer_id FROM identity.account_approvals
+      WHERE kind='access_change' AND subject_user_id=$1 AND state IN ('pending','approved') AND expires_at>now() AND subject_account_version=$2
+      ORDER BY created_at DESC LIMIT 1`,[user.id,user.version])).rows[0];
+    if(!row) return null;
+    const grants=grantsSchema.safeParse(row.grants),previous=grantsSchema.safeParse(row.previous_grants);
+    if(!grants.success||!previous.success) return null;
+    const viaProjectManager=row.proposer_id!==this.identity.adminId?.toLowerCase();
+    let proposerIsCoordinator:boolean|null=null;
+    if(viaProjectManager) {
+      const delta=docApprovalDelta(previous.data,grants.data);
+      proposerIsCoordinator=delta!==null&&(await this.identity.activeProjectRole(tx,row.proposer_id,delta.projectId))==='manager';
+    }
+    return {approvalId:row.id,state:row.state,reason:row.reason,expiresAt:new Date(row.expires_at).toISOString(),grants:grants.data,
+      previousGrants:previous.data,viaProjectManager,proposerIsCoordinator};
   }
 
   async pendingRegistrations(p:Principal) {
@@ -201,6 +229,7 @@ export class AccountService {
       if(cmd.kind==='cancel_access_change') return this.cancelAccessChange(tx,p,user,cmd.approvalId,cmd.reason);
       const nextVersion=user.version+1;
       let accessApprovalId:string|undefined;
+      let proposerDetail:{proposedBy:string;proposerNoLongerCoordinator?:true}|undefined;
       if(cmd.kind==='access') {
         invariant(user.activated,'TELEGRAM_APPROVAL_REQUIRED',
           'Tài khoản chờ kích hoạt cần trình lại phạm vi qua Chairman và một thành viên BoM.',409);
@@ -208,12 +237,23 @@ export class AccountService {
         // Reducing access needs no ballot. Widening it needs an approved access-change ballot for this account, frozen at this
         // account version, whose grants are exactly these grants.
         if(widensAccess(before,cmd.grants)) {
-          const ballot=(await tx.query<{id:string;grants:ProjectGrant[];subject_account_version:number;previous_grants:ProjectGrant[]}>(`SELECT id,grants,subject_account_version,previous_grants
+          const ballot=(await tx.query<{id:string;grants:ProjectGrant[];subject_account_version:number;previous_grants:ProjectGrant[];proposer_id:string}>(`SELECT id,grants,subject_account_version,previous_grants,proposer_id
             FROM identity.account_approvals WHERE kind='access_change' AND subject_user_id=$1 AND state='approved' AND expires_at>now()
             ORDER BY created_at DESC LIMIT 1`,[user.id])).rows[0];
           invariant(ballot&&ballot.subject_account_version===user.version&&sameGrants(grantsSchema.parse(ballot.grants),cmd.grants)
             &&sameGrants(grantsSchema.parse(ballot.previous_grants),before),
             'TELEGRAM_APPROVAL_REQUIRED','Mở rộng quyền cần phiếu duyệt Telegram mới.',409);
+          // Task 7c: two checks for a ballot a project coordinator proposed only; a ballot the admin proposed goes on exactly as before.
+          if(ballot.proposer_id!==this.identity.adminId?.toLowerCase()) {
+            // (1) S1 of the old gate: a coordinator ballot adds doc_approve:* codes to one project and nothing else
+            const delta=docApprovalDelta(grantsSchema.parse(ballot.previous_grants),grantsSchema.parse(ballot.grants));
+            invariant(delta,'TELEGRAM_APPROVAL_REQUIRED','Mở rộng quyền cần phiếu duyệt Telegram mới.',409);
+            // (2) OQ-37 (c), N2 of gate round 1: read in this transaction, which holds the account-admin row FOR UPDATE (`operator`). The admin
+            // applies what the page showed: a missing or different value is a conflict, never applied. An equal value goes on, even false.
+            const actual=(await this.identity.activeProjectRole(tx,ballot.proposer_id,delta.projectId))==='manager';
+            invariant(cmd.proposerIsCoordinator===actual,'VERSION_CONFLICT','Tình trạng người trình đã đổi. Tải lại để xem trước khi áp.',409);
+            proposerDetail={proposedBy:ballot.proposer_id,...(actual?{}:{proposerNoLongerCoordinator:true as const})};
+          }
           const approval=await approvalReady(tx,this.identity,ballot.id,'access_change');
           await tx.query(`UPDATE identity.account_approvals SET state='issued',updated_at=now() WHERE id=$1`,[approval.id]);
           accessApprovalId=approval.id;
@@ -249,7 +289,7 @@ export class AccountService {
       const invitation=cmd.kind==='reissue'?await this.issue(tx,p,user.id,nextVersion,approved.account_approval_id):undefined;
       await this.audit(tx,p,user.id,'account_'+cmd.kind,{
         reason:cmd.reason,previousVersion:user.version,version:nextVersion,previousActive:user.active,active,
-        ...(cmd.kind==='access'?{before,after:cmd.grants,...(accessApprovalId?{approvalId:accessApprovalId}:{})}:{}),
+        ...(cmd.kind==='access'?{before,after:cmd.grants,...(accessApprovalId?{approvalId:accessApprovalId}:{}),...proposerDetail}:{}),
         ...(cmd.kind==='verify_github'?{githubId:cmd.githubId,sourceId:cmd.sourceId}:{}),
       });
       return {user:updated,invitation};

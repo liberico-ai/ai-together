@@ -1,0 +1,168 @@
+=== Task 3 bước 5 — PGlite, danh sách của bước 5 (16/11/2026) ===
+$ npx vitest run tests/doc-approval-apply.test.ts tests/doc-approver-ui.test.tsx tests/doc-approval-proposal.test.ts tests/doc-approval-proposal-http.test.ts tests/doc-approval-withdraw.test.ts tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts tests/rsc-boundary.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  13 passed (13)
+      Tests  159 passed | 1 skipped (160)
+   Start at  13:39:40
+   Duration  72.90s (tests 99%, import 1%)
+
+exit 0
+
+=== Task 3 bước 5 — PostgreSQL thật (máy chủ tổng hợp loopback), danh sách của bước 5 cùng hai tệp tranh chấp ===
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run <13 tệp trên> tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-withdraw-concurrency.test.ts
+
+ RUN  v5.1.0 <repo>
+
+(node:13327) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:13349) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:13358) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:13363) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:13374) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:13382) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:13385) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  15 passed (15)
+      Tests  176 passed (176)
+   Start at  13:41:01
+   Duration  65.28s (tests 99%, import 1%)
+
+exit 0
+
+=== Sau khi thay một ký tự U+202E thô ở ca U6 bằng chuỗi thoát (cùng giá trị lúc chạy) — chạy lại tệp giao diện ===
+$ npx vitest run tests/doc-approver-ui.test.tsx
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  13:42:54
+   Duration  181ms (import 45%, transform 31%, tests 23%, worker 1%)
+
+exit 0
+
+=== Task 3 bước 5 — typecheck (đã xoá .next/**/* 2* trước) ===
+$ npm run typecheck
+deleted: 0
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit 0
+
+=== Kiểm thêm — pytest của cầu nối bot (bot-plugin không đổi) ===
+$ python3 -m pytest tests/test_bot_bridge.py -q
+67 passed, 69 subtests passed in 5.36s
+exit 0
+
+=== Task 3 bước 6 — đột biến tạm (PGlite); mỗi lần chép lại bản trước đột biến, cmp: giống hệt ===
+$ npx vitest run tests/doc-approval-apply.test.ts   (sau mỗi đột biến của src/server/accounts.ts)
+--- (a) bỏ phép kiểm delta ở access (delta null thì lấy dự án từ grants của lệnh) → A2 đỏ
+     × a coordinator ballot that widens beyond doc_approve cannot be applied 507ms
+AssertionError: promise resolved "{ user: { …(6) }, …(1) }" instead of rejecting
+      Tests  1 failed | 7 passed (8)
+ ❯ tests/doc-approval-apply.test.ts:121:57
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (b) thêm invariant(actual, …) ngay sau phép so: access ném lỗi khi actual là false → A3 đỏ (và A7, cũng áp với false)
+     × OQ-37 a ballot whose proposer no longer coordinates the project is still applied by the admin once the list has said so 525ms
+     × OQ-37 a stale proposer standing is answered VERSION_CONFLICT, and after a reload the note is there and the apply goes through 504ms
+AssertionError: promise rejected "Error: mutation (b): refuse when the prop… { …(2) }" instead of resolving
+AssertionError: promise rejected "Error: mutation (b): refuse when the prop… { …(2) }" instead of resolving
+      Tests  2 failed | 6 passed (8)
+ ❯ tests/doc-approval-apply.test.ts:156:53
+ ❯ tests/doc-approval-apply.test.ts:266:48
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (c) bỏ dòng invariant(cmd.proposerIsCoordinator===actual, …) → A7 đỏ
+     × OQ-37 a stale proposer standing is answered VERSION_CONFLICT, and after a reload the note is there and the apply goes through 508ms
+AssertionError: promise resolved "{ user: { …(6) }, …(1) }" instead of rejecting
+      Tests  1 failed | 7 passed (8)
+ ❯ tests/doc-approval-apply.test.ts:258:70
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+--- (d) thêm nhánh else: phép so cmd.proposerIsCoordinator chạy cả với phiếu do quản trị trình → A6 đỏ (và nửa sau của A2, áp cùng dòng khi người trình là quản trị)
+     × a coordinator ballot that widens beyond doc_approve cannot be applied 516ms
+     × ballots the admin proposed apply exactly as before, with or without the standing field 517ms
+AssertionError: promise rejected "Error: Tình trạng người trình đã đổi. Tải… { …(2) }" instead of resolving
+AssertionError: promise rejected "Error: Tình trạng người trình đã đổi. Tải… { …(2) }" instead of resolving
+      Tests  2 failed | 6 passed (8)
+ ❯ tests/doc-approval-apply.test.ts:127:30
+ ❯ tests/doc-approval-apply.test.ts:238:62
+    khôi phục: cmp với bản sao trước đột biến = giống hệt
+
+$ git diff --stat -- src/server/accounts.ts   (trước mọi đột biến và sau mọi lần khôi phục: bằng nhau)
+ src/server/accounts.ts | 50 +++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 45 insertions(+), 5 deletions(-)
+ src/server/accounts.ts | 50 +++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 45 insertions(+), 5 deletions(-)
+
+=== Task 3 bước 7 — kiểm giới hạn ===
+$ git diff --stat 679ff6c -- src/server/account-approval.ts bot-plugin AGENTS.md CLAUDE.md migrations
+(exit 0, 0 dòng)
+$ git diff --name-only 679ff6c -- migrations
+(0 dòng)
+$ git diff -U0 679ff6c -- src/server/accounts.ts | grep "^@@"
+@@ -8 +8 @@ import {approvalReady,notifyVoters,verifiedApprovalSeats} from './account-approv
+@@ -12 +12 @@ const grantPermission=z.enum(['people_read','quality_review','report_approve',..
+@@ -21 +21,2 @@ const commandSchema=z.discriminatedUnion('kind',[
+@@ -22,0 +24,2 @@ const commandSchema=z.discriminatedUnion('kind',[
+@@ -30,0 +34,5 @@ type Account={id:string;username:string;name:string;active:boolean;activated:boo
+@@ -38 +46 @@ const reviewRegistration=z.discriminatedUnion('kind',[
+@@ -70 +78,2 @@ export class AccountService {
+@@ -73,0 +83,21 @@ export class AccountService {
+@@ -198,0 +229 @@ export class AccountService {
+@@ -200,0 +232 @@ export class AccountService {
+@@ -208 +240 @@ export class AccountService {
+@@ -213,0 +246,11 @@ export class AccountService {
+@@ -249 +292 @@ export class AccountService {
+@@ -282,0 +326,18 @@ export class AccountService {
+$ git diff 679ff6c -- src/components/approvals.tsx
+diff --git a/src/components/approvals.tsx b/src/components/approvals.tsx
+index 3330272..625f0cf 100644
+--- a/src/components/approvals.tsx
++++ b/src/components/approvals.tsx
+@@ -15,7 +15,7 @@ const permissionText=(permissions:string[]|undefined)=>{
+  const approve=docTypes.map(t=>TYPE_NAMES[t]).join(', ');
+  return (report?', quyền báo cáo: '+report:'')+(approve?(report?' · ':', ')+'duyệt bản chuẩn: '+approve:'');
+ };
+-const grantText=(grants:Grant[]|null|undefined,empty:string)=>grants?.length?grants.map(g=>
++export const grantText=(grants:Grant[]|null|undefined,empty:string)=>grants?.length?grants.map(g=>
+   `${g.name} (${roleLabel(g.role)}${permissionText(g.reportPermissions)})`).join('; '):empty;
+ 
+ /** A ballot shows what it is. An access change names the account and puts the frozen current grants next to the proposed ones, so a voter never approves a widening they cannot see. */
+$ git diff --stat 679ff6c -- tests/access-change.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts
+(0 dòng)
+$ (thân proposeAccessChange, từ dòng chữ ký tới dấu } đóng hàm) so với 679ff6c
+dòng 301–325 của tệp hiện tại; 25 dòng; cmp với bản ở 679ff6c: giống hệt
+không khoảng @@ nào ở trên rơi vào dòng 301–325: các khoảng gần nhất là +292 (sự kiện audit) và +326,18 (sau hàm, cancelAccessChange có từ Task 2)
+$ git diff --stat 679ff6c -- tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts tests/review-ui.test.tsx tests/review-page.test.ts tests/review-http.test.ts tests/rsc-boundary.test.ts tests/test_bot_bridge.py
+(rỗng)
+$ git diff --stat HEAD -- tests/doc-approval-withdraw.test.ts tests/doc-approval-proposal.test.ts tests/doc-approval-proposal-http.test.ts tests/doc-approval-proposal-concurrency.test.ts tests/doc-approval-withdraw-concurrency.test.ts vitest.config.ts
+(rỗng)
+$ git diff -U0 HEAD -- tests/doc-approver-ui.test.tsx | grep -c "^-[^-]"   (dòng bị xoá hay sửa trong tệp chỉ được thêm ca)
+0
+$ git diff -U0 HEAD -- tests/doc-approval-fixtures.ts | grep "^@@"   (chỉ hàm applyFrozen)
+@@ -77 +77,4 @@ export const applyFrozen=async(w:World,userId:string,over:Record<string,unknown>
+$ git status --short
+ M src/components/approvals.tsx
+ M src/components/team-accounts.tsx
+ M src/server/accounts.ts
+ M tests/doc-approval-fixtures.ts
+ M tests/doc-approver-ui.test.tsx
+?? docs/reviews/task-7c-evidence-20261116/task-3-red.txt
+?? tests/doc-approval-apply.test.ts
+
+=== Kiểm thêm — toàn bộ bộ vitest trên PGlite (bắt đầu trước khi thay U+202E thô ở U6 bằng chuỗi thoát; cùng giá trị lúc chạy) ===
+$ npm run test
+ Test Files  62 passed | 12 skipped (74)
+      Tests  1065 passed | 57 skipped (1122)
+   Duration  432.61s (tests 99%, import 1%)
+exit 0

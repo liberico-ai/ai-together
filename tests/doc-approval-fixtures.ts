@@ -74,7 +74,10 @@ export const applyFrozen=async(w:World,userId:string,over:Record<string,unknown>
   if(!ballot) throw new Error('no approved ballot');
   const listed=(await w.accounts.list(w.admin)).find(row=>row.id===userId);
   if(!listed) throw new Error('account not listed');
-  return w.accounts.command(w.admin,{kind:'access',userId,expectedVersion:listed.version,reason:'Áp đúng bộ quyền đã được duyệt',grants:ballot.grants,...over});
+  // Task 3 (T7C-11): echo the proposer standing the admin list shows, exactly as /team does; nothing for a ballot the admin proposed
+  const standing=listed.accessChange?.proposerIsCoordinator;
+  return w.accounts.command(w.admin,{kind:'access',userId,expectedVersion:listed.version,reason:'Áp đúng bộ quyền đã được duyệt',grants:ballot.grants,
+    ...(typeof standing==='boolean'?{proposerIsCoordinator:standing}:{}),...over});
 };
 export const resetThrottle=async(w:World)=>{await w.h.operator.query('DELETE FROM identity.throttle');};
 export const identityOn=(w:World,db:Database)=>new IdentityService(db,ids.tenant,w.admin.id);

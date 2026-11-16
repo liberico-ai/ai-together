@@ -8,6 +8,10 @@ import { TYPE_NAMES } from '../src/components/documents-view';
 import { DOC_APPROVAL_TYPES, docApprovalCode } from '../src/server/access-grants';
 import type { Project, ProjectGrant } from '../src/server/types';
 import before from './golden/approvals-before-7b.json';
+import { OpenBallot, ballotCommand, shouldReloadAccounts, standingEcho } from '../src/components/team-accounts';
+import { ApiError } from '../src/components/api';
+import { reasonPrefix } from '../src/server/doc-approval-proposals';
+import type { OpenAccessChange } from '../src/server/accounts';
 
 // Static markup only; every name and id below is synthetic. Task 7b: the account form shows and keeps the eight document-approval codes,
 // a ballot card names the document types it adds, and nothing in the registration form can carry the right (OQ-31 b).
@@ -211,5 +215,142 @@ describe('labels', () => {
       const source = await readFile('src/components/' + file, 'utf8');
       for (const name of ['Thiết kế', 'Kế hoạch', 'Mục lục dự án']) expect(source, file).not.toContain(name);
     }
+  });
+});
+
+// Task 7c, Task 3 (OQ-33 b, OQ-37 c, OQ-38 c, OQ-49 a): the open ballot of the selected account on /team, the two commands built from it,
+// and the ballot card on /approvals. Static markup only; every name and id is synthetic.
+describe('open ballots on the team screen', () => {
+  const NOTE = 'Người trình không còn là điều phối đang hoạt động của dự án này. Phiếu vẫn áp được; cân nhắc trước khi áp.';
+  const EXPLAIN = 'Phiếu này do điều phối dự án trình. Huỷ phiếu không đổi tài khoản và không thu hồi phiên của thành viên.';
+  const change = (over: Partial<OpenAccessChange> = {}): OpenAccessChange => ({
+    approvalId: 'a-1', state: 'approved', reason: 'Điều phối mẫu (điều phối dự án) trình: Cần người duyệt bản thiết kế', expiresAt: '2026-11-18T00:00:00.000Z',
+    grants: [{ projectId: 'p-sales', role: 'engineer', reportPermissions: [design] }], previousGrants: [{ projectId: 'p-sales', role: 'engineer', reportPermissions: [] }],
+    viaProjectManager: true, proposerIsCoordinator: true, ...over });
+  const ballot = (c: OpenAccessChange | null | undefined) => renderToStaticMarkup(<OpenBallot change={c} projects={projects} busy={false} />);
+  const buttons = (html: string) => [...html.matchAll(/<button\b[^>]*>/g)].map(m => m[0]);
+  const withValue = (html: string, value: string) => buttons(html).filter(b => b.includes('value="' + value + '"'));
+  const escaped = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+
+  it('an account with an approved ballot shows the frozen grants and one button that applies exactly them', () => {
+    const html = ballot(change());
+    expect(html).toContain('Phiếu đổi quyền đã đủ xác nhận.');
+    expect(html).toContain('Quyền hiện tại:');
+    expect(html).toContain('Quyền đề nghị:');
+    expect(html).toContain('duyệt bản chuẩn: Thiết kế');
+    expect(html).toContain('Quyền hiện tại: Dự án Bán hàng (Thực hiện)');
+    expect(html).toContain('Quyền đề nghị: Dự án Bán hàng (Thực hiện, duyệt bản chuẩn: Thiết kế)');
+    expect(html).not.toContain('doc_approve:');
+    expect(withValue(html, 'apply_frozen')).toHaveLength(1);
+    expect(withValue(html, 'apply_frozen')[0]).toContain('type="submit"');
+    expect(html).toContain('>Áp đúng bộ quyền đã được duyệt</button>');
+    expect(html).not.toContain('Đang có phiếu đổi quyền chờ một thành viên BoM.');
+    // F10: no previous grants; a project that is not in the list is shown by its id
+    expect(ballot(change({ previousGrants: [] }))).toContain('Quyền hiện tại: chưa có quyền nào');
+    const elsewhere = ballot(change({ grants: [{ projectId: 'p-elsewhere', role: 'engineer', reportPermissions: [design] }], previousGrants: [{ projectId: 'p-elsewhere', role: 'engineer', reportPermissions: [] }] }));
+    expect(elsewhere).toContain('Quyền hiện tại: p-elsewhere (Thực hiện)');
+    expect(elsewhere).toContain('Quyền đề nghị: p-elsewhere (Thực hiện, duyệt bản chuẩn: Thiết kế)');
+  });
+
+  it('a pending ballot shows that it waits for a BoM member and offers no apply button', () => {
+    for (const via of [true, false]) {
+      const html = ballot(change({ state: 'pending', viaProjectManager: via, proposerIsCoordinator: via ? true : null }));
+      expect(html, String(via)).toContain('Đang có phiếu đổi quyền chờ một thành viên BoM.');
+      expect(html, String(via)).not.toContain('Phiếu đổi quyền đã đủ xác nhận.');
+      expect(withValue(html, 'apply_frozen'), String(via)).toHaveLength(0);
+      expect(html, String(via)).not.toContain('Áp đúng bộ quyền đã được duyệt');
+      expect(html, String(via)).toContain('Căn cứ: ');
+    }
+  });
+
+  it('OQ-37 a coordinator ballot whose proposer no longer coordinates says so above the apply button, and still offers it', () => {
+    const html = ballot(change({ proposerIsCoordinator: false }));
+    expect(html).toContain(NOTE);
+    expect(html).toMatch(new RegExp('role="note"[^>]*>' + NOTE.replace(/[.;]/g, '\\$&')));
+    expect(withValue(html, 'apply_frozen')).toHaveLength(1);
+    expect(html.indexOf(NOTE)).toBeLessThan(html.indexOf('value="apply_frozen"'));
+    for (const c of [change({ proposerIsCoordinator: true }), change({ viaProjectManager: false, proposerIsCoordinator: null })]) {
+      const other = ballot(c);
+      expect(other, JSON.stringify(c.proposerIsCoordinator)).not.toContain(NOTE);
+      expect(other).not.toContain('role="note"');
+      expect(withValue(other, 'apply_frozen')).toHaveLength(1);
+    }
+  });
+
+  it('OQ-49 only a coordinator ballot offers Huỷ phiếu của điều phối', () => {
+    for (const state of ['pending', 'approved'] as const) {
+      const coordinator = ballot(change({ state }));
+      expect(withValue(coordinator, 'cancel_access_change'), state).toHaveLength(1);
+      expect(withValue(coordinator, 'cancel_access_change')[0], state).toContain('type="submit"');
+      expect(coordinator, state).toContain('>Huỷ phiếu của điều phối</button>');
+      expect(coordinator, state).toContain(EXPLAIN);
+      const admin = ballot(change({ state, viaProjectManager: false, proposerIsCoordinator: null }));
+      expect(withValue(admin, 'cancel_access_change'), state).toHaveLength(0);
+      expect(admin, state).not.toContain('Huỷ phiếu của điều phối');
+      expect(admin, state).not.toContain(EXPLAIN);
+    }
+  });
+
+  it('ballotCommand builds both bodies from the ballot, never from the ticked boxes, and echoes the standing the page showed', () => {
+    const user = (c: OpenAccessChange) => ({ id: 'u-1', version: 3, accessChange: c });
+    const stale = user(change({ proposerIsCoordinator: false }));
+    const apply = ballotCommand('apply_frozen', stale, 'Lý do áp phiếu');
+    expect(apply).toEqual({ kind: 'access', userId: 'u-1', expectedVersion: 3, reason: 'Lý do áp phiếu', grants: stale.accessChange.grants, proposerIsCoordinator: false });
+    expect(Object.keys(apply).sort()).toEqual(['expectedVersion', 'grants', 'kind', 'proposerIsCoordinator', 'reason', 'userId']);
+    expect(ballotCommand('apply_frozen', user(change()), 'Lý do áp phiếu')).toEqual({ kind: 'access', userId: 'u-1', expectedVersion: 3, reason: 'Lý do áp phiếu',
+      grants: change().grants, proposerIsCoordinator: true });
+    const adminApply = ballotCommand('apply_frozen', user(change({ viaProjectManager: false, proposerIsCoordinator: null })), 'Lý do áp phiếu');
+    expect(Object.keys(adminApply).sort()).toEqual(['expectedVersion', 'grants', 'kind', 'reason', 'userId']);
+    expect(adminApply).toEqual({ kind: 'access', userId: 'u-1', expectedVersion: 3, reason: 'Lý do áp phiếu', grants: change().grants });
+    const cancel = ballotCommand('cancel_access_change', stale, 'Lý do huỷ phiếu');
+    expect(cancel).toEqual({ kind: 'cancel_access_change', userId: 'u-1', expectedVersion: 3, reason: 'Lý do huỷ phiếu', approvalId: 'a-1' });
+    expect(Object.keys(cancel).sort()).toEqual(['approvalId', 'expectedVersion', 'kind', 'reason', 'userId']);
+  });
+
+  it('the basis is rendered as plain text', () => {
+    const reason = 'Căn cứ <script>alert(1)</script> \u202E đảo chiều';
+    const html = ballot(change({ reason }));
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('Căn cứ: <bdi dir="auto">' + escaped(reason) + '</bdi>');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+  });
+
+  it('an account without an open ballot renders nothing new', async () => {
+    expect(ballot(null)).toBe('');
+    expect(ballot(undefined)).toBe('');
+    const source = await readFile('src/components/team-accounts.tsx', 'utf8');
+    expect(source).toContain('<OpenBallot change={user.accessChange}');
+    expect(source).not.toContain('dangerouslySetInnerHTML');
+  });
+
+  it('OQ-38 the ballot card on /approvals shows who proposed and that the subject also coordinates, as text', () => {
+    const reason = reasonPrefix('Điều phối "mẫu" <A&B>', true) + 'Cần người duyệt bản thiết kế';
+    expect(reason).toContain('(điều phối dự án) trình; người được cấp cũng là điều phối của dự án đó: ');
+    const html = renderToStaticMarkup(<ApprovalItem busy={false} onVote={noop} item={{ id: 'b-2', kind: 'access_change', name: 'Thành viên Thử', username: 'thu',
+      project_interest: '', expires_at: '2026-11-20T00:00:00Z', reason, previous_grant_details: [], grant_details: [{ name: 'Dự án A', role: 'engineer', reportPermissions: [design] }] }} />);
+    expect(html).toContain('Căn cứ: ' + escaped(reason));
+    expect(html).not.toContain('<A&B>');
+  });
+
+  it('OQ-37 the manual save echoes the standing too, and a VERSION_CONFLICT reloads the account list', async () => {
+    expect(standingEcho({ accessChange: change({ proposerIsCoordinator: false }) })).toEqual({ proposerIsCoordinator: false });
+    expect(standingEcho({ accessChange: change({ proposerIsCoordinator: true }) })).toEqual({ proposerIsCoordinator: true });
+    expect(standingEcho({ accessChange: change({ viaProjectManager: false, proposerIsCoordinator: null }) })).toEqual({});
+    expect(standingEcho({ accessChange: null })).toEqual({});
+    expect(standingEcho({})).toEqual({});
+    expect(shouldReloadAccounts(new ApiError('x', 'VERSION_CONFLICT', 409))).toBe(true);
+    expect(shouldReloadAccounts(new ApiError('x', 'TELEGRAM_APPROVAL_REQUIRED', 409))).toBe(false);
+    expect(shouldReloadAccounts(new ApiError('x', 'APPROVAL_CLOSED', 409))).toBe(false);
+    expect(shouldReloadAccounts(new TypeError('Failed to fetch'))).toBe(false);
+    expect(shouldReloadAccounts(null)).toBe(false);
+    // and in the source: the `access` body of submit carries the echo, and its catch reloads the list
+    const source = await readFile('src/components/team-accounts.tsx', 'utf8');
+    const start = source.indexOf('async function submit(');
+    expect(start).toBeGreaterThan(-1);
+    const submit = source.slice(start, source.indexOf('return <main', start));
+    expect(submit).toMatch(/kind==='access'\?standingEcho\(/);
+    expect(submit).not.toMatch(/kind==='propose_access_change'\?standingEcho\(/);
+    const caught = submit.slice(submit.indexOf('catch(error)'), submit.indexOf('finally'));
+    expect(caught).toContain('shouldReloadAccounts(error)');
   });
 });
