@@ -5,7 +5,7 @@
   "headAtRun": "0c7ab7ff11cdc72c176935caec1bf871b68af2ff",
   "base": "460653e905f4a897a98b470a380f9c5ff652bf28",
   "observedAt": "2026-11-16T15:55:00+07:00",
-  "runner": "builder agent (Task 5: commands and evidence logs only; no source, test, migration or config file changed), local machine",
+  "runner": "scout agent (Task 5: commands and evidence logs only; no source, test, migration or config file changed), local machine",
   "nativeDatabase": "PostgreSQL 16, Docker container on loopback only, synthetic data (environment file loaded from $TASK7C_ENV_FILE, not echoed)",
   "redaction": "checkout path replaced by <repo>; home and scratch paths replaced; connection strings replaced by <redacted-url>; no environment values stored; ANSI escapes removed; bidi/format/line-separator characters scanned: 0 found",
   "commands": [
@@ -100,8 +100,7 @@
         "pglite": "65 files passed | 12 skipped (77); 1103 passed | 62 skipped (1165); 0 failed",
         "native": "77 files passed; 1165 passed; 0 skipped; 0 failed; no 40P01 line",
         "typecheck": "exit 0",
-        "build": "exit 0; routes /api/team/doc-approvals/[[...path]], /review, /team, /approvals",
-        "pytest": "67 passed, 69 subtests passed"
+        "build": "exit 0; routes /api/team/doc-approvals/[[...path]], /review, /team, /approvals"
       },
       "logs": [
         "codex-fix1-red.txt",
@@ -132,5 +131,6 @@
   "notRunAfterTask5": [
     "coverage (last run at 0c7ab7f)",
     "manual browser check at 360 and 1280 px"
-  ]
+  ],
+  "pytestNote": "pytest (67 passed, 69 subtests) was run at 0c7ab7f only (task-5-pytest.txt); the PR touches no Python file"
 }
