@@ -1,0 +1,76 @@
+Task 5 limit checks. Branch task-7c-coordinator-proposal, HEAD 0c7ab7ff11cdc72c176935caec1bf871b68af2ff, base 679ff6c.
+
+### L1 account-approval.ts, bot-plugin, AGENTS.md, CLAUDE.md unchanged
+$ git diff --stat 679ff6c -- src/server/account-approval.ts bot-plugin AGENTS.md CLAUDE.md
+--- output (expect empty):
+(empty)
+RESULT: PASS
+
+### L2 no migration changed
+$ git diff --name-only 679ff6c -- migrations
+--- output (expect empty):
+(empty)
+RESULT: PASS
+
+### L3 fourteen untouched test files
+$ git diff --stat 679ff6c -- tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts tests/review-ui.test.tsx tests/review-page.test.ts tests/review-http.test.ts tests/rsc-boundary.test.ts tests/test_bot_bridge.py tests/foundation.test.ts tests/spec004.test.ts
+--- output (expect empty):
+(empty)
+RESULT: PASS
+
+### L4 doc-approver-ui.test.tsx only adds lines
+$ git diff 679ff6c -- tests/doc-approver-ui.test.tsx | /usr/bin/grep -c '^-[^-]'
+--- output (expect 0):
+0
+RESULT: PASS
+
+### L5 proposeAccessChange body unchanged (function text from its opening line to the closing two-space brace, md5 at base vs now)
+$ echo base=742c7e2a4d1813cfc7ad41c895b0e4d4; echo now=742c7e2a4d1813cfc7ad41c895b0e4d4; git diff -U0 679ff6c -- src/server/accounts.ts | /usr/bin/grep -c '^@@'
+--- output (expect equal md5; hunks listed in the report):
+base=742c7e2a4d1813cfc7ad41c895b0e4d4
+now=742c7e2a4d1813cfc7ad41c895b0e4d4
+15
+RESULT: PASS
+
+### L5b function location and hunk starts
+$ /usr/bin/grep -n "private async proposeAccessChange(\|private async cancelAccessChange(" src/server/accounts.ts | cut -c1-70; git diff -U0 679ff6c -- src/server/accounts.ts | /usr/bin/grep "^@@" | sed -E "s/ @@.*//"
+--- output (no hunk starts between lines 307 and 331 of the new file):
+307:  private async proposeAccessChange(tx:Queryable,p:Principal,scope
+337:  private async cancelAccessChange(tx:Queryable,p:Principal,user:A
+@@ -8 +8
+@@ -12 +12
+@@ -21 +21,2
+@@ -22,0 +24,2
+@@ -30,0 +34,5
+@@ -38 +46
+@@ -68,0 +77,3
+@@ -70 +81,2
+@@ -73,0 +86,21
+@@ -198,0 +232
+@@ -200,0 +235
+@@ -208 +243
+@@ -213,0 +249,14
+@@ -249 +298
+@@ -282,0 +332,18
+RESULT: PASS
+
+### L6 identity.memberships writers in src
+$ /usr/bin/grep -rnE "(INSERT INTO|UPDATE|DELETE FROM) +identity\.memberships" src | cut -c1-110
+--- output (expect only src/server/accounts.ts lines):
+src/server/accounts.ts:196:    await tx.query('DELETE FROM identity.memberships WHERE user_id=$1',[userId]);
+src/server/accounts.ts:198:      await tx.query('INSERT INTO identity.memberships(tenant_id,user_id,project_id
+RESULT: PASS
+
+### L7 chat-id leak on added lines of src and tests
+$ git diff 679ff6c -- src tests | /usr/bin/grep -E '^\+' | /usr/bin/grep -E -- '-100[0-9]{7,}' | /usr/bin/grep -vE -- '-100000000000[0-9]([^0-9]|$)'
+--- output (expect empty):
+(empty)
+RESULT: PASS
+
+### L8 git status --short
+$ git status --short
+--- output (expect empty (no data/, .next/, env files)):
+(empty)
+RESULT: PASS
+
+SUMMARY: L1 PASS; L2 PASS; L3 PASS; L4 PASS; L5 PASS; L5b PASS; L6 PASS; L7 PASS; L8 PASS

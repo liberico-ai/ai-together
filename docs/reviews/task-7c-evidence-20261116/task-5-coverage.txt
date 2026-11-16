@@ -1,0 +1,84 @@
+Task 5 - coverage. Command: npx vitest run --coverage (native database loaded, v8 provider, threshold 60 on lines/functions/statements/branches from vitest.config.ts). HEAD 0c7ab7ff11cdc72c176935caec1bf871b68af2ff. Exit: 0 (threshold holds). 75 files passed, 1143 passed. Both new files are in coverage.include: src/server/doc-approval-proposals.ts and src/server/doc-approval-http.ts.
+-----
+
+ RUN  v5.1.0 <repo>
+      Coverage enabled with v8
+
+(node:42891) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:43359) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:43580) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:43670) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:43744) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:43756) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:43816) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  75 passed (75)
+      Tests  1143 passed (1143)
+   Start at  15:38:26
+   Duration  418.82s (tests 99%, import 1%)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   96.44 |    91.66 |   98.02 |   97.69 |                   
+ ...nt-approval.ts |     100 |    98.38 |     100 |     100 | 187               
+ accounts.ts       |   95.34 |     87.5 |   96.77 |   95.48 | 29-30,281-286     
+ auth-http.ts      |   88.46 |    79.16 |     100 |     100 | 8-10,14,20-22     
+ auth.ts           |   92.45 |    72.72 |     100 |   94.59 | 64-65             
+ bom.ts            |     100 |    98.79 |     100 |     100 | 99                
+ bridge-config.ts  |     100 |     90.9 |     100 |     100 | 35,49             
+ bridge-io.ts      |     100 |     87.5 |     100 |     100 | 26                
+ bridge.ts         |     100 |    85.71 |     100 |     100 | 30-32             
+ ...l-proposals.ts |   96.56 |    91.83 |     100 |   99.25 | 104               
+ ...nt-commands.ts |   82.35 |       75 |     100 |   85.71 | 16-17             
+ ...ependencies.ts |   98.21 |    97.22 |     100 |     100 | 96                
+ document-index.ts |    98.3 |    85.71 |     100 |     100 | 61-63,85          
+ ...ment-review.ts |   97.43 |    96.06 |     100 |    99.4 | 313               
+ documents.ts      |     100 |    96.61 |     100 |     100 | 70,91             
+ ...e-projector.ts |   71.11 |    69.23 |   54.54 |   75.67 | 20-27,48-54       
+ ...ence-scores.ts |   94.24 |    76.15 |     100 |   93.95 | ...98-200,205-206 
+ feedback.ts       |     100 |    90.47 |     100 |     100 | 21,68             
+ http.ts           |   97.29 |     92.5 |     100 |     100 | 12-13,34          
+ identity.ts       |   82.55 |    73.07 |   86.66 |    83.2 | ...08-215,227-229 
+ inbox-http.ts     |   93.93 |       90 |     100 |   95.83 | 41                
+ inbox.ts          |   96.49 |    88.09 |     100 |     100 | ...30-241,245,249 
+ intake-rules.ts   |   98.83 |    93.75 |     100 |     100 | 38,105            
+ intake.ts         |     100 |    95.09 |     100 |     100 | 48,120,123-126    
+ ...r-reconcile.ts |     100 |    93.75 |     100 |     100 | 18                
+ outbox.ts         |   97.41 |    91.96 |     100 |   99.13 | 33                
+ ...ts-registry.ts |   97.01 |       96 |   94.73 |     100 | 55                
+ reports.ts        |      96 |    72.91 |     100 |     100 | 21,44,50-55,63-75 
+ request-body.ts   |     100 |       90 |     100 |     100 | 30                
+ ...delegations.ts |   99.21 |    97.61 |     100 |     100 | 87,125            
+ review-http.ts    |   97.01 |    98.59 |   92.85 |   97.56 | 43                
+ service.ts        |   97.16 |    91.48 |   97.14 |   98.24 | 39,138            
+ skill-context.ts  |   93.05 |    90.16 |     100 |     100 | 35-40,42,89-90    
+ ...l-contracts.ts |   99.26 |    97.93 |     100 |     100 | 114-115           
+ skills.ts         |   98.11 |    97.95 |     100 |     100 | 86                
+ suggestions.ts    |   97.51 |    96.42 |     100 |     100 | ...15,148,182,203 
+ working-time.ts   |   93.75 |     87.5 |     100 |   95.45 | 35                
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+Statements   : 96.44% ( 3280/3401 )
+Branches     : 91.66% ( 2111/2303 )
+Functions    : 98.02% ( 746/761 )
+Lines        : 97.69% ( 2457/2515 )
+================================================================================
+EXIT=0
+
+== Figures for the two new files (the text table above hides files at 100% in all four columns; these come from a second identical native run with the json-summary reporter, 1143 passed, same totals) ==
+total                              stmts  96.44 branches  91.66 funcs  98.02 lines  97.69
+server/access-grants.ts            stmts    100 branches    100 funcs    100 lines    100
+server/accounts.ts                 stmts  95.34 branches   87.5 funcs  96.77 lines  95.48
+server/doc-approval-http.ts        stmts    100 branches    100 funcs    100 lines    100
+server/doc-approval-proposals.ts   stmts  96.56 branches  91.83 funcs    100 lines  99.25
+server/identity.ts                 stmts  82.55 branches  73.07 funcs  86.66 lines   83.2
