@@ -1,0 +1,28 @@
+$ npx vitest run tests/doc-approval-proposal.test.ts tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts   (PGlite, no env)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  8 passed (8)
+      Tests  100 passed | 1 skipped (101)
+   Start at  09:37:39
+   Duration  49.90s (tests 99%, import 1%)
+
+exit 0
+
+$ npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit 0
+
+=== PostgreSQL 16 thật (container tổng hợp loopback), phiên Task 7c chạy sau khi phiên điều phối trả container, 16/11/2026 ===
+$ set -a; . "$TASK7C_ENV_FILE"; set +a; npx vitest run tests/doc-approval-proposal.test.ts tests/access-change.test.ts tests/account-approval-dm.test.ts tests/onboarding-feedback.test.ts tests/doc-approver-grant.test.ts tests/doc-approver-flow.test.ts tests/identity.test.ts tests/spec003.test.ts
+(node:32220) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ Test Files  8 passed (8)
+      Tests  101 passed (101)
+   Start at  09:41:01
+   Duration  41.61s (tests 99%, import 1%)
+vitest exit 0

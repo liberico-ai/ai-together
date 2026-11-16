@@ -9,7 +9,7 @@ import {DOC_APPROVAL_PREFIX,DOC_APPROVAL_TYPES,docApprovalCode,widensAccess} fro
 
 // The three report permissions and the eight doc_approve codes (OQ-31 b). Duplicate values are handled exactly as before: not refused here.
 const grantPermission=z.enum(['people_read','quality_review','report_approve',...DOC_APPROVAL_TYPES.map(docApprovalCode)] as [GrantPermission,...GrantPermission[]]);
-const grantsSchema=z.array(z.object({
+export const grantsSchema=z.array(z.object({
   projectId:z.uuid(),role:z.enum(['manager','engineer','technical','business','viewer']),
   reportPermissions:z.array(grantPermission).max(11),
 }).strict()).min(1).max(30).refine(grants=>new Set(grants.map(grant=>grant.projectId)).size===grants.length);
@@ -35,7 +35,7 @@ const reviewRegistration=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('reject_registration'),requestId:z.uuid(),reason}).strict(),
 ]);
 /** Grants compared as a set: entries ordered by projectId, report permissions ordered within each entry. */
-function sameGrants(a:ProjectGrant[],b:ProjectGrant[]) {
+export function sameGrants(a:ProjectGrant[],b:ProjectGrant[]) {
  const norm=(grants:ProjectGrant[])=>JSON.stringify([...grants]
   .map(grant=>({projectId:grant.projectId,role:grant.role,reportPermissions:[...grant.reportPermissions].sort()}))
   .sort((x,y)=>x.projectId<y.projectId?-1:x.projectId>y.projectId?1:0));

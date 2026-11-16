@@ -1,0 +1,27 @@
+$ npx vitest run tests/doc-approval-proposal.test.ts   (PGlite, no env; expected red: module src/server/doc-approval-proposals does not exist yet)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-proposal.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-proposal.test.ts [ tests/doc-approval-proposal.test.ts ]
+Error: Cannot find module '../src/server/doc-approval-proposals' imported from <repo>/tests/doc-approval-fixtures.ts
+ ❯ tests/doc-approval-fixtures.ts:10:1
+      8| import {AccountService} from '../src/server/accounts';
+      9| import {AccountApprovalService} from '../src/server/account-approval';
+     10| import {DocApprovalProposalService,type DocApprovalProposal} from '../…
+       | ^
+     11| import {handleBridge} from '../src/server/bridge';
+     12| import {ids} from '../src/server/identities';
+ ❯ tests/doc-approval-proposal.test.ts:4:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  09:36:10
+   Duration  241ms (worker 98%, environment 2%)
+

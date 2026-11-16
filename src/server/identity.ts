@@ -41,6 +41,15 @@ export class IdentityService {
     WHERE m.user_id=$1 ORDER BY m.project_id`,[id])).rows;
   return rows.map(row=>({projectId:row.project_id,role:row.role,reportPermissions:row.report_permissions}));
  }
+ /** Effective role (the project role first, else the account role) of an active, activated account in one project; null when the account is
+  * missing, disabled, not activated or not a member. Plain read, no lock. */
+ async activeProjectRole(tx:Queryable,userId:string,projectId:string):Promise<ProjectGrant['role']|null> {
+  const row=(await tx.query<{role:string}>(`SELECT coalesce(m.project_role,u.role) AS role FROM identity.users u
+   JOIN identity.memberships m ON (m.user_id,m.tenant_id)=(u.id,u.tenant_id)
+   WHERE u.id=$1 AND m.project_id=$2 AND u.tenant_id=$3 AND u.active AND u.password_hash IS NOT NULL`,[userId,projectId,this.tenantId])).rows[0];
+  const roles:string[]=['manager','engineer','technical','business','viewer'];
+  return row&&roles.includes(row.role)?row.role as ProjectGrant['role']:null;
+ }
  private async principal(tx:Queryable,id:string):Promise<Principal> {
   const u=(await tx.query<User>('SELECT id,tenant_id,name,role,active FROM identity.users WHERE id=$1 AND active',[id])).rows[0];
   invariant(u,'UNAUTHENTICATED','Cần đăng nhập lại.',401);
