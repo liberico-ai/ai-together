@@ -110,7 +110,9 @@ function VoteItem({ card, people, onDone }: VoteItemProps) {
     reloadable={reloadable} onReload={() => void onDone()} />;
 }
 
-export type DecisionsProps = { projects: { id: string; name: string }[]; projectId: string | null; initial: { cards: DecisionCard[]; reviewCardsTruncated?: boolean } | null; denied: boolean; people: Person[] };
+/** What the service returns for one project. The two flags are separate facts (review cards cut at 200 documents, 3/3 cards cut at 30 ballots); the screen says one sentence for either. */
+export type DecisionsResult = { cards: DecisionCard[]; reviewCardsTruncated?: boolean; reassignmentCardsTruncated?: boolean };
+export type DecisionsProps = { projects: { id: string; name: string }[]; projectId: string | null; initial: DecisionsResult | null; denied: boolean; people: Person[] };
 
 export function Decisions({ projects, projectId, initial, denied, people }: DecisionsProps) {
   const [page, setPage] = useState(initial), [loading, setLoading] = useState(false), [error, setError] = useState<string | null>(null), [stale, setStale] = useState('');
@@ -122,17 +124,17 @@ export function Decisions({ projects, projectId, initial, denied, people }: Deci
   const state = decisionsPageState({ loading, error, denied: false, rows: page?.cards.length ?? 0 });
   async function reload() {
     setLoading(true); setError(null); setStale('');
-    try { setPage(await api<{ cards: DecisionCard[]; reviewCardsTruncated?: boolean }>('/api/decisions?projectId=' + projectId)); } catch { setError(ERROR_COPY); } finally { setLoading(false); }
+    try { setPage(await api<DecisionsResult>('/api/decisions?projectId=' + projectId)); } catch { setError(ERROR_COPY); } finally { setLoading(false); }
   }
   /** Refresh after a vote or from a card's own «Tải lại»: the cards stay mounted (a typed note is not lost) and a failed refresh is a sentence, not an empty screen. */
   async function refresh() {
     setStale('');
-    try { setPage(await api<{ cards: DecisionCard[]; reviewCardsTruncated?: boolean }>('/api/decisions?projectId=' + projectId)); } catch { setStale(ERROR_COPY); }
+    try { setPage(await api<DecisionsResult>('/api/decisions?projectId=' + projectId)); } catch { setStale(ERROR_COPY); }
   }
   return shell(<>
     <p className="decision-meta">{projectLabel}</p>
     {stale && <p className="decision-problem" role="alert">{stale}</p>}
-    <DecisionsBody state={state} cards={page?.cards ?? []} error={error} people={people} truncated={page?.reviewCardsTruncated} onRetry={() => void reload()}
+    <DecisionsBody state={state} cards={page?.cards ?? []} error={error} people={people} truncated={Boolean(page?.reviewCardsTruncated || page?.reassignmentCardsTruncated)} onRetry={() => void reload()}
       renderCard={c => c.kind === 'reassignment' ? <VoteItem key={'r:' + c.decisionId} card={c} people={people} onDone={refresh} />
         : <DecisionCardView key={'d:' + c.decisionId} card={c} people={people} busy={false} error="" />} />
   </>);

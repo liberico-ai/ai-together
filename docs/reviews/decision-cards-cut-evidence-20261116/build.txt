@@ -1,0 +1,47 @@
+# Build, code at fba0134. Command: npm run build
+exit code of npm run build: 0
+✓ Generating static pages using 17 workers (4/4) in 73ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /activate
+├ ƒ /api/auth/[action]
+├ ƒ /api/bridge
+├ ƒ /api/bridge/[...path]
+├ ƒ /api/decisions
+├ ƒ /api/demo/session
+├ ƒ /api/documents/[[...path]]
+├ ƒ /api/health
+├ ƒ /api/inbox/[[...path]]
+├ ƒ /api/projects/[...path]
+├ ƒ /api/reviews/[[...path]]
+├ ƒ /api/team/accounts
+├ ƒ /api/team/approvals
+├ ƒ /api/team/bom
+├ ƒ /api/team/feedback
+├ ƒ /api/team/registrations
+├ ƒ /api/team/reports
+├ ƒ /api/v1/[...path]
+├ ƒ /approvals
+├ ƒ /bom
+├ ƒ /decisions
+├ ƒ /documents
+├ ƒ /documents/[id]
+├ ƒ /feedback
+├ ƒ /inbox
+├ ƒ /login
+├ ƒ /portfolio
+├ ƒ /register
+├ ƒ /reports
+├ ƒ /review
+├ ƒ /review/[documentId]
+└ ƒ /team
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

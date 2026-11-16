@@ -1,0 +1,82 @@
+# RED of the fix round after Codex round 1 — the two cases for OQ-47 (b), before any change to src/ (sources as committed at 575e786, where src/ equals 1be10f5). PGlite.
+# Command: npx vitest run tests/decisions.test.ts -t "P2 the 3/3 cards"
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/decisions.test.ts (26 tests | 2 failed | 20 skipped) 3173ms
+   ❯ P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut (6)
+     × live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed 498ms
+     × OQ-47 (b) a ballot that has just closed keeps a place: after the vote it is the first card below the live ones, however old it is 503ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed
+AssertionError: expected [ …(28) ] to deeply equal [ …(28) ]
+
+- Expected
++ Received
+
+@@ -12,11 +12,10 @@
+    "e961dc1c-ea10-4170-a8c1-8ccbf4fadb6c",
+    "5a6913d5-cf37-4959-9516-346e17029c7f",
+    "faccbb6d-fe35-42ab-8634-17b80dc0d767",
+    "dc9ebed8-ea3c-4d90-8129-ab6100364d3a",
+    "aa86750c-2278-47df-bb1e-53dae6eabeb9",
+-   "a7e943ff-3893-42c4-8d70-5e265fd181ff",
+    "7b14746b-582e-4f1a-a068-d4cca2a9ccc8",
+    "3be53986-c805-445a-abf0-b67c9e2f12ec",
+    "daa0faf9-fa74-4662-aa1a-78b3dd0de3d3",
+    "96d8bfc5-9587-488d-aa47-590d405b012a",
+    "dc6d9be7-d4c2-4fe6-b654-af19499a6987",
+@@ -25,6 +24,7 @@
+    "fefe07a8-840d-447f-bd8a-160fd5e63c0f",
+    "2871f989-9087-4ff4-ab6a-e1655bc158f4",
+    "ef190950-a5e8-4834-9d1d-029506d9af20",
+    "598b3a03-cfcc-4434-a1f9-30069c04a8b7",
+    "867444b2-30c8-4c61-b41e-8746026be247",
++   "9119823f-bb75-4de6-b2ac-9b96591f0cdd",
+  ]
+
+ ❯ tests/decisions.test.ts:463:47
+    461|   const rest=await byEndOfLife(older,newer);
+    462|   expect(rest.indexOf(stale)).toBe(15);
+    463|   expect(cards.slice(2).map(c=>c.decisionId)).toEqual(rest.slice(0,28)…
+       |                                               ^
+    464|   expect(cards[17]).toMatchObject({decisionId:stale,state:'pending',ac…
+    465|   expect(r.reassignmentCardsTruncated).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) a ballot that has just closed keeps a place: after the vote it is the first card below the live ones, however old it is
+AssertionError: expected { kind: 'reassignment', …(13) } to match object { …(3) }
+(14 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "actorEligibility": {
+      "canVote": false,
+      "reason": "CLOSED",
+    },
+-   "decisionId": "4fb763b5-24dc-4901-8bdb-27f6cc8fbf43",
++   "decisionId": "83b003e3-e707-4abd-92a7-11121eb3f536",
+    "state": "rejected",
+  }
+
+ ❯ tests/decisions.test.ts:483:20
+    481|   let cards=reassignments(r.cards);
+    482|   expect(cards).toHaveLength(30);
+    483|   expect(cards[0]).toMatchObject({decisionId:open,state:'rejected',act…
+       |                    ^
+    484|   expect(cards[0].votes).toMatchObject([{actorId:voter.id,choice:'reje…
+    485|   expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFir…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 4 passed | 20 skipped (26)
+   Start at  07:03:31
+   Duration  3.29s (tests 98%, import 1%, transform 1%)
+

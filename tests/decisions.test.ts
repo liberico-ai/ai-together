@@ -180,7 +180,7 @@ describe('reassignment cards',()=>{
   await refused(new BomService(hiding).pending(pm,ids.sales),'BOM_INCONSISTENT',500);
   await refused(new DecisionService(hiding).list(pm,{projectId:ids.sales}),'BOM_INCONSISTENT',500);
   // control: the same call without the hiding returns the card
-  expect(await bom.pending(pm,ids.sales)).toHaveLength(1);
+  expect((await bom.pending(pm,ids.sales)).cards).toHaveLength(1);
   // a project id that is not a uuid is the same 404 assertSeat gives, before any query
   const e=await refused(bom.pending(pm,'not-a-uuid'),'SCOPE_DENIED',404);
   expect(e.message).toBe('Không tìm thấy hồ sơ BoM trong phạm vi được cấp.');
@@ -197,7 +197,7 @@ describe('reassignment cards',()=>{
   const counts=async()=>[await n('bom_proposals'),await n('bom_votes'),await n('bom_receipts'),await n('work_items'),await n('audit_events')];
   const before=await counts();
   const versions=await rows('SELECT id,version,assignee_id,updated_at FROM work_items ORDER BY id');
-  const cards=await new BomService(spyDb).pending(pm,ids.sales);
+  const {cards}=await new BomService(spyDb).pending(pm,ids.sales);
   expect(cards).toHaveLength(1);
   expect(cards[0]).toMatchObject({work:{id:s.workId,code:'STT-5',title:'Triển khai bot Hermes',version:1},proposal:{state:'pending'}});
   expect(await counts()).toEqual(before);
@@ -382,5 +382,214 @@ describe('W9 the decision list says when its review cards were cut',()=>{
   const real=svc.review.queue.bind(svc.review);
   svc.review.queue=async(p,q)=>({...(await real(p,q)),total:201});
   expect((await (svc as unknown as DecisionService).list(pm,{projectId:ids.sales})).reviewCardsTruncated).toBe(true);
+ });
+});
+
+// Follow-up to DELIVERY-012 gap 44 (reviewer P2): the 3/3 cards were the newest 30 proposals of the project, closed ones included, with no word that the list was cut.
+// «Live» below is the rule of the vote command: stored `pending` and not past `expires_at`. Every row is synthetic and written by the operational login.
+// OQ-47 (b), Chairman 16/11/2026: the ballots that are no longer live follow by closing time, most recently closed first. A ballot past its expiry that nobody closed has no
+// closing time; this session ranks it by its expiry (a ruling of the session, not of the Chairman).
+describe('P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut',()=>{
+ const full=(p:Principal)=>new DecisionService(h.db).list(p,{projectId:ids.sales});
+ let seats:Awaited<ReturnType<typeof seedBom>>;
+ /** One proposal through the service, moved back in time so that every copy below is newer. */
+ async function liveBallot(hoursAgo=2):Promise<string> {
+  const s=seats=await seedBom(h);
+  const id=(await new BomService(h.db).command(pm,{action:'propose',workId:s.workId,expectedVersion:1,allocation:s.selection,reason:'Phân công mô phỏng trong bản thử'},k())).proposal.id;
+  await h.operator.query('UPDATE bom_proposals SET created_at=now()-make_interval(hours=>$2::int) WHERE id=$1',[id,hoursAgo]);
+  return id;
+ }
+ /** `count` copies of a proposal in `state`, created `from`, `from+1`, … minutes ago (so the first is the newest). Every copy expires in six days, the closed ones too:
+  * an order that looked at the expiry alone would rank a closed ballot as live. A closed copy was closed thirty seconds after it was created, so among the copies of one
+  * call the most recently created is also the most recently closed. */
+ async function copies(sourceId:string,count:number,state:string,from=1):Promise<void> {
+  await h.operator.query(`INSERT INTO bom_proposals(tenant_id,project_id,work_id,proposer_id,work_version,scope_version,seat_ids,source_ref,source_fingerprint,
+    before_assignment,proposed_assignment,reason,state,created_at,expires_at,finished_at)
+   SELECT b.tenant_id,b.project_id,b.work_id,b.proposer_id,b.work_version,b.scope_version,b.seat_ids,b.source_ref,b.source_fingerprint,b.before_assignment,b.proposed_assignment,b.reason,
+    $2::text,now()-make_interval(mins=>g),now()+interval '6 days',CASE WHEN $2::text='pending' THEN NULL ELSE now()-make_interval(mins=>g)+interval '30 seconds' END
+   FROM bom_proposals b,generate_series($3::int,$4::int) g WHERE b.id=$1`,[sourceId,state,from,from+count-1]);
+ }
+ /** Ids of every proposal except the named ones, newest first by creation. */
+ const newestFirst=async(...except:string[])=>(await rows<{id:string}>('SELECT id FROM bom_proposals WHERE NOT (id = ANY($1::uuid[])) ORDER BY created_at DESC,id DESC',[except])).map(r=>r.id);
+ /** Ids of every proposal except the named ones, none of them live: most recent first by closing time, a stale pending ballot by its expiry, a closed row with no closing
+  * time by its creation. Stated here apart from the service; the cases below also name exact positions, which follow from the fixture times alone. */
+ const byEndOfLife=async(...except:string[])=>(await rows<{id:string}>(
+  `SELECT id FROM bom_proposals WHERE NOT (id = ANY($1::uuid[])) ORDER BY (CASE WHEN state='pending' THEN expires_at ELSE COALESCE(finished_at,created_at) END) DESC,created_at DESC,id DESC`,[except])).map(r=>r.id);
+
+ test('a live ballot older than thirty-one newer closed ballots is still listed, first, and the list says it was cut',async()=>{
+  const open=await liveBallot();
+  await copies(open,31,'rejected');
+  const r=await full(pm);
+  const cards=reassignments(r.cards);
+  expect(cards).toHaveLength(30);
+  expect(cards[0]).toMatchObject({decisionId:open,state:'pending',actorEligibility:{canVote:true,reason:null}});
+  expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFirst(open)).slice(0,29));   // the closed copies follow, most recently closed first (for these copies that is also newest first); the last two give way
+  expect(cards.slice(1).every(c=>c.state==='rejected')).toBe(true);
+  expect(r.reassignmentCardsTruncated).toBe(true);
+ });
+
+ test('reassignmentCardsTruncated is false at exactly thirty ballots and true at thirty-one; the cap stays thirty',async()=>{
+  const open=await liveBallot();
+  expect(await full(pm)).toMatchObject({reassignmentCardsTruncated:false});
+  await copies(open,29,'rejected');
+  let r=await full(pm);
+  expect(reassignments(r.cards)).toHaveLength(30);
+  expect(r.reassignmentCardsTruncated).toBe(false);
+  await copies(open,1,'rejected',40);
+  r=await full(pm);
+  expect(reassignments(r.cards)).toHaveLength(30);
+  expect(r.reassignmentCardsTruncated).toBe(true);
+  expect(r.reviewCardsTruncated).toBe(false);   // the two flags are separate facts
+ });
+
+ test('live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed',async()=>{
+  const older=await liveBallot(3);
+  await copies(older,1,'pending',90);            // a second live ballot, newer than the first
+  const newer=(await newestFirst(older))[0];
+  await copies(older,1,'pending',5);             // a third pending ballot, then made stale: still stored pending, past its expiry
+  const stale=(await newestFirst(older,newer))[0];
+  // created before every closed ballot; expired fifteen minutes ago, between the closing of the fifteenth closed ballot (14.5 minutes ago) and of the sixteenth (15.5 minutes ago)
+  await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '9 days',expires_at=now()-interval '15 minutes' WHERE id=$1",[stale]);
+  await copies(older,30,'rejected');             // thirty closed ballots, created 1 to 30 minutes ago: all newer than the two live ones
+  const r=await full(pm);
+  const cards=reassignments(r.cards);
+  expect(cards).toHaveLength(30);
+  expect(cards.slice(0,2).map(c=>c.decisionId)).toEqual([newer,older]);
+  expect(cards.slice(0,2).every(c=>c.actorEligibility.canVote)).toBe(true);
+  // 33 proposals: two live, then one group of thirty-one (thirty closed and the stale one), cut after twenty-eight.
+  // The stale ballot is not moved ahead with the live ones; its place is its expiry, not its creation nine days ago (that would put it last, and cut).
+  const rest=await byEndOfLife(older,newer);
+  expect(rest.indexOf(stale)).toBe(15);
+  expect(cards.slice(2).map(c=>c.decisionId)).toEqual(rest.slice(0,28));
+  expect(cards[17]).toMatchObject({decisionId:stale,state:'pending',actorEligibility:{canVote:false,reason:'EXPIRED'}});
+  expect(r.reassignmentCardsTruncated).toBe(true);
+  // when nothing is cut the stale ballot is still listed after the live ones
+  await h.operator.query("DELETE FROM bom_proposals WHERE state='rejected'");
+  const all=await full(pm);
+  expect(reassignments(all.cards).map(c=>c.decisionId)).toEqual([newer,older,stale]);
+  expect(all.reassignmentCardsTruncated).toBe(false);
+ });
+
+ test('OQ-47 (b) a ballot that has just closed keeps a place: after the vote it is the first card below the live ones, however old it is',async()=>{
+  const open=await liveBallot();           // created two hours ago
+  await copies(open,31,'rejected');        // thirty-one closed ballots, all created and closed after it was created
+  const voter=seats.roster[0];
+  expect(reassignments((await full(voter)).cards)[0]).toMatchObject({decisionId:open,state:'pending',actorEligibility:{canVote:true,reason:null}});
+  await new BomService(h.db).command(voter,{action:'vote',proposalId:open,choice:'reject',note:'Từ chối trong bản thử nghiệm'},k());
+  // the read the screen makes after a recorded vote: the card is still there, with its new state and the vote
+  const r=await full(voter);
+  let cards=reassignments(r.cards);
+  expect(cards).toHaveLength(30);
+  expect(cards[0]).toMatchObject({decisionId:open,state:'rejected',actorEligibility:{canVote:false,reason:'CLOSED'}});
+  expect(cards[0].votes).toMatchObject([{actorId:voter.id,choice:'reject'}]);
+  expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFirst(open)).slice(0,29));   // the thirty-one older closings follow, most recent first; two are cut
+  expect(r.reassignmentCardsTruncated).toBe(true);
+  // a live ballot, even one created before everything else, still comes ahead of the ballot that has just closed
+  await copies(open,1,'pending',200);
+  const live=(await rows<{id:string}>("SELECT id FROM bom_proposals WHERE state='pending'"))[0].id;
+  cards=reassignments((await full(pm)).cards);
+  expect(cards.slice(0,2).map(c=>c.decisionId)).toEqual([live,open]);
+  expect(cards[0].actorEligibility.canVote).toBe(true);
+ });
+
+ test('OQ-47 (b) closed ballots follow by closing time, not by creation time; ties go to the newer ballot, then to the higher id',async()=>{
+  const open=await liveBallot();
+  await copies(open,10,'rejected');                  // created 1 to 10 minutes ago, each closed thirty seconds after its creation
+  const byCreation=await newestFirst(open);
+  const oldest=byCreation[9];                        // last by creation …
+  await h.operator.query("UPDATE bom_proposals SET finished_at=now()-interval '10 seconds' WHERE id=$1",[oldest]);   // … and the most recently closed
+  let cards=reassignments((await full(pm)).cards);
+  expect(cards.map(c=>c.decisionId)).toEqual([open,oldest,...byCreation.slice(0,9)]);
+  // two ballots closed at the same instant, the lower id made the one created later: creation decides before the id does
+  const [low,high]=[byCreation[3],byCreation[6]].sort();
+  await h.operator.query("UPDATE bom_proposals SET finished_at=date_trunc('second',now())-interval '5 seconds' WHERE id=ANY($1::uuid[])",[[low,high]]);
+  await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '75 seconds' WHERE id=$1",[low]);
+  await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '135 seconds' WHERE id=$1",[high]);
+  cards=reassignments((await full(pm)).cards);
+  expect(cards.slice(0,3).map(c=>c.decisionId)).toEqual([open,low,high]);
+  // the same instant for closing and for creation: only then the higher id comes first
+  await h.operator.query('UPDATE bom_proposals SET created_at=(SELECT created_at FROM bom_proposals WHERE id=$1) WHERE id=$2',[low,high]);
+  cards=reassignments((await full(pm)).cards);
+  expect(cards.slice(0,3).map(c=>c.decisionId)).toEqual([open,high,low]);
+ });
+
+ test('OQ-47 (b) a ballot closed after its expiry is ranked by its closing: a late vote closes it as expired and it becomes the first card of the rest',async()=>{
+  const open=await liveBallot();
+  await copies(open,31,'rejected');
+  // expired twenty minutes ago and nobody closed it: no ballot is live, and it sits at the place of its expiry, after the twenty ballots closed since
+  await h.operator.query("UPDATE bom_proposals SET created_at=now()-interval '9 days',expires_at=now()-interval '20 minutes' WHERE id=$1",[open]);
+  const voter=seats.roster[0];
+  let cards=reassignments((await full(voter)).cards);
+  expect(cards.findIndex(c=>c.decisionId===open)).toBe(20);
+  expect(cards[20]).toMatchObject({state:'pending',actorEligibility:{canVote:false,reason:'EXPIRED'}});
+  // the command refuses the vote by closing the ballot as expired; from then on its place is its closing
+  const closed=await new BomService(h.db).command(voter,{action:'vote',proposalId:open,choice:'agree',note:'Xác nhận bằng phiên thử nghiệm'},k());
+  expect(closed.proposal.state).toBe('expired');
+  expect(closed.votes).toHaveLength(0);
+  cards=reassignments((await full(voter)).cards);
+  expect(cards[0]).toMatchObject({decisionId:open,state:'expired',actorEligibility:{canVote:false,reason:'CLOSED'}});
+ });
+
+ test('a closed row with no closing time falls back to its creation time and cannot push out a ballot that has just closed',async()=>{
+  const open=await liveBallot();
+  await copies(open,31,'rejected');
+  // inconsistent rows the service never writes (it sets the closing time whenever it closes a ballot): closed, no closing time, expiry still six days ahead
+  await h.operator.query("UPDATE bom_proposals SET finished_at=NULL WHERE state='rejected'");
+  const voter=seats.roster[0];
+  await new BomService(h.db).command(voter,{action:'vote',proposalId:open,choice:'reject',note:'Từ chối trong bản thử nghiệm'},k());
+  const cards=reassignments((await full(voter)).cards);
+  expect(cards).toHaveLength(30);
+  expect(cards[0]).toMatchObject({decisionId:open,state:'rejected'});
+  expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFirst(open)).slice(0,29));
+ });
+
+ test('a person who holds no seat, a former seat, and a seat without its Telegram link learn nothing about the cut: the same answer with one ballot and with thirty-two',async()=>{
+  const open=await liveBallot();
+  await world();   // one review card, so the answers compared below are not empty
+  // the third seat is replaced: that person stays frozen on the ballot but no longer holds a seat of the project
+  const former=seats.roster[2];
+  await h.operator.query('UPDATE bom_scopes SET seat_ids=$1 WHERE project_id=$2',[[seats.roster[0].id,seats.roster[1].id,seats.chair.id],ids.sales]);
+  const outside=[reviewer,approver,former];
+  const before=[];
+  for(const p of outside) before.push(await full(p));
+  await copies(open,31,'rejected');
+  expect((await full(pm)).reassignmentCardsTruncated).toBe(true);   // control: a seat sees the flag
+  for(const [i,p] of outside.entries()) {
+   const r=await full(p);
+   expect(reassignments(r.cards)).toHaveLength(0);
+   expect(reviews(r.cards)).toHaveLength(1);
+   expect(r.reassignmentCardsTruncated).toBe(false);
+   expect(r).toEqual(before[i]);   // the whole answer, not only the flag: thirty-one more ballots moved nothing in it
+  }
+  await h.operator.query('DELETE FROM identity.telegram_links WHERE user_id=$1',[pm.id]);
+  const unlinked=await full(pm);
+  expect(reassignments(unlinked.cards)).toHaveLength(0);
+  expect(unlinked.reassignmentCardsTruncated).toBe(false);
+ });
+
+ test('the seat and Telegram checks come before any ballot is read: a refused caller causes no statement on a ballot table',async()=>{
+  const open=await liveBallot();
+  await copies(open,31,'rejected');
+  const seen:string[]=[];
+  const spy=(q:{query:Function})=>({query:(sql:string,params?:unknown[])=>{seen.push(sql);return q.query(sql,params);}});
+  const spyDb={...spy(h.db),transaction:(fn:Function)=>h.db.transaction(tx=>fn(spy(tx))),close:()=>h.db.close()} as unknown as typeof h.db;
+  const ballotRead=/\bbom_(proposals|votes|receipts)\b|FROM work_items WHERE id=ANY/;
+  // not a seat: refused on the scope row alone
+  await refused(new BomService(spyDb).pending(reviewer,ids.sales),'SCOPE_DENIED',404);
+  expect(seen.some(q=>/FROM bom_scopes/.test(q))).toBe(true);
+  expect(seen.filter(q=>ballotRead.test(q))).toEqual([]);
+  // a seat whose Telegram link is gone: refused after the membership read, still before any ballot
+  await h.operator.query('DELETE FROM identity.telegram_links WHERE user_id=$1',[pm.id]);
+  seen.length=0;
+  await refused(new BomService(spyDb).pending(pm,ids.sales),'SCOPE_DENIED',403);
+  expect(seen.some(q=>/bom_eligible_members/.test(q))).toBe(true);
+  expect(seen.filter(q=>ballotRead.test(q))).toEqual([]);
+  // control: for a linked seat the same spy does see the ballot read, after both checks
+  seen.length=0;
+  expect((await new BomService(spyDb).pending(seats.roster[0],ids.sales)).cards).toHaveLength(30);
+  const at=(re:RegExp)=>seen.findIndex(q=>re.test(q));
+  expect(at(/FROM bom_scopes/)).toBeGreaterThanOrEqual(0);
+  expect(at(/bom_eligible_members/)).toBeGreaterThan(at(/FROM bom_scopes/));
+  expect(at(/FROM bom_proposals WHERE project_id/)).toBeGreaterThan(at(/bom_eligible_members/));
  });
 });

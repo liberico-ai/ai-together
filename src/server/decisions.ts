@@ -69,16 +69,18 @@ export class DecisionService {
   private bom: BomService;
   constructor(db: Database) { this.review = new ReviewService(db); this.bom = new BomService(db); }
 
-  async list(p: Principal, raw: unknown): Promise<{ cards: DecisionCard[]; reviewCardsTruncated: boolean }> {
+  /** The two flags are separate facts: review cards are cut at 200 documents, 3/3 cards at 30 ballots (live ones first, decided in `BomService.pending` before its limit).
+   * A person who is not a seat gets no 3/3 card and the 3/3 flag false: nothing tells them how many ballots the project holds. */
+  async list(p: Principal, raw: unknown): Promise<{ cards: DecisionCard[]; reviewCardsTruncated: boolean; reassignmentCardsTruncated: boolean }> {
     const input = listSchema.parse(raw);
     // one page of the maximum size; a project with more documents than that is cut at 200 (known cap)
     const { items, total } = await this.review.queue(p, { projectId: input.projectId, limit: 200, offset: 0 });
     const cards: DecisionCard[] = items.map(reviewCard);
-    let pending: PendingCard[] = [];
-    try { pending = await this.bom.pending(p, input.projectId); }
-    catch (e) { if (!(e instanceof AppError && e.code === 'SCOPE_DENIED')) throw e; }   // not a seat: no 3/3 card, no count, no reason
+    let ballots: { cards: PendingCard[]; truncated: boolean } = { cards: [], truncated: false };
+    try { ballots = await this.bom.pending(p, input.projectId); }
+    catch (e) { if (!(e instanceof AppError && e.code === 'SCOPE_DENIED')) throw e; }   // not a seat: no 3/3 card, no count, no reason, no cut flag
     const now = Date.now();
-    for (const c of pending) cards.push(reassignmentCard(p, c, now));
-    return { cards, reviewCardsTruncated: wasCut({ fetched: items.length, cap: 200, total }) };
+    for (const c of ballots.cards) cards.push(reassignmentCard(p, c, now));
+    return { cards, reviewCardsTruncated: wasCut({ fetched: items.length, cap: 200, total }), reassignmentCardsTruncated: ballots.truncated };
   }
 }

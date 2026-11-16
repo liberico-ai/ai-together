@@ -1,0 +1,14 @@
+# Full suite, PGlite, code at fba0134. Command: npm run test
+
+> libetech-ai-os@0.7.1 test
+> vitest run
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  58 passed | 10 skipped (68)
+      Tests  983 passed | 41 skipped (1024)
+   Start at  08:32:54
+   Duration  399.22s (tests 99%, import 1%)
+

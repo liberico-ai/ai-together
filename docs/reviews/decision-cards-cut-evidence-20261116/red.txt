@@ -1,0 +1,282 @@
+# RED — the final test files against the three source files as they are at the base (git show 0560a4f5cbe88096e0d524fb19b2ed79d1081976:<file>). PGlite.
+# Command: npx vitest run tests/decisions.test.ts tests/decisions-ui.test.tsx -t "P2 the"
+# Every new case fails on an assertion; none fails on a timeout or a set-up error. One of them («the seat and Telegram checks come before any ballot is read») guards a
+# property this change must not alter: at the base it is red only because pending() still returns an array, not {cards,truncated}; its proof is mutation M6 in mutation.txt.
+# Red runs of the fix round after Codex round 1, against the sources that round had: fix1-red.txt (two OQ-47 b cases) and fix1-red-2.txt (closed row without a closing time).
+# This file replaces an earlier run of the same command in which one case stopped on a hook timeout while the machine was under load (Codex round 2, P3).
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/decisions.test.ts (29 tests | 9 failed | 20 skipped) 5217ms
+   ❯ P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut (9)
+     × a live ballot older than thirty-one newer closed ballots is still listed, first, and the list says it was cut 751ms
+     × reassignmentCardsTruncated is false at exactly thirty ballots and true at thirty-one; the cap stays thirty 563ms
+     × live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed 544ms
+     × OQ-47 (b) a ballot that has just closed keeps a place: after the vote it is the first card below the live ones, however old it is 590ms
+     × OQ-47 (b) closed ballots follow by closing time, not by creation time; ties go to the newer ballot, then to the higher id 552ms
+     × OQ-47 (b) a ballot closed after its expiry is ranked by its closing: a late vote closes it as expired and it becomes the first card of the rest 541ms
+     × a closed row with no closing time falls back to its creation time and cannot push out a ballot that has just closed 561ms
+     × a person who holds no seat, a former seat, and a seat without its Telegram link learn nothing about the cut: the same answer with one ballot and with thirty-two 559ms
+     × the seat and Telegram checks come before any ballot is read: a refused caller causes no statement on a ballot table 555ms
+ ❯ tests/decisions-ui.test.tsx (21 tests | 1 failed | 20 skipped) 17ms
+   ❯ decisions UI (20)
+     × P2 the screen shows the same single sentence when the 3/3 cards were cut, and never two 16ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/decisions-ui.test.tsx > decisions UI > P2 the screen shows the same single sentence when the 3/3 cards were cut, and never two
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/decisions-ui.test.tsx:339:65
+    337|       renderToStaticMarkup(<Decisions projects={[{ id: PROJECT, name: …
+    338|     const times = (markup: string) => markup.split(SENTENCE).length - …
+    339|     expect(times(screen({ reassignmentCardsTruncated: true }))).toBe(1…
+       |                                                                 ^
+    340|     expect(times(screen({ reviewCardsTruncated: false, reassignmentCar…
+    341|     expect(times(screen({ reviewCardsTruncated: true, reassignmentCard…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a live ballot older than thirty-one newer closed ballots is still listed, first, and the list says it was cut
+AssertionError: expected { kind: 'reassignment', …(13) } to match object { …(3) }
+(14 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "actorEligibility": {
+-     "canVote": true,
+-     "reason": null,
++     "canVote": false,
++     "reason": "CLOSED",
+    },
+-   "decisionId": "bdcc6c6d-3c21-48cc-816f-bd781e1e5aa7",
+-   "state": "pending",
++   "decisionId": "375359ec-bbf3-4180-ae84-d67fb82b398c",
++   "state": "rejected",
+  }
+
+ ❯ tests/decisions.test.ts:425:20
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > reassignmentCardsTruncated is false at exactly thirty ballots and true at thirty-one; the cap stays thirty
+AssertionError: expected { cards: [ { …(14) } ], …(1) } to match object { reassignmentCardsTruncated: false }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "reassignmentCardsTruncated": false,
++   "cards": [
++     {
++       "actorEligibility": {
++         "canVote": true,
++         "reason": null,
++       },
++       "appliedReceipt": null,
++       "decisionId": "db996d27-4d17-456e-8bd9-79a28a389152",
++       "expiresAt": "2026-11-23T01:50:27.212Z",
++       "kind": "reassignment",
++       "projectId": "11000000-0000-4000-8000-000000000001",
++       "quorum": {
++         "have": 0,
++         "needed": 3,
++       },
++       "revision": {
++         "workVersion": 1,
++       },
++       "state": "pending",
++       "summary": "Phân công mô phỏng trong bản thử",
++       "title": "Triển khai bot Hermes",
++       "votes": [],
++       "workCode": "STT-5",
++       "workId": "70cade81-0a7b-49e5-9775-926d63f3e673",
++     },
++   ],
++   "reviewCardsTruncated": false,
+  }
+
+ ❯ tests/decisions.test.ts:433:26
+    431|  test('reassignmentCardsTruncated is false at exactly thirty ballots a…
+    432|   const open=await liveBallot();
+    433|   expect(await full(pm)).toMatchObject({reassignmentCardsTruncated:fal…
+       |                          ^
+    434|   await copies(open,29,'rejected');
+    435|   let r=await full(pm);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > live ballots come first, newest first; the rest follow by the time they stopped being live: closing time, or expiry for a ballot nobody closed
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+-   "f6cf1dbe-fd05-4a43-a348-1d77dc2b48c9",
+-   "ea5a221d-3ddd-45e3-87de-e0659a969ac2",
++   "c13985ac-625a-420c-a7b8-4d001815ea60",
++   "4b874730-1749-4cb8-9c13-5de7cfc8e645",
+  ]
+
+ ❯ tests/decisions.test.ts:457:49
+    455|   const cards=reassignments(r.cards);
+    456|   expect(cards).toHaveLength(30);
+    457|   expect(cards.slice(0,2).map(c=>c.decisionId)).toEqual([newer,older]);
+       |                                                 ^
+    458|   expect(cards.slice(0,2).every(c=>c.actorEligibility.canVote)).toBe(t…
+    459|   // 33 proposals: two live, then one group of thirty-one (thirty clos…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) a ballot that has just closed keeps a place: after the vote it is the first card below the live ones, however old it is
+AssertionError: expected { kind: 'reassignment', …(13) } to match object { …(3) }
+(14 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "actorEligibility": {
+-     "canVote": true,
+-     "reason": null,
++     "canVote": false,
++     "reason": "CLOSED",
+    },
+-   "decisionId": "84a4f8be-2df5-4009-ae5c-6c4617bc76a4",
+-   "state": "pending",
++   "decisionId": "97c86476-d89e-4113-926d-5bf56bdadb91",
++   "state": "rejected",
+  }
+
+ ❯ tests/decisions.test.ts:477:55
+    475|   await copies(open,31,'rejected');        // thirty-one closed ballot…
+    476|   const voter=seats.roster[0];
+    477|   expect(reassignments((await full(voter)).cards)[0]).toMatchObject({d…
+       |                                                       ^
+    478|   await new BomService(h.db).command(voter,{action:'vote',proposalId:o…
+    479|   // the read the screen makes after a recorded vote: the card is stil…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) closed ballots follow by closing time, not by creation time; ties go to the newer ballot, then to the higher id
+AssertionError: expected [ …(11) ] to deeply equal [ …(11) ]
+
+- Expected
++ Received
+
+  [
+-   "a0f06f35-2ba9-424b-8bf7-63a8f428c68c",
+-   "5e85b05e-a1ce-4cfe-a807-0fa9e33d5953",
+    "7fca495a-33da-48b5-805c-187e6fef73dc",
+    "93219e3e-63c0-483f-86f3-060e0c226761",
+    "261622c0-e6e9-4b7c-8076-9c4809da8967",
+    "ff24817a-bc6b-4f51-9eda-0d4d500ee0cc",
+    "b8d67212-b9a6-43a9-9dfc-774157dc4808",
+    "6eed2201-55b6-480d-a3da-8d7728d19809",
+    "1fd61c0b-2e5c-4b8b-8d97-8702d4f8ca7a",
+    "3eb2be18-b79e-4e2f-92ed-a41fc1b78d87",
+    "843ddb9a-df9e-4a22-bd20-506c12bfbb83",
++   "5e85b05e-a1ce-4cfe-a807-0fa9e33d5953",
++   "a0f06f35-2ba9-424b-8bf7-63a8f428c68c",
+  ]
+
+ ❯ tests/decisions.test.ts:502:38
+    500|   await h.operator.query("UPDATE bom_proposals SET finished_at=now()-i…
+    501|   let cards=reassignments((await full(pm)).cards);
+    502|   expect(cards.map(c=>c.decisionId)).toEqual([open,oldest,...byCreatio…
+       |                                      ^
+    503|   // two ballots closed at the same instant, the lower id made the one…
+    504|   const [low,high]=[byCreation[3],byCreation[6]].sort();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > OQ-47 (b) a ballot closed after its expiry is ranked by its closing: a late vote closes it as expired and it becomes the first card of the rest
+AssertionError: expected -1 to be 20 // Object.is equality
+
+- Expected
++ Received
+
+- 20
++ -1
+
+ ❯ tests/decisions.test.ts:523:51
+    521|   const voter=seats.roster[0];
+    522|   let cards=reassignments((await full(voter)).cards);
+    523|   expect(cards.findIndex(c=>c.decisionId===open)).toBe(20);
+       |                                                   ^
+    524|   expect(cards[20]).toMatchObject({state:'pending',actorEligibility:{c…
+    525|   // the command refuses the vote by closing the ballot as expired; fr…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a closed row with no closing time falls back to its creation time and cannot push out a ballot that has just closed
+AssertionError: expected { kind: 'reassignment', …(13) } to match object { …(2) }
+(17 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "decisionId": "14ac3f68-633f-480b-b82d-09149101ab37",
++   "decisionId": "4a8ff4f4-8320-4699-b355-393e3bae4e73",
+    "state": "rejected",
+  }
+
+ ❯ tests/decisions.test.ts:542:20
+    540|   const cards=reassignments((await full(voter)).cards);
+    541|   expect(cards).toHaveLength(30);
+    542|   expect(cards[0]).toMatchObject({decisionId:open,state:'rejected'});
+       |                    ^
+    543|   expect(cards.slice(1).map(c=>c.decisionId)).toEqual((await newestFir…
+    544|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > a person who holds no seat, a former seat, and a seat without its Telegram link learn nothing about the cut: the same answer with one ballot and with thirty-two
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/decisions.test.ts:556:55
+    554|   for(const p of outside) before.push(await full(p));
+    555|   await copies(open,31,'rejected');
+    556|   expect((await full(pm)).reassignmentCardsTruncated).toBe(true);   //…
+       |                                                       ^
+    557|   for(const [i,p] of outside.entries()) {
+    558|    const r=await full(p);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  tests/decisions.test.ts > P2 the 3/3 cards keep live ballots ahead of the cap and say when they were cut > the seat and Telegram checks come before any ballot is read: a refused caller causes no statement on a ballot table
+AssertionError: Target cannot be null or undefined.
+ ❯ tests/decisions.test.ts:589:82
+    587|   // control: for a linked seat the same spy does see the ballot read,…
+    588|   seen.length=0;
+    589|   expect((await new BomService(spyDb).pending(seats.roster[0],ids.sale…
+       |                                                                                  ^
+    590|   const at=(re:RegExp)=>seen.findIndex(q=>re.test(q));
+    591|   expect(at(/FROM bom_scopes/)).toBeGreaterThanOrEqual(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  10 failed | 40 skipped (50)
+   Start at  08:50:25
+   Duration  5.45s (tests 98%, import 1%)
+

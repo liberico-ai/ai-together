@@ -1,0 +1,6 @@
+# Typecheck, code at fba0134. Command: npm run typecheck
+exit code of npm run typecheck: 0
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
