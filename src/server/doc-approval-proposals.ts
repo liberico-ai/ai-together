@@ -213,6 +213,9 @@ export class DocApprovalProposalService {
     const callerId=p.id.toLowerCase(),adminId=this.adminId();
     // the admin uses the cancel command; without this line the admin could withdraw an own ballot and bypass decision OQ-49 (a)
     if(!adminId||callerId===adminId) throw SCOPE_DENIED();
+    // Fix round 1, F1 of the Task 2 security review: like P3 of `propose`, 10 attempts an hour per caller before any lock. It commits on its own,
+    // so refused attempts count too; past the cap no withdrawal reaches the KEY SHARE on the account-admin row.
+    await this.identity.throttle('doc-approval-withdraw:'+callerId,10,3600);
     return this.identity.scope(async tx=>{
       // R2: plain read; kind, proposer, subject, frozen version and both grant sets never change after the insert (the role may update only
       // state and updated_at), so no lock is needed for them. State and deadline are read again under the lock at R5.

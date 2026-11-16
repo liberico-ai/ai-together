@@ -43,6 +43,9 @@ type Cancelled={user:{id:string;version:number};invitation:unknown;cancelledAppr
 /** The admin's cancel command; the expected version is the account's current one unless `over` says otherwise. */
 const cancel=async(approvalId:string,userId:string=w.subject.id,over:Record<string,unknown>={},p:Principal=w.admin)=>
   await w.accounts.command(p,{kind:'cancel_access_change',userId,expectedVersion:await versionOf(userId),reason:CANCEL_BASIS,approvalId,...over}) as unknown as Cancelled;
+const RATE_LIMITED={code:'RATE_LIMITED',status:429,message:'Thử lại sau ít phút.'};
+const withdrawAttempts=async(p:Principal)=>Number((await rows<{n:number}>(w,'SELECT coalesce(max(attempts),0) AS n FROM identity.throttle WHERE bucket=$1',
+  [digest('doc-approval-withdraw:'+p.id)]))[0].n);
 const pendingFor=async(seat:number)=>((await w.ballots.pendingForPrincipal(seatPrincipal(seat))) as {id:string}[]).map(r=>r.id);
 /** Operational login: a further active, activated engineer of ids.sales. */
 async function newMember(tag:string):Promise<string> {
@@ -237,8 +240,8 @@ describe('withdraw',()=>{
     const made=await propose(w,w.coordinator);
     const other=await propose(w,w.coordinator,{userId:reviewer.id});
     const before=await snapshot(w);
-    const bad=['  abcd  ','a'.repeat(501),...['\n','\u0000',' ',' ','‮','⁦','\uD800'].map(ch=>'Căn cứ hợp lệ'+ch+'tiếp theo'),
-      'Căn cứ hợp lệ\n',' Căn cứ hợp lệ'];
+    const bad=['  abcd  ','a'.repeat(501),...['\n','\u0000','\u2028','\u2029','\u202E','\u2066','\uD800'].map(ch=>'Căn cứ hợp lệ'+ch+'tiếp theo'),
+      'Căn cứ hợp lệ\n','\u2028Căn cứ hợp lệ'];
     for(const reason of bad) await expect(withdraw(w.coordinator,made.approvalId,{reason}),JSON.stringify(reason)).rejects.toBeInstanceOf(ZodError);
     await expect(withdraw(w.coordinator,made.approvalId,{})).rejects.toBeInstanceOf(ZodError);
     for(const extra of [{approvalId:made.approvalId},{approvalId:other.approvalId},{proposerId:w.coManager.id},{userId:w.subject.id},
@@ -330,6 +333,40 @@ describe('withdraw',()=>{
       throw rollback;
     })).rejects.toBe(rollback);
     expect(await membershipsOf(w.subject.id)).toEqual(memberships);
+  });
+
+  // Fix round 1, F1 of the Task 2 security review: the withdrawal has its own hourly cap per caller, the same 10 as P3 of `propose`.
+  test('the eleventh withdrawal within an hour is rate limited, and refused attempts count',async()=>{
+    const made=await propose(w,w.coordinator);
+    const other=await propose(w,w.coordinator,{userId:reviewer.id});
+    // refused before the counter (R0, R1): not counted
+    await expect(withdraw(w.coordinator,made.approvalId,{})).rejects.toBeInstanceOf(ZodError);
+    expect(await refusal(withdraw(w.coordinator,'x'))).toEqual(SCOPE);
+    expect(await refusal(withdraw({...w.coordinator,role:'bot'},made.approvalId))).toEqual(SCOPE);
+    expect(await withdrawAttempts(w.coordinator)).toBe(0);
+    // one withdrawal that goes through, then nine refused ones: all ten count
+    await withdraw(w.coordinator,made.approvalId);
+    for(let i=0;i<9;i++) expect(await refusal(withdraw(w.coordinator,made.approvalId)),String(i)).toEqual(CLOSED);
+    expect(await withdrawAttempts(w.coordinator)).toBe(10);
+    // the eleventh, on a ballot that could be withdrawn: refused, nothing written
+    const before=await snapshot(w);
+    expect(await refusal(withdraw(w.coordinator,other.approvalId))).toEqual(RATE_LIMITED);
+    expect(await stateOf(other.approvalId)).toBe('pending');
+    expect(await closings(other.approvalId)).toEqual([]);
+    expect(await snapshot(w)).toEqual(before);
+    expect(await withdrawAttempts(w.coordinator)).toBe(11);
+  });
+
+  test("the withdrawal cap is per caller: another proposer's withdrawals are not affected",async()=>{
+    const mine=await propose(w,w.coordinator);
+    const theirs=await propose(w,w.coManager,{userId:reviewer.id});
+    for(let i=0;i<10;i++) expect(await refusal(withdraw(w.coordinator,randomUUID())),String(i)).toEqual(SCOPE);
+    expect(await refusal(withdraw(w.coordinator,mine.approvalId))).toEqual(RATE_LIMITED);
+    expect(await withdraw(w.coManager,theirs.approvalId)).toEqual({approvalId:theirs.approvalId,state:'withdrawn'});
+    expect(await withdrawAttempts(w.coManager)).toBe(1);
+    expect(await stateOf(mine.approvalId)).toBe('pending');
+    // the coordinator's proposal counter is a separate bucket: a new proposal still opens
+    expect((await propose(w,w.coordinator,{userId:approver.id})).state).toBe('pending');
   });
 
   test('a ballot already dead by an account change cannot be withdrawn, so a withdrawal cannot buy an immediate re-proposal',async()=>{

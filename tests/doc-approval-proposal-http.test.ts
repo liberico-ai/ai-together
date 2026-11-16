@@ -226,6 +226,16 @@ describe('coordinator proposal HTTP',()=>{
     expect(await stateOf(b2.approvalId)).toBe('pending');
   });
 
+  // Fix round 1, F1 of the Task 2 security review: the withdrawal's hourly cap answers through the handler like every other refusal.
+  test('a withdrawal past the hourly cap answers 429 with no-store',async()=>{
+    const made=await propose(w,w.coordinator);
+    for(let i=0;i<10;i++) await expectErr(await withdrawCall(randomUUID()),404,'SCOPE_DENIED');
+    const capped=await withdrawCall(made.approvalId);
+    await expectErr(capped,429,'RATE_LIMITED','Thử lại sau ít phút.');
+    expect(JSON.stringify(await json(capped))).not.toContain(made.approvalId);
+    expect(await stateOf(made.approvalId)).toBe('pending');
+  });
+
   test('paths under an approval id that the handler does not serve answer the common 404',async()=>{
     const {approvalId:id}=await propose(w,w.coordinator);
     const payload={reason:WITHDRAW};
