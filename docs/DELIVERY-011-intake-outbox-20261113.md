@@ -34,7 +34,7 @@ Vì OQ-09 mục (1) chưa có bằng chứng, theo brief lát chỉ đạt mức
 - **Cách hiểu chờ Chairman xác nhận** (không phải lời Chairman; đều theo hướng chặt):
   - OQ-28, của phiên điều phối: (1) nhóm không khai cờ chỉ giữ con trỏ + hash; (2) dự án ánh xạ `IBS_HI` luôn chỉ giữ con trỏ + hash, kể cả khi nhóm có cờ.
   - OQ-29, của phiên điều phối: (1) người được đổi quyền không bỏ phiếu cho chính mình; (2) hạn 48 giờ như phiếu lần đầu; (3) một BoM từ chối mà còn BoM khác chưa bỏ phiếu thì phiếu vẫn chờ, mọi BoM đã đóng băng từ chối thì phiếu đóng.
-  - OQ-29, của phiên lát 2 (S13): phiếu đồng ý của Chairman không được tính; phiếu từ chối của Chairman đóng phiếu.
+  - OQ-29, của phiên lát 2 (S13): phiếu đồng ý của Chairman không được tính; phiếu từ chối của Chairman đóng phiếu. **Chairman đã xác nhận ngày 18/11/2026** (`docs/OPEN-QUESTIONS.md`, khối «Xác nhận của Chairman ngày 18/11/2026 về S13 của lát 2» ở cuối tệp); mục này không còn chờ.
 - **Quyết định của Chairman ngày 14/11/2026 sau khi cổng dừng** (phiên điều phối chuyển lời, chọn qua hộp chọn):
   - Vòng sửa: «Cho vòng 3, Codex vòng 4 cuối (Recommended)» — «Sửa bốn lỗi theo lớp, gộp với việc áp OQ-26…29 (vốn cũng phải review lại). Codex vòng 4 là vòng cuối; chưa đạt thì dừng hẳn và trình lại. Khoảng 300–450 nghìn token phía Claude cộng một lượt Codex.» Trong phiên lát 2, người dùng cũng bấm «Yes, fix round 3».
   - PR: «Push + PR nháp ngay (Recommended)» — «Có bản sao ngoài máy và team xem được. PR để nháp, biên nhận ghi «chưa đạt cổng Codex», quét bí mật trước khi push vì repo đang công khai. Không merge, không đụng main.»

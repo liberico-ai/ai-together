@@ -39,7 +39,7 @@ Câu hỏi mới từ PR này đánh số từ OQ-53; PR này không mở câu h
 
 **Điều kiện của cổng bảo mật trên kế hoạch (lượt 3):** Task 1a không merge khi thiếu Task 1b. Đạt theo cách dựng: 1a và 1b nằm trong cùng PR này.
 
-**Vẫn chờ Chairman xác nhận, kế hoạch không nới không siết:** S13 của lát 2 áp cho phiếu do điều phối trình (lá «Từ chối» của ghế `chairman` đóng phiếu; lá «Đồng ý» của ghế đó không tính) — ghi chú 3 kèm OQ-35.
+**Chairman xác nhận ngày 18/11/2026, sau merge:** S13 của lát 2 áp cho phiếu do điều phối trình (lá «Từ chối» của ghế `chairman` đóng phiếu; lá «Đồng ý» của ghế đó không tính) — ghi chú 3 kèm OQ-35. Chairman gõ «áp», rồi chọn «Cả hai đường (Recommended)» ở hộp chọn (`docs/OPEN-QUESTIONS.md`, khối «Xác nhận của Chairman ngày 18/11/2026 về S13 của lát 2» ở cuối tệp). Lúc lập kế hoạch và lúc merge điểm này còn chờ xác nhận; kế hoạch không nới không siết, và xác nhận không đổi mã.
 
 ## Đã làm
 
@@ -176,5 +176,5 @@ Triển khai d1-ai1 · dùng thật với điều phối dự án, ghế BoM và
 ## Câu hỏi mở
 
 - PR này không mở câu hỏi mới; số kế tiếp vẫn là OQ-53.
-- **Vẫn chờ Chairman xác nhận:** S13 của lát 2 áp cho phiếu do điều phối trình (xem «Căn cứ và quyết định»).
+- **Đã có xác nhận của Chairman ngày 18/11/2026:** S13 của lát 2 áp cho phiếu do điều phối trình (xem «Căn cứ và quyết định»). Mã không đổi.
 - Chưa thành câu hỏi mở, cần quyết nếu muốn đổi: mặc định `expires_at` của migration 009 cho cả đường trình của quản trị lẫn của điều phối (khoảng trống 19); trần 72 giờ của phiếu lệch phiên bản chưa ai đánh dấu (khoảng trống 2).
