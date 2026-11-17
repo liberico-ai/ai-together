@@ -27,7 +27,7 @@ Theo chỉ đạo mới nhất ngày 11/11, [SPEC-009](SPEC-009-PM-BA-DOCUMENTS-
 - Bốn vòng sửa theo Codex; vòng 3 và vòng 4 có quyết định riêng. `liberico-reality-checker` đã kiểm biên nhận trước khi ghi «đạt».
 - Chưa triển khai, chưa dùng thật, chưa nghiệm thu. Migration 016–018 chưa áp lên DB thật. ProjectChannel chưa kích hoạt, vì OQ-09 mục (1) chưa chứng minh.
 - Việc để lại cho lát sau: thủ tục xoá hoặc che chữ đã lưu có người duyệt (OQ-30 kèm); tách luật hiển thị nội dung thành mô-đun dùng chung trước khi lát 3 thêm chỗ đọc `source_event_revisions`; công cụ nạp lại tệp dead-letter của plugin.
-- Chờ Chairman: xác nhận các cách hiểu kèm OQ-28/OQ-29 và S13; S5; DOC-16; gợi ý «cùng nội dung» cho tin không hiện chữ.
+- Chờ Chairman: xác nhận các cách hiểu kèm OQ-28/OQ-29; S5; DOC-16; gợi ý «cùng nội dung» cho tin không hiện chữ. S13 đã được Chairman xác nhận ngày 18/11/2026 (`docs/OPEN-QUESTIONS.md`, khối «Xác nhận của Chairman ngày 18/11/2026 về S13 của lát 2» ở cuối tệp).
 
 **Trạng thái P1.2 ngày 16/11/2026:** **đã có mã** — Codex vòng 4: PASS, không có finding.
 
@@ -47,7 +47,7 @@ Theo chỉ đạo mới nhất ngày 11/11, [SPEC-009](SPEC-009-PM-BA-DOCUMENTS-
 - Test, typecheck và build xanh ở `4f7e000`: native 1166/0 bỏ qua, PGlite 1104/62 bỏ qua; pytest 67 ở Task 5 (PR không đụng tệp Python). Hai vòng Codex, một vòng sửa.
 - **Không migration:** brief lát 4 vẫn bắt đầu từ **022**.
 - Chairman đã quyết OQ-48…52 ngày 16/11/2026 (cùng quyết định thứ hai về cách tính giờ của OQ-48: «Từ lúc phiếu đóng (Recommended)»); mã theo đúng các quyết định đó.
-- Chờ Chairman: xác nhận S13 của lát 2 áp cho phiếu do điều phối trình; nhãn quyền `doc_approve:*` trong plugin trước khi dùng thật; kiểm tay giao diện ở 360 px và 1280 px với người thật.
+- Chờ Chairman: nhãn quyền `doc_approve:*` trong plugin trước khi dùng thật; kiểm tay giao diện ở 360 px và 1280 px với người thật. S13 của lát 2 áp cho phiếu do điều phối trình: Chairman đã xác nhận ngày 18/11/2026 (`docs/OPEN-QUESTIONS.md`, khối «Xác nhận của Chairman ngày 18/11/2026 về S13 của lát 2» ở cuối tệp).
 - Việc để lại: biểu mẫu đăng ký trên `/team` (Enter bấm nút đầu tiên — có từ trước, nên sửa trước go-live); ca `rolbypassrls=false` cho `libetech_identity`; khoá chết khi quản trị vừa huỷ vừa bỏ phiếu ghế `chairman` trên cùng phiếu (cùng lớp với đường áp có sẵn); đồng hồ `now()` có từ merge base ở đường áp và hàm đếm phiếu; mặc định `expires_at` của migration 009 cho cả hai đường trình.
 
 Ca Xeca: **XECA006/STT41** nâng package theo npm audit, hạn 21/11, Quân phụ trách và Thắng phối hợp theo Sheet đọc 11/11. Giữ riêng XECA005/TK-XECA-202611-001; repo/audit report/bản thực thử cần bổ sung. Ca LBRC014 dùng hồ sơ cập nhật §12 ngày 09/11, gồm báo cáo iOS và tám ảnh của Phương; còn mối nối build và nghiệm thu nghiệp vụ. Không yêu cầu lại phần đã có, không mở lại hoặc đổi trạng thái nguồn.
