@@ -79,7 +79,7 @@ Các lựa chọn kỹ thuật do kế hoạch đặt nằm ở `docs/plans/task
 
 ## Bằng chứng kiểm
 
-Tệp nằm ở `docs/reviews/task-7c-evidence-20261116/`; đường dẫn thư mục máy trong log được thay bằng `<repo>`, không log nào chứa giá trị biến môi trường hay chuỗi kết nối. Container PostgreSQL 16 chỉ nghe trên loopback, dữ liệu tổng hợp. Số của cây cuối là của `4f7e000` (commit mã cuối; các commit sau chỉ thêm tài liệu). Đầu các log `codex-fix1b-*.txt` ghi «HEAD 56a7362 (code at 986285f) plus the uncommitted N1 working tree»: log và mã vào cùng commit `4f7e000`, và lượt soát biên nhận chạy lại PGlite ở HEAD ra đúng 1 104 / 62 (`gates/reality-check-receipt.md`); số native chưa được ai chạy lại độc lập.
+Tệp nằm ở `docs/reviews/task-7c-evidence-20261116/`; đường dẫn thư mục máy trong log được thay bằng `<repo>`, không log nào chứa giá trị biến môi trường hay chuỗi kết nối. Container PostgreSQL 16 chỉ nghe trên loopback, dữ liệu tổng hợp. Số của cây cuối là của `4f7e000` (commit mã cuối; các commit sau chỉ thêm tài liệu). Đầu các log `codex-fix1b-*.txt` ghi «HEAD 56a7362 (code at 986285f) plus the uncommitted N1 working tree»: log và mã vào cùng commit `4f7e000`, và lượt soát biên nhận chạy lại PGlite ở HEAD ra đúng 1 104 / 62 (`gates/reality-check-receipt.md`). Số native được phiên điều phối chạy lại độc lập ngày 17/11/2026, sau merge, ra đúng 1 166 / 0 (mục «Kiểm lại của phiên điều phối và merge»).
 
 | Lệnh | Kết quả | Tệp |
 |---|---|---|
@@ -91,7 +91,7 @@ Tệp nằm ở `docs/reviews/task-7c-evidence-20261116/`; đường dẫn thư 
 | Đỏ trước của phần sửa N1 (điều phối bị hạ xuống «Chỉ đọc») | 2 dòng `AssertionError`, không ca nào hết giờ: bước 1 trước khi có hàm `standingAfterRereadFailure`; bước 2 khi đã có hàm mà chưa nối vào `review.tsx` (mọi điều khẳng định về hành vi đã đạt, chỉ phép ghim nối dây đỏ) | `codex-fix1b-red.txt` |
 | Các lượt trước, giữ để đối chiếu | Task 5 (`0c7ab7f`): PGlite 1 086 đạt / 57 bỏ qua, native 1 143 / 0. Đợt sửa toàn nhánh (`7a11c1b`): PGlite 1 095 / 58, native 1 153 / 0, đột biến của đợt sửa đều bị bắt. Vòng sửa Codex 1 (`986285f`): PGlite 1 103 / 62, native 1 165 / 0. Mọi lượt native: 0 dòng `40P01` | `task-5-*.txt`, `final-fix-wave-*.txt`, `codex-fix1-*.txt` |
 | `npx vitest run --coverage` (Task 5, `0c7ab7f`, native) | statements 96,44 · branches 91,66 · functions 98,02 · lines 97,69; ngưỡng 60 giữ. `doc-approval-proposals.ts` 96,56 · 91,83 · 100 · 99,25; `doc-approval-http.ts` 100 ở cả bốn số. **Không chạy lại sau đợt sửa toàn nhánh và hai vòng sửa Codex** | `task-5-coverage.txt` |
-| `python3 -m pytest tests/test_bot_bridge.py -q` | 67 đạt, 69 subtest đạt, ở `0c7ab7f` (Task 5). PR không đụng tệp Python; không chạy lại sau đó. Khối bối cảnh Codex vòng 2 ghi pytest 67 cả ở `986285f` — câu đó không có log; khối giữ nguyên vì là bản đã gửi Codex, `manifest.json` đã bỏ câu đó | `task-5-pytest.txt` |
+| `python3 -m pytest tests/test_bot_bridge.py -q` | 67 đạt, 69 subtest đạt, ở `0c7ab7f` (Task 5). PR không đụng tệp Python; phiên Task 7c không chạy lại sau đó. Phiên điều phối chạy lại ở `bef3cc5` ngày 17/11/2026: 67 đạt, 69 subtest đạt (mục «Kiểm lại của phiên điều phối và merge»; log không commit). Khối bối cảnh Codex vòng 2 ghi pytest 67 cả ở `986285f` — câu đó không có log; khối giữ nguyên vì là bản đã gửi Codex, `manifest.json` đã bỏ câu đó | `task-5-pytest.txt` |
 | Phép kiểm giới hạn L1–L8 (so với `679ff6c`) | Đạt cả tám | `task-5-limits.txt` |
 | Bảng ca âm ↔ test | 33/33 ca của kế hoạch, cộng mục «Tenant isolation 34a–e» và «Codex round 1 fixes» | `task-5-negative-cases.md` |
 | Review theo task | Mỗi task một lượt mã, một lượt bảo mật hoặc giao diện, một lượt soát lại sau vòng sửa | `reviews/` |
@@ -143,6 +143,19 @@ Không chạy: kiểm tay bằng trình duyệt (khoảng trống 23); coverage 
 ## Kiểm lại của phiên điều phối và merge
 
 Không có lượt kiểm lại độc lập của phiên điều phối trước merge: Chairman duyệt merge thẳng trong phiên Task 7c.
+
+Phiên điều phối kiểm lại độc lập **sau merge**, ngày 17/11/2026 (03:55–04:09 UTC), theo lời Chairman «Kiểm lại bef3cc5». Lượt kiểm chạy tại `bef3cc5` (merge của PR #17), trong một worktree riêng. Ngoài `docs/`, cây ở `bef3cc5` trùng cây ở `4f7e000` (`git diff 4f7e000 bef3cc5 -- . ':!docs'` rỗng), nên các số dưới đây là của chính mã đã merge:
+
+- `npx vitest run` trên PostgreSQL 16 thật: 77 tệp đạt; 1 166 ca đạt, 0 bỏ qua; 0 dòng `AssertionError`, 0 dòng `40P01`. Trên PGlite: 65 tệp đạt, 12 bỏ qua; 1 104 ca đạt, 62 bỏ qua. Cả hai khớp bảng «Bằng chứng kiểm».
+- `python3 -m pytest tests/test_bot_bridge.py -q`: 67 đạt, 69 subtest đạt. Đây là lượt pytest đầu tiên ở cây cuối.
+- `npm run typecheck` và `rm -rf .next && npm run build`: mã thoát 0. Build không có dòng cảnh báo hay lỗi, và có đủ bốn tuyến `/api/team/doc-approvals/[[...path]]`, `/review`, `/team`, `/approvals`.
+- Dòng đầu `codex-round-2.md` là `VERDICT: PASS`.
+- Quét 20 437 dòng có nội dung mà PR #16 và #17 thêm (22 546 dòng tính cả dòng trống, `git diff 460653e bef3cc5`): không thấy khoá, token, chuỗi kết nối, đường dẫn thư mục máy hay mã nhóm Telegram thật. Mọi chỗ khớp mẫu đều là câu mô tả hoặc tên test; mã nhóm duy nhất là mã tổng hợp `-100000000000`.
+- Hai PR không đụng `AGENTS.md`, `CLAUDE.md`, `.env`, `data/`, `package.json`, `bot-plugin/`, `migrations/`.
+- Log của lượt này nằm trong thư mục tạm của phiên điều phối, ngoài repo, không commit.
+- Không làm: không chạy coverage (số coverage vẫn là của Task 5 ở `0c7ab7f`), không kiểm tay giao diện, không chạy lại Codex.
+
+Đây là kết quả kiểm mã sau merge; nó không nói gì về triển khai, dùng thật hay nghiệm thu.
 
 PR #16 merge vào `libetech-ai-os` lúc 12:33:59 UTC ngày 16/11/2026 (`1237ae4`, hai commit cha là `460653e` và `b3e6658`) sau khi Chairman duyệt: «Merge PR #16». Phiên Task 7c chạy lệnh merge, ghim đúng head đã soát (`--match-head-commit`). Cây sau merge trùng cây ở head `b3e6658`; `main` không đổi (`d23e516`); không có lượt GitHub Actions mới. Việc merge không nói gì về triển khai, dùng thật hay nghiệm thu.
 
