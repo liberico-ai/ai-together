@@ -90,7 +90,7 @@ Tệp nằm ở `docs/reviews/task-7c-evidence-20261116/`; đường dẫn thư 
 | Đỏ trước của vòng sửa theo Codex vòng 1 | **19 dòng `AssertionError` đỏ trước** trên mã ở `7a11c1b` với test mới (C1 PGlite 7, C1 PostgreSQL 7, C1 (d) chờ khoá 4, C2 1); không ca nào đỏ vì hết giờ. Tệp còn 2 dòng nữa của một biến thể chỉ đổi hàm ngay trong câu khoá (chạy rồi bỏ): đó là phép kiểm của phán quyết 12, không phải bằng chứng đỏ trước | `codex-fix1-red.txt` |
 | Đỏ trước của phần sửa N1 (điều phối bị hạ xuống «Chỉ đọc») | 2 dòng `AssertionError`, không ca nào hết giờ: bước 1 trước khi có hàm `standingAfterRereadFailure`; bước 2 khi đã có hàm mà chưa nối vào `review.tsx` (mọi điều khẳng định về hành vi đã đạt, chỉ phép ghim nối dây đỏ) | `codex-fix1b-red.txt` |
 | Các lượt trước, giữ để đối chiếu | Task 5 (`0c7ab7f`): PGlite 1 086 đạt / 57 bỏ qua, native 1 143 / 0. Đợt sửa toàn nhánh (`7a11c1b`): PGlite 1 095 / 58, native 1 153 / 0, đột biến của đợt sửa đều bị bắt. Vòng sửa Codex 1 (`986285f`): PGlite 1 103 / 62, native 1 165 / 0. Mọi lượt native: 0 dòng `40P01` | `task-5-*.txt`, `final-fix-wave-*.txt`, `codex-fix1-*.txt` |
-| `npx vitest run --coverage` (Task 5, `0c7ab7f`, native) | statements 96,44 · branches 91,66 · functions 98,02 · lines 97,69; ngưỡng 60 giữ. `doc-approval-proposals.ts` 96,56 · 91,83 · 100 · 99,25; `doc-approval-http.ts` 100 ở cả bốn số. **Không chạy lại sau đợt sửa toàn nhánh và hai vòng sửa Codex** | `task-5-coverage.txt` |
+| `npx vitest run --coverage` (Task 5, `0c7ab7f`, native) | statements 96,44 · branches 91,66 · functions 98,02 · lines 97,69; ngưỡng 60 giữ. `doc-approval-proposals.ts` 96,56 · 91,83 · 100 · 99,25; `doc-approval-http.ts` 100 ở cả bốn số. Phiên Task 7c không chạy lại sau đợt sửa toàn nhánh và hai vòng sửa Codex. Phiên điều phối chạy lại ở `84548b6` ngày 17/11/2026: 96,44 · 91,58 · 98,02 · 97,69, ngưỡng 60 giữ (mục «Kiểm lại của phiên điều phối và merge»; log không commit) | `task-5-coverage.txt` |
 | `python3 -m pytest tests/test_bot_bridge.py -q` | 67 đạt, 69 subtest đạt, ở `0c7ab7f` (Task 5). PR không đụng tệp Python; phiên Task 7c không chạy lại sau đó. Phiên điều phối chạy lại ở `bef3cc5` ngày 17/11/2026: 67 đạt, 69 subtest đạt (mục «Kiểm lại của phiên điều phối và merge»; log không commit). Khối bối cảnh Codex vòng 2 ghi pytest 67 cả ở `986285f` — câu đó không có log; khối giữ nguyên vì là bản đã gửi Codex, `manifest.json` đã bỏ câu đó | `task-5-pytest.txt` |
 | Phép kiểm giới hạn L1–L8 (so với `679ff6c`) | Đạt cả tám | `task-5-limits.txt` |
 | Bảng ca âm ↔ test | 33/33 ca của kế hoạch, cộng mục «Tenant isolation 34a–e» và «Codex round 1 fixes» | `task-5-negative-cases.md` |
@@ -99,7 +99,7 @@ Tệp nằm ở `docs/reviews/task-7c-evidence-20261116/`; đường dẫn thư 
 | Cổng Codex vòng 1 (base `460653e`, head `2dd7812`) | **`VERDICT: CHANGES_REQUIRED`**: một P1 (đồng hồ cũ ở lệnh rút sau khi chờ khoá), một P2 (khối trình phiếu không theo lần đọc lại). Sửa ở `986285f` và `4f7e000` (N1 của lượt soát lại); soát lại hẹp hai lượt: `986285f` CHANGES NEEDED (N1), `4f7e000` READY (bốn mục nhỏ) | `codex-context-round-1.md`, `codex-round-1.md`, `gates/codex-fix-1-rereview.md`, `gates/codex-fix-1-rereview-n1.md` |
 | Cổng Codex vòng 2 (base `460653e`, head `2688c20`, mã ở `4f7e000`) | **`VERDICT: PASS`**, không finding. Review tĩnh; sandbox chỉ đọc không chạy test | `codex-context-round-2.md`, `codex-round-2.md` |
 
-Không chạy: kiểm tay bằng trình duyệt (khoảng trống 23); coverage sau `0c7ab7f`. Repo không có CI: mọi cổng ở đây là lượt chạy trên máy của phiên, không phải kiểm tra tự động trên PR. Bản ghi đầy đủ của Codex không vào repo; chỉ tệp kết quả và khối bối cảnh.
+Không chạy: kiểm tay bằng trình duyệt (khoảng trống 23). Phiên Task 7c không chạy coverage sau `0c7ab7f`; phiên điều phối chạy ở `84548b6` ngày 17/11/2026, sau merge (mục «Kiểm lại của phiên điều phối và merge»). Repo không có CI: mọi cổng ở đây là lượt chạy trên máy của phiên, không phải kiểm tra tự động trên PR. Bản ghi đầy đủ của Codex không vào repo; chỉ tệp kết quả và khối bối cảnh.
 
 ## Khoảng trống phải biết
 
@@ -153,7 +153,17 @@ Phiên điều phối kiểm lại độc lập **sau merge**, ngày 17/11/2026 
 - Quét 20 437 dòng có nội dung mà PR #16 và #17 thêm (22 546 dòng tính cả dòng trống, `git diff 460653e bef3cc5`): không thấy khoá, token, chuỗi kết nối, đường dẫn thư mục máy hay mã nhóm Telegram thật. Mọi chỗ khớp mẫu đều là câu mô tả hoặc tên test; mã nhóm duy nhất là mã tổng hợp `-100000000000`.
 - Hai PR không đụng `AGENTS.md`, `CLAUDE.md`, `.env`, `data/`, `package.json`, `bot-plugin/`, `migrations/`.
 - Log của lượt này nằm trong thư mục tạm của phiên điều phối, ngoài repo, không commit.
-- Không làm: không chạy coverage (số coverage vẫn là của Task 5 ở `0c7ab7f`), không kiểm tay giao diện, không chạy lại Codex.
+- Lượt này không chạy coverage (chạy riêng sau đó, xem đoạn dưới), không kiểm tay giao diện, không chạy lại Codex.
+
+Phiên điều phối chạy coverage riêng, cùng ngày 17/11/2026 (13:48–13:55 UTC), theo lời Chairman «Chạy coverage trên 84548b6». Lượt này chạy tại `84548b6` (merge của PR #18), trong cùng worktree riêng; ngoài `docs/`, cây ở `84548b6` trùng cây ở `4f7e000`. Lệnh là `npx vitest run --coverage` trên PostgreSQL 16 thật, như Task 5; khác một điểm là báo cáo ghi ra thư mục tạm thay vì `coverage/`:
+
+- Mã thoát 0, ngưỡng 60 giữ ở cả bốn số; 77 tệp đạt, 1 166 ca đạt.
+- Tổng: statements 96,44 (3 284/3 405) · branches 91,58 (2 111/2 305) · functions 98,02 (746/761) · lines 97,69 (2 461/2 519). Task 5 ở `0c7ab7f`: 96,44 (3 280/3 401) · 91,66 (2 111/2 303) · 98,02 (746/761) · 97,69 (2 457/2 515). Chỉ branches đổi, giảm 0,08 điểm.
+- `doc-approval-proposals.ts`: 96,58 · 91,27 · 100 · 99,25, với 136/149 nhánh; Task 5 là 96,56 · 91,83 · 100 · 99,25. Tổng số nhánh của cả bộ tăng 2 sau Task 5 và tỷ lệ 91,83 ứng với 135/147, nên suy ra các vòng sửa thêm hai nhánh ở tệp này, test phủ một. Chưa xác định nhánh chưa phủ là nhánh nào: báo cáo chỉ có số tổng theo tệp. `doc-approval-http.ts` vẫn 100 ở cả bốn số.
+- `document-dependencies.ts`: branches 94,44 (34/36); Task 5 là 97,22. Tệp không đổi từ `0c7ab7f`. Dòng 51 sắp xếp theo UUID ngẫu nhiên, nên có lượt chỉ đi qua một nửa của phép so sánh. Chạy lại riêng `tests/document-dependencies.test.ts` sáu lần trên PGlite với cùng mã: năm lần ra 97,22, một lần ra 94,44. Đây là dao động giữa các lượt chạy, không phải hồi quy.
+- `accounts.ts` (95,37 · 87,5 · 96,77 · 95,51) và `identity.ts` (82,66 · 73,07 · 86,66 · 83,33) nhích lên so với Task 5 (95,34 · 87,5 · 96,77 · 95,48 và 82,55 · 73,07 · 86,66 · 83,2). `identity.ts` vẫn là tệp thấp nhất.
+- Coverage chỉ đo 48 tệp `src/server` khai trong `vitest.config.ts`. Ba tệp giao diện mà các vòng sửa sau Task 5 đụng tới (`src/components/doc-approval-view.ts`, `review.tsx`, `team-accounts.tsx`) nằm ngoài danh sách đó.
+- Log của lượt này cũng nằm trong thư mục tạm của phiên điều phối, không commit.
 
 Đây là kết quả kiểm mã sau merge; nó không nói gì về triển khai, dùng thật hay nghiệm thu.
 
