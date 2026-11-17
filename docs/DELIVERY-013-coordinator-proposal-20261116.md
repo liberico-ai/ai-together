@@ -1,6 +1,6 @@
 # Điều phối dự án trình phiếu cấp quyền duyệt bản chuẩn; người trình rút, quản trị tài khoản huỷ; `/team` nêu tình trạng người trình trước khi áp; khối trình phiếu ở màn Review (Task 7c + bước 16b) · 16/11/2026
 
-PR riêng sau lát 3, theo quyết định của Chairman ngày 15/11/2026 «Tách PR riêng sau lát 3 (Recommended)» (`docs/OPEN-QUESTIONS.md`, khối «Quyết định của Chairman ngày 15/11/2026 về nơi làm Task 7c», ngay sau OQ-35). Nhánh `task-7c-coordinator-proposal`, PR [#16](https://github.com/liberico-ai/ai-together/pull/16) vào `libetech-ai-os`. Kế hoạch: `docs/plans/task-7c-coordinator-proposal.md` bản 0.5. Đặc tả giao diện: `docs/UI-HANDOFF-3-doc-approval.md` (mới) và sáu dòng ở `docs/UI-HANDOFF-3-review.md` (hai dòng trỏ sang đặc tả mới, `proposals?` của `ReviewQueue`, dòng dữ liệu `listOwn`, `approvalNote?` ở hai dòng). Review: `docs/reviews/REVIEW-task-7c-20261116.md`.
+PR riêng sau lát 3, theo quyết định của Chairman ngày 15/11/2026 «Tách PR riêng sau lát 3 (Recommended)» (`docs/OPEN-QUESTIONS.md`, khối «Quyết định của Chairman ngày 15/11/2026 về nơi làm Task 7c», ngay sau OQ-35). Nhánh `task-7c-coordinator-proposal`, PR [#16](https://github.com/liberico-ai/ai-together/pull/16), merge vào `libetech-ai-os` ngày 16/11/2026 (`1237ae4`). Kế hoạch: `docs/plans/task-7c-coordinator-proposal.md` bản 0.5. Đặc tả giao diện: `docs/UI-HANDOFF-3-doc-approval.md` (mới) và sáu dòng ở `docs/UI-HANDOFF-3-review.md` (hai dòng trỏ sang đặc tả mới, `proposals?` của `ReviewQueue`, dòng dữ liệu `listOwn`, `approvalNote?` ở hai dòng). Review: `docs/reviews/REVIEW-task-7c-20261116.md`.
 
 Hai gốc, mỗi gốc một việc:
 - **`679ff6c3eb972dd87e294ae7a948fe0c282760fb`** — gốc ghim của kế hoạch (sau khi PR #14 merge); các phép kiểm giới hạn L1–L8 của Task 5 (`task-5-limits.txt`) so với gốc này.
@@ -10,7 +10,7 @@ Hai gốc, mỗi gốc một việc:
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | **Đạt** ở `4f7e000` (commit mã cuối; các commit sau chỉ thêm hồ sơ). Cổng Codex vòng 2: **`VERDICT: PASS`**, không finding | Bảng «Bằng chứng kiểm» bên dưới; `docs/reviews/REVIEW-task-7c-20261116.md` |
+| **Đã có mã** | **Đạt** ở `4f7e000` (commit mã cuối; các commit sau chỉ thêm hồ sơ). Cổng Codex vòng 2: **`VERDICT: PASS`**, không finding. PR #16 merge vào `libetech-ai-os` ngày 16/11/2026 (`1237ae4`), head lúc merge `b3e6658` | Bảng «Bằng chứng kiểm» bên dưới; `docs/reviews/REVIEW-task-7c-20261116.md` |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1. PR không có migration | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Chỉ chạy trên dữ liệu tổng hợp; chưa điều phối dự án, ghế BoM hay quản trị tài khoản nào dùng đường này trên dữ liệu thật | — |
 | Đã nghiệm thu | **Chưa.** Chưa có chữ ký nghiệm thu | — |
@@ -140,13 +140,15 @@ Không chạy: kiểm tay bằng trình duyệt (khoảng trống 23); coverage 
 
 **Triển khai:** mã nay đặt READ COMMITTED cho mọi giao dịch danh tính (phán quyết 5). Các giao dịch khác vẫn mở bằng `BEGIN` trơn (`src/server/db.ts:44`); trước khi triển khai, nên xác nhận mặc định của máy chủ PostgreSQL thật là READ COMMITTED. Hai ghi chú của review bảo mật tầng 1 (`gates/tier1-security.md`, «Notes»): lời từ chối không được ghi log, nên dò quyền chỉ để lại bộ đếm trần đã băm (toàn repo); pool danh tính 10 kết nối dùng chung với tra phiên, và lệnh của điều phối chờ trên dòng quản trị giữ kết nối trong lúc chờ (trần 10 lần mỗi giờ giới hạn việc này). Repo không có CI: mọi cổng ở đây là lượt chạy trên máy của phiên.
 
-## Kiểm lại của phiên điều phối
+## Kiểm lại của phiên điều phối và merge
 
-Chưa có. Phiên điều phối kiểm lại độc lập trước khi trình Chairman merge; kết quả ghi ở đây sau.
+Không có lượt kiểm lại độc lập của phiên điều phối trước merge: Chairman duyệt merge thẳng trong phiên Task 7c.
+
+PR #16 merge vào `libetech-ai-os` lúc 12:33:59 UTC ngày 16/11/2026 (`1237ae4`, hai commit cha là `460653e` và `b3e6658`) sau khi Chairman duyệt: «Merge PR #16». Phiên Task 7c chạy lệnh merge, ghim đúng head đã soát (`--match-head-commit`). Cây sau merge trùng cây ở head `b3e6658`; `main` không đổi (`d23e516`); không có lượt GitHub Actions mới. Việc merge không nói gì về triển khai, dùng thật hay nghiệm thu.
 
 ## Điểm dừng — không làm, chờ Chairman
 
-Merge PR này vào `libetech-ai-os` · triển khai d1-ai1 · dùng thật với điều phối dự án, ghế BoM và quản trị tài khoản thật · nhãn quyền `doc_approve:*` trong plugin priority1 (PR không đụng `bot-plugin/` hay plugin) · kiểm tay khối phiếu trên `/team` và khối trình phiếu ở màn Review bằng trình duyệt ở 360 px và 1280 px (chế độ mô phỏng không dựng được hai khối này; khoảng trống 23).
+Triển khai d1-ai1 · dùng thật với điều phối dự án, ghế BoM và quản trị tài khoản thật · nhãn quyền `doc_approve:*` trong plugin priority1 (PR không đụng `bot-plugin/` hay plugin) · kiểm tay khối phiếu trên `/team` và khối trình phiếu ở màn Review bằng trình duyệt ở 360 px và 1280 px (chế độ mô phỏng không dựng được hai khối này; khoảng trống 23). (Merge PR này đã làm ngày 16/11/2026 theo lời Chairman «Merge PR #16»; xem «Kiểm lại của phiên điều phối và merge».)
 
 ## Câu hỏi mở
 
