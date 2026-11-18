@@ -457,7 +457,7 @@ test('running 021 again changes nothing: one trigger, one function, the same pol
   const sql=await readFile(path.join(process.cwd(),'migrations',F),'utf8');
   const shape=async()=>({
     policies:await rows('SELECT schemaname,tablename,policyname,roles::text r,cmd,qual,with_check FROM pg_policies WHERE schemaname IN (\'public\',\'intelligence\') AND tablename IN (\'ai_drafts\',\'draft_decisions\') ORDER BY 1,2,3'),
-    triggers:await rows(`SELECT tgrelid::regclass::text t,tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) ORDER BY 1,2`),
+    triggers:await rows(`SELECT tgrelid::regclass::text t,tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname <> 'ai_drafts_pointer_only_guard' AND tgrelid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) ORDER BY 1,2`),
     functions:await rows(`SELECT proname,prosecdef,proconfig::text c FROM pg_proc WHERE proname='draft_decisions_guard'`),
     acl:await rows(`SELECT relname,relacl::text a,relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) ORDER BY 1`),
     columns:await rows(`SELECT attrelid::regclass::text t,attname,attacl::text a FROM pg_attribute WHERE attrelid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) AND attnum>0 AND NOT attisdropped ORDER BY 1,2`),

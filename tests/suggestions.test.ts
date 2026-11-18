@@ -316,8 +316,8 @@ describe('Z4 drafts: decide',()=>{
  });
 
  test('a draft of an IBS HI project cannot be confirmed',async()=>{
-  await mapDomain(h,ids.transport,'IBS_HI',1);
   const d=await doc(ids.transport),{draftId,valueHash}=await docDraft({d,project:ids.transport});
+  await mapDomain(h,ids.transport,'IBS_HI',1);
   await held(decide(svc(),pm,draftId,body(valueHash,{revision:revisionBody(d)})),'POINTER_ONLY_PROJECT');
   await zeroDecisions();
  });
