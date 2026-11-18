@@ -463,7 +463,30 @@ test('rollback 022 refuses while a later migration is applied, drops the guard t
     expect(await guard()).toEqual(full);expect(await upstream()).toEqual(kept);expect(await counts()).toEqual(rows0);
   } finally {
     await h.exec('ROLLBACK').catch(()=>{});
-    await h.exec(forward).catch(()=>{});
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});
+
+test('rollback 022 runs again after 021 was rolled back and its schema is gone',async()=>{
+  const h=await openHarness();
+  const f21=await readFile(dir('migrations/021_ai_suggestions_z4.sql'),'utf8');
+  const f22=await readFile(dir('migrations/022_ai_drafts_pointer_only_guard.sql'),'utf8');
+  const r21=await readFile(dir('migrations/rollback/021_ai_suggestions_z4.sql'),'utf8');
+  const r22=await readFile(dir('migrations/rollback/022_ai_drafts_pointer_only_guard.sql'),'utf8');
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);
+    later=(await from013()).filter(f=>num(f)>22);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    await h.exec(r22);
+    await h.exec(r21);
+    await h.exec(r22);
+    expect((await h.operator.query<{t:string|null}>("SELECT to_regclass('intelligence.ai_drafts')::text t")).rows[0].t).toBeNull();
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(f21);await h.exec(f22);
     for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
     await h.reset();await h.close();
   }

@@ -2,7 +2,7 @@ import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
-import {openHarness,type Harness} from './slice1-db';
+import {native,openHarness,type Harness} from './slice1-db';
 import {pm,sameBuProject,seedSlice1} from './slice1-fixtures';
 import {aiPrincipal,mapDomain,seedMembers} from './slice3-fixtures';
 import {rolledBack} from './slice2-fixtures';
@@ -118,10 +118,8 @@ describe('migration 022: the pointer-only guard',()=>{
   test('G8 34a 34e the AI role gains nothing to read or call',async()=>{
     expect((await refusal(asAi(tx=>tx.query('SELECT 1 FROM public.project_domain_mappings'))))?.message).toMatch(/permission denied/);
     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.ai_drafts_pointer_only_guard()'))))?.message).toMatch(/permission denied/);
-    const owner=(await rows<{o:string}>(`SELECT pg_get_userbyid(p.proowner) o FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-      WHERE n.nspname='intelligence' AND p.proname='ai_drafts_pointer_only_guard'`))[0].o;
-    expect((await rows<{g:string}>(`SELECT a.grantee::regrole::text g FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace, aclexplode(p.proacl) a
-      WHERE n.nspname='intelligence' AND p.proname='ai_drafts_pointer_only_guard'`)).map(r=>r.g)).toEqual([owner]);
+    expect(await rows<{is_owner:boolean}>(`SELECT a.grantee = p.proowner AS is_owner FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace, aclexplode(p.proacl) a
+      WHERE n.nspname='intelligence' AND p.proname='ai_drafts_pointer_only_guard'`)).toEqual([{is_owner:true}]);
     expect(await rows(`SELECT n.nspname||'.'||p.proname f FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
       WHERE p.prosecdef AND has_function_privilege('libetech_ai',p.oid,'EXECUTE')`)).toEqual([]);
     expect((await rows(`SELECT rolsuper,rolbypassrls,rolcanlogin,
@@ -195,6 +193,9 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(fn[0].proconfig).toContain('search_path=pg_catalog, pg_temp');
     expect(fn[0].proconfig).toContain('row_security=off');
     expect(fn[0].super||fn[0].bypass).toBe(true);
+    const def=(await rows<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname='ai_drafts_pointer_only_guard'"))[0].d.replace(/\s+/g,' ');
+    for(const f of ['FROM public.project_domain_mappings m','m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id','ORDER BY m.mapping_version DESC LIMIT 1',
+      "latest = 'IBS_HI'","ERRCODE = 'LTZ01'","current_setting('transaction_isolation') <> 'read committed'","ERRCODE = 'LTZ02'"]) expect(def,f).toContain(f);
     const code=sql.replace(/--.*$/gm,'');
     expect(code).not.toMatch(/\bINSERT INTO (?!schema_migrations)/i);
     for(const re of [/\bGRANT\b/i,/CREATE\s+ROLE/i,/ALTER\s+ROLE/i,/\bPASSWORD\b/i,/CASCADE/i]) expect(code).not.toMatch(re);
@@ -240,5 +241,66 @@ describe('migration 022: the pointer-only guard',()=>{
       expect((await refusal(insertDraft(h.operator,over)))?.code).toBe('23502');
     }
     expect(await count()).toBe(0);
+  });
+
+  test('G16 the guard refuses a write from a transaction that is not READ COMMITTED: REPEATABLE READ and SERIALIZABLE are answered LTZ02 whatever the project, and nothing is stored',async()=>{
+    const LTZ2='LTZ02',MSG2='An AI draft is written in a READ COMMITTED transaction';
+    const check=(e:Refusal,label:string)=>{
+      expect(e,label).not.toBeNull();
+      expect(e!.code,label).toBe(LTZ2);
+      expect(e!.message,label).toBe(MSG2);
+      expect(e!.message,label).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);
+    };
+    for(const level of ['REPEATABLE READ','SERIALIZABLE']){
+      const before=await count();
+      const e=await refusal(h.operator.transaction(async tx=>{
+        await tx.query(`SET TRANSACTION ISOLATION LEVEL ${level}`);
+        await tx.query('SET LOCAL ROLE libetech_ai');
+        await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.ai_principal_id',$3,true)",[ids.tenant,S.join(','),AI]);
+        return insertDraft(tx,{project_id:ids.sales});
+      }));
+      check(e,level);
+      expect(await count(),level).toBe(before);
+    }
+    const before=await count();
+    check(await refusal(h.operator.transaction(async tx=>{
+      await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+      return insertDraft(tx,{project_id:ids.sales});
+    })),'operational login');
+    expect(await count()).toBe(before);
+    expect(await aiInsert()).toBeNull();
+    expect(await count()).toBe(before+1);
+  });
+
+  test.skipIf(!native)('G17 a transaction opened before the IBS_HI mapping was committed cannot store a draft after it',async()=>{
+    let version=1;
+    const attempt=(level:boolean)=>refusal(h.operator.transaction(async tx=>{
+      if(level) await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+      await tx.query('SET LOCAL ROLE libetech_ai');
+      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.ai_principal_id',$3,true)",[ids.tenant,ids.transport,AI]);
+      await tx.query('SELECT count(*) FROM intelligence.ai_drafts');
+      await mapDomain(h,ids.transport,'IBS_HI',version++);
+      return insertDraft(tx,{project_id:ids.transport});
+    }));
+    const before=await count();
+    expect((await attempt(true))?.code).toBe('LTZ02');
+    expect(await count()).toBe(before);
+    expect((await attempt(false))?.code).toBe(LTZ);
+    expect(await count()).toBe(before);
+  });
+
+  test('G18 MERGE is judged like INSERT: a MERGE that would insert a draft for an IBS_HI project is refused LTZ01 and nothing is stored',async()=>{
+    await mapDomain(h,ids.transport,'IBS_HI',1);
+    const merge=(over:R)=>{
+      const v=draftVals(over),keys=Object.keys(v);
+      return refusal(h.operator.query(`MERGE INTO intelligence.ai_drafts d USING (SELECT 1) s ON false WHEN NOT MATCHED THEN INSERT (${keys.join(',')})
+        VALUES (${keys.map((k,i)=>`$${i+1}${JSONB_COLUMNS.has(k)?'::jsonb':''}`).join(',')})`,keys.map(k=>v[k])));
+    };
+    const e=await merge({project_id:ids.transport});
+    expect(e).not.toBeNull();
+    expect(e!.code).toBe(LTZ);
+    expect(await count()).toBe(0);
+    expect(await merge({project_id:ids.sales})).toBeNull();
+    expect(await count()).toBe(1);
   });
 });

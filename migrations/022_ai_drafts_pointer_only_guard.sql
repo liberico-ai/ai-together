@@ -5,6 +5,7 @@
 -- role can tell from an insert attempt is one bit for the (tenant, project) the row names, whatever context it set: BEFORE ROW triggers fire before
 -- the WITH CHECK of row-level security. row_security = off makes the function fail closed: an owner that row-level security would filter gets an
 -- error, never an empty read. Apply as the migration login (a superuser), like 019–021. The guard binds every writer, the operational login included.
+-- The guard also refuses a write from a transaction that is not READ COMMITTED (LTZ02): only that level reads the latest mapping.
 -- Nothing here switches anything on: no login, no password, no key, no membership, no grant, no model. No data rows except schema_migrations.
 -- Rollback: migrations/rollback/022_ai_drafts_pointer_only_guard.sql (refuses while a later migration is recorded).
 BEGIN;
@@ -14,6 +15,12 @@ CREATE OR REPLACE FUNCTION intelligence.ai_drafts_pointer_only_guard() RETURNS t
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp SET row_security = off AS $$
 DECLARE latest text;
 BEGIN
+  -- The mapping is read under the snapshot of the calling transaction. Only READ COMMITTED gives this statement a fresh one: a REPEATABLE READ or
+  -- SERIALIZABLE transaction opened before an IBS_HI mapping was committed would not see it and the draft would be stored (measured on PostgreSQL 16).
+  -- Any other isolation level is refused, whatever the project.
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'An AI draft is written in a READ COMMITTED transaction' USING ERRCODE = 'LTZ02';
+  END IF;
   SELECT m.domain_code INTO latest FROM public.project_domain_mappings m
    WHERE m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id
    ORDER BY m.mapping_version DESC LIMIT 1;
