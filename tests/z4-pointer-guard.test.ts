@@ -168,12 +168,20 @@ describe('migration 022: the pointer-only guard',()=>{
     const shape=async()=>({
       triggers:await rows(`SELECT tgrelid::regclass::text t,tgname,tgenabled,tgtype,pg_get_triggerdef(oid) d FROM pg_trigger WHERE NOT tgisinternal
         AND tgrelid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) ORDER BY 1,2`),
-      functions:await rows(`SELECT n.nspname,p.proname,p.prosecdef,p.proconfig::text c,p.proacl::text a,pg_get_userbyid(p.proowner) o FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      functions:await rows(`SELECT n.nspname,p.proname,p.prosecdef,p.proconfig::text c,p.proacl::text a,pg_get_userbyid(p.proowner) o,p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
         WHERE p.proname IN ('ai_drafts_pointer_only_guard','draft_decisions_guard') ORDER BY 1,2`),
       acl:await rows(`SELECT relname,relacl::text a,relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) ORDER BY 1`),
       policies:await rows("SELECT tablename,policyname,roles::text r,cmd,qual,with_check FROM pg_policies WHERE tablename IN ('ai_drafts','draft_decisions') ORDER BY 1,2"),
       migrations:await rows("SELECT version FROM schema_migrations WHERE version='022'"),
     });
+    // the whole body, not fragments: the text of the file between AS $$ and the closing $$;
+    const open=sql.indexOf('AS $$')+'AS $$'.length,close=sql.indexOf('$$;',open);
+    expect(open).toBeGreaterThan(4);
+    expect(close).toBeGreaterThan(open);
+    const fileBody=sql.slice(open,close).trim();
+    const bodyOf=async()=>(await rows<{p:string}>("SELECT prosrc p FROM pg_proc WHERE proname='ai_drafts_pointer_only_guard'"))[0].p.trim();
+    // first comparison: the body the harness installed when the database was built, read BEFORE the file is applied again
+    expect(await bodyOf()).toBe(fileBody);
     const before=await shape();
     await h.exec(sql);await h.exec(sql);
     expect(await shape()).toEqual(before);
@@ -196,12 +204,8 @@ describe('migration 022: the pointer-only guard',()=>{
     const def=(await rows<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname='ai_drafts_pointer_only_guard'"))[0].d.replace(/\s+/g,' ');
     for(const f of ['FROM public.project_domain_mappings m','m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id','ORDER BY m.mapping_version DESC LIMIT 1',
       "latest = 'IBS_HI'","ERRCODE = 'LTZ01'","current_setting('transaction_isolation') <> 'read committed'","ERRCODE = 'LTZ02'"]) expect(def,f).toContain(f);
-    // the whole body, not fragments: the text of the file between AS $$ and the closing $$; equals prosrc
-    const open=sql.indexOf('AS $$')+'AS $$'.length,close=sql.indexOf('$$;',open);
-    expect(open).toBeGreaterThan(4);
-    expect(close).toBeGreaterThan(open);
-    const prosrc=(await rows<{p:string}>("SELECT prosrc p FROM pg_proc WHERE proname='ai_drafts_pointer_only_guard'"))[0].p;
-    expect(sql.slice(open,close).trim()).toBe(prosrc.trim());
+    // second comparison, after the re-apply
+    expect(await bodyOf()).toBe(fileBody);
     const code=sql.replace(/--.*$/gm,'');
     expect(code).not.toMatch(/\bINSERT INTO (?!schema_migrations)/i);
     for(const re of [/\bGRANT\b/i,/CREATE\s+ROLE/i,/ALTER\s+ROLE/i,/\bPASSWORD\b/i,/CASCADE/i]) expect(code).not.toMatch(re);
@@ -249,7 +253,7 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await count()).toBe(0);
   });
 
-  test('G16 the guard refuses a write from a transaction that is not READ COMMITTED: REPEATABLE READ and SERIALIZABLE are answered LTZ02 whatever the project, and nothing is stored',async()=>{
+  test('G16 the guard refuses a write from a transaction that is not READ COMMITTED: READ UNCOMMITTED, REPEATABLE READ and SERIALIZABLE are answered LTZ02 whatever the project (REPEATABLE READ also for an IBS_HI project), and nothing is stored',async()=>{
     const LTZ2='LTZ02',MSG2='An AI draft is written in a READ COMMITTED transaction';
     const check=(e:Refusal,label:string)=>{
       expect(e,label).not.toBeNull();

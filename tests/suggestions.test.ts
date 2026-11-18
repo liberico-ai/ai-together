@@ -21,7 +21,7 @@ import type {AiPrincipal} from '../src/server/ai-scope';
 import type {Database,Queryable} from '../src/server/db';
 import type {DocumentDetail,Principal} from '../src/server/types';
 
-// The context builder is wrapped, not replaced: the cases that read which principal the context was built for (the confirmation case, M5, M6) look at its calls.
+// The context builder is wrapped, not replaced: the confirmation case and M5 look at its calls; M6 makes it reject once.
 vi.mock('../src/server/skill-context',async orig=>{
  const m=await orig<typeof import('../src/server/skill-context')>();
  return {...m,buildSkillContextIn:vi.fn(m.buildSkillContextIn)};
