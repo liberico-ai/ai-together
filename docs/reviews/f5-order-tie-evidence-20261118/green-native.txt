@@ -1,0 +1,51 @@
+# PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2), a throwaway container of this session (image postgres:16, synthetic data, loopback, removed afterwards) — not the shared container
+# libetech-slice1-pg, which was stopped and was left alone. Only SLICE1_TEST_DATABASE_URL is set: the service runs on the operator's login with
+# SET LOCAL ROLE libetech_runtime, as on PGlite; there is no separate restricted web login in this run. Code at 8f3e8cb.
+
+## the clock. Command: npx tsx docs/reviews/f5-order-tie-evidence-20261118/probes/clock.mts
+(a) clock_timestamp(), 300 readings: with a non-zero digit below the millisecond = 298
+(b) now() of 300 separate transactions in 149 ms: equal to the one before = 0
+(c) clock running, two transactions 30 ms apart: 10:58:06.708695 10:58:06.740313 equal = false
+(c) Date.now() held, two transactions 30 ms apart: 10:58:06.740868 10:58:06.772185 equal = false
+EXIT=0
+
+## five designations through the service, one after the other, 25 times. Command: npx tsx docs/reviews/f5-order-tie-evidence-20261118/probes/grants.mts 25
+#01 grant ms [6.99, 3.72, 3.44, 3.43, 3.41] created_at s.us [07.277203, 07.282766, 07.286448, 07.289867, 07.293353] tie=false list=41,47,46,04,03 = reverse of creation
+#02 grant ms [4.91, 3.67, 3.51, 3.72, 3.51] created_at s.us [07.456168, 07.461041, 07.464802, 07.468458, 07.471972] tie=false list=41,47,46,04,03 = reverse of creation
+#03 grant ms [4.71, 3.51, 3.58, 3.55, 3.52] created_at s.us [07.636726, 07.641374, 07.644908, 07.648487, 07.652057] tie=false list=41,47,46,04,03 = reverse of creation
+#04 grant ms [4.85, 3.66, 3.57, 3.33, 3.41] created_at s.us [07.812761, 07.817569, 07.821280, 07.824793, 07.828137] tie=false list=41,47,46,04,03 = reverse of creation
+#05 grant ms [4.80, 3.62, 3.40, 3.41, 3.35] created_at s.us [07.992330, 07.997131, 08.000748, 08.004140, 08.007511] tie=false list=41,47,46,04,03 = reverse of creation
+#06 grant ms [4.81, 3.58, 3.41, 3.40, 3.27] created_at s.us [08.167581, 08.172371, 08.175955, 08.179371, 08.182763] tie=false list=41,47,46,04,03 = reverse of creation
+#07 grant ms [4.76, 3.45, 3.30, 3.29, 3.28] created_at s.us [08.354192, 08.358920, 08.362363, 08.365687, 08.368950] tie=false list=41,47,46,04,03 = reverse of creation
+#08 grant ms [4.53, 3.54, 3.27, 3.14, 3.23] created_at s.us [08.535425, 08.539932, 08.543467, 08.546745, 08.549866] tie=false list=41,47,46,04,03 = reverse of creation
+#09 grant ms [4.92, 3.78, 3.38, 3.10, 3.42] created_at s.us [08.721315, 08.726242, 08.729989, 08.733345, 08.736444] tie=false list=41,47,46,04,03 = reverse of creation
+#10 grant ms [4.71, 3.18, 3.63, 3.25, 3.28] created_at s.us [08.912950, 08.917575, 08.920795, 08.924425, 08.927653] tie=false list=41,47,46,04,03 = reverse of creation
+#11 grant ms [4.66, 3.52, 3.18, 3.38, 3.29] created_at s.us [09.092173, 09.096877, 09.100346, 09.103543, 09.106918] tie=false list=41,47,46,04,03 = reverse of creation
+#12 grant ms [4.62, 3.15, 3.19, 3.31, 3.16] created_at s.us [09.274875, 09.279472, 09.282628, 09.285840, 09.289134] tie=false list=41,47,46,04,03 = reverse of creation
+#13 grant ms [5.67, 3.25, 3.20, 3.25, 3.14] created_at s.us [09.451032, 09.456657, 09.459893, 09.463126, 09.466367] tie=false list=41,47,46,04,03 = reverse of creation
+#14 grant ms [4.69, 3.44, 3.26, 3.18, 3.14] created_at s.us [09.627285, 09.631952, 09.635368, 09.638650, 09.641802] tie=false list=41,47,46,04,03 = reverse of creation
+#15 grant ms [5.64, 4.14, 3.57, 3.67, 3.70] created_at s.us [09.813883, 09.819494, 09.823642, 09.827194, 09.830897] tie=false list=41,47,46,04,03 = reverse of creation
+#16 grant ms [4.64, 3.15, 3.34, 3.08, 3.09] created_at s.us [10.004047, 10.008647, 10.011837, 10.015170, 10.018225] tie=false list=41,47,46,04,03 = reverse of creation
+#17 grant ms [4.67, 3.60, 3.40, 3.99, 3.20] created_at s.us [10.181231, 10.185907, 10.189491, 10.192893, 10.196905] tie=false list=41,47,46,04,03 = reverse of creation
+#18 grant ms [4.47, 3.04, 3.15, 3.31, 3.11] created_at s.us [10.367672, 10.372101, 10.375120, 10.378300, 10.381604] tie=false list=41,47,46,04,03 = reverse of creation
+#19 grant ms [4.82, 3.55, 3.39, 3.38, 3.05] created_at s.us [10.551155, 10.555951, 10.559493, 10.562944, 10.566250] tie=false list=41,47,46,04,03 = reverse of creation
+#20 grant ms [4.54, 3.22, 3.26, 3.08, 3.30] created_at s.us [10.737736, 10.742270, 10.745512, 10.748766, 10.751843] tie=false list=41,47,46,04,03 = reverse of creation
+#21 grant ms [5.18, 3.40, 3.04, 3.12, 3.10] created_at s.us [10.924061, 10.929242, 10.932621, 10.935672, 10.938801] tie=false list=41,47,46,04,03 = reverse of creation
+#22 grant ms [4.61, 4.25, 3.21, 3.13, 3.18] created_at s.us [11.103994, 11.108580, 11.112835, 11.116030, 11.119180] tie=false list=41,47,46,04,03 = reverse of creation
+#23 grant ms [4.49, 3.08, 3.12, 2.99, 3.05] created_at s.us [11.279757, 11.284215, 11.287290, 11.290391, 11.293377] tie=false list=41,47,46,04,03 = reverse of creation
+#24 grant ms [4.43, 3.39, 3.11, 3.05, 3.03] created_at s.us [11.455288, 11.459680, 11.463083, 11.466144, 11.469236] tie=false list=41,47,46,04,03 = reverse of creation
+#25 grant ms [4.58, 3.13, 3.09, 3.01, 2.89] created_at s.us [11.646013, 11.650546, 11.653677, 11.656788, 11.659784] tie=false list=41,47,46,04,03 = reverse of creation
+databases=25; with two rows of one created_at=0; coordinator's list differs from the reverse of creation=0
+EXIT=0
+
+## the file. Command: npx vitest run tests/review-delegations.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:58:11
+   Duration  15.47s (tests 100%)
+
+EXIT=0

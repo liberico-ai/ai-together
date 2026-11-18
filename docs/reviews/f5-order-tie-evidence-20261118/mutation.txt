@@ -1,0 +1,30 @@
+# Mutations of the list query (src/server/review-delegations.ts) against the two F-5 cases of the new test file. PGlite, clock running.
+# Each mutation is applied, the command runs, and the source file is restored from a copy. A mutation counts as killed only by assertion failures.
+# Command per mutation: npx vitest run tests/review-delegations.test.ts -t "F-5"
+# sha256 of the source file before the mutations: c7cd9a0ce879a2d5a6362fdc57d00f5fcdfce683bed225bcff8f40b07f582470
+
+## M1
+src/server/review-delegations.ts — coordinator: the tie-break by row id is dropped (ORDER BY ..., created_at DESC)
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 rows of one instant reach a coordinator by row id, whatever the order they were written in
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 46 skipped (48)
+assertion failures: 1; timeouts: 0
+restored: identical
+
+## M2
+src/server/review-delegations.ts — coordinator: oldest first (created_at instead of created_at DESC)
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 46 skipped (48)
+assertion failures: 1; timeouts: 0
+restored: identical
+
+## M3
+src/server/review-delegations.ts — reader: other people's rows by creation time instead of by delegate id
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 46 skipped (48)
+assertion failures: 1; timeouts: 0
+restored: identical
+
+sha256 of the source file after the mutations: c7cd9a0ce879a2d5a6362fdc57d00f5fcdfce683bed225bcff8f40b07f582470

@@ -1,0 +1,180 @@
+# RED on purpose — the test file as it is at 4f12a3c (unchanged), PGlite, with the JavaScript clock held still while each case runs (probes/hold-clock.mts),
+# so the five designations of F-5 get one created_at. Nothing else differs from the suite's own configuration.
+# Command, three times: npx vitest run --config docs/reviews/f5-order-tie-evidence-20261118/probes/vitest.hold.config.mjs tests/review-delegations.test.ts -t "F-5"
+# Then once for the whole file (no -t): which other cases of this file need the clock to move.
+
+## run 1 (-t "F-5")
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/review-delegations.test.ts (47 tests | 1 failed | 46 skipped) 686ms
+   ❯ OQ-39, OQ-40, OQ-41 indicators and who sees what in list (11)
+     × F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first 685ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first
+AssertionError: expected [ …(5) ] to deeply equal [ …(5) ]
+
+- Expected
++ Received
+
+  [
+-   "14000000-0000-4000-8000-000000000041",
+-   "14000000-0000-4000-8000-000000000047",
+    "14000000-0000-4000-8000-000000000046",
++   "14000000-0000-4000-8000-000000000041",
+    "14000000-0000-4000-8000-000000000004",
+    "14000000-0000-4000-8000-000000000003",
++   "14000000-0000-4000-8000-000000000047",
+  ]
+
+ ❯ tests/review-delegations.test.ts:537:44
+    535|   expect(got).toEqual([...got].sort());
+    536|   const c=await svc().list(pm,{projectId:ids.sales});
+    537|   expect(c.reviewers.map(x=>x.delegateId)).toEqual([...people].reverse…
+       |                                            ^
+    538|  });
+    539|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 46 skipped (47)
+   Start at  17:39:50
+   Duration  865ms (tests 84%, transform 10%, import 5%)
+
+EXIT=1
+
+## run 2 (-t "F-5")
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/review-delegations.test.ts (47 tests | 1 failed | 46 skipped) 681ms
+   ❯ OQ-39, OQ-40, OQ-41 indicators and who sees what in list (11)
+     × F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first 681ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first
+AssertionError: expected [ …(5) ] to deeply equal [ …(5) ]
+
+- Expected
++ Received
+
+  [
+-   "14000000-0000-4000-8000-000000000041",
++   "14000000-0000-4000-8000-000000000003",
+    "14000000-0000-4000-8000-000000000047",
+    "14000000-0000-4000-8000-000000000046",
+    "14000000-0000-4000-8000-000000000004",
+-   "14000000-0000-4000-8000-000000000003",
++   "14000000-0000-4000-8000-000000000041",
+  ]
+
+ ❯ tests/review-delegations.test.ts:537:44
+    535|   expect(got).toEqual([...got].sort());
+    536|   const c=await svc().list(pm,{projectId:ids.sales});
+    537|   expect(c.reviewers.map(x=>x.delegateId)).toEqual([...people].reverse…
+       |                                            ^
+    538|  });
+    539|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 46 skipped (47)
+   Start at  17:39:52
+   Duration  790ms (tests 92%, import 5%, transform 2%)
+
+EXIT=1
+
+## run 3 (-t "F-5")
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/review-delegations.test.ts (47 tests | 1 failed | 46 skipped) 678ms
+   ❯ OQ-39, OQ-40, OQ-41 indicators and who sees what in list (11)
+     × F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first 677ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first
+AssertionError: expected [ …(5) ] to deeply equal [ …(5) ]
+
+- Expected
++ Received
+
+  [
++   "14000000-0000-4000-8000-000000000046",
+    "14000000-0000-4000-8000-000000000041",
+    "14000000-0000-4000-8000-000000000047",
+-   "14000000-0000-4000-8000-000000000046",
++   "14000000-0000-4000-8000-000000000003",
+    "14000000-0000-4000-8000-000000000004",
+-   "14000000-0000-4000-8000-000000000003",
+  ]
+
+ ❯ tests/review-delegations.test.ts:537:44
+    535|   expect(got).toEqual([...got].sort());
+    536|   const c=await svc().list(pm,{projectId:ids.sales});
+    537|   expect(c.reviewers.map(x=>x.delegateId)).toEqual([...people].reverse…
+       |                                            ^
+    538|  });
+    539|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 46 skipped (47)
+   Start at  17:39:53
+   Duration  788ms (tests 92%, import 5%, transform 2%)
+
+EXIT=1
+
+## whole file, clock held
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/review-delegations.test.ts (47 tests | 1 failed) 24422ms
+   ❯ OQ-39, OQ-40, OQ-41 indicators and who sees what in list (11)
+     × F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first 502ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first
+AssertionError: expected [ …(5) ] to deeply equal [ …(5) ]
+
+- Expected
++ Received
+
+  [
+-   "14000000-0000-4000-8000-000000000041",
++   "14000000-0000-4000-8000-000000000003",
+    "14000000-0000-4000-8000-000000000047",
+    "14000000-0000-4000-8000-000000000046",
++   "14000000-0000-4000-8000-000000000041",
+    "14000000-0000-4000-8000-000000000004",
+-   "14000000-0000-4000-8000-000000000003",
+  ]
+
+ ❯ tests/review-delegations.test.ts:537:44
+    535|   expect(got).toEqual([...got].sort());
+    536|   const c=await svc().list(pm,{projectId:ids.sales});
+    537|   expect(c.reviewers.map(x=>x.delegateId)).toEqual([...people].reverse…
+       |                                            ^
+    538|  });
+    539|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 46 passed (47)
+   Start at  17:39:54
+   Duration  24.54s (tests 100%)
+
+EXIT=1

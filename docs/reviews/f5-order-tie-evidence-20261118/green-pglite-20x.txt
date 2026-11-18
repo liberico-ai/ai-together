@@ -1,0 +1,242 @@
+# The file alone, twenty times in a row, PGlite (no SLICE1_* variable set: 0), clock running, code at 8f3e8cb.
+# Command, per run: npx vitest run tests/review-delegations.test.ts
+
+## run 1 (load 4.98 4.02 3.98)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:41:38
+   Duration  24.22s (tests 100%)
+
+EXIT=0
+
+## run 2 (load 5.05 4.11 4.02)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:42:02
+   Duration  24.01s (tests 100%)
+
+EXIT=0
+
+## run 3 (load 4.29 4.01 3.98)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:42:27
+   Duration  24.17s (tests 100%)
+
+EXIT=0
+
+## run 4 (load 4.17 4.00 3.98)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:42:51
+   Duration  23.92s (tests 100%)
+
+EXIT=0
+
+## run 5 (load 4.05 3.99 3.97)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:43:15
+   Duration  23.85s (tests 100%)
+
+EXIT=0
+
+## run 6 (load 3.45 3.86 3.93)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:43:39
+   Duration  24.41s (tests 100%)
+
+EXIT=0
+
+## run 7 (load 3.24 3.77 3.89)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:44:04
+   Duration  24.16s (tests 100%)
+
+EXIT=0
+
+## run 8 (load 3.34 3.75 3.88)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:44:28
+   Duration  24.79s (tests 100%)
+
+EXIT=0
+
+## run 9 (load 4.44 3.97 3.96)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:44:54
+   Duration  24.83s (tests 100%)
+
+EXIT=0
+
+## run 10 (load 4.25 3.97 3.96)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:45:19
+   Duration  24.64s (tests 100%)
+
+EXIT=0
+
+## run 11 (load 4.00 3.94 3.94)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:45:44
+   Duration  25.23s (tests 100%)
+
+EXIT=0
+
+## run 12 (load 4.38 4.04 3.98)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:46:09
+   Duration  25.10s (tests 100%)
+
+EXIT=0
+
+## run 13 (load 4.35 4.06 3.99)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:46:35
+   Duration  25.21s (tests 100%)
+
+EXIT=0
+
+## run 14 (load 4.57 4.14 4.02)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:47:00
+   Duration  24.81s (tests 100%)
+
+EXIT=0
+
+## run 15 (load 4.74 4.21 4.05)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:47:25
+   Duration  24.55s (tests 100%)
+
+EXIT=0
+
+## run 16 (load 5.13 4.33 4.10)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:47:50
+   Duration  24.40s (tests 100%)
+
+EXIT=0
+
+## run 17 (load 4.40 4.23 4.06)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:48:15
+   Duration  24.49s (tests 100%)
+
+EXIT=0
+
+## run 18 (load 5.02 4.40 4.13)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:48:39
+   Duration  24.46s (tests 100%)
+
+EXIT=0
+
+## run 19 (load 4.61 4.35 4.12)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:49:04
+   Duration  25.41s (tests 100%)
+
+EXIT=0
+
+## run 20 (load 5.39 4.55 4.19)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:49:30
+   Duration  23.99s (tests 100%)
+
+EXIT=0

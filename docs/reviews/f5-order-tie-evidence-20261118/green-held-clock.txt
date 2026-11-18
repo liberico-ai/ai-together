@@ -1,0 +1,13 @@
+# The whole file with the JavaScript clock held still while each case runs (every PGlite transaction of a case gets one now()), code at 8f3e8cb.
+# Command: npx vitest run --config docs/reviews/f5-order-tie-evidence-20261118/probes/vitest.hold.config.mjs tests/review-delegations.test.ts
+# Before the change this run had 1 failed | 46 passed (red-held-clock.txt).
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  48 passed (48)
+   Start at  17:49:54
+   Duration  23.57s (tests 100%)
+
+EXIT=0
