@@ -212,6 +212,18 @@ describe('threadHasHiddenText',()=>{
   const p=await ingest({text:'Q8-POINTER-1'});
   expect(await ask(ids.sales,p.id,nul)).toBe(false);
  });
+
+ test('Q10 threadHasHiddenText is closed when the statement returns no row',async()=>{
+  const empty:Queryable={query:async()=>({rows:[]}) as never};
+  expect(await threadHasHiddenText(empty,ids.sales,randomUUID(),[])).toBe(true);
+ });
+
+ test('Q11 the statement\'s own project condition holds for threadHasHiddenText: a principal scoped to both projects gets false for the other project',async()=>{
+  const m=await ingest({text:'Q11-STORED-1'},[chatSales]);
+  const both={...pm,projectIds:[ids.sales,ids.transport]};
+  expect(await ask(ids.transport,m.id,[],both)).toBe(false);
+  expect(await ask(ids.sales,m.id,[],both)).toBe(true);
+ });
 });
 
 describe('threadFreshness',()=>{
@@ -298,6 +310,25 @@ describe('threadFreshness',()=>{
   expect(Number(at[0].n)).toBe(1);
   expect(await ask(ids.sales,r.id,[made[0]])).toEqual({hasBaseline:true,newerMessage:true,laterEdit:false});
   expect(await ask(ids.sales,r.id,[r.sourceEventId,...made])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:false});
+ });
+
+ test('T15 an edit recorded at the same instant as the baseline counts (>=)',async()=>{
+  const r=await root('T15-ROOT');
+  const key=(await rows<{thread_key:string}>('SELECT thread_key FROM intake_candidates WHERE id=$1',[r.id]))[0].thread_key;
+  await nextDbInstant(h);
+  // one transaction: now() is the transaction start, so the message and its revision 2 carry the same created_at
+  const made=await h.operator.transaction(async tx=>{
+   const id=(await tx.query<{id:string}>(
+    `INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
+     VALUES($1,$2,'synthetic:7100001','telegram_gateway',50,$3,'7100001',$4,'synthetic-actor',now(),false,true,$5,$6) RETURNING id`,[ids.tenant,ids.sales,chatSales,key,randomUUID(),randomUUID()])).rows[0].id;
+   await tx.query(
+    `INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,content_mode,text_excerpt,text_truncated)
+     VALUES($1,$2,$3,2,$4,now(),$5,'pointer_only',NULL,false)`,[ids.tenant,ids.sales,id,'f'.repeat(64),'e'.repeat(64)]);
+   return id;
+  });
+  const at=await rows<{n:string}>('SELECT count(DISTINCT t) n FROM (SELECT created_at t FROM source_events WHERE id=$1 UNION ALL SELECT created_at FROM source_event_revisions WHERE source_event_id=$1) x',[made]);
+  expect(Number(at[0].n)).toBe(1);
+  expect(await ask(ids.sales,r.id,[made])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:true});
  });
 
  test('T12 the statement\'s own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing for the other project',async()=>{

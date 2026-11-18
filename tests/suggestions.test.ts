@@ -15,13 +15,13 @@ import {canonicalJson,skillManifests} from '../src/server/skills';
 import {AppError} from '../src/server/errors';
 import {MAX_OUTPUT_BYTES,type SkillName} from '../src/server/skill-contracts';
 import {buildSkillContextIn} from '../src/server/skill-context';
-import {SuggestionService} from '../src/server/suggestions';
+import {SuggestionService,type MaskReason} from '../src/server/suggestions';
 import {aiScoped} from '../src/server/ai-scope';
 import type {AiPrincipal} from '../src/server/ai-scope';
 import type {Database,Queryable} from '../src/server/db';
 import type {DocumentDetail,Principal} from '../src/server/types';
 
-// The context builder is wrapped, not replaced: one case reads which principal the confirmation context was built for.
+// The context builder is wrapped, not replaced: the cases that read which principal the context was built for (the confirmation case, M5, M6) look at its calls.
 vi.mock('../src/server/skill-context',async orig=>{
  const m=await orig<typeof import('../src/server/skill-context')>();
  return {...m,buildSkillContextIn:vi.fn(m.buildSkillContextIn)};
@@ -1030,6 +1030,56 @@ describe('Z4 drafts: the content is re-checked at read time (OQ-45 point 2)',()=
  });
 });
 
+describe('Z4 drafts: what masks at read time holds at confirmation (P3 invariant)',()=>{
+ const none=()=>svc(h.operator,[]);
+ type Walked=Exclude<MaskReason,'CONFIRM_AUTHORITY_REQUIRED'>;
+ type Setup={service:SuggestionService;entityType:'intake_candidate'|'document';entityId:string;draftId:string;valueHash:string;revision?:R};
+ test('P3 whatever masks a draft at read time holds it at confirmation',async()=>{
+  const d=await doc(),other=await doc(ids.transport);
+  const docSetup=async(draftId:string,value:R,entityId:string):Promise<Setup>=>({service:svc(),entityType:'document',entityId,draftId,valueHash:sha(value),revision:revisionBody(d)});
+  // A new MaskReason must be added here: the Record below does not compile without a set-up for it, and the literal list below must name it.
+  const setups:Record<Walked,()=>Promise<Setup>>={
+   ENTITY_NOT_FOUND:async()=>{const gone=randomUUID(),x=await rawDraft({entityType:'document',entityId:gone});return docSetup(x.id,x.value,gone);},
+   SCHEMA_INVALID:async()=>{
+    const dd=await doc(),value={...out('technical_writer',[dd.record.id]),surprise:'zq-p3'},x=await rawDraft({entityType:'document',entityId:dd.record.id,value});
+    return {...(await docSetup(x.id,value,dd.record.id)),revision:revisionBody(dd)};
+   },
+   SOURCE_OUT_OF_CONTEXT:async()=>{
+    const dd=await doc(),x=await docDraft({d:dd,sources:[other.record.id]});
+    return {service:svc(),entityType:'document',entityId:dd.record.id,draftId:x.draftId,valueHash:x.valueHash,revision:revisionBody(dd)};
+   },
+   TEXT_NOT_VISIBLE:async()=>{
+    const c=await candidate({excerpt:false}),output=out('intake_analyst',[c.sourceEventId]);
+    const r=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',output));
+    return {service:svc(),entityType:'intake_candidate',entityId:c.candidateId,draftId:r.draftId,valueHash:sha(output)};
+   },
+   THREAD_TEXT_HIDDEN:async()=>{
+    // a draft that names no message of a thread whose stored text the configuration no longer shows
+    const c=await candidate(),dd=await doc(),value=out('intake_analyst',[dd.record.id]),x=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value});
+    return {service:none(),entityType:'intake_candidate',entityId:c.candidateId,draftId:x.id,valueHash:sha(value)};
+   },
+   // last: the mapping it adds to the sales project would mask every other draft of that project
+   POINTER_ONLY_PROJECT:async()=>{
+    const dd=await doc(),x=await docDraft({d:dd});
+    await mapDomain(h,ids.sales,'IBS_HI',1);
+    return {service:svc(),entityType:'document',entityId:dd.record.id,draftId:x.draftId,valueHash:x.valueHash,revision:revisionBody(dd)};
+   },
+  };
+  const walked=Object.keys(setups) as Walked[];
+  expect([...walked].sort()).toEqual(['ENTITY_NOT_FOUND','POINTER_ONLY_PROJECT','SCHEMA_INVALID','SOURCE_OUT_OF_CONTEXT','TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN']);
+  for(const reason of walked) {
+   const x=await setups[reason]();
+   const l=await x.service.list(pm,{projectId:ids.sales,entityType:x.entityType,entityId:x.entityId});
+   const it=l.items.find(i=>i.id===x.draftId)!;
+   expect(it.maskReasons,reason).toContain(reason);
+   expect(it.value,reason).toBeNull();
+   const e=await refused(decide(x.service,pm,x.draftId,body(x.valueHash,x.revision?{revision:x.revision}:{})),'DRAFT_HELD',422);
+   expect(e.message,reason).toContain(reason);
+   expect(await n('draft_decisions'),reason).toBe(0);
+  }
+ });
+});
+
 describe('Z4 drafts: boundaries',()=>{
  test('no route imports the suggestion service, and nothing in src builds it with an AI handle',async()=>{
   const walk=async(dir:string):Promise<string[]>=>(await Promise.all((await readdir(dir,{withFileTypes:true})).map(e=>e.isDirectory()?walk(path.join(dir,e.name)):[path.join(dir,e.name)]))).flat();
@@ -1052,7 +1102,8 @@ describe('Z4 drafts: IBS HI is refused at write (OQ-45 point 3)',()=>{
   expect(e.message).toBe(POINTER);
   expect(e).toBeInstanceOf(AppError);
   expect((e as {cause?:unknown}).cause).toBeUndefined();
-  for(const key of ['detail','hint','where','schema','table','constraint','routine','severity','position']) expect(key in e,key).toBe(false);
+  // allow-list: the own enumerable keys are exactly those an AppError carries (src/server/errors.ts: code and status), nothing the database error had
+  expect(Object.keys(e).sort()).toEqual(['code','status']);
   for(const s of [d.record.id,ids.transport,'pointer-only']) expect(e.message).not.toContain(s);
   expect(await n('intelligence.ai_drafts')).toBe(0);
   // a candidate draft: the sales project is mapped to IBS_HI

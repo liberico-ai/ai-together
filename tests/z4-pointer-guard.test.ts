@@ -196,6 +196,12 @@ describe('migration 022: the pointer-only guard',()=>{
     const def=(await rows<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname='ai_drafts_pointer_only_guard'"))[0].d.replace(/\s+/g,' ');
     for(const f of ['FROM public.project_domain_mappings m','m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id','ORDER BY m.mapping_version DESC LIMIT 1',
       "latest = 'IBS_HI'","ERRCODE = 'LTZ01'","current_setting('transaction_isolation') <> 'read committed'","ERRCODE = 'LTZ02'"]) expect(def,f).toContain(f);
+    // the whole body, not fragments: the text of the file between AS $$ and the closing $$; equals prosrc
+    const open=sql.indexOf('AS $$')+'AS $$'.length,close=sql.indexOf('$$;',open);
+    expect(open).toBeGreaterThan(4);
+    expect(close).toBeGreaterThan(open);
+    const prosrc=(await rows<{p:string}>("SELECT prosrc p FROM pg_proc WHERE proname='ai_drafts_pointer_only_guard'"))[0].p;
+    expect(sql.slice(open,close).trim()).toBe(prosrc.trim());
     const code=sql.replace(/--.*$/gm,'');
     expect(code).not.toMatch(/\bINSERT INTO (?!schema_migrations)/i);
     for(const re of [/\bGRANT\b/i,/CREATE\s+ROLE/i,/ALTER\s+ROLE/i,/\bPASSWORD\b/i,/CASCADE/i]) expect(code).not.toMatch(re);
@@ -251,16 +257,21 @@ describe('migration 022: the pointer-only guard',()=>{
       expect(e!.message,label).toBe(MSG2);
       expect(e!.message,label).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);
     };
-    for(const level of ['REPEATABLE READ','SERIALIZABLE']){
-      const before=await count();
-      const e=await refusal(h.operator.transaction(async tx=>{
-        await tx.query(`SET TRANSACTION ISOLATION LEVEL ${level}`);
-        await tx.query('SET LOCAL ROLE libetech_ai');
-        await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.ai_principal_id',$3,true)",[ids.tenant,S.join(','),AI]);
-        return insertDraft(tx,{project_id:ids.sales});
-      }));
-      check(e,level);
-      expect(await count(),level).toBe(before);
+    // The isolation level is judged first, whatever the project: a project mapped IBS_HI is answered LTZ02 at REPEATABLE READ, not LTZ01.
+    await mapDomain(h,ids.transport,'IBS_HI',1);
+    for(const level of ['READ UNCOMMITTED','REPEATABLE READ','SERIALIZABLE']){
+      for(const project of level==='REPEATABLE READ'?[ids.sales,ids.transport]:[ids.sales]){
+        const before=await count();
+        const label=level+' '+project;
+        const e=await refusal(h.operator.transaction(async tx=>{
+          await tx.query(`SET TRANSACTION ISOLATION LEVEL ${level}`);
+          await tx.query('SET LOCAL ROLE libetech_ai');
+          await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.ai_principal_id',$3,true)",[ids.tenant,project,AI]);
+          return insertDraft(tx,{project_id:project});
+        }));
+        check(e,label);
+        expect(await count(),label).toBe(before);
+      }
     }
     const before=await count();
     check(await refusal(h.operator.transaction(async tx=>{
@@ -272,20 +283,22 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await count()).toBe(before+1);
   });
 
-  test.skipIf(!native)('G17 a transaction opened before the IBS_HI mapping was committed cannot store a draft after it',async()=>{
-    let version=1;
-    const attempt=(level:boolean)=>refusal(h.operator.transaction(async tx=>{
+  // Native only: the case needs two connections (the transaction and the one that commits the mapping); PGlite has one.
+  test.skipIf(!native)('G17 REPEATABLE READ opened before the IBS_HI mapping was committed is refused LTZ02; READ COMMITTED sees a mapping committed after it began and is refused LTZ01',async()=>{
+    const open=async(level:boolean,project:string,between:()=>Promise<unknown>)=>refusal(h.operator.transaction(async tx=>{
       if(level) await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
       await tx.query('SET LOCAL ROLE libetech_ai');
-      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.ai_principal_id',$3,true)",[ids.tenant,ids.transport,AI]);
+      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.ai_principal_id',$3,true)",[ids.tenant,project,AI]);
       await tx.query('SELECT count(*) FROM intelligence.ai_drafts');
-      await mapDomain(h,ids.transport,'IBS_HI',version++);
-      return insertDraft(tx,{project_id:ids.transport});
+      await between();
+      return insertDraft(tx,{project_id:project});
     }));
     const before=await count();
-    expect((await attempt(true))?.code).toBe('LTZ02');
+    expect((await open(true,ids.transport,()=>mapDomain(h,ids.transport,'IBS_HI',1)))?.code).toBe('LTZ02');
     expect(await count()).toBe(before);
-    expect((await attempt(false))?.code).toBe(LTZ);
+    // ids.sales has no mapping row at all when this transaction opens
+    expect((await rows<{n:number}>('SELECT count(*)::int n FROM public.project_domain_mappings WHERE project_id=$1',[ids.sales]))[0].n).toBe(0);
+    expect((await open(false,ids.sales,()=>mapDomain(h,ids.sales,'IBS_HI',1)))?.code).toBe(LTZ);
     expect(await count()).toBe(before);
   });
 
@@ -301,6 +314,13 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(e!.code).toBe(LTZ);
     expect(await count()).toBe(0);
     expect(await merge({project_id:ids.sales})).toBeNull();
+    expect(await count()).toBe(1);
+    // the same MERGE under the AI role, its context for the IBS_HI project
+    const v=draftVals({project_id:ids.transport}),keys=Object.keys(v);
+    const ai=await refusal(asAi(tx=>tx.query(`MERGE INTO intelligence.ai_drafts d USING (SELECT 1) s ON false WHEN NOT MATCHED THEN INSERT (${keys.join(',')})
+      VALUES (${keys.map((k,i)=>`$${i+1}${JSONB_COLUMNS.has(k)?'::jsonb':''}`).join(',')})`,keys.map(k=>v[k])),{projects:[ids.transport]}));
+    expect(ai).not.toBeNull();
+    expect(ai!.code).toBe(LTZ);
     expect(await count()).toBe(1);
   });
 });

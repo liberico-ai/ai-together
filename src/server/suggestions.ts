@@ -134,7 +134,7 @@ export class SuggestionService {
  private documents:DocumentService;
  constructor(private db:Database,private aiDb:Database|null=null,private excerptChats:readonly string[]=[]) {this.documents=new DocumentService(db);}
 
- /** The pipeline's write: one insert under the AI role. Everything that can be refused is refused before the database is touched. */
+ /** The pipeline's write: one insert under the AI role. The checks on the shape, size, skill, manifest and entity pair are refused before the database is touched; a pointer-only project (the guard of migration 022) and a reused key with other content are answered by the statement and its replay check. */
  async submitDraft(ai:AiPrincipal,raw:unknown):Promise<{draftId:string;stored:boolean}> {
   if(!this.aiDb) throw new AppError('AI_PIPELINE_DISABLED','Đường ghi nháp AI chưa được bật.',503);
   if(!ai||!UUID.test(String(ai.id).toLowerCase())||!UUID.test(String(ai.tenantId).toLowerCase())||!Array.isArray(ai.projectIds)
@@ -188,7 +188,8 @@ export class SuggestionService {
  /**
   * Every DraftView leaves the service through here. A person who may not decide a draft gets one mask reason and no content and no context is built for them.
   * For a person who may, the content is re-checked against the context rebuilt under their own rights: the reasons of the output gate that are about what they may read
-  * (and a pointer-only project, a missing entity, a value off the contract) mask it. The context only yields reasons; it never supplies a source id to the answer.
+  * (and a pointer-only project, a missing entity, a value off the contract) mask it; so does a candidate thread that holds stored text no longer shown (THREAD_TEXT_HIDDEN).
+  * The context only yields reasons; it never supplies a source id to the answer.
   */
  private async present(tx:Queryable,p:Principal,projectId:string,rows:DraftRow[],contexts:Map<string,SkillContext|null>=new Map()):Promise<DraftView[]> {
   const views:DraftView[]=[];
@@ -207,7 +208,7 @@ export class SuggestionService {
     const m=skillManifests[r.signal_type];
     for(const x of checkSkillOutput({name:m.name,hash:m.hash,toolAllowlist:m.toolAllowlist},ctx,r.value).reasons) if(VISIBILITY.has(x)) reasons.add(x as MaskReason);
    }
-   // OQ-55 placeholder (fail-closed until the Chairman decides): a candidate draft is masked while its thread holds stored text that is no longer shown
+   // OQ-55 placeholder (fail-closed until the Chairman decides): a candidate draft is masked while its thread holds stored text that is no longer shown; a document draft has no equivalent check: OQ-55
    if(r.entity_type==='intake_candidate') {
     if(!hiddenThread.has(r.entity_id)) hiddenThread.set(r.entity_id,await threadHasHiddenText(tx,projectId,r.entity_id,this.excerptChats));
     if(hiddenThread.get(r.entity_id)) reasons.add('THREAD_TEXT_HIDDEN');
@@ -294,7 +295,7 @@ export class SuggestionService {
      if(ctx) {
       if(ctx.pointerOnly) reasons.add('POINTER_ONLY_PROJECT');
       for(const r of checkSkillOutput({name:manifest.name,hash:manifest.hash,toolAllowlist:manifest.toolAllowlist},ctx,d.value).reasons) reasons.add(r);
-      // OQ-55 placeholder (P3): what read masks for a hidden thread, confirm holds
+      // OQ-55 placeholder: what read masks for a hidden thread, confirm holds; a document draft has no equivalent check: OQ-55
       if(d.entity_type==='intake_candidate'&&await threadHasHiddenText(tx,projectId,d.entity_id,this.excerptChats)) reasons.add('THREAD_TEXT_HIDDEN');
       for(const r of await subjectReasons(tx,projectId,d)) reasons.add(r);
      }

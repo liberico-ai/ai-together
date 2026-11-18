@@ -115,7 +115,7 @@ export async function threadFreshness(tx:Queryable,projectId:string,candidateId:
     WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid),
    base AS (SELECT max(t.created_at) AS at FROM thread t WHERE t.id = ANY($3::uuid[]))
    SELECT (SELECT b.at IS NOT NULL FROM base b) AS has_baseline,
-    EXISTS(SELECT 1 FROM thread t, base b WHERE NOT (t.id = ANY($3::uuid[])) AND t.created_at >= b.at) AS newer_message,
+    EXISTS(SELECT 1 FROM thread t, base b WHERE (t.id = ANY($3::uuid[])) IS NOT TRUE AND t.created_at >= b.at) AS newer_message,
     EXISTS(SELECT 1 FROM source_event_revisions r JOIN thread t ON t.id=r.source_event_id, base b
            WHERE r.project_id=$1::uuid AND r.revision_no>1 AND r.created_at >= b.at) AS later_edit`,[projectId,candidateId,named])).rows[0];
  return {hasBaseline:row?.has_baseline===true,newerMessage:row?.newer_message===true,laterEdit:row?.later_edit===true};
