@@ -1,0 +1,45 @@
+# The read-only catalog queries of section 5.2 of gates/review-codex-fix1-F1b-database.md, run on the PR's own synthetic test database
+# (PostgreSQL 16.15, after migrations 001-022 with the body of commit 56d257c), each in a READ ONLY transaction. First twelve rows of each result.
+# Block 1 = query A (triggers), 2 = B (functions), 3 = C (policies), 4 = D (the login that runs it; here the migration superuser of the test
+# container, not a pipeline login), 5 = E (who blocks a waiting statement: nothing was waiting), 6 = F (grants that would let a role take the row
+# lock by itself: none; and the role that writes drafts).
+
+server_version 16.15 (Debian 16.15-1.pgdg13+2); schema_migrations max 022; blocks 6
+
+## block 1: (no title)
+rows: 5
+{"tbl":"intelligence.ai_drafts","tgname":"ai_drafts_declared_scope_guard","tgenabled":"O","tgtype":7,"fn":"intelligence.ai_drafts_declared_scope_guard"}
+{"tbl":"intelligence.ai_drafts","tgname":"ai_drafts_immutable","tgenabled":"O","tgtype":27,"fn":"public.reject_history_mutation"}
+{"tbl":"intelligence.ai_drafts","tgname":"ai_drafts_pointer_only_guard","tgenabled":"O","tgtype":7,"fn":"intelligence.ai_drafts_pointer_only_guard"}
+{"tbl":"public.project_domain_mappings","tgname":"project_domain_mappings_draft_lock","tgenabled":"O","tgtype":7,"fn":"intelligence.project_domain_mappings_draft_lock"}
+{"tbl":"public.project_domain_mappings","tgname":"project_domain_mappings_immutable","tgenabled":"O","tgtype":27,"fn":"public.reject_history_mutation"}
+
+## block 2: (no title)
+rows: 3
+{"fn":"intelligence.ai_drafts_declared_scope_guard","prosecdef":false,"provolatile":"v","proconfig":["search_path=pg_catalog, pg_temp"],"body_md5":"2626b21558df13074c59fae2da13bff1","acl_owner_only":true,"ai_can_execute":false,"owner_is_superuser":true,"owner_exempt_from_rls":true,"owner_can_lock_projects":true,"locks_project_row":false,"refuses_unseen_project":false,"no_advisory_lock":true}
+{"fn":"intelligence.ai_drafts_pointer_only_guard","prosecdef":true,"provolatile":"v","proconfig":["search_path=pg_catalog, pg_temp","row_security=off","lock_timeout=5s"],"body_md5":"a9927617ae7830df3ab9841e39e54df8","acl_owner_only":true,"ai_can_execute":false,"owner_is_superuser":true,"owner_exempt_from_rls":true,"owner_can_lock_projects":true,"locks_project_row":true,"refuses_unseen_project":true,"no_advisory_lock"
+{"fn":"intelligence.project_domain_mappings_draft_lock","prosecdef":true,"provolatile":"v","proconfig":["search_path=pg_catalog, pg_temp","row_security=off","lock_timeout=5s"],"body_md5":"3451f68d8e052be10e81f535fc52687c","acl_owner_only":true,"ai_can_execute":false,"owner_is_superuser":true,"owner_exempt_from_rls":true,"owner_can_lock_projects":true,"locks_project_row":true,"refuses_unseen_project":true,"no_advisory
+
+## block 3: (no title)
+rows: 3
+{"polname":"ai_insert","polcmd":"a","polpermissive":true,"roles":["libetech_ai"],"using_expr":null,"with_check":"((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (ai_principal_id = (NULLIF(current_setting('app.ai_principal_id'::text, true), ''::text
+{"polname":"ai_select","polcmd":"r","polpermissive":true,"roles":["libetech_ai"],"using_expr":"((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))","with_check":null}
+{"polname":"runtime_select","polcmd":"r","polpermissive":true,"roles":["libetech_runtime"],"using_expr":"((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))","with_check":null}
+rows: 1
+{"relrowsecurity":true,"relforcerowsecurity":true}
+
+## block 4: (no title)
+rows: 1
+{"current_user":"postgres","bound":false,"can_lock_projects":true}
+rows: null
+{"default_transaction_isolation":"read committed"}
+rows: null
+{"idle_in_transaction_session_timeout":"0"}
+
+## block 5: (no title)
+rows: 0
+
+## block 6: (no title)
+rows: 0
+rows: 1
+{"rolname":"libetech_ai","writes_mappings":false,"writes_drafts":true}

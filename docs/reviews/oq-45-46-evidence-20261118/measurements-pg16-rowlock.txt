@@ -94,7 +94,7 @@ overlapping); it was stopped by hand. That is the same starvation, seen without 
 
 ## Probe 4 — which roles can take a row lock on public.projects by themselves
 
-For every role whose name starts with libetech (ten roles after migrations 001-022), in a transaction that is rolled back:
+For every role whose name starts with libetech (nine roles after migrations 001-022; an earlier wording of this file said ten, a miscount), in a transaction that is rolled back:
 SET LOCAL ROLE <role>; SELECT id FROM public.projects LIMIT 1 <FOR NO KEY UPDATE | FOR SHARE | FOR KEY SHARE>.
 {
  "libetech_ai FOR NO KEY UPDATE": "42501",
