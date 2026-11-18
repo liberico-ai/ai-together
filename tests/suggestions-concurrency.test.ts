@@ -7,6 +7,7 @@ import {ids} from '../src/server/identities';
 import {canonicalJson,skillManifests} from '../src/server/skills';
 import {SuggestionService} from '../src/server/suggestions';
 import {DocumentService} from '../src/server/documents';
+import {AppError} from '../src/server/errors';
 
 describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
   let h:Harness;
@@ -136,5 +137,68 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
     const dec=(await h.operator.query<{document_revision_id:string}>('SELECT document_revision_id FROM draft_decisions')).rows;
     expect(dec).toHaveLength(1);expect(dec[0].document_revision_id).toBe(latest);
     expect(await n('document_revisions')).toBe(revisions+1);
+  });
+
+  // Migration 022 (CX4): the guard of the draft table and a mapping insert of one project take turns under an advisory lock with a cap of 5 seconds.
+  const envelopeFor=async(projectId:string)=>{
+    const d=await registerDoc(h,pm,{projectId});
+    const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
+    return {skill:'technical_writer',projectId,entityType:'document',entityId:d.record.id,output,inputHash:'c'.repeat(64),modelVersion:'synthetic-model',dedupeKey:'dk-'+randomUUID(),traceId:randomUUID()};
+  };
+  const stamp=<T,>(p:Promise<T>)=>Promise.race([p.then(()=>'settled',()=>'settled'),waitForBlocked(h,1).then(()=>'blocked',()=>'never blocked')]);
+
+  test('a submitDraft that waited for an uncommitted IBS_HI mapping of its project answers POINTER_ONLY_PROJECT, not a raw database error',async()=>{
+    const svc=new SuggestionService(h.db,h.operator,[]);
+    const ai={id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.transport]};
+    const envelope=await envelopeFor(ids.transport);
+    let release!:()=>void,opened!:()=>void;
+    const held=new Promise<void>(r=>{release=r;}),ready=new Promise<void>(r=>{opened=r;});
+    const writer=h.operator.transaction(async tx=>{
+      await tx.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,'IBS_HI',$3,'synthetic-source',1)",[ids.tenant,ids.transport,pm.id]);
+      opened();
+      await held;
+    });
+    await ready;
+    const sent=svc.submitDraft(ai,envelope).then(v=>v,e=>e);
+    try {
+      expect(await stamp(sent)).toBe('blocked');
+    } finally {
+      release();
+      await writer;
+    }
+    expect(await sent).toMatchObject({code:'POINTER_ONLY_PROJECT',status:422});
+    expect(await n('intelligence.ai_drafts')).toBe(0);
+  });
+
+  test('a submitDraft that waits past the cap of the guard fails with the database error 55P03 and stores nothing; the same envelope is stored once the key is free',async()=>{
+    const svc=new SuggestionService(h.db,h.operator,[]);
+    const ai={id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales]};
+    const envelope=await envelopeFor(ids.sales);
+    const before=await n('intelligence.ai_drafts');
+    let release!:()=>void,opened!:()=>void;
+    const held=new Promise<void>(r=>{release=r;}),ready=new Promise<void>(r=>{opened=r;});
+    const holder=h.operator.transaction(async tx=>{
+      await tx.query('SELECT pg_advisory_xact_lock($1::int, hashtext($2))',[1346653516,ids.sales]);
+      opened();
+      await held;
+    });
+    await ready;
+    let e:unknown=null,elapsed=0;
+    try {
+      const t0=Date.now();
+      e=await svc.submitDraft(ai,envelope).then(()=>null,x=>x);
+      elapsed=Date.now()-t0;
+    } finally {
+      release();
+      await holder;
+    }
+    expect(e).not.toBeNull();
+    expect((e as {code?:string}).code).toBe('55P03');
+    expect(e instanceof AppError).toBe(false);
+    expect(elapsed).toBeGreaterThanOrEqual(4000);
+    expect(elapsed).toBeLessThan(9000);
+    expect(await n('intelligence.ai_drafts')).toBe(before);
+    expect(await svc.submitDraft(ai,envelope)).toMatchObject({stored:true});
+    expect(await n('intelligence.ai_drafts')).toBe(before+1);
   });
 });
