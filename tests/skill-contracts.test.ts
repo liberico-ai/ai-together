@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ID_FIELDS, MAX_OUTPUT_BYTES, MINIMUM_DOSSIER, SKILLS, checkSkillOutput, contextSchema, outputFits, outputSchemas } from '../src/server/skill-contracts';
+import { ID_FIELDS, MAX_OUTPUT_BYTES, MINIMUM_DOSSIER, SKILLS, checkSkillOutput, contextSchema, namedIds, outputFits, outputSchemas } from '../src/server/skill-contracts';
 import type { SkillContext, SkillName } from '../src/server/skill-contracts';
 
 // Synthetic fixtures only. Ids are short labels, not real identifiers.
@@ -445,5 +445,20 @@ describe('skill contracts', () => {
     for (const i of own.filter(x => x.typeOnly)) expect(['./source-text', './types'], i.spec).toContain(i.spec);
     expect(imports('src/server/text-safety.ts')).toEqual([]);
     expect(readFileSync('src/server/text-safety.ts', 'utf8')).not.toMatch(/\brequire\(|\bimport\(/);
+  });
+  it('D6 namedIds returns every id at every id-bearing path of the skill, once each, and nothing for a value that is not an output', () => {
+    const sorted = (a: string[]) => [...a].sort();
+    // common paths: sources, claims basis, conflicts sourceIds; a repeated id comes back once
+    const common = { ...base('intake_analyst', { classification: 'incident', duplicateOf: null, missingFields: [] }),
+      sources: [{ id: 'a1' }, { id: 'a2' }, { id: 'a1' }], claims: [{ field: 'f', value: 'v', basis: ['b1', 'a2'] }], conflicts: [{ field: 'f', sourceIds: ['c1', 'b1'], note: 'n' }] };
+    expect(namedIds('intake_analyst', common)).toEqual(['a1', 'a2', 'b1', 'c1']);
+    expect(sorted(namedIds('intake_analyst', { ...common, result: { classification: 'incident', duplicateOf: 'z9', missingFields: [] } }))).toEqual(['a1', 'a2', 'b1', 'c1', 'z9']);
+    const none = (r: unknown, skill: SkillName) => ({ ...base(skill, r), sources: [], claims: [], conflicts: [] });
+    expect(sorted(namedIds('doc_reviewer', none({ baseRevisionId: 'r1', candidateRevisionId: 'r2', diff: [], impacts: [], missing: [], scopeRead: 'all' }, 'doc_reviewer')))).toEqual(['r1', 'r2']);
+    expect(sorted(namedIds('release_librarian', none({ approvedRevisionId: 'ra', index: [{ documentId: 'd1', revisionId: 'rb' }, { documentId: 'd2', revisionId: 'rb' }], staleReminders: [{ documentId: 'd3', note: 'n' }] }, 'release_librarian'))))
+      .toEqual(['d1', 'd2', 'd3', 'ra', 'rb']);
+    expect(namedIds('intake_analyst', null)).toEqual([]);
+    expect(namedIds('intake_analyst', 'x')).toEqual([]);
+    expect(namedIds('intake_analyst', { sources: 'nope' })).toEqual([]);
   });
 });

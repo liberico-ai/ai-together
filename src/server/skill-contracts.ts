@@ -117,6 +117,11 @@ function collect(value: unknown, path: readonly string[]): string[] {
 const idsOf = (out: SkillOutput, skill: SkillName, supportsOnly: boolean) =>
   ID_FIELDS[skill].filter(f => !supportsOnly || f.supports).flatMap(f => collect(out, f.path.split('.')).map(id => ({ id, kind: f.kind })));
 
+/** Every id a value names at every path of ID_FIELDS[skill], once each, in order of first appearance. A value that is not an output names nothing. */
+export function namedIds(skill: SkillName, value: unknown): string[] {
+  return [...new Set(ID_FIELDS[skill].flatMap(f => collect(value, f.path.split('.'))))];
+}
+
 // True when every leaf of a parsed value is empty: null, '', false, an empty array, or an object whose leaves are all empty. Iterative.
 function onlyEmptyLeaves(value: unknown): boolean {
   const stack: unknown[] = [value];

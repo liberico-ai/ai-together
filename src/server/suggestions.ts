@@ -7,7 +7,7 @@ import {READ_ROLES} from './document-review';
 import {DocumentService,mayWriteDocuments,proposeSchema,READ_ONLY_MESSAGE} from './documents';
 import {AppError,invariant} from './errors';
 import {buildSkillContextIn,CONTEXT_KINDS} from './skill-context';
-import {checkSkillOutput,MAX_OUTPUT_BYTES,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
+import {checkSkillOutput,MAX_OUTPUT_BYTES,namedIds,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
 import {canonicalJson,skillManifests} from './skills';
 import {threadHasHiddenText} from './source-text';
 import {storable} from './text-safety';
@@ -102,6 +102,24 @@ const toView=(r:DraftRow,mask:MaskReason[],shown:SkillOutput|null):DraftView=>{
  return {...head,value:null,questions:null,confidence:null,sources:[],skillVersion:null,modelVersion:null,
   valueHash:mask.includes('CONFIRM_AUTHORITY_REQUIRED')?null:r.value_hash};
 };
+
+const DOC_SUBJECT_SQL=`SELECT coalesce(max(v.revision_no),0)::int AS newest,
+  coalesce(max(v.revision_no) FILTER (WHERE v.id = ANY($3::uuid[])),0)::int AS named
+  FROM document_revisions v WHERE v.project_id=$1::uuid AND v.document_id=$2::uuid`;
+/**
+ * OQ-46 (b): the draft's own subject against the newest thing the draft itself names. Codes only.
+ * Only lower-case uuids are passed to the database, so a malformed or upper-case id names nothing and never raises 22P02.
+ * Call it while the document row is locked. The candidate branch is Task 6.
+ */
+async function subjectReasons(tx:Queryable,projectId:string,d:DraftRow):Promise<string[]> {
+ const named=namedIds(d.signal_type,d.value).filter(x=>UUID.test(x));
+ if(d.entity_type!=='document') return [];
+ const r=(await tx.query<{newest:number;named:number}>(DOC_SUBJECT_SQL,[projectId,d.entity_id,named])).rows[0];
+ if(r.newest===0) return [];
+ // OQ-53 point 2 (open, fail-closed until the Chairman decides): a draft that names no revision of its own document has no baseline, so it is held
+ if(r.named===0) return ['SUBJECT_BASELINE_MISSING'];
+ return r.newest>r.named?['SUBJECT_CHANGED']:[];
+}
 
 export class SuggestionService {
  private documents:DocumentService;
@@ -269,6 +287,7 @@ export class SuggestionService {
       for(const r of checkSkillOutput({name:manifest.name,hash:manifest.hash,toolAllowlist:manifest.toolAllowlist},ctx,d.value).reasons) reasons.add(r);
       // OQ-55 placeholder (P3): what read masks for a hidden thread, confirm holds
       if(d.entity_type==='intake_candidate'&&await threadHasHiddenText(tx,projectId,d.entity_id,this.excerptChats)) reasons.add('THREAD_TEXT_HIDDEN');
+      for(const r of await subjectReasons(tx,projectId,d)) reasons.add(r);
      }
      if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
      if(d.entity_type==='document') {

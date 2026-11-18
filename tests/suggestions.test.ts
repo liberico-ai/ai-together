@@ -78,7 +78,7 @@ const revisionBody=(d:DocumentDetail,over:R={}):R=>({expectedVersion:d.record.ve
 /** A document draft stored through submitDraft. */
 async function docDraft(o:{project?:string;sources?:string[];d?:DocumentDetail;output?:R}={}){
  const d=o.d??await doc(o.project??ids.sales);
- const output=o.output??out('technical_writer',o.sources??[d.record.id]);
+ const output=o.output??out('technical_writer',o.sources??[d.record.id,d.record.latest_revision_id].filter((x):x is string=>Boolean(x)));
  const r=await svc().submitDraft(ai,env('document',d.record.id,'technical_writer',output,{projectId:o.project??ids.sales}));
  return {d,output,draftId:r.draftId,valueHash:sha(output)};
 }
@@ -446,6 +446,64 @@ describe('Z4 drafts: decide',()=>{
   expect(fired).toBe(true);
   await zeroDecisions();
   expect(await n('document_revisions')).toBe(revs);expect(await n('registry_events')).toBe(events);
+ });
+});
+
+describe('Z4 drafts: a draft whose document moved on is held (OQ-46)',()=>{
+ const claims=()=>n('document_commands');
+ const latest=(d:DocumentDetail)=>d.record.latest_revision_id!;
+ test('a document draft is held once the document has a revision newer than the newest one the draft names: no decision, no revision, the key stays free',async()=>{
+  const d=await doc(),x=await docDraft({d,sources:[d.record.id,latest(d)]}),key=k();
+  const d2=await proposeRev(h,pm,await fresh(d.record.id));
+  const revs=await n('document_revisions'),cmds=await claims();
+  const e=await held(decide(svc(),pm,x.draftId,body(x.valueHash,{revision:revisionBody(d2)}),key),'SUBJECT_CHANGED');
+  expect(e.message).not.toContain('SUBJECT_BASELINE_MISSING');
+  await zeroDecisions();
+  expect(await n('document_revisions')).toBe(revs);expect(await claims()).toBe(cmds);
+  const y=await docDraft({d:d2,sources:[d2.record.id,latest(d2)]});
+  const v=await decide(svc(),pm,y.draftId,body(y.valueHash,{revision:revisionBody(await fresh(d.record.id))}),key);
+  expect(v.decision?.result).toBe('confirmed');
+ });
+
+ test('the newest revision the draft names is the baseline: naming r1 and r2 is confirmed while r2 is the newest; a revision of another document is not a baseline',async()=>{
+  const d1=await doc(),d2=await proposeRev(h,pm,await fresh(d1.record.id));
+  const ok=await docDraft({d:d2,sources:[d2.record.id,latest(d1),latest(d2)]});
+  const v=await decide(svc(),pm,ok.draftId,body(ok.valueHash,{revision:revisionBody(await fresh(d1.record.id))}));
+  expect(v.decision?.result).toBe('confirmed');
+  const a1=await doc(),a2=await proposeRev(h,pm,await fresh(a1.record.id)),b=await doc();
+  const bad=await docDraft({d:a2,sources:[a2.record.id,latest(a1),latest(b)]});
+  await held(decide(svc(),pm,bad.draftId,body(bad.valueHash,{revision:revisionBody(await fresh(a1.record.id))})),'SUBJECT_CHANGED');
+ });
+
+ test('dừng tại OQ-53 (2): a document draft that names no revision of its own document is held as SUBJECT_BASELINE_MISSING once the document has a revision; a document with no revision yet is not held for it',async()=>{
+  const d=await doc(),x=await docDraft({d,sources:[d.record.id]});
+  const e=await held(decide(svc(),pm,x.draftId,body(x.valueHash,{revision:revisionBody(d)})),'SUBJECT_BASELINE_MISSING');
+  expect(e.message).not.toContain('SUBJECT_CHANGED');
+  await zeroDecisions();
+  const reg=await registerDoc(h,pm),y=await docDraft({d:reg,sources:[reg.record.id]});
+  const v=await decide(svc(),pm,y.draftId,body(y.valueHash,{revision:revisionBody(reg)}));
+  expect(v.decision?.result).toBe('confirmed');
+  expect((await rows<{revision_no:number}>('SELECT revision_no FROM document_revisions WHERE document_id=$1',[reg.record.id])).map(r=>r.revision_no)).toEqual([1]);
+ });
+
+ test('a held draft can still be rejected, and a recorded confirmation replays unchanged after the document moves on',async()=>{
+  const d=await doc(),x=await docDraft({d,sources:[d.record.id,latest(d)]});
+  await proposeRev(h,pm,await fresh(d.record.id));
+  const r=await decide(svc(),pm,x.draftId,{result:'rejected',valueHash:x.valueHash,reason:'Nháp đã cũ rồi'});
+  expect(r.decision?.result).toBe('rejected');
+  const e=await doc(),y=await docDraft({d:e,sources:[e.record.id,latest(e)]}),key=k(),b=body(y.valueHash,{revision:revisionBody(e)});
+  const first=await decide(svc(),pm,y.draftId,b,key);
+  expect(first.decision?.result).toBe('confirmed');
+  await proposeRev(h,pm,await fresh(e.record.id));
+  expect(await decide(svc(),pm,y.draftId,b,key)).toEqual(first);
+  expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[y.draftId])).toHaveLength(1);
+ });
+
+ test('an id that is not a lower-case uuid names nothing: the upper-case id of the newest revision is not a baseline',async()=>{
+  const d=await doc();
+  const x=await rawDraft({entityType:'document',entityId:d.record.id,value:out('technical_writer',[d.record.id,latest(d).toUpperCase()])});
+  await held(decide(svc(),pm,x.id,body(sha(x.value),{revision:revisionBody(d)})),'SUBJECT_BASELINE_MISSING');
+  await zeroDecisions();
  });
 });
 

@@ -17,7 +17,7 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
   test('two confirmations of one draft in parallel leave one decision and one revision',async()=>{
     const svc=new SuggestionService(h.db,h.operator,[]);
     const d=await proposeRev(h,pm,await registerDoc(h,pm));
-    const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
+    const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id},{id:d.record.latest_revision_id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
     const {draftId}=await svc.submitDraft({id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales]},{skill:'technical_writer',projectId:ids.sales,entityType:'document',entityId:d.record.id,output,
       inputHash:'c'.repeat(64),modelVersion:'synthetic-model',dedupeKey:'dk-'+randomUUID(),traceId:randomUUID()});
     const valueHash=createHash('sha256').update(canonicalJson(output)).digest('hex');
@@ -43,7 +43,7 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
   async function setup(){
     const svc=new SuggestionService(h.db,h.operator,[]);
     const d=await proposeRev(h,pm,await registerDoc(h,pm));
-    const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
+    const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id},{id:d.record.latest_revision_id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
     const {draftId}=await svc.submitDraft({id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales]},{skill:'technical_writer',projectId:ids.sales,entityType:'document',entityId:d.record.id,output,
       inputHash:'c'.repeat(64),modelVersion:'synthetic-model',dedupeKey:'dk-'+randomUUID(),traceId:randomUUID()});
     const valueHash=createHash('sha256').update(canonicalJson(output)).digest('hex');
@@ -69,7 +69,7 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
     expect(await n('draft_decisions')).toBe(1);expect(await n('document_revisions')).toBe(revisions+1);
   });
 
-  test('a draft confirmation racing a manual revision of the same document: one answers REVISION_CONFLICT, no decision without its revision, no revision a decision does not point to',async()=>{
+  test('a draft confirmation racing a manual revision of the same document: exactly one succeeds; the manual proposal answers REVISION_CONFLICT when the confirmation won, the confirmation is held as SUBJECT_CHANGED when the manual proposal won; no decision without its revision, no revision a decision does not point to',async()=>{
     const {svc,d,draftId,valueHash,revision}=await setup();
     const revisions=await n('document_revisions');
     let confirm!:Promise<unknown>,manual!:Promise<unknown>;
@@ -79,12 +79,19 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
       manual=new DocumentService(h.db).proposeRevision(pm,d.record.id,revision,'conc-key-0022').then(v=>v,e=>e);
       await waitForBlocked(h,2);
     });
-    const [c,m]=[await confirm,await manual] as [{decision?:unknown;code?:string},{record?:unknown;code?:string}];
-    expect([c.code,m.code].filter(x=>x==='REVISION_CONFLICT')).toHaveLength(1);
+    const [c,m]=[await confirm,await manual] as [{decision?:unknown;code?:string;message?:string;status?:number},{record?:unknown;code?:string}];
+    const confirmed=c.decision!==undefined,proposed=m.record!==undefined;
+    expect([confirmed,proposed].filter(Boolean)).toHaveLength(1);
     expect(await n('document_revisions')).toBe(revisions+1);
     const latest=(await h.operator.query<{latest_revision_id:string}>('SELECT latest_revision_id FROM document_records WHERE id=$1',[d.record.id])).rows[0].latest_revision_id;
     const dec=(await h.operator.query<{document_revision_id:string}>('SELECT document_revision_id FROM draft_decisions')).rows;
-    if(c.code==='REVISION_CONFLICT') expect(dec).toHaveLength(0);
-    else { expect(dec).toHaveLength(1); expect(dec[0].document_revision_id).toBe(latest); }
+    if(confirmed) {
+      expect(m.code).toBe('REVISION_CONFLICT');
+      expect(dec).toHaveLength(1);expect(dec[0].document_revision_id).toBe(latest);
+    } else {
+      expect(c).toMatchObject({code:'DRAFT_HELD',status:422});
+      expect(c.message).toContain('SUBJECT_CHANGED');
+      expect(dec).toHaveLength(0);
+    }
   });
 });
