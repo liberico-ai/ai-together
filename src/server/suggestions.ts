@@ -9,7 +9,7 @@ import {AppError,invariant} from './errors';
 import {buildSkillContextIn,CONTEXT_KINDS} from './skill-context';
 import {checkSkillOutput,MAX_OUTPUT_BYTES,namedIds,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
 import {canonicalJson,skillManifests} from './skills';
-import {threadFreshness,threadHasHiddenText} from './source-text';
+import {projectHasHiddenText,threadFreshness,threadHasHiddenText} from './source-text';
 import {storable} from './text-safety';
 import {projectRole} from './types';
 import type {Principal,Role} from './types';
@@ -34,7 +34,7 @@ const lower=z.string().transform(s=>s.toLowerCase());
 const ENTITY_TYPES=['intake_candidate','document'] as const;
 type EntityType=typeof ENTITY_TYPES[number];
 
-export type MaskReason='CONFIRM_AUTHORITY_REQUIRED'|'ENTITY_NOT_FOUND'|'POINTER_ONLY_PROJECT'|'SCHEMA_INVALID'|'SOURCE_OUT_OF_CONTEXT'|'TEXT_NOT_VISIBLE'|'THREAD_TEXT_HIDDEN';
+export type MaskReason='CONFIRM_AUTHORITY_REQUIRED'|'ENTITY_NOT_FOUND'|'POINTER_ONLY_PROJECT'|'PROJECT_TEXT_HIDDEN'|'SCHEMA_INVALID'|'SOURCE_OUT_OF_CONTEXT'|'TEXT_NOT_VISIBLE'|'THREAD_TEXT_HIDDEN';
 export type DraftView={
   id:string;projectId:string;entityType:'intake_candidate'|'document';entityId:string;skill:SkillName;createdAt:string;
   manifestHash:string|null;        // the hash of the manifest in force for this skill, or null: never a value the writer chose
@@ -194,6 +194,7 @@ export class SuggestionService {
  private async present(tx:Queryable,p:Principal,projectId:string,rows:DraftRow[],contexts:Map<string,SkillContext|null>=new Map()):Promise<DraftView[]> {
   const views:DraftView[]=[];
   const hiddenThread=new Map<string,boolean>();
+  let hiddenProject:boolean|undefined;
   for(const r of rows) {
    if(!mayDecide(projectRole(p,projectId),r.entity_type)) {views.push(toView(r,['CONFIRM_AUTHORITY_REQUIRED'],null));continue;}
    const reasons=new Set<MaskReason>();
@@ -208,7 +209,10 @@ export class SuggestionService {
     const m=skillManifests[r.signal_type];
     for(const x of checkSkillOutput({name:m.name,hash:m.hash,toolAllowlist:m.toolAllowlist},ctx,r.value).reasons) if(VISIBILITY.has(x)) reasons.add(x as MaskReason);
    }
-   // OQ-55 placeholder (fail-closed until the Chairman decides): a candidate draft is masked while its thread holds stored text that is no longer shown; a document draft has no equivalent check: OQ-55
+   // OQ-55 placeholder by project (fail-closed until the Chairman decides; wider than option (e)): every draft of a project is masked while the project holds stored text that is no longer shown
+   hiddenProject??=await projectHasHiddenText(tx,projectId,this.excerptChats);
+   if(hiddenProject) reasons.add('PROJECT_TEXT_HIDDEN');
+   // a candidate draft is also masked while its own thread holds such text
    if(r.entity_type==='intake_candidate') {
     if(!hiddenThread.has(r.entity_id)) hiddenThread.set(r.entity_id,await threadHasHiddenText(tx,projectId,r.entity_id,this.excerptChats));
     if(hiddenThread.get(r.entity_id)) reasons.add('THREAD_TEXT_HIDDEN');
@@ -295,10 +299,12 @@ export class SuggestionService {
      if(ctx) {
       if(ctx.pointerOnly) reasons.add('POINTER_ONLY_PROJECT');
       for(const r of checkSkillOutput({name:manifest.name,hash:manifest.hash,toolAllowlist:manifest.toolAllowlist},ctx,d.value).reasons) reasons.add(r);
-      // OQ-55 placeholder: what read masks for a hidden thread, confirm holds; a document draft has no equivalent check: OQ-55
+      // OQ-55 placeholder: what read masks for a hidden thread, confirm holds
       if(d.entity_type==='intake_candidate'&&await threadHasHiddenText(tx,projectId,d.entity_id,this.excerptChats)) reasons.add('THREAD_TEXT_HIDDEN');
       for(const r of await subjectReasons(tx,projectId,d)) reasons.add(r);
      }
+     // OQ-55 placeholder by project, for every draft and outside the context check, so the code stands when no context can be built (fail-closed until the Chairman decides; wider than option (e))
+     if(await projectHasHiddenText(tx,projectId,this.excerptChats)) reasons.add('PROJECT_TEXT_HIDDEN');
      if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
      if(d.entity_type==='document') {
       if(!input.revision) throw new AppError('REVISION_REQUIRED','Nháp gắn tài liệu cần kèm nội dung bản đề xuất.',422);

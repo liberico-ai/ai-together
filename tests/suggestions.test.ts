@@ -1010,7 +1010,7 @@ describe('Z4 drafts: the content is re-checked at read time (OQ-45 point 2)',()=
   expect(await n('draft_decisions')).toBe(1);
  });
 
- test('M10 a reader without the authority, and any reader of a document draft, causes no read of the message tables',async()=>{
+ test('M10 a reader without the authority causes no read of the message tables; a reader of a document draft causes exactly one, a single boolean for the project',async()=>{
   const texts:string[]=[];
   const wrap=(qq:Queryable):Queryable=>({query:async<T=R>(sql:string,params?:unknown[])=>{texts.push(sql);return qq.query<T>(sql,params);}});
   const spy:Database={...wrap(h.db),transaction:fn=>h.db.transaction(tx=>fn(wrap(tx))),close:()=>h.db.close()};
@@ -1022,7 +1022,9 @@ describe('Z4 drafts: the content is re-checked at read time (OQ-45 point 2)',()=
   texts.length=0;
   await sp().list(pm,q('document',d.d.record.id));
   expect(texts.length).toBeGreaterThan(0);
-  expect(texts.filter(t=>/source_events/.test(t))).toEqual([]);
+  expect(texts.filter(t=>/source_events/.test(t))).toHaveLength(1);
+  expect(texts.filter(t=>/source_events/.test(t))[0]).toMatch(/SELECT EXISTS|AS hidden/);
+  expect(texts.filter(t=>/intake_candidates/.test(t))).toEqual([]);
   // control: a manager reading a candidate draft does read the message tables
   texts.length=0;
   await sp().list(pm,q('intake_candidate',c.candidateId));
@@ -1058,6 +1060,12 @@ describe('Z4 drafts: what masks at read time holds at confirmation (P3 invariant
     const c=await candidate(),dd=await doc(),value=out('intake_analyst',[dd.record.id]),x=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value});
     return {service:none(),entityType:'intake_candidate',entityId:c.candidateId,draftId:x.id,valueHash:sha(value)};
    },
+   PROJECT_TEXT_HIDDEN:async()=>{
+    // stored text in the project that the configuration no longer shows, and a clean draft of a document
+    await candidate();
+    const dd=await doc(),x=await docDraft({d:dd});
+    return {service:none(),entityType:'document',entityId:dd.record.id,draftId:x.draftId,valueHash:x.valueHash,revision:revisionBody(dd)};
+   },
    // last: the mapping it adds to the sales project would mask every other draft of that project
    POINTER_ONLY_PROJECT:async()=>{
     const dd=await doc(),x=await docDraft({d:dd});
@@ -1066,7 +1074,7 @@ describe('Z4 drafts: what masks at read time holds at confirmation (P3 invariant
    },
   };
   const walked=Object.keys(setups) as Walked[];
-  expect([...walked].sort()).toEqual(['ENTITY_NOT_FOUND','POINTER_ONLY_PROJECT','SCHEMA_INVALID','SOURCE_OUT_OF_CONTEXT','TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN']);
+  expect([...walked].sort()).toEqual(['ENTITY_NOT_FOUND','POINTER_ONLY_PROJECT','PROJECT_TEXT_HIDDEN','SCHEMA_INVALID','SOURCE_OUT_OF_CONTEXT','TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN']);
   for(const reason of walked) {
    const x=await setups[reason]();
    const l=await x.service.list(pm,{projectId:ids.sales,entityType:x.entityType,entityId:x.entityId});
@@ -1166,7 +1174,7 @@ describe('Z4 drafts: OQ-55 placeholder — a thread with stored text that is no 
   const c=await candidate(),d=await doc();
   const x=await quiet(c,d);
   const it=await first(none(),pm,c.candidateId);
-  expect(it.maskReasons).toEqual(['THREAD_TEXT_HIDDEN']);
+  expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN','THREAD_TEXT_HIDDEN']);
   expect(it.value).toBeNull();expect(it.sources).toEqual([]);
   expect(JSON.stringify(it)).not.toContain(MARK);expect(JSON.stringify(it)).not.toContain(d.record.id);
   expect((await first(none(),member,c.candidateId)).maskReasons).toEqual(['CONFIRM_AUTHORITY_REQUIRED']);
@@ -1182,7 +1190,7 @@ describe('Z4 drafts: OQ-55 placeholder — a thread with stored text that is no 
   const modes=await rows<{content_mode:string}>('SELECT content_mode FROM source_event_revisions WHERE source_event_id=$1 ORDER BY revision_no',[c.sourceEventId]);
   expect(modes.map(m=>m.content_mode)).toEqual(['excerpt','pointer_only']);
   await clean(c,d);
-  expect((await first(none(),pm,c.candidateId)).maskReasons).toEqual(['THREAD_TEXT_HIDDEN']);
+  expect((await first(none(),pm,c.candidateId)).maskReasons).toEqual(['PROJECT_TEXT_HIDDEN','THREAD_TEXT_HIDDEN']);
  });
 
  test('dừng tại OQ-55: what is masked for that reason cannot be confirmed either',async()=>{
@@ -1203,12 +1211,12 @@ describe('Z4 drafts: OQ-55 placeholder — a thread with stored text that is no 
   expect(await n('draft_decisions')).toBe(1);
  });
 
- test('a draft that cites a message of such a thread carries both reasons',async()=>{
+ test('a draft that cites a message of such a thread carries the reason of the cited message and both placeholder reasons',async()=>{
   const c=await candidate();
   const value=out('intake_analyst',[c.sourceEventId],{claims:[{field:'classification',value:MARK,basis:[c.sourceEventId]}]});
   await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value});
   const it=await first(none(),pm,c.candidateId);
-  expect(it.maskReasons).toEqual(['TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN']);
+  expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN','TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN']);
   expect(it.value).toBeNull();expect(JSON.stringify(it)).not.toContain(MARK);
  });
 
@@ -1226,14 +1234,125 @@ describe('Z4 drafts: OQ-55 placeholder — a thread with stored text that is no 
   expect(JSON.stringify(again)).not.toContain(MARK);
   expect(await n('draft_decisions')).toBe(1);
  });
+});
 
- test('dừng tại OQ-55: a document draft is not touched by the placeholder',async()=>{
+describe('Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1)',()=>{
+ const MARK='zq-project-'+randomUUID().replace(/-/g,'');
+ const none=()=>svc(h.operator,[]);
+ const dq=(entityId:string,project:string=ids.sales)=>({projectId:project,entityType:'document' as const,entityId});
+ const cq=(entityId:string)=>({projectId:ids.sales,entityType:'intake_candidate' as const,entityId});
+ /** A noisy document draft: the text is in the result and the draft names no message. */
+ const noisy=async(d:DocumentDetail,project:string=ids.sales)=>docDraft({d,project,output:out('technical_writer',[d.record.id,d.record.latest_revision_id!],{result:{sections:[{heading:'h',text:MARK,basis:[d.record.id]}],terms:[]}})});
+ const firstOf=async(s:SuggestionService,p:Principal,query:ReturnType<typeof dq>|ReturnType<typeof cq>)=>(await s.list(p,query)).items[0] as unknown as R;
+ const transportMessage=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:chats})
+  .ingest(messageEvent({text:'Tin của dự án vận tải '+randomUUID(),context:{chatId:chatTransport}}));
+
+ test('W1 dừng tại OQ-55: a document draft is masked while its project holds stored text that is no longer shown, whatever the draft names',async()=>{
   await candidate();
-  const x=await docDraft();
-  const l=(await none().list(pm,{projectId:ids.sales,entityType:'document',entityId:x.d.record.id})).items[0] as unknown as R;
-  expect(l.maskReasons).toEqual([]);expect(l.value).not.toBeNull();
-  const r=await decide(none(),pm,x.draftId,body(x.valueHash,{revision:revisionBody(x.d)}));
-  expect(r.decision?.result).toBe('confirmed');
+  const d=await doc(),x=await noisy(d);
+  const it=await firstOf(none(),pm,dq(d.record.id));
+  expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN']);
+  expect(it.value).toBeNull();expect(it.sources).toEqual([]);
+  expect(JSON.stringify(it)).not.toContain(MARK);
+  const ok=await firstOf(svc(),pm,dq(d.record.id));
+  expect(ok.maskReasons).toEqual([]);expect(JSON.stringify(ok.value)).toContain(MARK);
+  expect(ok.id).toBe(x.draftId);
+ });
+
+ test('W2 dừng tại OQ-55: what is masked for that reason cannot be confirmed either; it can still be rejected, and the answer of the rejection carries no content',async()=>{
+  await candidate();
+  const d=await doc(),x=await noisy(d);
+  const commands=await n('document_commands'),revisions=await n('document_revisions');
+  await held(decide(none(),pm,x.draftId,body(x.valueHash,{revision:revisionBody(d)})),'PROJECT_TEXT_HIDDEN');
+  await zeroDecisions();
+  expect(await n('document_commands')).toBe(commands);
+  expect(await n('document_revisions')).toBe(revisions);
+  const r=await decide(none(),pm,x.draftId,{result:'rejected',valueHash:x.valueHash,reason:'Không đủ căn cứ'});
+  expect(r.decision?.result).toBe('rejected');
+  expect(r.maskReasons).toContain('PROJECT_TEXT_HIDDEN');
+  expect(r.value).toBeNull();expect(JSON.stringify(r)).not.toContain(MARK);
+  expect(await n('draft_decisions')).toBe(1);
+  // with the flag in place another noisy draft is confirmed
+  const d2=await doc(),y=await noisy(d2);
+  const c=await decide(svc(),pm,y.draftId,body(y.valueHash,{revision:revisionBody(d2)}));
+  expect(c.decision?.result).toBe('confirmed');
+ });
+
+ test('W3 the project decides, not the thread and not the draft: text stored without being shown masks every draft of that project and no draft of another project',async()=>{
+  const ds=await doc(ids.sales),dt=await doc(ids.transport);
+  await noisy(ds);await noisy(dt,ids.transport);
+  await transportMessage();
+  expect((await firstOf(none(),pm,dq(ds.record.id))).maskReasons).toEqual([]);
+  expect((await firstOf(none(),pm,dq(dt.record.id,ids.transport))).maskReasons).toEqual(['PROJECT_TEXT_HIDDEN']);
+  await candidate();
+  const ds2=await doc(ids.sales);await noisy(ds2);
+  expect((await firstOf(none(),pm,dq(ds.record.id))).maskReasons).toEqual(['PROJECT_TEXT_HIDDEN']);
+  expect((await firstOf(none(),pm,dq(ds2.record.id))).maskReasons).toEqual(['PROJECT_TEXT_HIDDEN']);
+ });
+
+ test('W4 a project whose messages stored no text masks nothing',async()=>{
+  const c=await candidate({excerpt:false}),d=await doc();
+  await noisy(d);
+  const dd=await doc();
+  const value=out('intake_analyst',[dd.record.id]);
+  await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value});
+  expect((await firstOf(none(),pm,dq(d.record.id))).maskReasons).toEqual([]);
+  expect((await firstOf(none(),pm,cq(c.candidateId))).maskReasons).toEqual([]);
+ });
+
+ test('W5 the project statement runs once for a list read by a person who may decide it, for either kind of draft, and never for a reader without the authority',async()=>{
+  const texts:string[]=[];
+  const wrap=(qq:Queryable):Queryable=>({query:async<T=R>(sql:string,params?:unknown[])=>{texts.push(sql);return qq.query<T>(sql,params);}});
+  const spy:Database={...wrap(h.db),transaction:fn=>h.db.transaction(tx=>fn(wrap(tx))),close:()=>h.db.close()};
+  const sp=()=>new SuggestionService(spy,h.operator,chats);
+  const project=()=>texts.filter(t=>/NOT EXISTS\(SELECT 1 FROM projects p/.test(t));
+  const d=await doc();
+  for(let i=0;i<3;i++) await docDraft({d});
+  texts.length=0;
+  expect((await sp().list(pm,dq(d.record.id))).items).toHaveLength(3);
+  expect(project()).toHaveLength(1);
+  const c=await candidate(),dd=await doc();
+  for(let i=0;i<2;i++) await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value:out('intake_analyst',[dd.record.id])});
+  texts.length=0;
+  expect((await sp().list(pm,cq(c.candidateId))).items).toHaveLength(2);
+  expect(project()).toHaveLength(1);
+  texts.length=0;
+  expect((await sp().list(member,cq(c.candidateId))).items).toHaveLength(2);
+  expect(project()).toEqual([]);
+  expect(texts.filter(t=>/source_events/.test(t))).toEqual([]);
+ });
+
+ test('W6 a replayed confirmation of a document draft answers with the recorded decision and no content once the project holds hidden text',async()=>{
+  await candidate();
+  const d=await doc(),x=await noisy(d);
+  const key=k(),b=body(x.valueHash,{revision:revisionBody(d)});
+  const firstAns=await decide(svc(),pm,x.draftId,b,key);
+  expect(firstAns.decision?.result).toBe('confirmed');
+  const again=await decide(none(),pm,x.draftId,b,key);
+  expect(again.decision?.result).toBe('confirmed');expect(again.decision?.decidedAt).toBe(firstAns.decision?.decidedAt);
+  expect(again.maskReasons).toContain('PROJECT_TEXT_HIDDEN');
+  expect(again.value).toBeNull();expect(JSON.stringify(again)).not.toContain(MARK);
+  expect(await n('draft_decisions')).toBe(1);
+ });
+
+ test('W7 dừng tại OQ-55: a candidate draft that carries the text of another thread of its project is masked while that text is not shown',async()=>{
+  const t1=await candidate({excerpt:false});
+  await candidate();
+  const d=await doc();
+  const value=out('intake_analyst',[d.record.id],{claims:[{field:'classification',value:MARK,basis:[]}]});
+  await rawDraft({entityType:'intake_candidate',entityId:t1.candidateId,value});
+  const it=await firstOf(none(),pm,cq(t1.candidateId));
+  expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN']);
+  expect(it.value).toBeNull();expect(JSON.stringify(it)).not.toContain(MARK);
+  const ok=await firstOf(svc(),pm,cq(t1.candidateId));
+  expect(ok.maskReasons).toEqual([]);expect(JSON.stringify(ok.value)).toContain(MARK);
+ });
+
+ test('W8 the project reason stands when no context can be built: a document draft that points at no document is held for both',async()=>{
+  await candidate();
+  const x=await rawDraft({entityType:'document',entityId:randomUUID()});
+  await held(decide(none(),pm,x.id,body(sha(x.value),{revision:revisionBody(await doc())})),'ENTITY_NOT_FOUND','PROJECT_TEXT_HIDDEN');
+  await zeroDecisions();
  });
 });
 

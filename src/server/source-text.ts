@@ -93,6 +93,25 @@ export async function threadHasHiddenText(tx:Queryable,projectId:string,candidat
  return row?.hidden!==false;
 }
 
+/**
+ * True when project $1 holds at least one revision, of any message, that stored text which the current configuration does not show: its group is not
+ * flagged, or the project's latest mapping is IBS_HI. Every revision of every message of the project is looked at: no cap, and not only the newest revision.
+ * A flag list that cannot be evaluated (a null element and no match) counts as not flagged: the test is IS NOT TRUE, never NOT.
+ * One boolean: no text and no hash leave the database.
+ * Closed: a project id that is not a lower-case uuid, a statement that returns no row, and a project the calling transaction cannot see (another tenant,
+ * a project outside its scope, an id that does not exist) all give true.
+ * tx must be a transaction already scoped to the tenant and project (scoped): the tenant boundary is row-level security.
+ */
+export async function projectHasHiddenText(tx:Queryable,projectId:string,excerptChats:readonly string[]):Promise<boolean> {
+ if(!UUID_LOWER.test(String(projectId))) return true;
+ const row=(await tx.query<{hidden:boolean}>(
+  `SELECT (NOT EXISTS(SELECT 1 FROM projects p WHERE p.id=$1::uuid)
+     OR EXISTS(SELECT 1 FROM source_events e JOIN source_event_revisions r ON r.source_event_id=e.id
+      WHERE e.project_id=$1::uuid AND r.project_id=$1::uuid
+        AND r.content_mode='excerpt' AND (${textAllowedSql('e','$2')}) IS NOT TRUE)) AS hidden`,[projectId,[...excerptChats]])).rows[0];
+ return row?.hidden!==false;
+}
+
 export type ThreadFreshness={hasBaseline:boolean;newerMessage:boolean;laterEdit:boolean};
 /**
  * For the thread of one candidate of project $1 (same chat_id and thread_key, as visibleThreadMessages) and the ids a draft names:

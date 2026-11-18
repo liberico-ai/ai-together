@@ -8,7 +8,7 @@ import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,type
 import {mapDomain,nextDbInstant,recordingDb} from './slice3-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {InboxService} from '../src/server/inbox';
-import {displayMode,listVisibleRevisions,threadFreshness,threadHasHiddenText} from '../src/server/source-text';
+import {displayMode,listVisibleRevisions,projectHasHiddenText,threadFreshness,threadHasHiddenText} from '../src/server/source-text';
 import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
 
@@ -223,6 +223,60 @@ describe('threadHasHiddenText',()=>{
   const both={...pm,projectIds:[ids.sales,ids.transport]};
   expect(await ask(ids.transport,m.id,[],both)).toBe(false);
   expect(await ask(ids.sales,m.id,[],both)).toBe(true);
+ });
+});
+
+describe('projectHasHiddenText',()=>{
+ const askP=(projectId:string,list:readonly string[],scope:Parameters<typeof scoped>[1]=salesScope)=>scoped(h.db,scope,tx=>projectHasHiddenText(tx,projectId,list));
+ const bothScope={...pm,projectIds:[ids.sales,ids.transport]};
+ const edit=(e:ReturnType<typeof messageEvent>,text:string,list:string[])=>intake(list).ingest({...e,text,contentHash:'e'.repeat(64),editedAt:new Date(1760099999000).toISOString(),traceId:randomUUID()});
+
+ test('U1 projectHasHiddenText: every revision of every message of the project, the current configuration, and closed outside the caller\'s scope',async()=>{
+  expect(await askP(ids.sales,[chatSales],bothScope)).toBe(false);
+  await ingest({text:'U1-POINTER-1'});
+  expect(await askP(ids.sales,[],bothScope)).toBe(false);
+  // another project holds stored text that is hidden: this project stays false, the other is true
+  await ingest({text:'U1-TRANSPORT-1',context:{chatId:chatTransport}},[chatTransport]);
+  expect(await askP(ids.sales,[],bothScope)).toBe(false);
+  expect(await askP(ids.transport,[],bothScope)).toBe(true);
+  const e=messageEvent({text:'U1-STORED-1'});
+  await intake([chatSales]).ingest(e);
+  expect(await askP(ids.sales,[chatSales],bothScope)).toBe(false);
+  expect(await askP(ids.sales,[],bothScope)).toBe(true);
+  // a later pointer-only revision of that message does not clear the earlier stored text
+  await edit(e,'U1-EDIT-1',[]);
+  expect(await askP(ids.sales,[],bothScope)).toBe(true);
+  expect(await askP(ids.sales,[chatSales],bothScope)).toBe(false);
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  expect(await askP(ids.sales,[chatSales],bothScope)).toBe(true);
+  await mapDomain(h,ids.sales,'XECA',2);
+  expect(await askP(ids.sales,[chatSales],bothScope)).toBe(false);
+  // closed outside the caller's scope, with a list that would show the text
+  expect(await askP(ids.sales,[chatSales],{...outsider,projectIds:[ids.sales]})).toBe(true);
+  expect(await askP(ids.sales,[chatSales],{...pm,projectIds:[ids.transport]})).toBe(true);
+  expect(await askP(randomUUID(),[chatSales],bothScope)).toBe(true);
+ });
+
+ test('U2 projectHasHiddenText returns one boolean and no text: the one row handed back holds no excerpt and no content hash',async()=>{
+  const m=await ingest({text:'U2-MARKER-8812'},[chatSales]);
+  const rec=recordingDb(h.db);
+  const got=await scoped(rec.db,salesScope,tx=>projectHasHiddenText(tx,ids.sales,[]));
+  expect(got).toBe(true);
+  const seen=rec.rows().filter(r=>(r as Record<string,unknown>).hidden!==undefined);
+  expect(seen).toHaveLength(1);
+  expect(Object.keys(seen[0] as object)).toEqual(['hidden']);
+  expect(JSON.stringify(rec.rows())).not.toContain('U2-MARKER-8812');
+  expect(JSON.stringify(rec.rows())).not.toContain(m.hash);
+ });
+
+ test('U3 projectHasHiddenText is closed: a list that cannot be evaluated, a statement that returns no row, a malformed project id',async()=>{
+  await ingest({text:'U3-STORED-1'},[chatSales]);
+  expect(await askP(ids.sales,[null] as unknown as string[])).toBe(true);
+  expect(await askP(ids.sales,[null,chatSales] as unknown as string[])).toBe(false);
+  const empty:Queryable={query:async()=>({rows:[]}) as never};
+  expect(await projectHasHiddenText(empty,ids.sales,[])).toBe(true);
+  const trap:Queryable={query:async()=>{throw new Error('statement sent');}};
+  expect(await projectHasHiddenText(trap,'x',[])).toBe(true);
  });
 });
 
