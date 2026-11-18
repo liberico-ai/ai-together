@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 EXPECTED_HOME = Path("/home/iptech/.hermes/profiles/libetech")
 ORIGIN = "http://127.0.0.1:3148"
 ENDPOINT = ORIGIN + "/api/bridge"
@@ -310,6 +310,50 @@ def _own_command(text):
     words = text.split(None, 1)
     return bool(words) and OWN_COMMAND.fullmatch(words[0]) is not None
 
+def _raw_addressed_to_bot(raw_message, context):
+    """Use the original, placement-bound Telegram message after Hermes strips the @mention.
+
+    Hermes dispatches a mentioned group message without copying its trigger decision to MessageEvent. The PTB
+    message still carries the bot identity and Telegram entities. Never infer addressing from generated attribution
+    text or from a mention of a different bot.
+    """
+    if raw_message is None or getattr(raw_message, "sender_chat", None) is not None:
+        return False
+    raw_chat = getattr(raw_message, "chat", None)
+    raw_user = getattr(raw_message, "from_user", None)
+    if (str(getattr(raw_chat, "id", "") or "") != context["chatId"]
+            or str(getattr(raw_message, "message_id", "") or "") != context["messageId"]
+            or str(getattr(raw_user, "id", "") or "") != context["telegramId"]
+            or getattr(raw_user, "is_bot", False)):
+        return False
+    try:
+        bot = raw_message.get_bot()
+        bot_id = str(getattr(bot, "id", "") or "")
+        username = str(getattr(bot, "username", "") or "").lstrip("@").lower()
+    except (AttributeError, RuntimeError):
+        return False
+    if not bot_id:
+        return False
+    reply_user = getattr(getattr(raw_message, "reply_to_message", None), "from_user", None)
+    if str(getattr(reply_user, "id", "") or "") == bot_id:
+        return True
+    for entities, parser_name in ((getattr(raw_message, "entities", None), "parse_entity"),
+                                  (getattr(raw_message, "caption_entities", None), "parse_caption_entity")):
+        parser = getattr(raw_message, parser_name, None)
+        for entity in entities or ():
+            kind = getattr(getattr(entity, "type", None), "value", getattr(entity, "type", None))
+            if kind == "text_mention" and str(getattr(getattr(entity, "user", None), "id", "") or "") == bot_id:
+                return True
+            if kind in ("mention", "bot_command") and username and callable(parser):
+                try:
+                    span = str(parser(entity) or "").lower()
+                except (ValueError, TypeError):
+                    continue
+                if span == "@" + username or (kind == "bot_command" and span.endswith("@" + username)):
+                    return True
+    return False
+
+
 def intake_event(event, chats=None):
     """Intake body built from the gateway's Telegram event; identity and placement never come from the text.
     None: not a person's message in a Telegram group of the libetech profile, a route the gateway rejected, a chat not
@@ -379,7 +423,8 @@ def intake_event(event, chats=None):
         context["topicId"] = topic
     if reply:
         context["replyToMessageId"] = reply
-    addressed = (text.lstrip().startswith("/") or getattr(event, "reply_expected", None) is True
+    addressed = (text.lstrip().startswith("/") or _raw_addressed_to_bot(raw_message, context)
+                 or getattr(event, "reply_expected", None) is True
                  or getattr(event, "reply_to_is_own_message", False) is True
                  or getattr(event, "mentions_bot", False) is True or getattr(event, "reply_to_bot", False) is True)
     forwarded = any(getattr(raw_message, name, None) is not None for name in (

@@ -439,6 +439,45 @@ class IntakeAdapterTests(unittest.TestCase):
             self.assertIsNone(take(tg_event(source=dict(user_id=''),raw_message=SimpleNamespace(**(vars(raw)|changed)))))
         self.assertIsNone(bridge.intake_event(event,chats=['-100998']))
 
+    def test_telegram_mention_removed_by_gateway_still_queues_receipt(self):
+        mention=SimpleNamespace(type='mention')
+        raw=SimpleNamespace(chat=SimpleNamespace(id=int(GROUP)),message_id=41,
+                            from_user=SimpleNamespace(id=int(SENDER),is_bot=False),sender_chat=None,
+                            text='@LiBeAiTogetherBot PMTEST-083: ghi nhận thử',entities=[mention],
+                            caption_entities=None,reply_to_message=None,
+                            get_bot=lambda:SimpleNamespace(id=777,username='LiBeAiTogetherBot'),
+                            parse_entity=lambda entity:'@LiBeAiTogetherBot')
+        event=tg_event('PMTEST-083: ghi nhận thử',source=dict(user_id=''),raw_message=raw)
+        payload=take(event)
+        self.assertTrue(payload['addressed'])
+        self.assertEqual(payload['text'],raw.text)
+        raw.parse_entity=lambda entity:'@AnotherBot'
+        self.assertFalse(take(event)['addressed'])
+        raw.entities=[]
+        self.assertFalse(take(event)['addressed'])
+        raw.reply_to_message=SimpleNamespace(from_user=SimpleNamespace(id=777))
+        self.assertTrue(take(event)['addressed'])
+        raw.reply_to_message=None
+        raw.entities=[SimpleNamespace(type='text_mention',user=SimpleNamespace(id=777))]
+        self.assertTrue(take(event)['addressed'])
+        raw.get_bot=lambda:SimpleNamespace(id=778,username='AnotherBot')
+        self.assertFalse(take(event)['addressed'])
+        self.assertIsNone(bridge.intake_event(event,chats=['-100998']))
+
+    def test_real_telegram_message_entity_survives_gateway_cleaning(self):
+        telegram=pytest.importorskip('telegram')
+        bot=telegram.Bot('123456:synthetic-test-token')
+        bot._bot_user=telegram.User(id=777,first_name='Bot',is_bot=True,username='LiBeAiTogetherBot')
+        raw=telegram.Message(message_id=41,date=datetime.now(timezone.utc),
+                             chat=telegram.Chat(int(GROUP),'supergroup'),
+                             from_user=telegram.User(id=int(SENDER),first_name='Reporter',is_bot=False),
+                             text='😀 @LiBeAiTogetherBot PMTEST-083',
+                             entities=[telegram.MessageEntity(type='mention',offset=3,length=18)])
+        raw.set_bot(bot)
+        payload=take(tg_event('PMTEST-083',source=dict(user_id=''),raw_message=raw))
+        self.assertTrue(payload['addressed'])
+        self.assertEqual(payload['contentHash'],hashlib.sha256(raw.text.encode()).hexdigest())
+
     def test_reply_topic_album_edit_and_forward_are_carried(self):
         edited=datetime(2026,11,14,2,3,4,tzinfo=timezone.utc)
         cases=[(tg_event(reply_to_message_id='40'),'context','replyToMessageId','40'),
@@ -1672,7 +1711,7 @@ class IntakeAnswerTests(unittest.TestCase):
     def test_read_and_outbox_paths_answer_these_2xx_bodies_as_before_and_never_classify_them(self):
         # The intake check lives in submit_event's post; call_backend and the read, pull and receipt paths are unchanged.
         empty_pull=encoded({'data':{'deliveries':[],'reconcile':[]},'error':None})
-        cases=[(b'{"data":null,"error":null}','{"ok": true, "data": null, "bridgeVersion": "0.3.0"}','OUTBOX_RESPONSE_INVALID','RECEIPT_RESPONSE_INVALID'),
+        cases=[(b'{"data":null,"error":null}',json.dumps({'ok':True,'data':None,'bridgeVersion':bridge.VERSION}),'OUTBOX_RESPONSE_INVALID','RECEIPT_RESPONSE_INVALID'),
                (b'{}','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE'),
                (b'<html>ok</html>','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE')]
         for body,read_answer,pull_error,receipt_error in cases:
