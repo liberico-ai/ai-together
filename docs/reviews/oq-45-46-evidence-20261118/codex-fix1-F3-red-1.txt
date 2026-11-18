@@ -1,0 +1,246 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (101 tests | 10 failed | 1 skipped) 50351ms
+   ❯ Z4 drafts: decide (16)
+     × the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidden is held 501ms
+     × R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results 526ms
+   ❯ Z4 drafts: fix round 1 (7)
+     × F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are held for the OQ-53 (3) placeholder alone 484ms
+   ❯ Z4 drafts: one idempotency claim per decision (Codex gate, round 1) (8)
+     × (e) a rejection claims its key, for a document draft and for a candidate draft: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT; a held candidate confirmation leaves its key free 497ms
+   ❯ Z4 drafts: a draft whose thread moved on is held (OQ-46) (5)
+     × a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is held for the OQ-53 (3) placeholder alone 492ms
+     × a message the draft does not name, recorded before the newest one it names, adds no hold: the draft is held for the OQ-53 (3) placeholder alone 562ms
+     × dừng tại OQ-53 (1): an edit recorded at or after the newest named message holds the draft as SUBJECT_EDIT_UNVERIFIED, also when the edit was already there when the draft was written; an edit recorded before the newest named message does not 534ms
+   ❯ Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) (5)
+     × dừng tại OQ-53 (3): a candidate draft that passes every other check is held as SUBJECT_ORDER_UNVERIFIED and nothing else; nothing is written and the key stays free 509ms
+     × dừng tại OQ-53 (3): every other check still runs and names its code next to the placeholder 500ms
+     × dừng tại OQ-53 (3): a document draft is not touched, and a candidate confirmation that carries a revision body is INVALID_INPUT before any hold 513ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: decide > the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidden is held
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:314:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: decide > R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:428:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are held for the OQ-53 (3) placeholder alone
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:582:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (e) a rejection claims its key, for a document draft and for a candidate draft: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT; a held candidate confirmation leaves its key free
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:673:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is held for the OQ-53 (3) placeholder alone
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:1392:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a message the draft does not name, recorded before the newest one it names, adds no hold: the draft is held for the OQ-53 (3) placeholder alone
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:1404:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > dừng tại OQ-53 (1): an edit recorded at or after the newest named message holds the draft as SUBJECT_EDIT_UNVERIFIED, also when the edit was already there when the draft was written; an edit recorded before the newest named message does not
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:1423:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): a candidate draft that passes every other check is held as SUBJECT_ORDER_UNVERIFIED and nothing else; nothing is written and the key stays free
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:1458:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): every other check still runs and names its code next to the placeholder
+AssertionError: expected 'Nháp được giữ lại, chưa xác nhận được…' to contain 'SUBJECT_ORDER_UNVERIFIED'
+
+Expected: "SUBJECT_ORDER_UNVERIFIED"
+Received: "Nháp được giữ lại, chưa xác nhận được: SUBJECT_CHANGED."
+
+ ❯ held tests/suggestions.test.ts:107:44
+    105| const held=async(promise:Promise<unknown>,...reasons:string[])=>{
+    106|  const e=await refused(promise,'DRAFT_HELD',422);
+    107|  for(const r of reasons) expect(e.message).toContain(r);
+       |                                            ^
+    108|  expect(e.message).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/); // codes o…
+    109|  return e;
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:1469:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): a document draft is not touched, and a candidate confirmation that carries a revision body is INVALID_INPUT before any hold
+AssertionError: expected Error: Nháp được giữ lại, chưa xác nhận đ… { …(2) } to match object { code: 'INVALID_INPUT', status: 422 }
+
+- Expected
++ Received
+
+- {
+-   "code": "INVALID_INPUT",
++ AppError {
++   "code": "DRAFT_HELD",
+    "status": 422,
+  }
+
+ ❯ refused tests/suggestions.test.ts:49:12
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+     49|  expect(e).toMatchObject({code,status});
+       |            ^
+     50|  return e as Error;
+     51| };
+ ❯ tests/suggestions.test.ts:1517:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  10 failed | 90 passed | 1 skipped (101)
+   Start at  13:23:49
+   Duration  50.56s (tests 100%)
+

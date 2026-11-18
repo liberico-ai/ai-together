@@ -241,7 +241,7 @@ export class SuggestionService {
  /**
   * Order inside the one scoped transaction: (1) locate the draft in the person's scope, then narrow the scope to its project, lock on the draft id;
   * (2) for a confirmed document draft the document row is locked; (3) the one idempotency claim (replay = the recorded decision, other content = IDEMPOTENCY_CONFLICT);
-  * under it: (4) authority first, then already decided, then the caller's valueHash; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet);
+  * under it: (4) authority first, then already decided, then the caller's valueHash; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet; a candidate confirmation is always held (OQ-53 point 3 placeholder));
   * (6) a document draft: the person's own revision proposal, under the same claim; (7) the decision row. A failure at any point rolls back everything, claim included.
   */
  async decide(p:Principal,draftId:string,raw:unknown,key:string,requestId:string):Promise<DraftView> {
@@ -283,6 +283,8 @@ export class SuggestionService {
     } else reason=(input.reason??'').trim();
     let revisionId:string|null=null;
     if(input.result==='confirmed') {
+     // a candidate draft takes no revision body: a fault of the command, answered before any hold
+     if(d.entity_type!=='document'&&input.revision) throw new AppError('INVALID_INPUT','Nháp gắn ứng viên không kèm bản đề xuất tài liệu.',422);
      const manifest=skillManifests[d.signal_type];
      const reasons=new Set<string>();
      if(d.manifest_hash!==manifest.hash) reasons.add('MANIFEST_MISMATCH');
@@ -305,12 +307,18 @@ export class SuggestionService {
      }
      // OQ-55 placeholder by project, for every draft and outside the context check, so the code stands when no context can be built (fail-closed until the Chairman decides; wider than option (e))
      if(await projectHasHiddenText(tx,projectId,this.excerptChats)) reasons.add('PROJECT_TEXT_HIDDEN');
+     // OQ-53 point 3 placeholder, fail-closed. Source: the Chairman's scope decision of 18/11/2026 for this PR, option B (docs/OPEN-QUESTIONS.md, the block
+     // at the end). Point 3 stays open; this is not a chosen option of it. Lifting the placeholder is removing the one line below.
+     //
+     // Technical note of the plan, not the Chairman's words: the freshness check above cannot see a message whose intake transaction began earlier and
+     // commits later. Every check above still runs and names its code; a rejection is not held; nothing is masked at read time for this.
+     if(d.entity_type==='intake_candidate') reasons.add('SUBJECT_ORDER_UNVERIFIED');
      if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
      if(d.entity_type==='document') {
       if(!input.revision) throw new AppError('REVISION_REQUIRED','Nháp gắn tài liệu cần kèm nội dung bản đề xuất.',422);
       // the inner proposal runs under the claim held above and claims nothing itself
       revisionId=(await this.documents.proposeRevisionIn(tx,p,d.entity_id,input.revision,key,{draftId:id},requestId,{claimHeld:true})).record.latest_revision_id;
-     } else if(input.revision) throw new AppError('INVALID_INPUT','Nháp gắn ứng viên không kèm bản đề xuất tài liệu.',422);
+     }
     }
     const row=(await tx.query<{id:string}>(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,document_revision_id,decided_by,command_key,request_id,trace_id)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(draft_id) DO NOTHING RETURNING id`,

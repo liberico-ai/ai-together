@@ -108,6 +108,12 @@ const held=async(promise:Promise<unknown>,...reasons:string[])=>{
  expect(e.message).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/); // codes only: no id
  return e;
 };
+/** A hold whose list of codes is exactly these: no other check stood in the way. */
+const heldOnly=async(promise:Promise<unknown>,...reasons:string[])=>{
+ const e=await held(promise,...reasons);
+ expect(e.message.slice(e.message.indexOf(': ')+2).replace(/\.$/,'').split(', ')).toEqual([...reasons].sort());
+ return e;
+};
 const zeroDecisions=async()=>expect(await n('draft_decisions')).toBe(0);
 
 describe('Z4 drafts: submit',()=>{
@@ -304,8 +310,9 @@ describe('Z4 drafts: decide',()=>{
   const e3=await held(decide(svc(h.operator,[]),pm,cd.draftId,body(sha(co))),'TEXT_NOT_VISIBLE');
   expect(e3.message).not.toContain(c.sourceEventId);
   await zeroDecisions();
-  await decide(svc(),pm,cd.draftId,body(sha(co))); // with the text visible the same draft is confirmed
-  expect(await n('draft_decisions')).toBe(1);
+  // with the text visible the same draft is held for the OQ-53 (3) placeholder alone
+  await heldOnly(decide(svc(),pm,cd.draftId,body(sha(co))),'SUBJECT_ORDER_UNVERIFIED');
+  await zeroDecisions();
  });
  test('the context is built under the confirming person, not a wider principal',async()=>{
   const {d,draftId,valueHash}=await docDraft();
@@ -339,7 +346,9 @@ describe('Z4 drafts: decide',()=>{
   const gone=await rawDraft({entityType:'document',entityId:randomUUID()});
   const foreign=await rawDraft({entityType:'document',entityId:t.record.id});
   const pair=await rawDraft({entityType:'intake_candidate',entityId:randomUUID(),skill:'technical_writer'});
-  for(const x of [gone,foreign,pair]) await held(decide(svc(),pm,x.id,body(sha(x.value),{revision:revisionBody(d)})),'ENTITY_NOT_FOUND');
+  // a candidate confirmation that carries a revision body is INVALID_INPUT before any hold (V4): the pair is sent without one
+  for(const x of [gone,foreign]) await held(decide(svc(),pm,x.id,body(sha(x.value),{revision:revisionBody(d)})),'ENTITY_NOT_FOUND');
+  await held(decide(svc(),pm,pair.id,body(sha(pair.value))),'ENTITY_NOT_FOUND');
   await zeroDecisions();
  });
 
@@ -417,10 +426,11 @@ describe('Z4 drafts: decide',()=>{
    await refused(decide(svc(),p,c.draftId,{result:'rejected',valueHash:c.valueHash,reason:'Không phù hợp'}),'MANAGER_REQUIRED',403);
   }
   expect(await n('draft_decisions')).toBe(decisions);
-  const ok=await decide(svc(),pm,c.draftId,body(c.valueHash));
-  expect(ok.decision).toMatchObject({result:'confirmed',documentRevisionId:null});
+  // the manager passes the authority step and meets the hold (422), not the 403
+  await heldOnly(decide(svc(),pm,c.draftId,body(c.valueHash)),'SUBJECT_ORDER_UNVERIFIED');
+  expect(await n('draft_decisions')).toBe(decisions);
   const c2=await candDraft();
-  expect((await decide(svc(),pm,c2.draftId,{result:'rejected',valueHash:c2.valueHash,reason:'Không phù hợp'})).decision?.result).toBe('rejected');
+  expect((await decide(svc(),pm,c2.draftId,{result:'rejected',valueHash:c2.valueHash,reason:'Không phù hợp'})).decision).toMatchObject({result:'rejected',documentRevisionId:null});
   // a candidate draft takes no revision
   const c3=await candDraft();
   await refused(decide(svc(),pm,c3.draftId,body(c3.valueHash,{revision:revisionBody(await doc())})),'INVALID_INPUT',422);
@@ -561,7 +571,7 @@ describe('Z4 drafts: fix round 1',()=>{
   expect(await n('document_revisions')).toBe(revs);expect(await n('draft_decisions')).toBe(1);
  });
 
- test('F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are confirmed',async()=>{
+ test('F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are held for the OQ-53 (3) placeholder alone',async()=>{
   const dd=await doc();
   for(const via of ['sources','duplicateOf']) {
    const c=await candidate();
@@ -571,8 +581,8 @@ describe('Z4 drafts: fix round 1',()=>{
    const e=await held(decide(svc(h.operator,[]),pm,r.draftId,body(sha(o))),'TEXT_NOT_VISIBLE');
    expect(e.message).not.toContain(c.sourceEventId);
    expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[r.draftId]),via).toHaveLength(0);
-   const ok=await decide(svc(),pm,r.draftId,body(sha(o)));
-   expect(ok.decision?.result,via).toBe('confirmed');
+   await heldOnly(decide(svc(),pm,r.draftId,body(sha(o))),'SUBJECT_ORDER_UNVERIFIED');
+   expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[r.draftId]),via).toHaveLength(0);
   }
  });
 
@@ -602,8 +612,7 @@ describe('Z4 drafts: fix round 1',()=>{
  });
 
  test('replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content',async()=>{
-  const c=await candDraft(),key=k(),first=await decide(svc(),pm,c.draftId,body(c.valueHash),key);
-  const b=body(c.valueHash);
+  const c=await candDraft(),key=k(),b={result:'rejected',valueHash:c.valueHash,reason:'Không phù hợp phạm vi'},first=await decide(svc(),pm,c.draftId,b,key);
   await denied(decide(svc(),{...pm,projectIds:[ids.transport]},c.draftId,b,key));
   await denied(decide(svc(),{...pm,grants:[{projectId:ids.sales,role:'viewer',reportPermissions:[]}]},c.draftId,b,key));
   const lowered:Principal={...pm,grants:[{projectId:ids.sales,role:'engineer',reportPermissions:[]},{projectId:ids.transport,role:'manager',reportPermissions:[]}]};
@@ -655,14 +664,16 @@ describe('Z4 drafts: one idempotency claim per decision (Codex gate, round 1)',(
   await refused(decide(svc(),pm,x.draftId,confirmBody(x),key),'IDEMPOTENCY_CONFLICT',409);
   expect(await n('draft_decisions')).toBe(1);expect(await claims()).toBe(base+1);
  });
- test('(e) a rejection and a candidate confirmation now claim their key: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT',async()=>{
+ test('(e) a rejection claims its key, for a document draft and for a candidate draft: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT; a held candidate confirmation leaves its key free',async()=>{
   const a=await docDraft(),b=await docDraft(),key=k(),base=await claims();
   await decide(svc(),pm,a.draftId,{result:'rejected',valueHash:a.valueHash,reason:'Không phù hợp phạm vi'},key);
   expect(await claims()).toBe(base+1);
   await refused(decide(svc(),pm,b.draftId,{result:'rejected',valueHash:b.valueHash,reason:'Không phù hợp phạm vi'},key),'IDEMPOTENCY_CONFLICT',409);
   expect(await n('draft_decisions')).toBe(1);
   const c1=await candDraft(),c2=await candDraft(),key2=k();
-  await decide(svc(),pm,c1.draftId,body(c1.valueHash),key2);
+  await heldOnly(decide(svc(),pm,c1.draftId,body(c1.valueHash),key2),'SUBJECT_ORDER_UNVERIFIED');
+  expect(await claims()).toBe(base+1);
+  await decide(svc(),pm,c1.draftId,{result:'rejected',valueHash:c1.valueHash,reason:'Không phù hợp phạm vi'},key2);
   expect(await claims()).toBe(base+2);
   await refused(decide(svc(),pm,c2.draftId,body(c2.valueHash),key2),'IDEMPOTENCY_CONFLICT',409);
   await refused(decide(svc(),pm,c2.draftId,{result:'rejected',valueHash:c2.valueHash,reason:'Không phù hợp phạm vi'},key2),'IDEMPOTENCY_CONFLICT',409);
@@ -860,7 +871,7 @@ describe('Z4 drafts: who reads the content (OQ-45 point 1)',()=>{
   };
   await same('a'.repeat(64));await same(x.valueHash);
   expect(await n('document_commands')).toBe(before);
-  await decide(svc(),pm,x.draftId,body(x.valueHash));
+  await decide(svc(),pm,x.draftId,{result:'rejected',valueHash:x.valueHash,reason:'Không phù hợp phạm vi'});
   const after=await n('document_commands');
   await same('a'.repeat(64));await same(x.valueHash);
   expect(await n('document_commands')).toBe(after);expect(await n('draft_decisions')).toBe(1);
@@ -1220,15 +1231,15 @@ describe('Z4 drafts: OQ-55 placeholder — a thread with stored text that is no 
   expect(it.value).toBeNull();expect(JSON.stringify(it)).not.toContain(MARK);
  });
 
- test('dừng tại OQ-55: a replayed confirmation of a candidate draft answers with the recorded decision and no content once the group\'s flag is gone',async()=>{
+ test('dừng tại OQ-55: a replayed rejection of a candidate draft answers with the recorded decision and no content once the group\'s flag is gone',async()=>{
   const c=await candidate();
   const value=out('intake_analyst',[c.sourceEventId],{claims:[{field:'classification',value:MARK,basis:[c.sourceEventId]}]});
   const x=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value});
-  const key=k(),b=body(sha(value));
+  const key=k(),b={result:'rejected',valueHash:sha(value),reason:'Không đủ căn cứ'};
   const firstAns=await decide(svc(),pm,x.id,b,key);
-  expect(firstAns.decision?.result).toBe('confirmed');
+  expect(firstAns.decision?.result).toBe('rejected');
   const again=await decide(none(),pm,x.id,b,key);
-  expect(again.decision?.result).toBe('confirmed');expect(again.decision?.decidedAt).toBe(firstAns.decision?.decidedAt);
+  expect(again.decision?.result).toBe('rejected');expect(again.decision?.decidedAt).toBe(firstAns.decision?.decidedAt);
   expect(again.maskReasons).toContain('THREAD_TEXT_HIDDEN');
   expect(again.value).toBeNull();expect(again.sources).toEqual([]);
   expect(JSON.stringify(again)).not.toContain(MARK);
@@ -1356,20 +1367,21 @@ describe('Z4 drafts: OQ-55 placeholder by project — stored text that is no lon
  });
 });
 
+const intakeSvc=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:chats});
+const reply=async(c:{event:ReturnType<typeof messageEvent>},text:string)=>
+ (await intakeSvc().ingest(messageEvent({text,context:{chatId:chatSales,replyToMessageId:c.event.context.messageId}}))).sourceEventId;
+const edit=(e:ReturnType<typeof messageEvent>,text:string)=>intakeSvc().ingest({...e,text,contentHash:createHash('sha256').update(text).digest('hex'),
+ editedAt:new Date(Date.parse(e.observedAt)+60000).toISOString(),traceId:randomUUID()});
+const draftNaming=async(c:{candidateId:string},names:string[])=>{
+ const output=out('intake_analyst',names);
+ const r=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',output));
+ return {draftId:r.draftId,valueHash:sha(output)};
+};
+
 describe('Z4 drafts: a draft whose thread moved on is held (OQ-46)',()=>{
  const claims=()=>n('document_commands');
- const intakeSvc=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:chats});
- const reply=async(c:{event:ReturnType<typeof messageEvent>},text:string)=>
-  (await intakeSvc().ingest(messageEvent({text,context:{chatId:chatSales,replyToMessageId:c.event.context.messageId}}))).sourceEventId;
- const edit=(e:ReturnType<typeof messageEvent>,text:string)=>intakeSvc().ingest({...e,text,contentHash:createHash('sha256').update(text).digest('hex'),
-  editedAt:new Date(Date.parse(e.observedAt)+60000).toISOString(),traceId:randomUUID()});
- const draftNaming=async(c:{candidateId:string},names:string[])=>{
-  const output=out('intake_analyst',names);
-  const r=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',output));
-  return {draftId:r.draftId,valueHash:sha(output)};
- };
 
- test('a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is confirmed',async()=>{
+ test('a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is held for the OQ-53 (3) placeholder alone',async()=>{
   const c=await candidate(),x=await draftNaming(c,[c.sourceEventId]),key=k();
   const rp=await reply(c,'Tin trả lời đến sau nháp');
   const cmds=await claims();
@@ -1378,17 +1390,19 @@ describe('Z4 drafts: a draft whose thread moved on is held (OQ-46)',()=>{
   await zeroDecisions();
   expect(await claims()).toBe(cmds);
   const y=await draftNaming(c,[c.sourceEventId,rp]);
-  const v=await decide(svc(),pm,y.draftId,body(y.valueHash),key);
-  expect(v.decision?.result).toBe('confirmed');
+  await heldOnly(decide(svc(),pm,y.draftId,body(y.valueHash),key),'SUBJECT_ORDER_UNVERIFIED');
+  await zeroDecisions();
+  expect(await claims()).toBe(cmds);
+  const v=await decide(svc(),pm,y.draftId,{result:'rejected',valueHash:y.valueHash,reason:'Chờ điểm 3 của OQ-53'},key);
+  expect(v.decision?.result).toBe('rejected');
  });
 
- test('a message the draft does not name, recorded before the newest one it names, does not hold it',async()=>{
+ test('a message the draft does not name, recorded before the newest one it names, adds no hold: the draft is held for the OQ-53 (3) placeholder alone',async()=>{
   const c=await candidate();
   await nextDbInstant(h);
   const rp=await reply(c,'Tin trả lời đến sau tin gốc');
   const x=await draftNaming(c,[rp]);
-  const v=await decide(svc(),pm,x.draftId,body(x.valueHash));
-  expect(v.decision?.result).toBe('confirmed');
+  await heldOnly(decide(svc(),pm,x.draftId,body(x.valueHash)),'SUBJECT_ORDER_UNVERIFIED');
  });
 
  test('dừng tại OQ-53 (1): an edit recorded at or after the newest named message holds the draft as SUBJECT_EDIT_UNVERIFIED, also when the edit was already there when the draft was written; an edit recorded before the newest named message does not',async()=>{
@@ -1407,7 +1421,7 @@ describe('Z4 drafts: a draft whose thread moved on is held (OQ-46)',()=>{
   await nextDbInstant(h);
   const rp=await reply(c,'Tin trả lời sau bản sửa');
   const xc=await draftNaming(c,[c.sourceEventId,rp]);
-  expect((await decide(svc(),pm,xc.draftId,body(xc.valueHash))).decision?.result).toBe('confirmed');
+  await heldOnly(decide(svc(),pm,xc.draftId,body(xc.valueHash)),'SUBJECT_ORDER_UNVERIFIED');
  });
 
  test('dừng tại OQ-53 (2): a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING',async()=>{
@@ -1422,16 +1436,96 @@ describe('Z4 drafts: a draft whose thread moved on is held (OQ-46)',()=>{
   await zeroDecisions();
  });
 
- test('a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives',async()=>{
+ test('a held candidate draft can still be rejected; a recorded decision replays unchanged after a new message arrives',async()=>{
   const c=await candidate(),x=await draftNaming(c,[c.sourceEventId]);
   await reply(c,'Tin mới làm nháp cũ đi');
   const r=await decide(svc(),pm,x.draftId,{result:'rejected',valueHash:x.valueHash,reason:'Nháp đã cũ rồi'});
   expect(r.decision?.result).toBe('rejected');
-  const e=await candidate(),y=await draftNaming(e,[e.sourceEventId]),key=k(),b=body(y.valueHash);
+  const e=await candidate(),y=await draftNaming(e,[e.sourceEventId]),key=k(),b={result:'rejected',valueHash:y.valueHash,reason:'Chưa đủ căn cứ'};
   const first=await decide(svc(),pm,y.draftId,b,key);
-  expect(first.decision?.result).toBe('confirmed');
+  expect(first.decision?.result).toBe('rejected');
   await reply(e,'Tin đến sau khi đã xác nhận');
   expect(await decide(svc(),pm,y.draftId,b,key)).toEqual(first);
   expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[y.draftId])).toHaveLength(1);
+ });
+});
+
+describe('Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman\'s scope decision of 18/11/2026, option B)',()=>{
+ const P='SUBJECT_ORDER_UNVERIFIED';
+ const confirmRejected=(c:{draftId:string;valueHash:string},reason:string)=>({result:'rejected',valueHash:c.valueHash,reason});
+
+ test('dừng tại OQ-53 (3): a candidate draft that passes every other check is held as SUBJECT_ORDER_UNVERIFIED and nothing else; nothing is written and the key stays free',async()=>{
+  const c=await candDraft(),key=k(),cmds=await n('document_commands');
+  await heldOnly(decide(svc(),pm,c.draftId,body(c.valueHash),key),P);
+  await zeroDecisions();
+  expect(await n('document_commands')).toBe(cmds);
+  const v=await decide(svc(),pm,c.draftId,confirmRejected(c,'Chờ điểm 3 của OQ-53'),key);
+  expect(v.decision?.result).toBe('rejected');
+ });
+
+ test('dừng tại OQ-53 (3): every other check still runs and names its code next to the placeholder',async()=>{
+  // 1 a reply recorded after the message the draft names
+  const a=await candidate(),xa=await draftNaming(a,[a.sourceEventId]);
+  await reply(a,'Tin trả lời ghi sau nháp');
+  await heldOnly(decide(svc(),pm,xa.draftId,body(xa.valueHash)),'SUBJECT_CHANGED',P);
+  // 2 an edit of the message the draft names
+  const b=await candidate(),xb=await draftNaming(b,[b.sourceEventId]);
+  await edit(b.event,'Bản sửa của tin gốc');
+  await heldOnly(decide(svc(),pm,xb.draftId,body(xb.valueHash)),'SUBJECT_EDIT_UNVERIFIED',P);
+  // 3 and 4 a draft that names only a document of the project
+  const c=await candidate(),d=await doc();
+  const oc=out('intake_analyst',[d.record.id]);
+  const xc=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',oc));
+  await heldOnly(decide(svc(),pm,xc.draftId,body(sha(oc))),'SUBJECT_BASELINE_MISSING',P);
+  await heldOnly(decide(svc(h.operator,[]),pm,xc.draftId,body(sha(oc))),'PROJECT_TEXT_HIDDEN','SUBJECT_BASELINE_MISSING',P,'THREAD_TEXT_HIDDEN');
+  // 5 a draft that names a message of the thread, the group's text no longer shown
+  const e=await candDraft();
+  await heldOnly(decide(svc(h.operator,[]),pm,e.draftId,body(e.valueHash)),'PROJECT_TEXT_HIDDEN',P,'TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN');
+  // 6 a candidate that does not exist: the code stands when no context can be built
+  const g=await rawDraft({entityType:'intake_candidate',entityId:randomUUID()});
+  await heldOnly(decide(svc(),pm,g.id,body(sha(g.value))),'ENTITY_NOT_FOUND',P);
+  // 7 a manifest hash that is not the one in force
+  const f=await candidate();
+  const f7=await rawDraft({entityType:'intake_candidate',entityId:f.candidateId,value:out('intake_analyst',[f.sourceEventId]),over:{manifest_hash:'d'.repeat(64)}});
+  await heldOnly(decide(svc(),pm,f7.id,body(sha(f7.value))),'MANIFEST_MISMATCH',P);
+  // 8 a stored value hash that is not the hash of the value
+  const f8=await rawDraft({entityType:'intake_candidate',entityId:f.candidateId,value:out('intake_analyst',[f.sourceEventId]),over:{value_hash:'f'.repeat(64)}});
+  await heldOnly(decide(svc(),pm,f8.id,body('f'.repeat(64))),P,'VALUE_HASH_MISMATCH');
+  await zeroDecisions();
+ });
+
+ test('dừng tại OQ-53 (3): the placeholder holds a confirmation only — the manager still reads the content of a candidate draft and can reject it, and the code never appears in a list',async()=>{
+  const c=await candDraft();
+  const l=await svc().list(pm,{projectId:ids.sales,entityType:'intake_candidate',entityId:c.candidateId});
+  const it=l.items.find(i=>i.id===c.draftId) as unknown as R;
+  expect(it).toMatchObject({maskReasons:[]});
+  expect(it.value).not.toBeNull();
+  expect(JSON.stringify(l)).not.toContain(P);
+  const v=await decide(svc(),pm,c.draftId,confirmRejected(c,'Chờ điểm 3 của OQ-53'));
+  expect(v.decision?.result).toBe('rejected');
+  expect(await n('draft_decisions')).toBe(1);
+  // @ts-expect-error SUBJECT_ORDER_UNVERIFIED holds at confirmation and never masks at read: it is not a MaskReason
+  const notAMask:MaskReason='SUBJECT_ORDER_UNVERIFIED';void notAMask;
+ });
+
+ test('dừng tại OQ-53 (3): a document draft is not touched, and a candidate confirmation that carries a revision body is INVALID_INPUT before any hold',async()=>{
+  const x=await docDraft();
+  expect((await decide(svc(),pm,x.draftId,body(x.valueHash,{revision:revisionBody(x.d)}))).decision?.result).toBe('confirmed');
+  const c=await candDraft(),d=await doc();
+  await refused(decide(svc(),pm,c.draftId,body(c.valueHash,{revision:revisionBody(d)})),'INVALID_INPUT',422);
+  const stale=await candidate(),s=await draftNaming(stale,[stale.sourceEventId]);
+  await reply(stale,'Tin trả lời làm nháp cũ đi');
+  await refused(decide(svc(),pm,s.draftId,body(s.valueHash,{revision:revisionBody(d)})),'INVALID_INPUT',422);
+ });
+
+ test('the fault of the command is answered after the authority, the decided state and the value hash, never before them',async()=>{
+  const c=await candDraft(),d=await doc(),rev=revisionBody(d);
+  // (i) no authority: nothing is learned from the shape of the command
+  await refused(decide(svc(),member,c.draftId,body(c.valueHash,{revision:rev})),'MANAGER_REQUIRED',403);
+  // (ii) a wrong value hash
+  await refused(decide(svc(),pm,c.draftId,body('a'.repeat(64),{revision:rev})),'REVISION_CONFLICT',409);
+  // (iii) already decided
+  await decide(svc(),pm,c.draftId,confirmRejected(c,'Không phù hợp phạm vi'));
+  await refused(decide(svc(),pm,c.draftId,body(c.valueHash,{revision:rev}),k()),'DRAFT_ALREADY_DECIDED',409);
  });
 });

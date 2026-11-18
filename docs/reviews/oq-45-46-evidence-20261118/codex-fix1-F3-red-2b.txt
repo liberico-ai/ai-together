@@ -1,0 +1,39 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (101 tests | 4 failed | 1 skipped) 51557ms
+   ❯ Z4 drafts: fix round 1 (7)
+     × replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content 492ms
+   ❯ Z4 drafts: who reads the content (OQ-45 point 1) (9)
+     × L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided 524ms
+   ❯ Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown (5)
+     × dừng tại OQ-55: a replayed rejection of a candidate draft answers with the recorded decision and no content once the group's flag is gone 497ms
+   ❯ Z4 drafts: a draft whose thread moved on is held (OQ-46) (5)
+     × a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives 504ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: fix round 1 > replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a replayed rejection of a candidate draft answers with the recorded decision and no content once the group's flag is gone
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives
+Error: Nháp được giữ lại, chưa xác nhận được: SUBJECT_ORDER_UNVERIFIED.
+ ❯ src/server/suggestions.ts:316:29
+    314|      // commits later. Every check above still runs and names its code…
+    315|      if(d.entity_type==='intake_candidate') reasons.add('SUBJECT_ORDER…
+    316|      if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ l…
+       |                             ^
+    317|      if(d.entity_type==='document') {
+    318|       if(!input.revision) throw new AppError('REVISION_REQUIRED','Nháp…
+ ❯ claimDocumentCommand src/server/document-commands.ts:25:18
+ ❯ src/server/suggestions.ts:271:4
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 96 passed | 1 skipped (101)
+   Start at  13:27:02
+   Duration  51.77s (tests 100%)
+

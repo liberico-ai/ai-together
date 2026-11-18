@@ -1,0 +1,60 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (101 tests | 3 failed | 1 skipped) 55262ms
+   ❯ Z4 drafts: decide (16)
+     × R12-i an entity not in the project, or a pair the builder refuses, is held as ENTITY_NOT_FOUND with codes only 609ms
+   ❯ Z4 drafts: fix round 1 (7)
+     × replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content 530ms
+   ❯ Z4 drafts: a draft whose thread moved on is held (OQ-46) (5)
+     × a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives 526ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: decide > R12-i an entity not in the project, or a pair the builder refuses, is held as ENTITY_NOT_FOUND with codes only
+AssertionError: expected Error: Nháp gắn ứng viên không kèm bản đề… { …(2) } to match object { code: 'DRAFT_HELD', status: 422 }
+
+- Expected
++ Received
+
+- {
+-   "code": "DRAFT_HELD",
++ AppError {
++   "code": "INVALID_INPUT",
+    "status": 422,
+  }
+
+ ❯ refused tests/suggestions.test.ts:49:12
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+     49|  expect(e).toMatchObject({code,status});
+       |            ^
+     50|  return e as Error;
+     51| };
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ tests/suggestions.test.ts:349:39
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: fix round 1 > replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives
+Error: Nháp được giữ lại, chưa xác nhận được: SUBJECT_ORDER_UNVERIFIED.
+ ❯ src/server/suggestions.ts:316:29
+    314|      // commits later. Every check above still runs and names its code…
+    315|      if(d.entity_type==='intake_candidate') reasons.add('SUBJECT_ORDER…
+    316|      if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ l…
+       |                             ^
+    317|      if(d.entity_type==='document') {
+    318|       if(!input.revision) throw new AppError('REVISION_REQUIRED','Nháp…
+ ❯ claimDocumentCommand src/server/document-commands.ts:25:18
+ ❯ src/server/suggestions.ts:271:4
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 97 passed | 1 skipped (101)
+   Start at  13:24:50
+   Duration  55.43s (tests 100%)
+
