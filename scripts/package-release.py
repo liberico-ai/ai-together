@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[1]
 version=json.loads((root/'package.json').read_text())['version']
 excluded={'node_modules','.runtime','.data','.next','.git','__pycache__','coverage'}
 files=[]
-for dirname in ['src','migrations','scripts','deploy','bot-plugin','tests','data']:
+for dirname in ['src','migrations','scripts','deploy','bot-plugin','tests','data','skills','docs/templates']:
     for path in (root/dirname).rglob('*'):
         if not path.is_file() or path.is_symlink() or any(part in excluded for part in path.relative_to(root).parts):continue
         if path.name in {'BUNDLE-MANIFEST.json','SOURCE-MANIFEST.json'} or path.suffix in {'.pyc','.dump'}:continue
