@@ -166,6 +166,29 @@ describe('threadHasHiddenText',()=>{
   const trap:Queryable={query:async()=>{throw new Error('statement sent');}};
   expect(await threadHasHiddenText(trap,ids.sales,'x',[])).toBe(true);
   expect(await threadHasHiddenText(trap,'x',a.id,[])).toBe(true);
+  // positive control for the scope part: the same candidate asked with its own project is true where the other project's answer is false
+  expect(await ask(ids.sales,a.id,[])).toBe(true);
+ });
+
+ test('Q5 (i) a thread whose root stored no text and whose reply stored text: the reply counts, whichever message is the root',async()=>{
+  const e=messageEvent({text:'Q5-ROOT-NO-TEXT'});
+  const ack=await intake([]).ingest(e);
+  const cid=(await rows<{id:string}>('SELECT id FROM intake_candidates WHERE root_source_event_id=$1',[ack.sourceEventId]))[0].id;
+  await intake([chatSales]).ingest(messageEvent({text:'Q5-REPLY-WITH-TEXT',context:{replyToMessageId:e.context.messageId}}));
+  const modes=await rows<{content_mode:string}>('SELECT r.content_mode FROM source_event_revisions r JOIN source_events s ON s.id=r.source_event_id WHERE s.thread_key=(SELECT thread_key FROM intake_candidates WHERE id=$1) ORDER BY s.created_at',[cid]);
+  expect(modes.map(m=>m.content_mode)).toEqual(['pointer_only','excerpt']);
+  expect(await ask(ids.sales,cid,[])).toBe(true);
+  expect(await ask(ids.sales,cid,[chatSales])).toBe(false);
+ });
+
+ test('Q5 (ii) no cap: the oldest message stored text and twenty-one replies stored none',async()=>{
+  const e=messageEvent({text:'Q5-OLDEST-TEXT'});
+  const ack=await intake([chatSales]).ingest(e);
+  const cid=(await rows<{id:string}>('SELECT id FROM intake_candidates WHERE root_source_event_id=$1',[ack.sourceEventId]))[0].id;
+  for(let i=0;i<21;i++) await intake([]).ingest(messageEvent({text:`Q5-REPLY-${i}`,context:{replyToMessageId:e.context.messageId}}));
+  expect(Number((await rows<{n:string}>('SELECT count(*) n FROM source_events s JOIN intake_candidates c ON c.thread_key=s.thread_key AND c.chat_id=s.chat_id WHERE c.id=$1',[cid]))[0].n)).toBe(22);
+  expect(await ask(ids.sales,cid,[])).toBe(true);
+  expect(await ask(ids.sales,cid,[chatSales])).toBe(false);
  });
 
  test('Q6 threadHasHiddenText returns one boolean and no text: the one row handed back holds no excerpt and no content hash',async()=>{
@@ -240,5 +263,64 @@ describe('threadFreshness',()=>{
   await editOf(r.e,'T8-ROOT-EDITED');
   expect(await ask(ids.sales,r.id,[r.sourceEventId],{...outsider,projectIds:[ids.sales]})).toEqual(none);
   expect(await ask(ids.sales,r.id,[r.sourceEventId])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:true});
+ });
+
+ test('T9 record time decides, not the observed time the gateway declares: a reply that arrives late with an older observedAt is still a newer message of the thread',async()=>{
+  const r=await root('T9-ROOT');
+  await nextDbInstant(h);
+  const rp=(await intake([chatSales]).ingest(messageEvent({text:'T9-REPLY',observedAt:new Date(Date.parse(r.e.observedAt)-3600000).toISOString(),context:{replyToMessageId:r.e.context.messageId}}))).sourceEventId;
+  expect(await ask(ids.sales,r.id,[r.sourceEventId])).toEqual({hasBaseline:true,newerMessage:true,laterEdit:false});
+  expect(await ask(ids.sales,r.id,[rp])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:false});
+ });
+
+ test('T10 an edit of a message the draft does not name counts: later revisions of any message of the thread are looked at',async()=>{
+  const r=await root('T10-ROOT');
+  await nextDbInstant(h);
+  const rp=await reply(r,'T10-REPLY');
+  await nextDbInstant(h);
+  await editOf(r.e,'T10-ROOT-EDITED');
+  expect(await ask(ids.sales,r.id,[rp])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:true});
+ });
+
+ test('T11 two rows recorded at the same instant: the one the draft does not name counts as newer (>=)',async()=>{
+  const r=await root('T11-ROOT');
+  const key=(await rows<{thread_key:string}>('SELECT thread_key FROM intake_candidates WHERE id=$1',[r.id]))[0].thread_key;
+  await nextDbInstant(h);
+  // one transaction: now() is the transaction start, so both rows carry the same created_at
+  const made=await h.operator.transaction(async tx=>{
+   const out:string[]=[];
+   for(const m of ['7000001','7000002']) out.push((await tx.query<{id:string}>(
+    `INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
+     VALUES($1,$2,$3,'telegram_gateway',50,$4,$5,$6,'synthetic-actor',now(),false,true,$7,$8) RETURNING id`,[ids.tenant,ids.sales,'synthetic:'+m,chatSales,m,key,randomUUID(),randomUUID()])).rows[0].id);
+   return out;
+  });
+  const at=await rows<{n:string}>('SELECT count(DISTINCT created_at) n FROM source_events WHERE id=ANY($1::uuid[])',[made]);
+  expect(Number(at[0].n)).toBe(1);
+  expect(await ask(ids.sales,r.id,[made[0]])).toEqual({hasBaseline:true,newerMessage:true,laterEdit:false});
+  expect(await ask(ids.sales,r.id,[r.sourceEventId,...made])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:false});
+ });
+
+ test('T12 the statement\'s own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing for the other project',async()=>{
+  const r=await root('T12-ROOT');
+  const both={...pm,projectIds:[ids.sales,ids.transport]};
+  expect(await ask(ids.transport,r.id,[r.sourceEventId],both)).toEqual(none);
+  expect(await ask(ids.sales,r.id,[r.sourceEventId],both)).toEqual({hasBaseline:true,newerMessage:false,laterEdit:false});
+ });
+
+ test('T13 a project id that is not a lower-case uuid gives three false without a statement',async()=>{
+  const r=await root('T13-ROOT');
+  const trap:Queryable={query:async()=>{throw new Error('statement sent');}};
+  expect(await threadFreshness(trap,'x',r.id,[r.sourceEventId])).toEqual(none);
+  expect(await threadFreshness(trap,'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',r.id,[r.sourceEventId])).toEqual(none);
+ });
+
+ test('T14 no cap: in a thread of more than twenty messages a late message outside any window still holds',async()=>{
+  const r=await root('T14-ROOT');
+  const named=[r.sourceEventId];
+  for(let i=0;i<21;i++) named.push(await reply(r,`T14-REPLY-${i}`));
+  await nextDbInstant(h);
+  const late=(await intake([chatSales]).ingest(messageEvent({text:'T14-LATE',observedAt:new Date(1600000000000).toISOString(),context:{replyToMessageId:r.e.context.messageId}}))).sourceEventId;
+  expect(named).not.toContain(late);
+  expect(await ask(ids.sales,r.id,named)).toEqual({hasBaseline:true,newerMessage:true,laterEdit:false});
  });
 });

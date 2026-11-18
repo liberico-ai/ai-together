@@ -79,7 +79,8 @@ const UUID_LOWER=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
  * Every revision of every message of the thread is looked at: no cap, and not only the newest revision of a message.
  * A flag list that cannot be evaluated (a null element and no match) counts as not flagged: the test is IS NOT TRUE, never NOT.
  * One boolean: no text and no hash leave the database. A candidate or project id that is not a lower-case uuid gives true without a statement:
- * closed, because such an id is never a reason to show content.
+ * closed, because such an id is never a reason to show content. A candidate that is not in the project gives false (EXISTS over nothing): callers reach this only for a
+ * draft row of the project, and the context check already answers ENTITY_NOT_FOUND for a missing entity.
  */
 export async function threadHasHiddenText(tx:Queryable,projectId:string,candidateId:string,excerptChats:readonly string[]):Promise<boolean> {
  if(!UUID_LOWER.test(String(projectId))||!UUID_LOWER.test(String(candidateId))) return true;
@@ -89,7 +90,7 @@ export async function threadHasHiddenText(tx:Queryable,projectId:string,candidat
     JOIN source_event_revisions r ON r.source_event_id=e.id
     WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid AND r.project_id=$1::uuid
       AND r.content_mode='excerpt' AND (${textAllowedSql('e','$3')}) IS NOT TRUE) AS hidden`,[projectId,candidateId,[...excerptChats]])).rows[0];
- return row?.hidden===true;
+ return row?.hidden!==false;
 }
 
 export type ThreadFreshness={hasBaseline:boolean;newerMessage:boolean;laterEdit:boolean};
@@ -100,6 +101,8 @@ export type ThreadFreshness={hasBaseline:boolean;newerMessage:boolean;laterEdit:
  * laterEdit = a later revision (revision_no > 1) of any message of the thread was recorded at or after the baseline.
  * Reads ids and record times only: no text and no hash leave the database. Ids that are not lower-case uuids are ignored.
  * The tenant boundary is the row-level security of the three tables, not a condition of this statement.
+ * hasBaseline:false is also the answer for a malformed id and for a candidate that is not visible; the other two fields then mean nothing and the caller must hold the draft.
+ * tx must be a transaction already scoped to the tenant and project (scoped): the tenant boundary is row-level security.
  */
 export async function threadFreshness(tx:Queryable,projectId:string,candidateId:string,namedIds:readonly string[]):Promise<ThreadFreshness> {
  const none={hasBaseline:false,newerMessage:false,laterEdit:false};

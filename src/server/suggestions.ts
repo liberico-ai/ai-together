@@ -92,7 +92,10 @@ const DRAFT_META_SQL=`SELECT ${HEAD},CASE WHEN d.manifest_hash = ($6::jsonb ->> 
   NULL::text AS skill_version,NULL::text AS model_version,NULL::jsonb AS value,NULL::text AS value_hash,${DECISION} ${FROM_DRAFTS}`;
 
 /** The one place a DraftView is built. With an empty mask `shown` is the schema-validated value and every content field comes from it, never from a column the writer chose. */
-const toView=(r:DraftRow,mask:MaskReason[],shown:SkillOutput|null):DraftView=>{
+const toView=(r:DraftRow,given:MaskReason[],shown:SkillOutput|null):DraftView=>{
+ // invariants enforced here, not trusted to the callers: the mask is sorted and unique, and content never leaves without a validated value
+ const mask:MaskReason[]=[...new Set(given)].sort();
+ if(mask.length===0&&!shown) mask.push('SCHEMA_INVALID');
  const m=skillManifests[r.signal_type];
  const head={id:r.id,projectId:r.project_id,entityType:r.entity_type,entityId:r.entity_id,skill:r.signal_type,createdAt:iso(r.created_at),
   manifestHash:r.manifest_hash===m.hash?r.manifest_hash:null,maskReasons:mask,
@@ -112,15 +115,15 @@ const DOC_SUBJECT_SQL=`SELECT coalesce(max(v.revision_no),0)::int AS newest,
  * Call it while the document row is locked.
  */
 async function subjectReasons(tx:Queryable,projectId:string,d:DraftRow):Promise<string[]> {
- const named=namedIds(d.signal_type,d.value).filter(x=>UUID.test(x));
+ const ids=namedIds(d.signal_type,d.value).filter(x=>UUID.test(x));
  if(d.entity_type!=='document') {
-  const f=await threadFreshness(tx,projectId,d.entity_id,named);
+  const f=await threadFreshness(tx,projectId,d.entity_id,ids);
   // OQ-53 point 2 (open, fail-closed until the Chairman decides): a draft that names no message of its own thread has no baseline, so it is held
   if(!f.hasBaseline) return ['SUBJECT_BASELINE_MISSING'];
   // OQ-53 point 1 (open, fail-closed until the Chairman decides): an edit recorded at or after the baseline cannot be told apart from a change of the subject, so it is held
   return [...(f.newerMessage?['SUBJECT_CHANGED']:[]),...(f.laterEdit?['SUBJECT_EDIT_UNVERIFIED']:[])];
  }
- const r=(await tx.query<{newest:number;named:number}>(DOC_SUBJECT_SQL,[projectId,d.entity_id,named])).rows[0];
+ const r=(await tx.query<{newest:number;named:number}>(DOC_SUBJECT_SQL,[projectId,d.entity_id,ids])).rows[0];
  if(r.newest===0) return [];
  // OQ-53 point 2 (open, fail-closed until the Chairman decides): a draft that names no revision of its own document has no baseline, so it is held
  if(r.named===0) return ['SUBJECT_BASELINE_MISSING'];

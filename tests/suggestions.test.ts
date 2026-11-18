@@ -78,6 +78,7 @@ const revisionBody=(d:DocumentDetail,over:R={}):R=>({expectedVersion:d.record.ve
 /** A document draft stored through submitDraft. */
 async function docDraft(o:{project?:string;sources?:string[];d?:DocumentDetail;output?:R}={}){
  const d=o.d??await doc(o.project??ids.sales);
+ // the latest revision is named because of the OQ-53 (2) placeholder; revisit when OQ-53 is decided
  const output=o.output??out('technical_writer',o.sources??[d.record.id,d.record.latest_revision_id].filter((x):x is string=>Boolean(x)));
  const r=await svc().submitDraft(ai,env('document',d.record.id,'technical_writer',output,{projectId:o.project??ids.sales}));
  return {d,output,draftId:r.draftId,valueHash:sha(output)};
@@ -470,9 +471,12 @@ describe('Z4 drafts: a draft whose document moved on is held (OQ-46)',()=>{
   const ok=await docDraft({d:d2,sources:[d2.record.id,latest(d1),latest(d2)]});
   const v=await decide(svc(),pm,ok.draftId,body(ok.valueHash,{revision:revisionBody(await fresh(d1.record.id))}));
   expect(v.decision?.result).toBe('confirmed');
-  const a1=await doc(),a2=await proposeRev(h,pm,await fresh(a1.record.id)),b=await doc();
-  const bad=await docDraft({d:a2,sources:[a2.record.id,latest(a1),latest(b)]});
-  await held(decide(svc(),pm,bad.draftId,body(bad.valueHash,{revision:revisionBody(await fresh(a1.record.id))})),'SUBJECT_CHANGED');
+  // document A has only r1; document B has r1 and r2; a draft about A names B's newest revision: it is no baseline for A, so the hold is the missing baseline, not a change
+  const a=await doc(),b1=await doc(),b2=await proposeRev(h,pm,await fresh(b1.record.id));
+  const bad=await docDraft({d:a,sources:[a.record.id,latest(b2)]});
+  const e=await held(decide(svc(),pm,bad.draftId,body(bad.valueHash,{revision:revisionBody(a)})),'SUBJECT_BASELINE_MISSING');
+  expect(e.message).not.toContain('SUBJECT_CHANGED');
+  expect(await n('draft_decisions')).toBe(1); // only the first half's confirmation
  });
 
  test('dừng tại OQ-53 (2): a document draft that names no revision of its own document is held as SUBJECT_BASELINE_MISSING once the document has a revision; a document with no revision yet is not held for it',async()=>{
@@ -503,6 +507,30 @@ describe('Z4 drafts: a draft whose document moved on is held (OQ-46)',()=>{
   const d=await doc();
   const x=await rawDraft({entityType:'document',entityId:d.record.id,value:out('technical_writer',[d.record.id,latest(d).toUpperCase()])});
   await held(decide(svc(),pm,x.id,body(sha(x.value),{revision:revisionBody(d)})),'SUBJECT_BASELINE_MISSING');
+  await zeroDecisions();
+ });
+
+ test('D7 the baseline may be named at any id-bearing path: a doc_reviewer draft that names the newest revision only as candidateRevisionId is confirmed',async()=>{
+  const d1=await doc(),d2=await proposeRev(h,pm,await fresh(d1.record.id));
+  const review=(baseRevisionId:string|null,candidateRevisionId:string)=>out('doc_reviewer',[d2.record.id],{result:{baseRevisionId,candidateRevisionId,diff:[],impacts:[],missing:[],scopeRead:''}});
+  const ok=await rawDraft({entityType:'document',entityId:d2.record.id,skill:'doc_reviewer',value:review(latest(d1),latest(d2))});
+  const v=await decide(svc(),pm,ok.id,body(sha(ok.value),{revision:revisionBody(await fresh(d1.record.id))}));
+  expect(v.decision?.result).toBe('confirmed');
+  expect(await n('draft_decisions')).toBe(1);
+  expect(await n('document_revisions')).toBe(3);
+  const d3=await doc(),e3=await proposeRev(h,pm,await fresh(d3.record.id));
+  const old=await rawDraft({entityType:'document',entityId:e3.record.id,skill:'doc_reviewer',
+   value:out('doc_reviewer',[e3.record.id],{result:{baseRevisionId:null,candidateRevisionId:latest(d3),diff:[],impacts:[],missing:[],scopeRead:''}})});
+  await held(decide(svc(),pm,old.id,body(sha(old.value),{revision:revisionBody(await fresh(d3.record.id))})),'SUBJECT_CHANGED');
+ });
+
+ test('D8 a malformed id among the ids a draft names never reaches the database as a uuid: the answer is a hold, not a database error',async()=>{
+  const d=await doc();
+  const x=await rawDraft({entityType:'document',entityId:d.record.id,value:out('technical_writer',[d.record.id,'x','not-a-uuid',latest(d).slice(0,-1)])});
+  const e=await held(decide(svc(),pm,x.id,body(sha(x.value),{revision:revisionBody(d)})));
+  expect(e).toBeInstanceOf(AppError);
+  expect(e.message).not.toContain('not-a-uuid');
+  expect(e.message).not.toMatch(/22P02|invalid input syntax/i);
   await zeroDecisions();
  });
 });
@@ -743,6 +771,17 @@ describe('Z4 drafts: who reads the content (OQ-45 point 1)',()=>{
   await new SuggestionService(rec.db,h.operator,chats).list(member,q('intake_candidate',x.candidateId));
   const seen=JSON.stringify(rec.rows());
   expect(seen).not.toContain(MARK);expect(seen).not.toContain(sha(x.output));expect(seen).not.toContain('synthetic-model-1');expect(seen).not.toContain(x.sourceEventId);
+  // the claim is about draft rows: they were in the recording, with exactly the metadata columns and nothing the writer chose
+  const draftRows=rec.rows().filter(r=>r&&typeof r==='object'&&'signal_type' in (r as R)) as R[];
+  expect(draftRows.length).toBeGreaterThan(0);
+  for(const r of draftRows) {
+   expect(Object.keys(r).sort()).toEqual(['created_at','dec_at','dec_by','dec_key','dec_result','dec_revision','entity_id','entity_type','id','manifest_hash','model_version','project_id','signal_type','skill_version','value','value_hash']);
+   for(const c of ['value','value_hash','skill_version','model_version']) expect(r[c],c).toBeNull();
+  }
+  // positive control: the same list read by the project manager does hand the service a row that contains the marker
+  const rec2=recordingDb(h.db);
+  await new SuggestionService(rec2.db,h.operator,chats).list(pm,q('intake_candidate',x.candidateId));
+  expect(JSON.stringify(rec2.rows())).toContain(MARK);
  });
 
  test('L4 a reader without the authority gets no bits the writer chose: sources is empty and manifestHash is the current manifest\'s or null',async()=>{
@@ -758,6 +797,16 @@ describe('Z4 drafts: who reads the content (OQ-45 point 1)',()=>{
    for(const code of codes) expect(text).not.toContain(code);
    expect(text).not.toContain(hex);
   }
+  const draftRows=rec.rows().filter(r=>r&&typeof r==='object'&&'signal_type' in (r as R)) as R[];
+  expect(draftRows).toHaveLength(2);
+  for(const r of draftRows) {
+   expect(Object.keys(r).sort()).toEqual(['created_at','dec_at','dec_by','dec_key','dec_result','dec_revision','entity_id','entity_type','id','manifest_hash','model_version','project_id','signal_type','skill_version','value','value_hash']);
+   for(const col of ['value','value_hash','skill_version','model_version']) expect(r[col],col).toBeNull();
+  }
+  // positive control: the project manager's read of the same list does hand the service the draft rows with their content
+  const rec2=recordingDb(h.db);
+  await new SuggestionService(rec2.db,h.operator,chats).list(pm,q('intake_candidate',c.candidateId));
+  expect(JSON.stringify(rec2.rows())).toContain(hex);
  });
 
  test('L5 masking changes no row count and no order: the list and the total are the same for every reader',async()=>{
@@ -775,9 +824,18 @@ describe('Z4 drafts: who reads the content (OQ-45 point 1)',()=>{
    const x=kind==='document'?await docDraft():await candDraft();
    const entityId=kind==='document'?(x as Awaited<ReturnType<typeof docDraft>>).d.record.id:(x as Awaited<ReturnType<typeof candDraft>>).candidateId;
    const row=(await svc().list(p,q(kind,entityId))).items[0] as unknown as R;
-   const e=await decide(svc(),p,x.draftId,{result:'rejected',valueHash:x.valueHash,reason:'Không phù hợp phạm vi'}).then(()=>null,y=>y as {code?:string});
-   const refusedByAuthority=e!==null&&(e.code==='READ_ONLY'||e.code==='MANAGER_REQUIRED');
-   expect((row.maskReasons as unknown[]|undefined)?.length===0,`${p.role} ${kind}`).toBe(!refusedByAuthority);
+   const outcome=await decide(svc(),p,x.draftId,{result:'rejected',valueHash:x.valueHash,reason:'Không phù hợp phạm vi'}).then(v=>({v}),y=>({y}));
+   // the oracle is written out, not derived from the service: a document draft is decided by every ledger writer, a candidate draft by the project manager only
+   const mayDecide=kind==='document'||p===pm;
+   if(mayDecide) {
+    expect('v' in outcome,`${p.role} ${kind} must resolve`).toBe(true);
+    expect((outcome as {v:{decision:{result:string}|null}}).v.decision?.result,`${p.role} ${kind}`).toBe('rejected');
+   } else {
+    expect('y' in outcome,`${p.role} ${kind} must be refused`).toBe(true);
+    expect((outcome as {y:unknown}).y).toMatchObject({code:'MANAGER_REQUIRED',status:403});
+   }
+   const resolved='v' in outcome;
+   expect((row.maskReasons as unknown[]|undefined)?.length===0,`${p.role} ${kind}`).toBe(resolved);
   }
  });
 
@@ -951,6 +1009,25 @@ describe('Z4 drafts: the content is re-checked at read time (OQ-45 point 2)',()=
   expect(again.maskReasons).toEqual(['POINTER_ONLY_PROJECT']);expect(again.value).toBeNull();
   expect(await n('draft_decisions')).toBe(1);
  });
+
+ test('M10 a reader without the authority, and any reader of a document draft, causes no read of the message tables',async()=>{
+  const texts:string[]=[];
+  const wrap=(qq:Queryable):Queryable=>({query:async<T=R>(sql:string,params?:unknown[])=>{texts.push(sql);return qq.query<T>(sql,params);}});
+  const spy:Database={...wrap(h.db),transaction:fn=>h.db.transaction(tx=>fn(wrap(tx))),close:()=>h.db.close()};
+  const sp=()=>new SuggestionService(spy,h.operator,chats);
+  const c=await candDraft(),d=await docDraft();
+  await sp().list(member,q('intake_candidate',c.candidateId));
+  expect(texts.length).toBeGreaterThan(0);
+  expect(texts.filter(t=>/source_events|intake_candidates/.test(t))).toEqual([]);
+  texts.length=0;
+  await sp().list(pm,q('document',d.d.record.id));
+  expect(texts.length).toBeGreaterThan(0);
+  expect(texts.filter(t=>/source_events/.test(t))).toEqual([]);
+  // control: a manager reading a candidate draft does read the message tables
+  texts.length=0;
+  await sp().list(pm,q('intake_candidate',c.candidateId));
+  expect(texts.filter(t=>/source_events/.test(t)).length).toBeGreaterThan(0);
+ });
 });
 
 describe('Z4 drafts: boundaries',()=>{
@@ -973,6 +1050,9 @@ describe('Z4 drafts: IBS HI is refused at write (OQ-45 point 3)',()=>{
   const d=await doc(ids.transport);
   const e=await refused(svc().submitDraft(ai,env('document',d.record.id,'technical_writer',out('technical_writer',[d.record.id]),{projectId:ids.transport})),'POINTER_ONLY_PROJECT',422);
   expect(e.message).toBe(POINTER);
+  expect(e).toBeInstanceOf(AppError);
+  expect((e as {cause?:unknown}).cause).toBeUndefined();
+  for(const key of ['detail','hint','where','schema','table','constraint','routine','severity','position']) expect(key in e,key).toBe(false);
   for(const s of [d.record.id,ids.transport,'pointer-only']) expect(e.message).not.toContain(s);
   expect(await n('intelligence.ai_drafts')).toBe(0);
   // a candidate draft: the sales project is mapped to IBS_HI

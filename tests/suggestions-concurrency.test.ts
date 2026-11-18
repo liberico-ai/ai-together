@@ -17,6 +17,7 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
   test('two confirmations of one draft in parallel leave one decision and one revision',async()=>{
     const svc=new SuggestionService(h.db,h.operator,[]);
     const d=await proposeRev(h,pm,await registerDoc(h,pm));
+    // the latest revision is named because of the OQ-53 (2) placeholder; revisit when OQ-53 is decided
     const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id},{id:d.record.latest_revision_id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
     const {draftId}=await svc.submitDraft({id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales]},{skill:'technical_writer',projectId:ids.sales,entityType:'document',entityId:d.record.id,output,
       inputHash:'c'.repeat(64),modelVersion:'synthetic-model',dedupeKey:'dk-'+randomUUID(),traceId:randomUUID()});
@@ -43,6 +44,7 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
   async function setup(){
     const svc=new SuggestionService(h.db,h.operator,[]);
     const d=await proposeRev(h,pm,await registerDoc(h,pm));
+    // the latest revision is named because of the OQ-53 (2) placeholder; revisit when OQ-53 is decided
     const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id},{id:d.record.latest_revision_id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
     const {draftId}=await svc.submitDraft({id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales]},{skill:'technical_writer',projectId:ids.sales,entityType:'document',entityId:d.record.id,output,
       inputHash:'c'.repeat(64),modelVersion:'synthetic-model',dedupeKey:'dk-'+randomUUID(),traceId:randomUUID()});
@@ -93,5 +95,46 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
       expect(c.message).toContain('SUBJECT_CHANGED');
       expect(dec).toHaveLength(0);
     }
+  });
+
+  // The two cases below are ordered: the lock queue on the document row decides who goes first, so each outcome is certain, not a race.
+  // They run on native PostgreSQL only (waitForBlocked reads pg_stat_activity).
+  test('the manual proposal waits first: it wins, and the confirmation that waited behind it reads the new revision and is held as SUBJECT_CHANGED',async()=>{
+    const {svc,d,draftId,valueHash,revision}=await setup();
+    const revisions=await n('document_revisions');
+    let manual!:Promise<unknown>,confirm!:Promise<unknown>;
+    await h.operator.transaction(async tx=>{
+      await tx.query('SELECT id FROM document_records WHERE id=$1 FOR UPDATE',[d.record.id]);
+      manual=new DocumentService(h.db).proposeRevision(pm,d.record.id,revision,'conc-key-0031').then(v=>v,e=>e);
+      await waitForBlocked(h,1);
+      confirm=svc.decide(pm,draftId,{result:'confirmed',valueHash,revision},'conc-key-0032',randomUUID()).then(v=>v,e=>e);
+      await waitForBlocked(h,2);
+    });
+    const [m,c]=[await manual,await confirm] as [{record?:unknown;code?:string},{code?:string;message?:string;status?:number}];
+    expect(m.record).toBeDefined();
+    expect(c).toMatchObject({code:'DRAFT_HELD',status:422});
+    expect(c.message).toContain('SUBJECT_CHANGED');
+    expect(await n('draft_decisions')).toBe(0);
+    expect(await n('document_revisions')).toBe(revisions+1);
+  });
+
+  test('the confirmation waits first: it wins, and the manual proposal behind it answers REVISION_CONFLICT',async()=>{
+    const {svc,d,draftId,valueHash,revision}=await setup();
+    const revisions=await n('document_revisions');
+    let manual!:Promise<unknown>,confirm!:Promise<unknown>;
+    await h.operator.transaction(async tx=>{
+      await tx.query('SELECT id FROM document_records WHERE id=$1 FOR UPDATE',[d.record.id]);
+      confirm=svc.decide(pm,draftId,{result:'confirmed',valueHash,revision},'conc-key-0041',randomUUID()).then(v=>v,e=>e);
+      await waitForBlocked(h,1);
+      manual=new DocumentService(h.db).proposeRevision(pm,d.record.id,revision,'conc-key-0042').then(v=>v,e=>e);
+      await waitForBlocked(h,2);
+    });
+    const [c,m]=[await confirm,await manual] as [{decision?:{result:string}},{code?:string}];
+    expect(c.decision?.result).toBe('confirmed');
+    expect(m.code).toBe('REVISION_CONFLICT');
+    const latest=(await h.operator.query<{latest_revision_id:string}>('SELECT latest_revision_id FROM document_records WHERE id=$1',[d.record.id])).rows[0].latest_revision_id;
+    const dec=(await h.operator.query<{document_revision_id:string}>('SELECT document_revision_id FROM draft_decisions')).rows;
+    expect(dec).toHaveLength(1);expect(dec[0].document_revision_id).toBe(latest);
+    expect(await n('document_revisions')).toBe(revisions+1);
   });
 });
