@@ -2,6 +2,8 @@
 
 > **Cho agent thực thi:** làm lần lượt từng task theo `superpowers:subagent-driven-development` (khuyến nghị) hoặc `superpowers:executing-plans`. Các bước dùng ô `- [ ]`. Mỗi task theo nhịp: viết ca kiểm → chạy thấy đỏ đúng lý do → viết mã tối thiểu → chạy xanh. Builder **không** commit, push hay mở PR: phiên chính commit ở «Điểm commit» cuối mỗi task. Kế hoạch **không** gồm cổng Codex, biên nhận, cập nhật roadmap — phiên chính làm. Builder của một task chỉ cần đọc «Global Constraints» và đúng task của mình.
 
+Version 0.4 · 18/11/2026 · **chỉ hồ sơ**, do phiên chính ghi sau sáu lượt review theo task (`docs/reviews/oq-45-46-evidence-20261118/gates/review-task-*.md`) và bốn phép đo trên PostgreSQL 16.15. Ba thứ đổi so với 0.3: (1) guard của migration 022 nay từ chối giao dịch không ở READ COMMITTED bằng SQLSTATE `LTZ02` — khối SQL của tệp thuận ở Task 1 đã được thay bằng đúng nội dung tệp; (2) một đợt sửa thêm ca kiểm và ba sửa nhỏ trong mã; (3) phần dư R20–R29 và bảy điều kiện thêm «trước khi bật Z4». Tất cả nằm ở mục «Sau các lượt review theo task», gần cuối tệp. Không đổi lời Chairman, không đổi phương án nào của OQ-53, OQ-54, OQ-55, không thêm câu hỏi mở. Các task và ca kiểm của bản 0.3 giữ nguyên chữ.
+
 Version 0.3 · 18/11/2026 · do agent `planner` sửa (mô hình Fable 5.2, không lùi mô hình) sau **cổng bảo mật lượt 2** trên bản 0.2 — «PLAN NEEDS CHANGES», `docs/reviews/oq-45-46-evidence-20261118/gates/security-gate-plan-round-2.md`: N1 khép một phần, N2 và N3 khép; một mục phải sửa (N4), hai mục nên sửa (cổng-R8, cổng-R9), ba ca còn thiếu (cổng-C11…C13). Theo phán quyết của phiên chính, áp tất cả. Không đổi lời Chairman. **Bản 0.3 so với 0.2:** (1) **N4, cách sửa 2 của cổng** — `sources` là `[]` dưới **mọi** lớp che; cột `sources` không còn được đọc ở câu lệnh nào (bỏ hằng `SOURCE_IDS_SQL` và tham số `maskedSources` của bản 0.2); khi không che, `sources` vẫn là `value.sources`. Chỗ sửa: cách hiểu C9 mới; C1; P5; B2 (kiểu và bảng trường); R15; Review Focus 1; Task 3 (`DRAFT_SQL`, `DRAFT_META_SQL`, `DraftRow`, `toView`, `present`; ca L9); Task 4a (`present`; ca M1 (i), M3, M8); Task 4b (ca Q1); mục 13 của «Dừng và chỗ chưa chắc». (2) **cổng-R8** — câu «luồng có chữ đang ẩn» dùng `(…) IS NOT TRUE`; mã không phải uuid trả `true` (Task 4b; ca Q5, Q8). (3) **cổng-R9** — ngữ cảnh hỗn hợp ứng viên + tài liệu (R16; `docs/OPEN-QUESTIONS.md:904`). (4) Ba ca: cổng-C11 → M8 (viết lại), cổng-C12 → Q8, cổng-C13 → Q9. (5) Một dòng về bản sao của iCloud ở «Global Constraints». Số và thứ tự task không đổi. **Theo báo cáo lượt 2 (dòng `:14` của tệp đó), nếu N4 được sửa đúng như cổng tả thì cổng không cần soát lại kế hoạch lần nữa; phiên chính quyết việc ghi nhận điều đó. Review bảo mật bắt buộc của Task 3, 4a, 4b kiểm trên mã.**
 
 Version 0.2 · 18/11/2026 · do agent `planner` sửa (mô hình Fable 5.2, không lùi mô hình) sau **cổng bảo mật lượt 1** trên bản 0.1 — «PLAN NEEDS CHANGES», `docs/reviews/oq-45-46-evidence-20261118/gates/security-gate-plan-round-1.md` — và theo phán quyết của phiên chính: áp mọi mục của cổng. Không đổi lời Chairman. **Bản 0.2 so với 0.1:** (1) **N1** — người không có quyền quyết định nhận `sources: []`; dưới lớp che, `sources` chỉ còn mã có trong ngữ cảnh dựng lại; `manifestHash` chỉ trả khi là hash của manifest hiện hành (C1, B1, B2, R15; Task 3, Task 4a; ca L1, L3, L4, M8, K2). (2) **N2** — câu hỏi mở mới **OQ-55** và một giữ chỗ fail-closed cho nháp ứng viên, mã lý do riêng `THREAD_TEXT_HIDDEN`, vừa che lúc đọc vừa giữ lúc xác nhận (C2, P3; **Task 4b mới**; ca Q1–Q7; M4 chỉ còn nói về nháp tài liệu). (3) **N3** — `decide` xét quyền trước mọi phép kiểm khác trong thân khoá lệnh (Task 3; ca L8). (4) Bảy mục nên sửa: H1 và G12 (cổng-R1), K3 viết đủ (cổng-R2), trường hiển thị lấy từ giá trị đã qua lược đồ (cổng-R3; ca L7), `tgenabled` và danh sách «trước khi bật Z4» (cổng-R4), câu chữ của R6 và OQ-53 (cổng-R5), mô tả bit của guard (cổng-R6; ca G13), C8 mới và lý do của H4, H5 (cổng-R7). (5) Mười ca còn thiếu: cổng-C1 → L4, C2 → M8, C3 → Q1, C4 → Q2, C5 → L8, C6 → G13, C7 → G14, C8 → G15, C9 → M9, C10 → T8. (6) Task 4 của bản 0.1 nay là Task 4a; số của Task 1–3 và 5–7 không đổi. Ca lùi 022 đổi nhãn từ R22 sang RB1 để không lẫn với phần dư R15–R19. Trong kế hoạch này, mục của cổng luôn được viết «cổng-R…», «cổng-C…»; «C1–C8» là các cách hiểu, «R1–R19» là phần dư của chính kế hoạch. **Số gốc của cả bộ, do phiên chính đo ở `4f12a3c`:** PGlite 1 104 đạt, 62 bỏ qua; PostgreSQL 16 thật 1 166 đạt, 0 bỏ qua.
@@ -344,6 +346,7 @@ Không ca nào khác được sửa. Riêng ca «the context is built under the 
 -- role can tell from an insert attempt is one bit for the (tenant, project) the row names, whatever context it set: BEFORE ROW triggers fire before
 -- the WITH CHECK of row-level security. row_security = off makes the function fail closed: an owner that row-level security would filter gets an
 -- error, never an empty read. Apply as the migration login (a superuser), like 019–021. The guard binds every writer, the operational login included.
+-- The guard also refuses a write from a transaction that is not READ COMMITTED (LTZ02): only that level reads the latest mapping.
 -- Nothing here switches anything on: no login, no password, no key, no membership, no grant, no model. No data rows except schema_migrations.
 -- Rollback: migrations/rollback/022_ai_drafts_pointer_only_guard.sql (refuses while a later migration is recorded).
 BEGIN;
@@ -353,6 +356,12 @@ CREATE OR REPLACE FUNCTION intelligence.ai_drafts_pointer_only_guard() RETURNS t
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp SET row_security = off AS $$
 DECLARE latest text;
 BEGIN
+  -- The mapping is read under the snapshot of the calling transaction. Only READ COMMITTED gives this statement a fresh one: a REPEATABLE READ or
+  -- SERIALIZABLE transaction opened before an IBS_HI mapping was committed would not see it and the draft would be stored (measured on PostgreSQL 16).
+  -- Any other isolation level is refused, whatever the project.
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'An AI draft is written in a READ COMMITTED transaction' USING ERRCODE = 'LTZ02';
+  END IF;
   SELECT m.domain_code INTO latest FROM public.project_domain_mappings m
    WHERE m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id
    ORDER BY m.mapping_version DESC LIMIT 1;
@@ -747,6 +756,58 @@ Mục B6 (R1–R19) nguyên văn, cùng các điểm: Z4 vẫn chưa bật và k
 4. Dịch vụ được dựng với đúng danh sách nhóm hiện chữ của đường nhận tin (khoảng trống 42; R9).
 5. Khoảng trống 41 (khoá khử trùng đã dùng ở dự án khác) có quyết định.
 6. Cổng soát đường dựng `Principal` từ phiên (R7).
+
+## Sau các lượt review theo task (bản 0.4; phán quyết của phiên chính, không phải quyết định của Chairman)
+
+Sáu lượt review theo task, báo cáo ở `docs/reviews/oq-45-46-evidence-20261118/gates/`:
+
+| Task | Reviewer | Tệp báo cáo | Đúng yêu cầu | Chất lượng | Critical · Important · Minor |
+|---|---|---|---|---|---|
+| 1, 2 | `liberico-database-reviewer` | `review-task-1-2-database.md` | đạt | Approved | 0 · 1 · 6 |
+| 1, 2 | `liberico-security-reviewer` | `review-task-1-2-security.md` | đạt | Approved | 0 · 0 · 6 |
+| 3 | `liberico-security-reviewer` | `review-task-3-security.md` | đạt | Approved | 0 · 0 · 5 |
+| 4a, 4b | `liberico-security-reviewer` | `review-task-4a-4b-security.md` | đạt | Needs fixes (ca kiểm) | 0 · 1 · 6 |
+| 5 | `liberico-code-reviewer` | `review-task-5-code.md` | đạt | Needs fixes (ca kiểm) | 0 · 1 · 5 |
+| 6 | `liberico-security-reviewer` | `review-task-6-security.md` | đạt | Needs fixes (ca kiểm) | 0 · 1 · 4 |
+
+Bốn mục Important: một là nghĩa vụ ghi chú triển khai (đường phục hồi data-only cho guard xét lại từng dòng nháp), ba là ca kiểm chưa chứng minh điều tên ca nói. Không mục nào đòi đổi một quyết định hay một phương án của câu hỏi mở.
+
+**Đo trên PostgreSQL 16.15** (CSDL thử riêng của PR, dữ liệu tổng hợp; phiên chính đo ngày 18/11/2026 sau khi hai reviewer ghi các điểm này là «suy luận, chưa đo»):
+
+1. Một giao dịch của role AI mở **trước** khi ánh xạ `IBS_HI` được commit và chèn nháp **sau** đó: ở REPEATABLE READ và SERIALIZABLE nháp **được lưu**; ở READ COMMITTED bị từ chối `LTZ01`. Guard của bản 0.3 vì vậy đi vòng được bằng cách giữ một ảnh chụp cũ.
+2. Bản data-only tạo bằng lệnh của `docs/DEPLOY-002.md:19`: trong danh sách của `pg_restore --list`, dữ liệu của `intelligence.ai_drafts` đứng thứ 27, của `public.project_domain_mappings` đứng thứ 53 trên 61 bảng. Nháp được nạp trước ánh xạ, nên lúc phục hồi guard không thấy ánh xạ nào và cho mọi dòng qua.
+3. `to_regclass` và `to_regprocedure` trả `NULL` khi schema không còn: tệp lùi 022 chạy lại được sau khi 021 đã lùi.
+4. `COPY … FROM STDIN` dưới role `libetech_ai`: `0A000` («COPY FROM not supported with row-level security»); dưới login vận hành cho một dự án `IBS_HI`: `LTZ01`.
+
+**Đợt sửa** (một vòng sửa cho Task 1, 3, 4b, 5, 6; trần ba vòng mỗi task):
+
+- **Guard từ chối giao dịch không ở READ COMMITTED** bằng SQLSTATE `LTZ02`, câu «An AI draft is written in a READ COMMITTED transaction», bất kể dự án. Dịch vụ không dịch `LTZ02`: nó nghĩa là login của pipeline cấu hình sai. Ca G16, G17 (hai kết nối, chỉ native). Khối SQL của Task 1 ở trên đã được thay bằng đúng nội dung tệp.
+- Ca bổ sung ở tầng CSDL: G18 (`MERGE` bị xét như `INSERT`), RB2 (tệp lùi 022 chạy lại khi schema không còn), G12 ghim thân hàm, G8 so theo oid, RB1 thôi nuốt lỗi.
+- Ca bổ sung ở dịch vụ: D2 nửa sau viết lại (bản của tài liệu khác không phải mốc), D7 (mốc nêu ở trường không phải `sources`), D8 (mã sai dạng không thành lỗi CSDL), M10 (người không có quyền và nháp tài liệu không gây câu đọc bảng tin), các kịch bản thêm của Q5 (tin trả lời lưu chữ; luồng dài hơn 20 tin), T9–T14 (đồng hồ ghi chứ không phải `observedAt`; bản sửa của tin không được nêu; trùng thời điểm; điều kiện dự án của chính câu lệnh; mã dự án sai dạng; không trần), hai ca thứ tự trong `tests/suggestions-concurrency.test.ts` (trình tay chờ trước; xác nhận chờ trước), các khẳng định thêm ở L3, L4, L6, S1.
+- Ba sửa nhỏ trong mã: `threadHasHiddenText` đóng khi không có dòng trả về; `toView` tự sắp mã và không bao giờ trả nội dung khi không có giá trị đã qua lược đồ; đổi tên một biến trong `subjectReasons`.
+
+**Phần dư bổ sung** (đọc cùng B6; phiên chính chép vào biên nhận):
+
+- **R20** · Phục hồi data-only (đường cài đặt có sẵn: `deploy/install-user.py`, `deploy/install-d1.sh`, `docs/DEPLOY-002.md:19`) chạy với trigger bật. Theo phép đo 2, guard không xét được dòng nháp nào lúc phục hồi vì ánh xạ được nạp sau. Hai hệ quả: lần phục hồi không bị lùi vì một nháp lưu trước khi dự án thành `IBS_HI`; và guard không phải lưới cho dữ liệu được phục hồi. Nếu thứ tự nạp đổi (phiên bản `pg_dump` khác, thêm khoá ngoại giữa hai bảng) thì một nháp như vậy làm lùi cả lần phục hồi; `--disable-triggers` tắt luôn các trigger bất biến và là việc cần người quyết.
+- **R21** · Login của pipeline phải giữ `default_transaction_isolation = read committed`. Khác đi thì mọi lệnh ghi nháp bị từ chối `LTZ02` (đóng). Phần dư R5 chỉ còn cửa sổ giữa câu đọc của guard và lúc commit của lệnh chèn.
+- **R22** · Sau một lệnh chèn thành công, giao dịch của role AI giữ `AccessShareLock` trên `public.project_domain_mappings` tới khi kết thúc: nó chặn được DDL trên bảng đó, không chặn lệnh ghi dòng.
+- **R23** · Mỗi lần guard từ chối là một dòng `ERROR` trong log máy chủ PostgreSQL. Nội dung của nháp bị từ chối (tham số của lệnh chèn) nằm lại trong log nếu `log_parameter_max_length_on_error` khác 0, hoặc `log_statement` / `log_min_duration_statement` ghi kèm tham số. Mặc định của PostgreSQL là không ghi tham số.
+- **R24** · Bổ sung cho R15: `createdAt` (tới mili giây) tới cả người không có quyền quyết định, và thời điểm chèn là thứ bên ghi chọn được.
+- **R25** · Người không có quyền quyết định gọi `decide` vẫn lấy khoá nháp, kéo `value` vào tiến trình Node và giữ chỗ khoá lệnh trước khi bị từ chối. Không lộ gì ra câu trả lời. Không đổi vì thứ tự trước khoá lệnh là hợp đồng khử trùng của lát 3; cần giới hạn tần suất khi có tuyến.
+- **R26** · Ngữ cảnh trao cho pipeline `observedAt` của từng tin, không trao thời điểm ghi. Nháp ứng viên vì vậy chỉ chắc chắn xác nhận được khi nêu **mọi** tin của luồng có trong ngữ cảnh. Luồng dài hơn 20 tin có một tin đến muộn nằm ngoài cửa sổ ngữ cảnh: không nháp nào xác nhận được cho tới khi luồng có tin mới hơn. Tin ghi sau cùng được lưu ở chế độ chỉ con trỏ: nêu thì `TEXT_NOT_VISIBLE`, không nêu thì `SUBJECT_CHANGED`. Cả ba là hướng chặt.
+- **R27** · Chính xác hơn cho R6: trần 10 giây là của mỗi câu lệnh, không phải của khe hở; các tin đầu của một luồng đến cùng lúc (album) đảo thứ tự bắt đầu và commit là chuyện thường; bản sửa có cùng khe hở; một tin mà giao dịch nhận đã bắt đầu nhưng chưa commit lúc xác nhận sẽ mang `created_at` sớm hơn `created_at` của quyết định, nên người đọc sổ về sau có thể hiểu nhầm rằng người xác nhận đã có tin đó.
+- **R28** · Nháp `release_librarian` trên một tài liệu đã có bản nhưng chưa có bản chuẩn luôn bị giữ `SUBJECT_BASELINE_MISSING` (ngữ cảnh của kỹ năng đó không có bản nào để nêu). Thuộc giữ chỗ của OQ-53 điểm 2.
+- **R29** · Bất biến P3 đọc chính xác là «điều bị che lúc đọc luôn bị giữ lúc xác nhận»; mã có thể khác khi không dựng được ngữ cảnh. Với dự án chỉ con trỏ, `value` vẫn vào tiến trình Node rồi mới bị bỏ (cùng OQ-54). Giữ chỗ của OQ-55 xét luồng của chính ứng viên: chữ của một luồng khác cùng dự án mà nháp chép lại không được phép kiểm nào thấy. Tổ hợp các mã che của một dòng là thứ bên ghi tác động được.
+
+**Trước khi thêm tuyến đọc nháp hoặc bật Z4 — bổ sung** (đánh số tiếp danh sách ở mục «Giới hạn đã biết»):
+
+7. Ngay sau khi áp 022 ở bất kỳ CSDL nào, chạy câu catalog chỉ đọc ở mục «Ghi chú triển khai cho biên nhận» của `review-task-1-2-database.md`: chủ hàm có `rolsuper` hoặc `rolbypassrls`, ACL chỉ có chủ, `tgenabled='O'`, `tgtype=7`, hai thiết lập đã ghim. `scripts/migrate.ts` áp mọi migration đang chờ trong một lượt, nên lần migrate kế tiếp ở bất kỳ đâu cũng áp luôn 022.
+8. Login của pipeline: `default_transaction_isolation = read committed` (R21), kiểm lúc tạo login.
+9. Đọc bốn thiết lập log của cụm (R23).
+10. Đo lại thứ tự nạp trên một bản dump của CSDL thật và quyết về `--disable-triggers` (R20).
+11. Tuyến gọi `decide`: giới hạn tần suất, ánh xạ lỗi lược đồ lệnh, không log thân câu trả lời (R25).
+12. Hợp đồng và prompt của pipeline: nêu mọi tin của luồng có trong ngữ cảnh và bản mới nhất của tài liệu (R26, R28).
+13. Một lần `EXPLAIN` trên PostgreSQL 16 cho hai câu đọc luồng (`threadHasHiddenText`, `threadFreshness`) trên một luồng dài.
 
 ## Tự soát của planner (bản 0.3, 18/11/2026)
 
