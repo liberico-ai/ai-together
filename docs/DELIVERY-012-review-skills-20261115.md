@@ -28,7 +28,7 @@ Mức «đã có mã» chỉ nói mã khớp test trên dữ liệu tổng hợp
   - **OQ-39** — «(c) Hiệu lực, nêu rõ (Recommended)». **OQ-40** — «(c) Ngủ, có đánh dấu (Recommended)». **OQ-41** — «(c) Điều phối và đương sự (Recommended)». **OQ-42** — «(a) Luật cấp tài khoản (Recommended)».
 - **Quyết định của Chairman ngày 16/11/2026**, chọn qua hộp chọn ở phiên điều phối (câu hỏi và đủ các phương án chép nguyên văn ở `docs/OPEN-QUESTIONS.md`): **OQ-43** — «(a) Chỉ điều phối thấy (Recommended)». **OQ-44** — «(a) Mọi người đọc dự án (Recommended)». Cả hai trùng hành vi mã đã có ở `ee990b4`; không đổi mã.
 - **Quyết định của Chairman ngày 16/11/2026 về finding P2 của Codex vòng 3**, chọn ở hộp bước tiếp của phiên lát 3. Câu hỏi Chairman thấy: «Sửa mục P2 của Codex vòng 3 rồi chạy cổng thêm một lượt chứ?», với hai nút «Sửa P2, chạy lại» và «Giữ nguyên». Chairman trả lời: «Sửa P2, chạy lại». Phiên lát 3 hiểu đây là lời cho **một** vòng sửa và **một** lượt chạy cổng thêm. Kết quả: sửa ở `ccbe70c` và `007cded`; Codex vòng 4 trả `VERDICT: PASS`, không có finding. Quyết định này ghi ở biên nhận này, ở bảng review và ở `controller-rulings.md`; nó không nằm trong `docs/OPEN-QUESTIONS.md` vì không phải một câu hỏi mở (tiêu đề commit `b8f5a99` nhắc tới nó vì cùng commit đó cập nhật biên nhận).
-- **Chưa quyết** (mã đang theo «Hành vi hiện tại» ghi ở từng mục, không phải phương án được chọn): OQ-45, OQ-46 — xem mục «Câu hỏi mở».
+- **Chưa quyết** (mã đang theo «Hành vi hiện tại» ghi ở từng mục, không phải phương án được chọn): OQ-45, OQ-46 — xem mục «Câu hỏi mở». **Cập nhật 18/11/2026:** Chairman đã quyết cả hai, sau khi lát này merge — OQ-45: (b) ở cả ba điểm; OQ-46: (b), mốc là bản mới nhất nháp nêu (`docs/OPEN-QUESTIONS.md`, khối «Quyết định của Chairman ngày 18/11/2026 về OQ-45 và OQ-46» ở cuối tệp). Mã của lát này không đổi: vẫn theo «Hành vi hiện tại».
 - Không sửa `AGENTS.md`, `CLAUDE.md`. Dòng Z4 ở `AGENTS.md:11` là việc của Chairman sau lát này; đề nghị thêm cùng lúc một dòng khai thư mục `skills/` và schema `intelligence` (reviewer mã tầng 1 nêu).
 
 ## Đã làm
@@ -214,8 +214,8 @@ PR đã merge vào `libetech-ai-os` ngày 16/11/2026 (`08322d3`) sau khi Chairma
 
 ## Câu hỏi mở chưa quyết
 
-- **OQ-45** (`docs/OPEN-QUESTIONS.md:661`) — ai đọc nội dung một nháp AI; có xét lại quyền lúc đọc không; nháp của dự án `IBS_HI` có được lưu không. **Chặn việc thêm tuyến đọc nháp và việc bật Z4.**
-- **OQ-46** (`:677`) — nháp AI dựng trên đầu vào đã cũ có được xác nhận không (ví dụ nháp phân tích bản r3, sau đó có bản r4). Hành vi hiện tại: không kiểm thêm; người xác nhận nháp tài liệu vẫn phải gửi phiên bản tài liệu mình thấy. **Cùng OQ-45, chặn việc bật Z4.**
+- **OQ-45** (`docs/OPEN-QUESTIONS.md:661`) — ai đọc nội dung một nháp AI; có xét lại quyền lúc đọc không; nháp của dự án `IBS_HI` có được lưu không. **Chặn việc thêm tuyến đọc nháp và việc bật Z4.** Chairman quyết ngày 18/11/2026: (b) ở cả ba điểm; chưa có mã, nên vẫn chặn.
+- **OQ-46** (`:677`) — nháp AI dựng trên đầu vào đã cũ có được xác nhận không (ví dụ nháp phân tích bản r3, sau đó có bản r4). Hành vi hiện tại: không kiểm thêm; người xác nhận nháp tài liệu vẫn phải gửi phiên bản tài liệu mình thấy. **Cùng OQ-45, chặn việc bật Z4.** Chairman quyết ngày 18/11/2026: (b), mốc là bản mới nhất nháp nêu; chưa có mã, nên vẫn chặn.
 OQ-45 an toàn ở mức «chưa triển khai» theo reviewer bảo mật tầng 1. OQ-43 và OQ-44 (mở sau review Task 7d) đã được Chairman quyết ngày 16/11/2026, đều phương án (a) — xem «Căn cứ và quyết định». OQ-46 do reviewer mã nêu khi quét lớp lỗi; phiên lát 3 không tự chọn phương án vì SPEC không định nghĩa nháp «cũ».
 
 ## Cách hiểu chờ Chairman xác nhận (không phải lời Chairman; đều theo hướng chặt)

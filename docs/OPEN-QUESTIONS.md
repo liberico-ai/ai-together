@@ -668,7 +668,7 @@ Lời Chairman 12/11/2026 (nguyên văn):
   2. Xét lại lúc đọc: (a) không xét, như hiện nay; (b) lúc đọc dựng lại ngữ cảnh dưới quyền người đọc và che `value` khi nháp trích tin người đó không đọc được chữ hoặc dự án đang chỉ con trỏ, chỉ trả mã và lý do giữ.
   3. Nháp của dự án `IBS_HI`: (a) vẫn lưu, chỉ chặn lúc xác nhận, như hiện nay; (b) từ chối ngay lúc ghi (cần cấp cho role AI quyền đọc hẹp cờ «chỉ con trỏ», hoặc một thiết kế khác); (c) chỉ lưu mã và hash, không lưu nội dung.
 - **Ai quyết:** Chairman (điểm 3 chạm `AGENTS.md:16`); BoM Tech cho điểm 1 và 2 nếu Chairman giao.
-- **Hành vi hiện tại (không phải phương án được chọn):** (a) ở cả ba điểm. Không tuyến nào gọi `list`; chỉ test gọi. Ca kiểm «no route imports the suggestion service» giữ điều đó cho tới khi có quyết định.
+- **Hành vi hiện tại (không phải phương án được chọn):** (a) ở cả ba điểm. Không tuyến nào gọi `list`; chỉ test gọi. Ca kiểm «no route imports the suggestion service» giữ điều đó cho tới khi có quyết định. **Quyết định 18/11/2026 (Chairman):** (b) ở cả ba điểm; lời Chairman và phần đối chiếu ở khối «Quyết định của Chairman ngày 18/11/2026 về OQ-45 và OQ-46», cuối tệp. Chưa có mã cho quyết định này: hành vi vẫn như dòng này tả, và ca kiểm canh vẫn giữ.
 
 ---
 
@@ -684,7 +684,7 @@ Lời Chairman 12/11/2026 (nguyên văn):
   - (b) Giữ nháp khi **đối tượng của chính nó** đã đổi: tài liệu có bản mới hơn sau lúc nháp được ghi; luồng của ứng viên có tin hoặc bản sửa mới sau lúc đó. Phải định nghĩa «sau» theo mốc nào (thời điểm ghi, hay bản mới nhất mà nháp nêu).
   - (c) Giữ nháp khi **ngữ cảnh dựng lại không còn y hệt**: định nghĩa `input_hash` là hash của toàn bộ ngữ cảnh và so lúc xác nhận. Chặt nhất; hệ quả là mọi thay đổi trong dự án (kể cả đăng ký một tài liệu không liên quan) làm mọi nháp đang chờ của dự án hết hiệu lực.
 - **Ai quyết:** BoM Tech; Chairman nếu muốn quyết luôn (cùng lúc với OQ-14 và OQ-45).
-- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a). `input_hash` được lưu và, từ vòng sửa cuối của lát 3, được so khi cùng một khoá khử trùng gửi lại; nó chưa được so lúc xác nhận.
+- **Hành vi hiện tại (không phải phương án được chọn):** trùng (a). `input_hash` được lưu và, từ vòng sửa cuối của lát 3, được so khi cùng một khoá khử trùng gửi lại; nó chưa được so lúc xác nhận. **Quyết định 18/11/2026 (Chairman):** (b), mốc là bản mới nhất nháp nêu; lời Chairman ở khối «Quyết định của Chairman ngày 18/11/2026 về OQ-45 và OQ-46», cuối tệp. Chưa có mã cho quyết định này: hành vi vẫn như dòng này tả.
 
 ## OQ-47 — Phiếu 3/3 vừa đóng có giữ chỗ trên màn Quyết định không
 
@@ -851,3 +851,16 @@ Lời Chairman 12/11/2026 (nguyên văn):
   2. Lý do S13 nêu cho luật («vì Chairman là người đề xuất») không đúng với phiếu do điều phối dự án trình (điều kèm theo ở OQ-35). Xác nhận trên là cho luật, không phải cho lý do.
   3. **Vẫn chờ Chairman xác nhận:** ba cách hiểu của phiên điều phối kèm OQ-29 (người được đổi quyền không bỏ phiếu cho chính mình; hạn 48 giờ; một BoM từ chối mà còn BoM khác chưa bỏ phiếu thì phiếu vẫn chờ) và hai cách hiểu kèm OQ-28.
   4. Xác nhận này không nói gì về triển khai hay dùng thật. Nhãn quyền `doc_approve:*` trong plugin và các điểm dừng khác giữ nguyên.
+
+**Quyết định của Chairman ngày 18/11/2026 về OQ-45 và OQ-46 (Chairman gõ ở phiên điều phối; phiên điều phối chép lời):** «OQ-45: 1b, 2b, 3b. OQ-46: b, mốc là bản mới nhất nháp nêu». Khối này đặt ở cuối tệp để các số dòng đã được trích ở tài liệu khác không xê dịch; nó thuộc về OQ-45 và OQ-46.
+- Chairman không chọn qua hộp chọn: phiên điều phối chưa trình hai mục này thành hộp chọn. Chairman gõ nhãn phương án theo chữ của hai mục. Phần dưới đối chiếu từng nhãn với chữ của mục; chữ trong «» chép từ mục OQ-45 và OQ-46 ở trên, không phải lời Chairman.
+- OQ-45, điểm 1 (ai xem `value`): **(b)** — «chỉ người có quyền xác nhận nháp đó (vai ghi sổ tài liệu với nháp tài liệu, điều phối dự án với nháp ứng viên)».
+- OQ-45, điểm 2 (xét lại lúc đọc): **(b)** — «lúc đọc dựng lại ngữ cảnh dưới quyền người đọc và che `value` khi nháp trích tin người đó không đọc được chữ hoặc dự án đang chỉ con trỏ, chỉ trả mã và lý do giữ».
+- OQ-45, điểm 3 (nháp của dự án `IBS_HI`): **(b)** — «từ chối ngay lúc ghi (cần cấp cho role AI quyền đọc hẹp cờ «chỉ con trỏ», hoặc một thiết kế khác)».
+- OQ-46: **(b)** — «Giữ nháp khi **đối tượng của chính nó** đã đổi: tài liệu có bản mới hơn sau lúc nháp được ghi; luồng của ứng viên có tin hoặc bản sửa mới sau lúc đó. Phải định nghĩa «sau» theo mốc nào (thời điểm ghi, hay bản mới nhất mà nháp nêu).» Mốc Chairman chọn, theo lời Chairman: «mốc là bản mới nhất nháp nêu».
+- Trạng thái mã lúc ghi (`4e0516e`): chưa có mã cho quyết định nào ở trên. Hành vi vẫn là (a) ở cả ba điểm của OQ-45 và trùng (a) của OQ-46. Không tuyến HTTP nào gọi `SuggestionService.list`; ca kiểm «no route imports the suggestion service» vẫn giữ; Z4 chưa bật.
+- Ghi chú của phiên điều phối kèm quyết định (không phải lời Chairman):
+  1. Điểm 3 (b) để ngỏ cách làm: «cần cấp cho role AI quyền đọc hẹp cờ «chỉ con trỏ», hoặc một thiết kế khác». Chairman không chọn cách làm. Planner đề xuất và cổng bảo mật soát kế hoạch trước khi viết mã. Nếu phải đổi quyền của role `libetech_ai` thì cần migration mới (số kế tiếp là 022) kèm tệp rollback.
+  2. Mốc của OQ-46 là bản mới nhất nháp nêu. Phương án (b) nói cả «tài liệu có bản mới hơn» lẫn «luồng của ứng viên có tin hoặc bản sửa mới». Cách áp mốc này cho luồng tin của nháp ứng viên phải được planner viết rõ trong kế hoạch, và ghi thành câu hỏi mở nếu chữ của Chairman không đủ để quyết.
+  3. Hai mục không còn «chưa quyết», nhưng việc bật Z4 **vẫn dừng**. Trước đó cần: mã của các quyết định trên qua đủ cổng; thiết kế và migration cho một login AI (`docs/DELIVERY-012-review-skills-20261115.md`, khoảng trống 7); bảng phân loại dữ liệu → mô hình được Chairman duyệt (OQ-14); và lời Chairman cho chính việc bật Z4.
+  4. Quyết định ở điểm 3 chặt hơn hành vi hiện tại và cùng hướng với `AGENTS.md:16` («IBS HI: pointers, hashes and Tech work metadata only.»). Khối này không sửa `AGENTS.md`.
