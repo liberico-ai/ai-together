@@ -1,5 +1,5 @@
 name: libetech-ai-os-bridge
-version: "0.3.0"
+version: "0.3.1"
 description: Read-only reconciliation, verified private account linking, and a separately keyed intake/delivery adapter. Independent of libetech-priority1.
 provides_tools:
   - libetech_os_read

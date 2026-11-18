@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 EXPECTED_HOME = Path("/home/iptech/.hermes/profiles/libetech")
 ORIGIN = "http://127.0.0.1:3148"
 ENDPOINT = ORIGIN + "/api/bridge"
@@ -311,7 +311,7 @@ def _own_command(text):
     return bool(words) and OWN_COMMAND.fullmatch(words[0]) is not None
 
 def intake_event(event, chats=None):
-    """Intake body built from the gateway's own event object; identity and placement never come from the text.
+    """Intake body built from the gateway's Telegram event; identity and placement never come from the text.
     None: not a person's message in a Telegram group of the libetech profile, a route the gateway rejected, a chat not
     in `chats` (the gateway-side allowlist from intake.json, which the hook always passes; the server's allowlist stays
     authoritative), no `chats` at all (None: fails closed, never permissive), one of this plugin's own commands, or an
@@ -329,6 +329,19 @@ def intake_event(event, chats=None):
     values["platform"] = str(getattr(platform, "value", platform) or "")
     if values["chat_type"] not in ("group", "supergroup"):
         return None
+    raw_message = getattr(event, "raw_message", None)
+    recovered_sender = False
+    if not values["user_id"] and raw_message is not None:
+        # Hermes' shared group-context mode deliberately clears source.user_id before dispatch.
+        # Recover only from the original Telegram object, with both placement IDs bound to source.
+        raw_user = getattr(raw_message, "from_user", None)
+        raw_chat = getattr(raw_message, "chat", None)
+        if (raw_user is not None and getattr(raw_message, "sender_chat", None) is None
+                and getattr(raw_user, "is_bot", False) is False
+                and str(getattr(raw_chat, "id", "") or "") == values["chat_id"]
+                and str(getattr(raw_message, "message_id", "") or "") == values["message_id"]):
+            values["user_id"] = str(getattr(raw_user, "id", "") or "")
+            recovered_sender = True
     try:
         context = dict(validated_context(values))
     except ValueError:
@@ -336,7 +349,9 @@ def intake_event(event, chats=None):
     # Before anything is downloaded, spooled or posted: only the chats this gateway may take. No list: none.
     if chats is None or context["chatId"] not in chats:
         return None
-    text = getattr(event, "text", "")
+    # Shared-context mode also prepends an attribution line to event.text. Record the
+    # Telegram message itself, not that generated line; never parse it for an actor ID.
+    text = (getattr(raw_message, "text", None) or getattr(raw_message, "caption", None) or "") if recovered_sender else getattr(event, "text", "")
     text = text.encode("utf-8", "replace").decode("utf-8") if isinstance(text, str) else ""
     if _own_command(text):
         return None
@@ -350,7 +365,6 @@ def intake_event(event, chats=None):
         return value
     topic = optional("topicId", _optional_id(getattr(source, "thread_id", None)))
     reply = optional("replyToMessageId", _optional_id(getattr(event, "reply_to_message_id", None)))
-    raw_message = getattr(event, "raw_message", None)
     album = optional("mediaGroupId", _optional_album(
         getattr(event, "media_group_id", None) or getattr(raw_message, "media_group_id", None)))
     edited = optional("editedAt", _optional_stamp(
