@@ -20,6 +20,9 @@ const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
 const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
 const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năng không hợp lệ nên không được lưu.',422);
 const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã thao tác đã được dùng với nội dung khác.',409);
+/** SQLSTATE raised by the pointer-only guard of migration 022. */
+export const POINTER_ONLY_SQLSTATE='LTZ01';
+const pointerOnlyRefused=()=>new AppError('POINTER_ONLY_PROJECT','Dự án này chỉ nhận con trỏ nên nháp AI không được lưu.',422);
 const alreadyDecided=()=>new AppError('DRAFT_ALREADY_DECIDED','Nháp này đã có quyết định.',409);
 /** Namespace of the two-integer advisory lock «decision of one draft» (0x44524654, "DRFT"); intake.ts takes the one-bigint form, a different key space. */
 export const DRAFT_DECISION_LOCK=0x44524654;
@@ -91,7 +94,8 @@ export class SuggestionService {
   // the table's backstops measure the jsonb text form, which is wider than the JSON text
   if(!outputFits(output)||jsonbTextBytes(output)>49152||jsonbTextBytes(output.sources)>65536||jsonbTextBytes(output.questions)>16384) throw draftInvalid();
   const valueHash=sha256(output),manifest=skillManifests[input.skill];
-  return aiScoped(this.aiDb,{...ai,projectIds:[input.projectId]},async tx=>{
+  try {
+  return await aiScoped(this.aiDb,{...ai,projectIds:[input.projectId]},async tx=>{
    const row=(await tx.query<{id:string}>(`INSERT INTO intelligence.ai_drafts(tenant_id,project_id,entity_type,entity_id,signal_type,skill_version,manifest_hash,model_version,value,value_hash,
      sources,questions,confidence,input_hash,ai_principal_id,trace_id,dedupe_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,$17)
      ON CONFLICT(tenant_id,dedupe_key) DO NOTHING RETURNING id`,
@@ -107,6 +111,10 @@ export class SuggestionService {
     ||old.input_hash!==input.inputHash||old.model_version!==input.modelVersion||old.skill_version!==manifest.version||old.manifest_hash!==manifest.hash) throw idempotencyConflict();
    return {draftId:old.id,stored:false};
   });
+  } catch(e) {
+   if((e as {code?:string}|null)?.code===POINTER_ONLY_SQLSTATE) throw pointerOnlyRefused();
+   throw e;
+  }
  }
 
  async list(p:Principal,raw:unknown):Promise<{items:DraftView[];total:number}> {

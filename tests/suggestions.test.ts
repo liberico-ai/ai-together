@@ -649,3 +649,50 @@ describe('Z4 drafts: boundaries',()=>{
   }
  });
 });
+
+describe('Z4 drafts: IBS HI is refused at write (OQ-45 point 3)',()=>{
+ const POINTER='Dự án này chỉ nhận con trỏ nên nháp AI không được lưu.';
+ test('a draft for an IBS HI project is refused when it is written: POINTER_ONLY_PROJECT, nothing stored, no database error text',async()=>{
+  await mapDomain(h,ids.transport,'IBS_HI',1);
+  const d=await doc(ids.transport);
+  const e=await refused(svc().submitDraft(ai,env('document',d.record.id,'technical_writer',out('technical_writer',[d.record.id]),{projectId:ids.transport})),'POINTER_ONLY_PROJECT',422);
+  expect(e.message).toBe(POINTER);
+  for(const s of [d.record.id,ids.transport,'pointer-only']) expect(e.message).not.toContain(s);
+  expect(await n('intelligence.ai_drafts')).toBe(0);
+  // a candidate draft: the sales project is mapped to IBS_HI
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  const c=await candidate();
+  const e2=await refused(svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',out('intake_analyst',[c.sourceEventId]))),'POINTER_ONLY_PROJECT',422);
+  expect(e2.message).toBe(POINTER);
+  for(const s of [c.candidateId,c.sourceEventId,ids.sales,'pointer-only']) expect(e2.message).not.toContain(s);
+  expect(await n('intelligence.ai_drafts')).toBe(0);
+ });
+
+ test('the refusal comes before the replay: an envelope first stored before the mapping is refused afterwards, and one draft stays',async()=>{
+  const d=await doc(ids.transport);
+  const e=env('document',d.record.id,'technical_writer',out('technical_writer',[d.record.id]),{projectId:ids.transport});
+  expect(await svc().submitDraft(ai,e)).toMatchObject({stored:true});
+  await mapDomain(h,ids.transport,'IBS_HI',1);
+  await refused(svc().submitDraft(ai,e),'POINTER_ONLY_PROJECT',422);
+  expect(await n('intelligence.ai_drafts')).toBe(1);
+ });
+
+ test('an unmapped project, a project under another label and a project that left IBS_HI still store',async()=>{
+  const t=await doc(ids.transport);
+  expect(await svc().submitDraft(ai,env('document',t.record.id,'technical_writer',out('technical_writer',[t.record.id]),{projectId:ids.transport}))).toMatchObject({stored:true});
+  await mapDomain(h,ids.sales,'XECA',1);
+  const s=await doc(ids.sales);
+  expect(await svc().submitDraft(ai,env('document',s.record.id,'technical_writer',out('technical_writer',[s.record.id])))).toMatchObject({stored:true});
+  await mapDomain(h,ids.transport,'IBS_HI',1);
+  await mapDomain(h,ids.transport,'LIBERICO_BU',2);
+  const t2=await doc(ids.transport);
+  expect(await svc().submitDraft(ai,env('document',t2.record.id,'technical_writer',out('technical_writer',[t2.record.id]),{projectId:ids.transport}))).toMatchObject({stored:true});
+  expect(await n('intelligence.ai_drafts')).toBe(3);
+ });
+
+ test("the pipeline's own project list answers first: an IBS HI project outside ai.projectIds is the not-found answer, before any statement",async()=>{
+  await mapDomain(h,ids.transport,'IBS_HI',1);
+  const d=await doc(ids.transport);
+  await denied(svc(handle).submitDraft({...ai,projectIds:[ids.sales]},env('document',d.record.id,'technical_writer',out('technical_writer',[d.record.id]),{projectId:ids.transport})));
+ });
+});
