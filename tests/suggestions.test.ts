@@ -12,6 +12,7 @@ import {DependencyService} from '../src/server/document-dependencies';
 import {DocumentService} from '../src/server/documents';
 import {ids} from '../src/server/identities';
 import {canonicalJson,skillManifests} from '../src/server/skills';
+import {AppError} from '../src/server/errors';
 import {MAX_OUTPUT_BYTES,type SkillName} from '../src/server/skill-contracts';
 import {buildSkillContextIn} from '../src/server/skill-context';
 import {SuggestionService} from '../src/server/suggestions';
@@ -61,12 +62,12 @@ const env=(entityType:'intake_candidate'|'document',entityId:string,skill:SkillN
  inputHash:'c'.repeat(64),modelVersion:'synthetic-model-1',dedupeKey:'dk-'+randomUUID(),traceId:randomUUID(),...over});
 
 let msgSeq=0;
-async function candidate(){
+async function candidate(o:{excerpt?:boolean}={}){
  msgSeq+=1;
  const e=messageEvent({text:`Cổng thanh toán báo lỗi 500 lần ${msgSeq}`,context:{chatId:chatSales}});
- const ack=await new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:chats}).ingest(e);
+ const ack=await new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:o.excerpt===false?[]:chats}).ingest(e);
  const r=(await rows<{id:string}>('SELECT c.id FROM intake_candidates c JOIN source_events s ON s.chat_id=c.chat_id AND s.thread_key=c.thread_key AND s.project_id=c.project_id WHERE s.id=$1',[ack.sourceEventId]))[0];
- return {sourceEventId:ack.sourceEventId,candidateId:r.id};
+ return {sourceEventId:ack.sourceEventId,candidateId:r.id,event:e};
 }
 const fresh=(id:string)=>new DocumentService(h.db).detail(pm,id);
 /** A document of the project with one proposed revision. */
@@ -756,6 +757,141 @@ describe('Z4 drafts: who reads the content (OQ-45 point 1)',()=>{
   const it=l.items.find(i=>i.id===x.id) as unknown as R;
   expect(it).toMatchObject({maskReasons:['SCHEMA_INVALID'],value:null,sources:[]});
   expect(JSON.stringify(l)).not.toContain(MARK);
+ });
+});
+
+describe('Z4 drafts: the content is re-checked at read time (OQ-45 point 2)',()=>{
+ const MARK='zq-read-'+randomUUID().replace(/-/g,'');
+ const q=(entityType:'intake_candidate'|'document',entityId:string)=>({projectId:ids.sales,entityType,entityId});
+ const loudOut=(c:{sourceEventId:string})=>out('intake_analyst',[c.sourceEventId],{claims:[{field:'classification',value:MARK,basis:[c.sourceEventId]}],questions:[{field:'classification',question:MARK}]});
+ const loudDraft=async(o:{excerpt?:boolean}={})=>{
+  const c=await candidate(o),output=loudOut(c);
+  const r=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',output));
+  return {...c,output,draftId:r.draftId,valueHash:sha(output)};
+ };
+ const one=async(s:SuggestionService,p:Principal,entityType:'intake_candidate'|'document',entityId:string)=>{
+  const l=await s.list(p,q(entityType,entityId));
+  return {l,it:l.items[0] as unknown as R};
+ };
+
+ test('M1 the content is masked when the reader cannot read the text of a message the draft cites',async()=>{
+  const a=await loudDraft({excerpt:false});
+  const {l,it}=await one(svc(),pm,'intake_candidate',a.candidateId);
+  expect(it).toMatchObject({maskReasons:['TEXT_NOT_VISIBLE'],value:null,questions:null,confidence:null,skillVersion:null,modelVersion:null,sources:[],valueHash:sha(a.output)});
+  expect(JSON.stringify(l)).not.toContain(MARK);expect(JSON.stringify(l)).not.toContain(a.sourceEventId);
+  const b=await loudDraft();
+  for(const s of [svc(h.operator,[]),new SuggestionService(h.db)]) {
+   const x=await one(s,pm,'intake_candidate',b.candidateId);
+   expect(x.it.maskReasons).toContain('TEXT_NOT_VISIBLE');expect(x.it.value).toBeNull();
+   expect(JSON.stringify(x.l)).not.toContain(MARK);
+  }
+  const ok=await one(svc(),pm,'intake_candidate',b.candidateId);
+  expect(ok.it.maskReasons).toEqual([]);expect(JSON.stringify(ok.it.value)).toContain(MARK);
+ });
+
+ test('M2 the content is masked once the project is pointer-only: mapped to IBS_HI after the draft was stored, for a document draft and a candidate draft; the latest row decides',async()=>{
+  const d=await docDraft(),c=await candDraft();
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  for(const [t,id] of [['document',d.d.record.id],['intake_candidate',c.candidateId]] as const) {
+   const {it}=await one(svc(),pm,t,id);
+   expect(it.value,t).toBeNull();expect(it.maskReasons,t).toContain('POINTER_ONLY_PROJECT');
+  }
+  await mapDomain(h,ids.sales,'XECA',2);
+  for(const [t,id] of [['document',d.d.record.id],['intake_candidate',c.candidateId]] as const) {
+   const {it}=await one(svc(),pm,t,id);
+   expect(it.maskReasons,t).toEqual([]);expect(it.value,t).not.toBeNull();
+  }
+ });
+
+ test('M3 what cannot be proven readable is masked: an id outside the rebuilt context, a source of another project, an entity that is gone, a pair the builder refuses',async()=>{
+  const d1=await doc(),d2=await doc(),t=await doc(ids.transport),c=await candidate(),gone=randomUUID();
+  await rawDraft({entityType:'document',entityId:d1.record.id,value:out('technical_writer',[d1.record.id,randomUUID()])});
+  await rawDraft({entityType:'document',entityId:d2.record.id,value:out('technical_writer',[d2.record.id,t.record.id])});
+  await rawDraft({entityType:'document',entityId:gone});
+  await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,skill:'technical_writer'});
+  const cases:[string,'intake_candidate'|'document',string,string][]=[['i','document',d1.record.id,'SOURCE_OUT_OF_CONTEXT'],['ii','document',d2.record.id,'SOURCE_OUT_OF_CONTEXT'],
+   ['iii','document',gone,'ENTITY_NOT_FOUND'],['iv','intake_candidate',c.candidateId,'ENTITY_NOT_FOUND']];
+  for(const [name,type,id,reason] of cases) {
+   const {it}=await one(svc(),pm,type,id);
+   expect(it.maskReasons,name).toEqual([reason]);expect(it.value,name).toBeNull();expect(it.sources,name).toEqual([]);
+  }
+ });
+
+ test('M4 for a document draft a reason that is not about what the reader may read does not mask: an older manifest hash, a value hash that does not describe the value, an unsourced claim, a draft without sources',async()=>{
+  const mk=async(value:R|undefined,over:R={})=>{const d=await doc();const v=value??out('technical_writer',[d.record.id]);await rawDraft({entityType:'document',entityId:d.record.id,value:v,over});return d;};
+  const a=await mk(undefined,{manifest_hash:'d'.repeat(64)});
+  const b=await mk(undefined,{value_hash:'f'.repeat(64)});
+  const c=await doc();await rawDraft({entityType:'document',entityId:c.record.id,value:out('technical_writer',[c.record.id],{claims:[{field:'f',value:'v',basis:[]}]})});
+  const e=await doc();await rawDraft({entityType:'document',entityId:e.record.id,value:out('technical_writer',[])});
+  for(const [name,x] of [['manifest',a],['value hash',b],['unsourced',c],['no sources',e]] as const) {
+   const {it}=await one(svc(),pm,'document',x.record.id);
+   expect(it.maskReasons,name).toEqual([]);expect(it.value,name).not.toBeNull();
+  }
+ });
+
+ test('M5 the read context is built under the reader, once per skill, and never for a reader without the authority',async()=>{
+  const c=await candidate();
+  for(let i=0;i<3;i++) await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value:out('intake_analyst',[c.sourceEventId])});
+  vi.mocked(buildSkillContextIn).mockClear();
+  await svc().list(pm,q('intake_candidate',c.candidateId));
+  const calls=vi.mocked(buildSkillContextIn).mock.calls;
+  expect(calls).toHaveLength(1);
+  expect(calls[0][1].id).toBe(pm.id);
+  expect(calls[0][2]).toMatchObject({skill:'intake_analyst',projectId:ids.sales,candidateId:c.candidateId});
+  expect(calls[0][3]).toEqual(chats);
+  const d=await doc();
+  await rawDraft({entityType:'document',entityId:d.record.id,value:out('technical_writer',[d.record.id])});
+  await rawDraft({entityType:'document',entityId:d.record.id,skill:'ba_elicitation',value:out('ba_elicitation',[d.record.id])});
+  vi.mocked(buildSkillContextIn).mockClear();
+  await svc().list(pm,q('document',d.record.id));
+  expect(vi.mocked(buildSkillContextIn).mock.calls).toHaveLength(2);
+  vi.mocked(buildSkillContextIn).mockClear();
+  await svc().list(member,q('intake_candidate',c.candidateId));
+  expect(vi.mocked(buildSkillContextIn).mock.calls).toHaveLength(0);
+ });
+
+ test('M6 an error the service does not understand is not turned into a mask: the read fails and returns nothing',async()=>{
+  const c=await candDraft();
+  const boom=new AppError('CONTEXT_TOO_LARGE','x',500);
+  vi.mocked(buildSkillContextIn).mockRejectedValueOnce(boom);
+  await expect(svc().list(pm,q('intake_candidate',c.candidateId))).rejects.toBe(boom);
+ });
+
+ test('M7 decide answers with the same masked view: a rejection by a manager who cannot read the cited text is recorded, and its answer carries no content',async()=>{
+  const a=await loudDraft();
+  const r=await decide(svc(h.operator,[]),pm,a.draftId,{result:'rejected',valueHash:a.valueHash,reason:'Không đọc được nguồn'});
+  expect(r.decision?.result).toBe('rejected');expect(r.maskReasons).toContain('TEXT_NOT_VISIBLE');expect(r.value).toBeNull();
+  expect(JSON.stringify(r)).not.toContain(MARK);
+  expect(await n('draft_decisions')).toBe(1);
+ });
+
+ test('M8 under a mask sources is empty whatever the sources column names: ids of the rebuilt context, repeated and reordered, do not come back',async()=>{
+  const c=await candidate(),d=await doc();
+  const strangers=Array.from({length:30},()=>randomUUID());
+  const col=[d.record.id,...Array.from({length:60},()=>c.sourceEventId),...strangers];
+  const x=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value:out('intake_analyst',[c.sourceEventId]),over:{sources:JSON.stringify(col.map(id=>({id})))}});
+  const rec=recordingDb(h.db);
+  const l=await new SuggestionService(rec.db,h.operator,[]).list(pm,q('intake_candidate',c.candidateId));
+  const it=l.items.find(i=>i.id===x.id) as unknown as R;
+  expect(it).toMatchObject({value:null,sources:[]});
+  for(const text of [JSON.stringify(l)]) for(const code of [c.sourceEventId,d.record.id,...strangers]) expect(text).not.toContain(code);
+  const seen=JSON.stringify(rec.rows());
+  for(const code of strangers) expect(seen).not.toContain(code);
+  const gone=randomUUID(),many=Array.from({length:50},()=>randomUUID());
+  const y=await rawDraft({entityType:'document',entityId:gone,over:{sources:JSON.stringify(many.map(id=>({id})))}});
+  const l2=await svc().list(pm,q('document',gone));
+  expect((l2.items.find(i=>i.id===y.id) as unknown as R).sources).toEqual([]);
+  for(const code of many) expect(JSON.stringify(l2)).not.toContain(code);
+ });
+
+ test('M9 a replayed decision on a project that became pointer-only answers with the recorded decision and no content',async()=>{
+  const x=await docDraft(),key=k(),b={result:'rejected',valueHash:x.valueHash,reason:'Không phù hợp phạm vi'};
+  const first=await decide(svc(),pm,x.draftId,b,key);
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  const again=await decide(svc(),pm,x.draftId,b,key);
+  expect(again.decision?.result).toBe('rejected');expect(again.decision?.decidedAt).toBe(first.decision?.decidedAt);
+  expect(again.maskReasons).toEqual(['POINTER_ONLY_PROJECT']);expect(again.value).toBeNull();
+  expect(await n('draft_decisions')).toBe(1);
  });
 });
 

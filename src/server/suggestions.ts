@@ -7,7 +7,7 @@ import {READ_ROLES} from './document-review';
 import {DocumentService,mayWriteDocuments,proposeSchema,READ_ONLY_MESSAGE} from './documents';
 import {AppError,invariant} from './errors';
 import {buildSkillContextIn,CONTEXT_KINDS} from './skill-context';
-import {checkSkillOutput,MAX_OUTPUT_BYTES,outputFits,outputSchemas,SKILLS,type SkillName,type SkillOutput} from './skill-contracts';
+import {checkSkillOutput,MAX_OUTPUT_BYTES,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
 import {canonicalJson,skillManifests} from './skills';
 import {storable} from './text-safety';
 import {projectRole} from './types';
@@ -75,6 +75,9 @@ type DraftRow={id:string;project_id:string;entity_type:EntityType;entity_id:stri
   dec_result:'confirmed'|'rejected'|null;dec_by:string|null;dec_at:unknown;dec_revision:string|null;dec_key:string|null};
 /** OQ-45 point 1 (b): the one rule for who may decide a draft, which is also who may read its content. */
 const mayDecide=(role:Role,entityType:EntityType)=>entityType==='document'?mayWriteDocuments(role):role==='manager';
+
+/** The hold reasons of the output gate that are about what the reader may read; the others never mask (OQ-45 point 2 (b)). */
+const VISIBILITY:ReadonlySet<string>=new Set(['SCHEMA_INVALID','SOURCE_OUT_OF_CONTEXT','TEXT_NOT_VISIBLE']);
 
 const HEAD='d.id,d.project_id,d.entity_type,d.entity_id,d.signal_type,d.created_at';
 const DECISION='x.result AS dec_result,x.decided_by AS dec_by,x.created_at AS dec_at,x.document_revision_id AS dec_revision,x.command_key AS dec_key';
@@ -144,13 +147,40 @@ export class SuggestionService {
   }
  }
 
- /** Every DraftView leaves the service through here. A person who may not decide a draft gets one mask reason and no content; a stored value that does not fit the contract is masked for everyone. */
- private async present(_tx:Queryable,p:Principal,projectId:string,rows:DraftRow[]):Promise<DraftView[]> {
-  return rows.map(r=>{
-   if(!mayDecide(projectRole(p,projectId),r.entity_type)) return toView(r,['CONFIRM_AUTHORITY_REQUIRED'],null);
+ /** The context of one draft under this person's rights, or null when the entity is not in the project or the pair cannot be built. Any other error propagates. */
+ private async contextFor(tx:Queryable,p:Principal,projectId:string,r:{signal_type:SkillName;entity_type:EntityType;entity_id:string}):Promise<SkillContext|null> {
+  try {
+   return await buildSkillContextIn(tx,p,{skill:r.signal_type,projectId,...(r.entity_type==='document'?{documentId:r.entity_id}:{candidateId:r.entity_id})},this.excerptChats);
+  } catch(e) {
+   if(e instanceof AppError&&(e.code==='SCOPE_DENIED'||e.code==='INVALID_INPUT')) return null;
+   throw e;
+  }
+ }
+
+ /**
+  * Every DraftView leaves the service through here. A person who may not decide a draft gets one mask reason and no content and no context is built for them.
+  * For a person who may, the content is re-checked against the context rebuilt under their own rights: the reasons of the output gate that are about what they may read
+  * (and a pointer-only project, a missing entity, a value off the contract) mask it. The context only yields reasons; it never supplies a source id to the answer.
+  */
+ private async present(tx:Queryable,p:Principal,projectId:string,rows:DraftRow[],contexts:Map<string,SkillContext|null>=new Map()):Promise<DraftView[]> {
+  const views:DraftView[]=[];
+  for(const r of rows) {
+   if(!mayDecide(projectRole(p,projectId),r.entity_type)) {views.push(toView(r,['CONFIRM_AUTHORITY_REQUIRED'],null));continue;}
+   const reasons=new Set<MaskReason>();
    const parsed=outputFits(r.value)?outputSchemas[r.signal_type].safeParse(r.value):null;
-   return parsed?.success?toView(r,[],parsed.data):toView(r,['SCHEMA_INVALID'],null);
-  });
+   if(!parsed?.success) reasons.add('SCHEMA_INVALID');
+   const key=`${r.signal_type}:${r.entity_type}:${r.entity_id}`;
+   if(!contexts.has(key)) contexts.set(key,await this.contextFor(tx,p,projectId,r));
+   const ctx=contexts.get(key)??null;
+   if(!ctx) reasons.add('ENTITY_NOT_FOUND');
+   else {
+    if(ctx.pointerOnly) reasons.add('POINTER_ONLY_PROJECT');
+    const m=skillManifests[r.signal_type];
+    for(const x of checkSkillOutput({name:m.name,hash:m.hash,toolAllowlist:m.toolAllowlist},ctx,r.value).reasons) if(VISIBILITY.has(x)) reasons.add(x as MaskReason);
+   }
+   views.push(reasons.size===0&&parsed?.success?toView(r,[],parsed.data):toView(r,[...reasons].sort(),null));
+  }
+  return views;
  }
 
  async list(p:Principal,raw:unknown):Promise<{items:DraftView[];total:number}> {
@@ -197,6 +227,8 @@ export class SuggestionService {
    // ONE idempotency claim for every decision. The fingerprint is the operation, the draft and the whole parsed command (result, valueHash, reason, revision):
    // the same person, key and content replay the recorded outcome (the decision's id; the view is read again); the same key with other content is IDEMPOTENCY_CONFLICT.
    // Anything thrown below rolls the claim back with the rest, so a refusal or a hold leaves the key free.
+   // the context built to hold or confirm is reused for the answer; a rejection or a replay has none and present builds its own
+   const contexts=new Map<string,SkillContext|null>();
    await claimDocumentCommand(tx,p,projectId,key,{op:'draft.decide',draftId:id,...input},async()=>{
     // authority first: a person who may not decide learns nothing from the draft's state or from the hash they sent (OQ-45 point 1)
     if(!mayDecide(projectRole(p,projectId),d.entity_type)) {
@@ -222,12 +254,9 @@ export class SuggestionService {
       if(!(e instanceof TypeError)) throw e;
      }
      if(recomputed!==d.value_hash) reasons.add('VALUE_HASH_MISMATCH');
-     let ctx:Awaited<ReturnType<typeof buildSkillContextIn>>|null=null;
-     try {
-      ctx=await buildSkillContextIn(tx,p,{skill:d.signal_type,projectId,...(d.entity_type==='document'?{documentId:d.entity_id}:{candidateId:d.entity_id})},this.excerptChats);
-     } catch(e) {
-      if(e instanceof AppError&&(e.code==='SCOPE_DENIED'||e.code==='INVALID_INPUT')) reasons.add('ENTITY_NOT_FOUND'); else throw e;
-     }
+     const ctx=await this.contextFor(tx,p,projectId,d);
+     contexts.set(`${d.signal_type}:${d.entity_type}:${d.entity_id}`,ctx);
+     if(!ctx) reasons.add('ENTITY_NOT_FOUND');
      if(ctx) {
       if(ctx.pointerOnly) reasons.add('POINTER_ONLY_PROJECT');
       for(const r of checkSkillOutput({name:manifest.name,hash:manifest.hash,toolAllowlist:manifest.toolAllowlist},ctx,d.value).reasons) reasons.add(r);
@@ -248,7 +277,7 @@ export class SuggestionService {
    // the stored idempotent response holds the decision's id only; the view is always read again
    const view=(await tx.query<DraftRow>(`${DRAFT_SQL} WHERE d.id=$1::uuid`,[id])).rows[0];
    if(!view||!view.dec_result) throw denied();
-   return (await this.present(tx,p,projectId,[view]))[0];
+   return (await this.present(tx,p,projectId,[view],contexts))[0];
   });
  }
 }
