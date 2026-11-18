@@ -421,6 +421,24 @@ class IntakeAdapterTests(unittest.TestCase):
         self.assertIsNone(take(None))
         self.assertIsNone(take(SimpleNamespace(text=text)))
 
+    def test_intake_recovers_sender_only_from_matching_raw_telegram_message(self):
+        raw=SimpleNamespace(chat=SimpleNamespace(id=int(GROUP)),message_id=41,
+                            from_user=SimpleNamespace(id=int(SENDER),is_bot=False),sender_chat=None,
+                            text='@LiBeAiTogetherBot PMTEST-082: ghi nhận thử')
+        event=tg_event('[Phuong|123]\nPMTEST-082: ghi nhận thử',source=dict(user_id=''),
+                       raw_message=raw,reply_expected=True)
+        payload=take(event)
+        self.assertEqual(payload['context']['telegramId'],SENDER)
+        self.assertEqual(payload['text'],raw.text)
+        self.assertEqual(payload['contentHash'],hashlib.sha256(raw.text.encode()).hexdigest())
+        self.assertTrue(payload['addressed'])
+        self.assertIsNone(take(tg_event(source=dict(user_id=''))))
+        for changed in (dict(chat=SimpleNamespace(id=-100998)),dict(message_id=42),
+                        dict(from_user=SimpleNamespace(id=int(SENDER),is_bot=True)),
+                        dict(sender_chat=SimpleNamespace(id=int(GROUP)))):
+            self.assertIsNone(take(tg_event(source=dict(user_id=''),raw_message=SimpleNamespace(**(vars(raw)|changed)))))
+        self.assertIsNone(bridge.intake_event(event,chats=['-100998']))
+
     def test_reply_topic_album_edit_and_forward_are_carried(self):
         edited=datetime(2026,11,14,2,3,4,tzinfo=timezone.utc)
         cases=[(tg_event(reply_to_message_id='40'),'context','replyToMessageId','40'),
