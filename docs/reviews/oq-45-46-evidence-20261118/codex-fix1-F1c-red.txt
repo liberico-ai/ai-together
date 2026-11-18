@@ -1,0 +1,40 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/z4-pointer-guard.test.ts (34 tests | 1 failed | 9 skipped) 13836ms
+   ❯ migration 022: the pointer-only guard (34)
+     × G21 the guard and the lock function lock the project row of a row while that row is handled, before the foreign-key check at the end of the statement: the next row of the same statement sees the row locked by this transaction; no advisory lock is taken 589ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G21 the guard and the lock function lock the project row of a row while that row is handled, before the foreign-key check at the end of the statement: the next row of the same statement sees the row locked by this transaction; no advisory lock is taken
+AssertionError: draft side: expected [ { m: 'flag-false' } ] to deeply equal [ { m: 'flag-true' } ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "m": "flag-true",
++     "m": "flag-false",
+    },
+  ]
+
+ ❯ tests/z4-pointer-guard.test.ts:620:10
+    618|         FROM (VALUES ($${n+1}::uuid,NULL::uuid),($${n+2}::uuid,$${n+3}…
+    619|       expect((await tx.query<{m:string}>("SELECT model_version m FROM …
+    620|         .toEqual([{m:'flag-true'}]);
+       |          ^
+    621|       // (i) no advisory lock of the key space of the former body of 0…
+    622|       expect(await locks(tx),'draft side').toEqual([]);
+ ❯ tests/slice2-fixtures.ts:91:5
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 24 passed | 9 skipped (34)
+   Start at  14:32:05
+   Duration  14.00s (tests 99%)
+

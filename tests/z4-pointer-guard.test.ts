@@ -17,7 +17,7 @@ beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);a
 afterEach(async()=>{await h.reset();await h.close();});
 
 type R=Record<string,unknown>;
-type Refusal={code?:string;message:string;detail?:string;hint?:string;where?:string}|null;
+type Refusal={code?:string;message:string;detail?:string;hint?:string;where?:string;schema?:string;table?:string;constraint?:string}|null;
 const AI=aiPrincipal.id;
 const HASH='a'.repeat(64);
 const S=[ids.sales];
@@ -58,6 +58,12 @@ const mapIn=(tx:Queryable,project:string,code:'LIBERICO_BU'|'XECA'|'IBS_HI',vers
 const locks=async(q:Queryable)=>(await q.query<{mode:string;o:number|string;s:number}>(`SELECT mode, objid::bigint AS o, objsubid AS s FROM pg_locks WHERE locktype='advisory' AND classid=$1
   AND database=(SELECT oid FROM pg_database WHERE datname=current_database()) ORDER BY 1`,[NS])).rows;
 const LOCK_LINE='PERFORM 1 FROM public.projects p WHERE p.id = NEW.project_id AND p.tenant_id = NEW.tenant_id FOR NO KEY UPDATE;';
+// the one foreign key of a table that references public.projects, read from the catalog
+const fkToProjects=async(table:string)=>{
+  const fk=await rows<{conname:string}>("SELECT conname FROM pg_constraint WHERE conrelid=$1::regclass AND contype='f' AND confrelid='public.projects'::regclass",[table]);
+  expect(fk,table).toHaveLength(1);
+  return fk[0].conname;
+};
 const mappings=async(project:string)=>(await rows<{n:number}>('SELECT count(*)::int n FROM public.project_domain_mappings WHERE project_id=$1',[project]))[0].n;
 // an AI-role transaction that inserts a draft of a project and stays open until released: the shape of G24
 const openDraft=(project:string)=>{
@@ -485,6 +491,28 @@ describe('migration 022: the pointer-only guard',()=>{
       expect((await refusal(asAi(tx=>tx.query(sql,[ids.sales]))))?.message,'AI '+strength).toMatch(/permission denied/);
       expect((await refusal(asRuntime(pm.id,S,tx=>tx.query(sql,[ids.sales]))))?.message,'runtime '+strength).toMatch(/permission denied/);
     }
+    // R-3, S-7: every libetech role, not only these two. Each attempt runs in its own transaction, which always ends in an error and rolls back.
+    const roles=(await rows<{rolname:string}>("SELECT rolname FROM pg_roles WHERE rolname LIKE 'libetech%' ORDER BY 1")).map(r=>r.rolname);
+    expect(roles.length).toBeGreaterThanOrEqual(9);
+    for(const role of roles){
+      expect(role).toMatch(/^libetech[a-z0-9_]*$/);
+      const e=await refusal(h.operator.transaction(async tx=>{
+        await tx.query(`SET LOCAL ROLE ${role}`);
+        await tx.query('SELECT 1 FROM public.projects WHERE id=$1 FOR NO KEY UPDATE',[ids.sales]);
+        throw new Error('the row lock was taken by '+role);
+      }));
+      expect(e?.message,role).toMatch(/permission denied/);
+    }
+    // and the catalog: no explicit grant of UPDATE, DELETE or TRUNCATE on public.projects, on the table or on a column, to PUBLIC or to a role that is
+    // not a superuser (query F of the database re-look, reduced to the ACL entries; predefined pg_* roles are outside it)
+    expect(await rows(`SELECT 'table' lvl, coalesce(r.rolname,'PUBLIC') grantee, a.privilege_type
+        FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) a LEFT JOIN pg_roles r ON r.oid=a.grantee
+       WHERE c.oid='public.projects'::regclass AND a.privilege_type IN ('UPDATE','DELETE','TRUNCATE') AND (a.grantee=0 OR NOT r.rolsuper)
+      UNION ALL
+      SELECT 'column '||t.attname, coalesce(r.rolname,'PUBLIC'), a.privilege_type
+        FROM pg_attribute t CROSS JOIN LATERAL aclexplode(t.attacl) a LEFT JOIN pg_roles r ON r.oid=a.grantee
+       WHERE t.attrelid='public.projects'::regclass AND a.privilege_type IN ('UPDATE','DELETE','TRUNCATE') AND (a.grantee=0 OR NOT r.rolsuper)
+      ORDER BY 1,2,3`)).toEqual([]);
     const PINS:Record<string,{prosecdef:boolean;proconfig:string[]}>={
       ai_drafts_declared_scope_guard:{prosecdef:false,proconfig:['search_path=pg_catalog, pg_temp']},
       project_domain_mappings_draft_lock:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s']},
@@ -572,17 +600,38 @@ describe('migration 022: the pointer-only guard',()=>{
   // ---- CX4: a row lock on the project row (FOR NO KEY UPDATE), in the guard and in a mapping insert ----
   // One PGlite connection cannot observe the strength of a row lock: these cases assert what one connection sees. The strength is pinned by G12/G20
   // (the text of the functions) and by the native cases G24, G27 and N3-N6.
-  test('G21 a draft insert and a mapping insert each lock the row of their project in public.projects (its xmax is set inside the transaction) and take no advisory lock',async()=>{
-    const xmax=async(q:Queryable)=>(await q.query<{x:string}>('SELECT xmax::text x FROM public.projects WHERE id=$1',[ids.sales])).rows[0].x;
-    for(const [label,write] of [['draft insert',(tx:Queryable)=>insertDraft(tx,{project_id:ids.sales})],['mapping insert',(tx:Queryable)=>mapIn(tx,ids.sales,'XECA',1)]] as const){
-      await rolledBack(h.operator,async tx=>{
-        await write(tx);
-        // (i) no advisory lock of the key space of the former body of 022
-        expect(await locks(tx),label).toEqual([]);
-        // (ii) the project row carries a lock of this transaction
-        expect(await xmax(tx),label).not.toBe('0');
-      });
-    }
+  test('G21 the guard and the lock function lock the project row of a row while that row is handled, before the foreign-key check at the end of the statement: the next row of the same statement sees the row locked by this transaction; no advisory lock is taken',async()=>{
+    // R-1: the foreign-key check also locks the project row, but only at the end of the statement. Row 2 of a two-row statement reads, through a
+    // correlated sub-query evaluated when row 2 is produced, whether the project row of row 1 carries this transaction's id in its xmax: it does
+    // only if the trigger of row 1 locked it. xmax is compared with the transaction's own id, so a stale xmax of an earlier transaction reads false.
+    const FLAG_OF=ids.sales; // the project of row 1
+    const flag=(of:string)=>`'flag-'||(SELECT (p.xmax::text = pg_current_xact_id()::xid::text)::text FROM public.projects p WHERE p.id = ${of})`;
+    const now=async(tx:Queryable)=>(await tx.query<{f:string}>(`SELECT ${flag('$1::uuid')} f`,[FLAG_OF])).rows[0].f;
+    // draft side, as the operational login (it may read public.projects): row 1 of ids.sales, row 2 of ids.transport carries the flag in model_version
+    await rolledBack(h.operator,async tx=>{
+      expect(await now(tx),'draft side, before').toBe('flag-false');
+      const v=draftVals(),keys=Object.keys(v),own=keys.filter(k=>!['project_id','entity_id','dedupe_key','model_version'].includes(k));
+      const expr=(k:string)=>k==='project_id'?'u.project_id':k==='entity_id'?'gen_random_uuid()':k==='dedupe_key'?"'draft-'||gen_random_uuid()::text"
+        :k==='model_version'?`CASE WHEN u.flag_of IS NULL THEN 'synthetic-model' ELSE ${flag('u.flag_of')} END`:`$${own.indexOf(k)+1}::${CAST[k]??'text'}`;
+      const n=own.length;
+      await tx.query(`INSERT INTO intelligence.ai_drafts(${keys.join(',')}) SELECT ${keys.map(expr).join(',')}
+        FROM (VALUES ($${n+1}::uuid,NULL::uuid),($${n+2}::uuid,$${n+3}::uuid)) u(project_id,flag_of)`,[...own.map(k=>v[k]),ids.sales,ids.transport,FLAG_OF]);
+      expect((await tx.query<{m:string}>("SELECT model_version m FROM intelligence.ai_drafts WHERE project_id=$1 AND model_version LIKE 'flag-%'",[ids.transport])).rows,'draft side')
+        .toEqual([{m:'flag-true'}]);
+      // (i) no advisory lock of the key space of the former body of 022
+      expect(await locks(tx),'draft side').toEqual([]);
+    });
+    // mapping side: row 1 of ids.sales, row 2 of ids.transport carries the flag in source
+    await rolledBack(h.operator,async tx=>{
+      expect(await now(tx),'mapping side, before').toBe('flag-false');
+      await tx.query(`INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version)
+        SELECT $1::uuid,u.project_id,'XECA',$2::uuid,CASE WHEN u.flag_of IS NULL THEN 'synthetic-source' ELSE ${flag('u.flag_of')} END,1
+        FROM (VALUES ($3::uuid,NULL::uuid),($4::uuid,$5::uuid)) u(project_id,flag_of)`,[ids.tenant,pm.id,ids.sales,ids.transport,FLAG_OF]);
+      expect((await tx.query<{s:string}>('SELECT source s FROM project_domain_mappings WHERE project_id=$1',[ids.transport])).rows,'mapping side').toEqual([{s:'flag-true'}]);
+      expect(await locks(tx),'mapping side').toEqual([]);
+    });
+    expect(await count()).toBe(0);
+    expect(await mappings(ids.sales)+await mappings(ids.transport)).toBe(0);
   });
 
   test('G22 a draft insert in the transaction that wrote an IBS_HI mapping is refused; a row without a project is answered by the table',async()=>{
@@ -618,12 +667,15 @@ describe('migration 022: the pointer-only guard',()=>{
       ['(b) the operational login, a random project',()=>refusal(insertDraft(h.operator,{project_id:randomUUID()}))],
       ['(c) the operational login, a project of another tenant',()=>refusal(insertDraft(h.operator,{tenant_id:ids.otherTenant,project_id:ids.sales}))],
     ];
+    const fk=await fkToProjects('intelligence.ai_drafts');
     for(const [label,run] of cases){
       const e=await run();
       expect(e,label).not.toBeNull();
       expect(e!.code,label).toBe('23503');
       expect(e!.message,label).toContain('foreign key');
       expect(e!.hint,label).toContain('ai_drafts_pointer_only_guard');
+      // R-2: the fields of the refusal are the catalog's, not only words in the function
+      expect({schema:e!.schema,table:e!.table,constraint:e!.constraint},label).toEqual({schema:'intelligence',table:'ai_drafts',constraint:fk});
     }
     expect(await count()).toBe(0);
   });
@@ -635,6 +687,7 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(e!.code).toBe('23503');
     expect(e!.message).toContain('foreign key');
     expect(e!.hint).toContain('project_domain_mappings_draft_lock');
+    expect({schema:e!.schema,table:e!.table,constraint:e!.constraint}).toEqual({schema:'public',table:'project_domain_mappings',constraint:await fkToProjects('public.project_domain_mappings')});
     expect(await mappings(ghost)).toBe(0);
     await rolledBack(h.operator,async tx=>{
       await tx.query("SET LOCAL lock_timeout = '1234ms'");
@@ -853,5 +906,22 @@ describe('migration 022: the pointer-only guard',()=>{
     // the session-level key is released before its connection goes back to the pool
     expect(unlocked).toBe(true);
     expect((await rows<{n:number}>("SELECT count(*)::int n FROM pg_locks WHERE locktype='advisory' AND classid=$1",[NS]))[0].n).toBe(0);
+  },20000);
+
+  test.skipIf(!native)('N7 the ordinary contention path: a second draft of a project waits for an open draft transaction of that project and is then stored',async()=>{
+    const P=ids.transport;
+    const before=await count();
+    const one=openDraft(P);
+    let second:Promise<Refusal>|undefined;
+    try {
+      await one.ready;
+      second=cappedAi(tx=>insertDraft(tx,{project_id:P}),[P]);
+      await waitForBlocked(h,1);
+    } finally {
+      one.release();
+      await one.done;
+    }
+    expect(await second).toBeNull();
+    expect(await count()).toBe(before+2);
   },20000);
 });

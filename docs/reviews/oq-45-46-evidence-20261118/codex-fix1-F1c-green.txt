@@ -1,0 +1,44 @@
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G1 the guard refuses a draft for a project whose latest mapping row is IBS_HI: SQLSTATE LTZ01, a message without ids, nothing stored 688ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G2 an unmapped project, a project under another label and a project whose latest row left IBS_HI still store 542ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G3 the highest mapping_version decides, whatever the order the rows were written in 523ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G4 the guard reads the mapping of the row's own tenant: a row that names another tenant is answered by row-level security, a row that reaches the definer guard with a tenant that does not own the project is answered 23503, never LTZ01, and nothing is stored 548ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G5 the guard answers before the conflict check: the dedupe key of a draft stored before the mapping is refused on replay, and one row stays 506ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G6 the pointer-only guard also stops the operational login 579ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G7 34d without a transaction context nothing is stored and nothing is told: an IBS_HI project and any other project get the same answer, the one row-level security gives 503ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G8 34a 34e the AI role gains nothing to read or call 528ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G9 a role bound by row-level security cannot tell an IBS_HI project outside its declared scope from any other: the same SQLSTATE and the same message; inside the declared scope the guard answers LTZ01 519ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G10 34c update and delete of a draft stay refused 519ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G11 fail-closed: when the guard function is owned by a role that row-level security filters, every insert is refused; when the lock function of a mapping is, every mapping insert is refused 528ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of the three tables, three functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role 502ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G13 the guard gives no answer to a role that may not insert drafts 514ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G14 the guard decides each row of a multi-row insert: one IBS_HI row refuses the whole statement and nothing is stored 508ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G15 a row without tenant_id or project_id is answered by the table, not by the guard 517ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G16 the guard refuses a write from a transaction that is not READ COMMITTED: READ UNCOMMITTED, REPEATABLE READ and SERIALIZABLE are answered LTZ02 whatever the project (REPEATABLE READ also for an IBS_HI project), and nothing is stored 524ms
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G17 REPEATABLE READ opened before the IBS_HI mapping was committed is refused LTZ02; READ COMMITTED sees a mapping committed after it began and is refused LTZ01
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G18 MERGE is judged like INSERT: a MERGE that would insert a draft for an IBS_HI project is refused LTZ01 and nothing is stored 577ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G19 the declared-scope guard answers for every row the insert policy would refuse, with the policy's own words, whether or not the project is IBS_HI 596ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G20 the role cannot switch the scope guard off, cannot call or change the functions of 022, and no runtime role takes the row lock of a project by itself 596ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G25 the policies that the scope guard mirrors are pinned: one INSERT policy and one SELECT policy on intelligence.ai_drafts for libetech_ai, permissive, with this WITH CHECK and this USING, and no restrictive policy 576ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G26 whatever the statement, a row outside the declared scope gets one answer for an IBS_HI project and for any other: MERGE, a multi-row insert in both orders, the statement of submitDraft on a stored key, a setting that is not a uuid 509ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G21 the guard and the lock function lock the project row of a row while that row is handled, before the foreign-key check at the end of the statement: the next row of the same statement sees the row locked by this transaction; no advisory lock is taken 510ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G22 a draft insert in the transaction that wrote an IBS_HI mapping is refused; a row without a project is answered by the table 504ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N1 a draft for a (tenant, project) pair that does not exist is refused 23503 by the guard itself, and nothing is stored 496ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N2 a mapping for a project that does not exist is refused 23503 by the lock function, and a mapping insert leaves the lock_timeout of the session as it was 520ms
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G23 a draft insert waits for an uncommitted mapping of its project and then reads it: refused LTZ01 when the mapping commits IBS_HI, stored when the mapping is rolled back
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G24 a mapping insert waits for an open draft insert of its project: the draft is stored first, the mapping commits after it, and the next draft is refused
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G27 an open draft transaction of a project holds up a mapping insert of that project for no longer than the cap: 55P03 between 4 and 9 seconds, nothing written; once the draft commits the mapping goes through and the next draft is refused
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N3 a draft of a project row that the statement cannot see is refused 23503 at that row, at once, even when the project and its IBS_HI mapping commit while the statement runs
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N4 waiters are served in order of arrival: a mapping insert that waits for an open draft is not overtaken by a draft that comes after it
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N5 what an open draft transaction holds up: an UPDATE of the project row waits (55P03 under a lock_timeout of 500 ms); the lock of a foreign-key check of any other table does not
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N6 the old advisory key decides nothing: a session that holds it does not delay a mapping insert of its project nor a draft insert of another project
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N7 the ordinary contention path: a second draft of a project waits for an open draft transaction of that project and is then stored
+
+ Test Files  1 passed (1)
+      Tests  25 passed | 9 skipped (34)
+   Start at  14:32:28
+   Duration  13.58s (tests 99%)
+
+typecheck exit 0
