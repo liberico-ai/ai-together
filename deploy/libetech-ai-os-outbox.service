@@ -1,0 +1,15 @@
+[Unit]
+Description=LibeTech AI OS Telegram outbox pass
+After=network-online.target libetech-ai-os.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=HERMES_HOME=/home/iptech/.hermes/profiles/libetech
+ExecStart=/usr/bin/python3 /home/iptech/.hermes/profiles/libetech/plugins/libetech-ai-os-bridge/__init__.py --once
+WorkingDirectory=/home/iptech/.hermes/profiles/libetech
+TimeoutStartSec=55
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+

@@ -1,0 +1,11 @@
+[Unit]
+Description=Pull LibeTech AI OS outbox every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=5s
+Persistent=yes
+Unit=libetech-ai-os-outbox.service
+
+[Install]
+WantedBy=timers.target

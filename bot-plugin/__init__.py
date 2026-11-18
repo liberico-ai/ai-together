@@ -4,6 +4,8 @@ Two principals, two key files. The bot (`bridge.json`) reads and links only. The
 (`intake.json`) posts group messages and reports outbox receipts. Neither decides, assigns or accepts anything.
 """
 from __future__ import annotations
+import asyncio
+import argparse
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import fcntl
@@ -238,10 +240,8 @@ def read_request(params, context):
     return {"operation": "reconciliation", "context": context, "code": params["code"], "sourceSha": params["source_sha"]}
 
 # ---- Intake and delivery adapter (intake principal, `intake.json`) ----
-# Gateway event contract read by intake_event (to be verified at the runtime wiring, plan stop point 3):
-#   event.source: platform, profile, user_id, chat_id, chat_type, message_id, is_bot, profile_route_rejected, thread_id
-#   event: text, message_id, reply_to_message_id, reply_to_bot, mentions_bot, media_group_id, edited_at, forwarded,
-#          timestamp, internal, is_bot; and for files: attachment (mime_type, file_size, file_name), download_attachment().
+# Hermes 0.22.5 caches Telegram media before pre_gateway_dispatch. MessageEvent carries media_urls/media_types and
+# raw_message, not attachment/download_attachment. The latter shape remains supported for older synthetic callers.
 
 def _now():
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
@@ -340,7 +340,7 @@ def intake_event(event, chats=None):
     text = text.encode("utf-8", "replace").decode("utf-8") if isinstance(text, str) else ""
     if _own_command(text):
         return None
-    if not text.strip() and getattr(event, "attachment", None) is None:
+    if not text.strip() and getattr(event, "attachment", None) is None and not getattr(event, "media_urls", None):
         return None
     dropped = []
     def optional(name, value):
@@ -350,8 +350,11 @@ def intake_event(event, chats=None):
         return value
     topic = optional("topicId", _optional_id(getattr(source, "thread_id", None)))
     reply = optional("replyToMessageId", _optional_id(getattr(event, "reply_to_message_id", None)))
-    album = optional("mediaGroupId", _optional_album(getattr(event, "media_group_id", None)))
-    edited = optional("editedAt", _optional_stamp(getattr(event, "edited_at", None)))
+    raw_message = getattr(event, "raw_message", None)
+    album = optional("mediaGroupId", _optional_album(
+        getattr(event, "media_group_id", None) or getattr(raw_message, "media_group_id", None)))
+    edited = optional("editedAt", _optional_stamp(
+        getattr(event, "edited_at", None) or getattr(raw_message, "edit_date", None)))
     # observedAt is required by the intake schema, so an absent or unusable gateway time becomes the time seen here.
     observed = optional("observedAt", _optional_stamp(getattr(event, "timestamp", None))) or _now()
     for name in dropped:
@@ -362,12 +365,16 @@ def intake_event(event, chats=None):
         context["topicId"] = topic
     if reply:
         context["replyToMessageId"] = reply
-    addressed = (text.lstrip().startswith("/") or getattr(event, "mentions_bot", False) is True
-                 or getattr(event, "reply_to_bot", False) is True)
+    addressed = (text.lstrip().startswith("/") or getattr(event, "reply_expected", None) is True
+                 or getattr(event, "reply_to_is_own_message", False) is True
+                 or getattr(event, "mentions_bot", False) is True or getattr(event, "reply_to_bot", False) is True)
+    forwarded = any(getattr(raw_message, name, None) is not None for name in (
+        "forward_origin", "forward_date", "forward_from", "forward_from_chat"))
     payload = {"context": context, "observedAt": observed}
     if edited:
         payload["editedAt"] = edited
-    payload.update(addressed=addressed, spooled=False, forwarded=getattr(event, "forwarded", False) is True,
+    payload.update(addressed=addressed, spooled=False,
+                   forwarded=forwarded or getattr(event, "forwarded", False) is True,
                    text=text, textTruncated=False, contentHash=hashlib.sha256(text.encode()).hexdigest(),
                    traceId=str(uuid.uuid4()))
     return payload
@@ -535,6 +542,49 @@ def store_attachment(home, raw, download):
     if name:
         result["fileName"] = name
     return result
+
+def store_cached_media(home, event):
+    """Copy one gateway-cached Telegram file into the plugin's durable store.
+
+    The inbound path is a gateway-owned absolute cache path, never a path from Telegram text or a file name. Refuse
+    symlinks, paths outside this profile's media caches, and files over the plugin's cap before opening any bytes.
+    """
+    urls, types = getattr(event, "media_urls", None), getattr(event, "media_types", None)
+    if not isinstance(urls, list) or len(urls) != 1 or not isinstance(types, list) or len(types) != 1:
+        return {"state": "failed", "reasonCode": "MULTIPLE_OR_INVALID_MEDIA"}
+    if not isinstance(urls[0], str) or not isinstance(types[0], str):
+        return {"state": "failed", "reasonCode": "INVALID_MEDIA"}
+    try:
+        path = Path(urls[0])
+        if not path.is_absolute() or path.is_symlink():
+            raise ValueError("CACHE_PATH_DENIED")
+        roots = tuple(Path(home) / suffix for suffix in (
+            "cache/images", "cache/audio", "cache/videos", "cache/documents",
+            "image_cache", "audio_cache", "video_cache", "document_cache"))
+        resolved = path.resolve(strict=True)
+        # Compare with lexical cache roots: resolving a symlinked root would accidentally bless its outside target.
+        if not any(resolved.is_relative_to(root.absolute()) for root in roots):
+            raise ValueError("CACHE_PATH_DENIED")
+        info = resolved.stat()
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("CACHE_PATH_DENIED")
+        raw_message = getattr(event, "raw_message", None)
+        document = getattr(raw_message, "document", None)
+        file_name = getattr(document, "file_name", None) or path.name
+        metadata = {"mime_type": types[0], "file_size": info.st_size, "file_name": file_name}
+        def read():
+            descriptor = os.open(resolved, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0))
+            try:
+                current = os.fstat(descriptor)
+                if not stat.S_ISREG(current.st_mode) or current.st_dev != info.st_dev or current.st_ino != info.st_ino:
+                    raise ValueError("CACHE_CHANGED")
+                with os.fdopen(descriptor, "rb", closefd=False) as stream:
+                    return stream.read(MAX_ATTACHMENT_BYTES + 1)
+            finally:
+                os.close(descriptor)
+        return store_attachment(home, metadata, read)
+    except (OSError, ValueError):
+        return {"state": "failed", "reasonCode": "CACHE_UNAVAILABLE"}
 
 def _line(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
@@ -839,10 +889,9 @@ def intake_hook(profile_home, /, *args, **kwargs):
         if payload is None:
             return None
         raw = getattr(event, "attachment", None)
-        if raw is not None:
-            # WIRING-STEP VERIFICATION ITEM: the download stays inline in the gateway's dispatch path, up to
-            # MAX_ATTACHMENT_BYTES, with whatever timeout the gateway's download_attachment() has. Check that it is safe
-            # there (thread, timeout, side effects) before "hookEnabled" is set on a real gateway.
+        if getattr(event, "media_urls", None):
+            payload["attachment"] = store_cached_media(profile_home, event)
+        elif raw is not None:
             payload["attachment"] = store_attachment(profile_home, raw, getattr(event, "download_attachment", None))
         result = submit_event(profile_home, fit_event(payload), Spool(profile_home),
                               timeout=HOOK_TIMEOUT, replays=HOOK_REPLAYS)
@@ -860,6 +909,10 @@ def intake_hook(profile_home, /, *args, **kwargs):
             except Exception:  # bury never raises; this guard only keeps that promise towards the gateway
                 LOG.warning("libetech intake: %s %s", "INTAKE_LOST", "INTAKE_BUILD_FAILED")
     return None
+
+async def intake_hook_async(profile_home, /, *args, **kwargs):
+    """Keep the gateway event loop free while waiting for the durable intake attempt to finish."""
+    return await asyncio.to_thread(intake_hook, profile_home, *args, **kwargs)
 
 TEMPLATES = {
     "intake.received": ("Đã ghi nhận, mã {ref}. PM sẽ xác nhận loại và dự án; đây chưa phải việc đã giao.", ("ref",)),
@@ -1178,8 +1231,8 @@ def _report(home, journal, receipts, summary):
 def drain_outbox(home, send, journal, *, limit=10):
     """One delivery pass on the intake key: resubmit pending receipts, pull, send each delivery once
     (journal 'sending' → send → journal 'sent'), answer reconcile requests from the journal, report receipts.
-    `send(chat_id, topic_id, reply_to, text)` returns the Telegram message id. Not wired to a real send or a schedule
-    in this slice; only tests call it."""
+    `send(chat_id, topic_id, reply_to, text)` returns the Telegram message id. The user timer calls this with
+    telegram_sender; tests inject a fake sender."""
     if type(limit) is not int or not 1 <= limit <= 10:
         raise ValueError("INVALID_LIMIT")
     summary = {"ok": True, "delivered": 0, "failed": 0, "uncertain": 0, "reconciled": 0, "held": 0, "skipped": 0,
@@ -1202,6 +1255,90 @@ def drain_outbox(home, send, journal, *, limit=10):
     except ValueError as error:
         summary.update(ok=False, error=safe_error(error)["error"])
     return summary
+
+def telegram_sender(token):
+    """Return a sender for a single, plain-text Telegram Bot API message.
+
+    The template renderer has already validated the body, and _delivery_target plus intake.json have checked the
+    destination. No parse mode is used. A reply anchor is mandatory when supplied: Telegram must not silently
+    publish an acknowledgement as a new root message if the source was deleted.
+    """
+    if not isinstance(token, str) or not re.fullmatch(r"[0-9]+:[A-Za-z0-9_-]{20,}", token):
+        raise ValueError("TELEGRAM_NOT_CONFIGURED")
+    opener = urllib.request.build_opener()
+    def send(chat_id, topic_id, reply_to, content):
+        body = {"chat_id": chat_id, "text": content, "disable_web_page_preview": True}
+        if topic_id and topic_id != "1":
+            body["message_thread_id"] = int(topic_id)
+        if reply_to:
+            body["reply_parameters"] = {"message_id": int(reply_to), "allow_sending_without_reply": False}
+        request = urllib.request.Request(
+            "https://api.telegram.org/bot" + token + "/sendMessage",
+            data=json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode(),
+            headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            response = opener.open(request, timeout=25)
+        except urllib.error.HTTPError as error:
+            # A Telegram 400/403 is an explicit refusal, so the message did not land. All other failures are
+            # uncertain (including a lost HTTP answer), and the journal prevents automatic re-send.
+            if error.code in (400, 403):
+                raise SendRejected("TELEGRAM_REFUSED") from None
+            raise
+        with response:
+            raw = response.read(4097)
+        if len(raw) > 4096:
+            raise ValueError("TELEGRAM_RESPONSE_INVALID")
+        try:
+            result = json.loads(raw)
+            message_id = result["result"]["message_id"] if result.get("ok") is True else None
+        except (ValueError, TypeError, KeyError, AttributeError):
+            message_id = None
+        if type(message_id) is not int or message_id <= 0:
+            raise ValueError("TELEGRAM_RESPONSE_INVALID")
+        return message_id
+    return send
+
+def outbox_worker_once(home):
+    """One periodic pull, scoped to the active LibeTech profile and its existing Telegram credential."""
+    if Path(home).resolve() != EXPECTED_HOME or os.environ.get("HERMES_HOME") != str(EXPECTED_HOME):
+        raise ValueError("PROFILE_SCOPE_MISMATCH")
+    env_file = Path(home) / ".env"
+    if env_file.is_symlink():
+        raise ValueError("TELEGRAM_NOT_CONFIGURED")
+    descriptor = _open_private(env_file, os.O_RDONLY)
+    try:
+        with os.fdopen(descriptor, "r", encoding="utf-8", closefd=False) as stream:
+            body = stream.read(65537)
+    finally:
+        os.close(descriptor)
+    if len(body) > 65536:
+        raise ValueError("TELEGRAM_NOT_CONFIGURED")
+    found = [line.split("=", 1)[1].strip() for line in body.splitlines()
+             if line.startswith("TELEGRAM_BOT_TOKEN=")]
+    if len(found) != 1:
+        raise ValueError("TELEGRAM_NOT_CONFIGURED")
+    token = found[0]
+    if len(token) > 1 and token[0] in "\"'" and token[-1] == token[0]:
+        token = token[1:-1]
+    return drain_outbox(home, telegram_sender(token), SendJournal(home))
+
+def outbox_worker_main(argv=None):
+    parser = argparse.ArgumentParser(description="Run one LibeTech AI OS outbox pass")
+    parser.add_argument("--once", action="store_true", required=True)
+    args = parser.parse_args(argv)
+    del args
+    try:
+        home = Path(os.environ.get("HERMES_HOME", ""))
+        # The timer owns a separate lock so two starts never pull the same lease concurrently.
+        with _locked(_runtime_dir(home) / "outbox-worker.lock"):
+            summary = outbox_worker_once(home)
+        print(json.dumps({"ok": summary["ok"], "delivered": summary["delivered"],
+                          "uncertain": summary["uncertain"], "failed": summary["failed"],
+                          "pending": summary["pending"], "error": summary.get("error")}, separators=(",", ":")))
+        return 0 if summary["ok"] else 1
+    except Exception as error:
+        print(json.dumps({"ok": False, "error": safe_error(error)["error"]}, separators=(",", ":")))
+        return 1
 
 def _grant_texts(details):
     if not isinstance(details, list) or not 1 <= len(details) <= 30:
@@ -1366,9 +1503,12 @@ def register(ctx):
                          description="Xem phiếu Tech trong chat riêng và chọn Yes hoặc No")
     # Intake is a separate principal with its own key file, and its hook is a deliberate step: only with gateway hook
     # support and "hookEnabled": true in intake.json (the key file alone is not enough). Otherwise the plugin registers
-    # exactly what it did before. The hook only observes; the real send and outbox schedule are not wired.
+    # exactly what it did before. The hook only observes; the separate user timer owns periodic outbox delivery.
     if hasattr(ctx, "register_hook") and _intake_hook_enabled(home):
         try:
-            ctx.register_hook(INTAKE_HOOK, functools.partial(intake_hook, home))
+            ctx.register_hook(INTAKE_HOOK, functools.partial(intake_hook_async, home))
         except Exception as error:
             LOG.warning("libetech intake hook not registered: %s", safe_error(error)["error"])
+
+if __name__ == "__main__":
+    raise SystemExit(outbox_worker_main())
