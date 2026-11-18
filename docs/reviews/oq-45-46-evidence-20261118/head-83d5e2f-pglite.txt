@@ -1,0 +1,12 @@
+# head 83d5e2f (last change to tests: 5c08fda; last change to src and migrations: 383c394) — npx vitest run (PGlite; no SLICE1_* variable set)
+dupes: untracked=0 next-types=0
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  66 passed | 12 skipped (78)
+      Tests  1184 passed | 65 skipped (1249)
+   Start at  11:14:07
+   Duration  478.20s (tests 99%, import 1%)
+
+EXIT=0
