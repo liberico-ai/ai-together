@@ -91,3 +91,40 @@ Reading:
 
 A first version of probe 3 without a statement_timeout did not return (the mapping insert waited for as long as the draft transactions kept
 overlapping); it was stopped by hand. That is the same starvation, seen without a bound.
+
+## Probe 4 — which roles can take a row lock on public.projects by themselves
+
+For every role whose name starts with libetech (ten roles after migrations 001-022), in a transaction that is rolled back:
+SET LOCAL ROLE <role>; SELECT id FROM public.projects LIMIT 1 <FOR NO KEY UPDATE | FOR SHARE | FOR KEY SHARE>.
+{
+ "libetech_ai FOR NO KEY UPDATE": "42501",
+ "libetech_ai FOR SHARE": "42501",
+ "libetech_ai FOR KEY SHARE": "42501",
+ "libetech_auth FOR NO KEY UPDATE": "42501",
+ "libetech_auth FOR SHARE": "42501",
+ "libetech_auth FOR KEY SHARE": "42501",
+ "libetech_identity FOR NO KEY UPDATE": "42501",
+ "libetech_identity FOR SHARE": "42501",
+ "libetech_identity FOR KEY SHARE": "42501",
+ "libetech_intake FOR NO KEY UPDATE": "42501",
+ "libetech_intake FOR SHARE": "42501",
+ "libetech_intake FOR KEY SHARE": "42501",
+ "libetech_intake_svc FOR NO KEY UPDATE": "42501",
+ "libetech_intake_svc FOR SHARE": "42501",
+ "libetech_intake_svc FOR KEY SHARE": "42501",
+ "libetech_outbox_audit FOR NO KEY UPDATE": "42501",
+ "libetech_outbox_audit FOR SHARE": "42501",
+ "libetech_outbox_audit FOR KEY SHARE": "42501",
+ "libetech_projector FOR NO KEY UPDATE": "42501",
+ "libetech_projector FOR SHARE": "42501",
+ "libetech_projector FOR KEY SHARE": "42501",
+ "libetech_runtime FOR NO KEY UPDATE": "42501",
+ "libetech_runtime FOR SHARE": "42501",
+ "libetech_runtime FOR KEY SHARE": "42501",
+ "libetech_web FOR NO KEY UPDATE": "42501",
+ "libetech_web FOR SHARE": "42501",
+ "libetech_web FOR KEY SHARE": "42501",
+ "superuser of the connection": "true"
+}
+
+Reading: none of them can (42501 for each of the three strengths). The connection that ran the probe is a superuser, as the migration login is.
