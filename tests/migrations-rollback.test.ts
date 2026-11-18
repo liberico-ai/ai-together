@@ -495,6 +495,9 @@ test('022 over a database that carries only the pointer-only trigger and its fun
     await q('DROP TRIGGER IF EXISTS project_domain_mappings_draft_lock ON public.project_domain_mappings');
     await q('DROP FUNCTION IF EXISTS intelligence.ai_drafts_declared_scope_guard()');
     await q('DROP FUNCTION IF EXISTS intelligence.project_domain_mappings_draft_lock()');
+    // the first body of 022 had no lock_timeout of its own: step (i) proves that the forward file puts it back
+    await q('ALTER FUNCTION intelligence.ai_drafts_pointer_only_guard() RESET lock_timeout');
+    expect((await q<{c:string[]}>("SELECT proconfig c FROM pg_proc WHERE proname='ai_drafts_pointer_only_guard'"))[0].c).toEqual(['search_path=pg_catalog, pg_temp','row_security=off']);
   };
   let later:string[]=[];
   try {

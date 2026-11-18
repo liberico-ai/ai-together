@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
-import {pm,sameBuProject,seedSlice1} from './slice1-fixtures';
+import {outsider,pm,sameBuProject,seedSlice1} from './slice1-fixtures';
 import {aiPrincipal,mapDomain,seedMembers} from './slice3-fixtures';
 import {rolledBack} from './slice2-fixtures';
 import {scoped,type Queryable} from '../src/server/db';
@@ -17,7 +17,7 @@ beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);a
 afterEach(async()=>{await h.reset();await h.close();});
 
 type R=Record<string,unknown>;
-type Refusal={code?:string;message:string}|null;
+type Refusal={code?:string;message:string;detail?:string;hint?:string;where?:string}|null;
 const AI=aiPrincipal.id;
 const HASH='a'.repeat(64);
 const S=[ids.sales];
@@ -50,13 +50,31 @@ const CAST:Record<string,string>={tenant_id:'uuid',ai_principal_id:'uuid',trace_
 const refusal=(p:Promise<unknown>):Promise<Refusal>=>p.then(()=>null,e=>e as Refusal);
 const aiInsert=(over:R={},o:{projects?:string[]}={})=>refusal(asAi(tx=>insertDraft(tx,over),o));
 const bare=(over:R)=>refusal(h.operator.transaction(async tx=>{await tx.query('SET LOCAL ROLE libetech_ai');return insertDraft(tx,over);}));
-const answer=(e:Refusal)=>e&&{code:e.code,message:e.message};
+// every field of an error that pg gives: two refusals compared with it must not differ in any of them (S-2)
+const answer=(e:Refusal)=>e&&{code:e.code,message:e.message,detail:e.detail,hint:e.hint,where:e.where};
 const mapIn=(tx:Queryable,project:string,code:'LIBERICO_BU'|'XECA'|'IBS_HI',version:number)=>tx.query(
   "INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,$3,$4,'synthetic-source',$5)",[ids.tenant,project,code,pm.id,version]);
-// the advisory locks of the key space of migration 022 that are held, read inside the transaction that holds them
+// the advisory locks of the key space of the former body of migration 022 (an advisory lock), read inside the transaction that would hold them
 const locks=async(q:Queryable)=>(await q.query<{mode:string;o:number|string;s:number}>(`SELECT mode, objid::bigint AS o, objsubid AS s FROM pg_locks WHERE locktype='advisory' AND classid=$1
   AND database=(SELECT oid FROM pg_database WHERE datname=current_database()) ORDER BY 1`,[NS])).rows;
-const keyOf=async(project:string)=>String((await rows<{o:number|string}>('SELECT (hashtext($1)::bigint & 4294967295) AS o',[project]))[0].o);
+const LOCK_LINE='PERFORM 1 FROM public.projects p WHERE p.id = NEW.project_id AND p.tenant_id = NEW.tenant_id FOR NO KEY UPDATE;';
+const mappings=async(project:string)=>(await rows<{n:number}>('SELECT count(*)::int n FROM public.project_domain_mappings WHERE project_id=$1',[project]))[0].n;
+// an AI-role transaction that inserts a draft of a project and stays open until released: the shape of G24
+const openDraft=(project:string)=>{
+  const held=latch(),opened=latch();
+  const done=h.operator.transaction(async tx=>{
+    await tx.query('SET LOCAL ROLE libetech_ai');
+    await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.ai_principal_id',$3,true)",[ids.tenant,project,AI]);
+    await insertDraft(tx,{project_id:project});
+    opened.open();
+    await held.promise;
+  });
+  // opened, or the error of the transaction: a holder that fails never leaves the test waiting
+  return {ready:Promise.race([opened.promise,done]),release:held.open,done};
+};
+// a statement that may wait: inside its own transaction, under a statement_timeout below the timeout of the test, so a missing cap shows as 57014
+const capped=(fn:(tx:Queryable)=>Promise<unknown>)=>refusal(h.operator.transaction(async tx=>{await tx.query("SET LOCAL statement_timeout = '8s'");return fn(tx);}));
+const cappedAi=(fn:(tx:Queryable)=>Promise<unknown>,projects:string[])=>refusal(asAi(async tx=>{await tx.query("SET LOCAL statement_timeout = '8s'");return fn(tx);},{projects}));
 // a promise that is settled from outside: the way a test holds a transaction open on one connection while another connection acts
 const latch=()=>{let open!:()=>void;const promise=new Promise<void>(r=>{open=r;});return {promise,open};};
 const blockedOrSettled=(p:Promise<unknown>)=>Promise.race([p.then(()=>'settled',()=>'settled'),waitForBlocked(h,1).then(()=>'blocked',()=>'never blocked')]);
@@ -91,11 +109,22 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await count()).toBe(0);
   });
 
-  test('G4 the guard reads the mapping of the row\'s own tenant: a row that names another tenant is answered by row-level security and is not stored',async()=>{
+  test('G4 the guard reads the mapping of the row\'s own tenant: a row that names another tenant is answered by row-level security, a row that reaches the definer guard with a tenant that does not own the project is answered 23503, never LTZ01, and nothing is stored',async()=>{
     await mapDomain(h,ids.transport,'IBS_HI',1);
     const e=await aiInsert({project_id:ids.transport,tenant_id:ids.otherTenant},{projects:[ids.transport]});
     expect(e?.message).toMatch(/row-level security/);
     expect(e?.code).not.toBe(LTZ);
+    expect(await count()).toBe(0);
+    // (a) DB-2: the operational login is not bound by row-level security, so its row reaches the definer guard with the tenant term mismatched
+    const a=await refusal(insertDraft(h.operator,{tenant_id:ids.otherTenant,project_id:ids.transport}));
+    expect(a?.code,'(a)').toBe('23503');
+    expect(a?.code,'(a)').not.toBe(LTZ);
+    // (b) the AI role declares its own tenant and a project of the other tenant, which that tenant mapped IBS_HI: the cross-tenant probe
+    await h.operator.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,'IBS_HI',$3,'synthetic-source',1)",
+      [ids.otherTenant,ids.otherProject,outsider.id]);
+    const b=await aiInsert({project_id:ids.otherProject},{projects:[ids.otherProject]});
+    expect(b?.code,'(b)').toBe('23503');
+    expect(b?.code,'(b)').not.toBe(LTZ);
     expect(await count()).toBe(0);
   });
 
@@ -168,7 +197,9 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await count()).toBe(1);
   });
 
-  test('G11 fail-closed: when the guard function is owned by a role that row-level security filters, every insert is refused',async()=>{
+  // Measured on PGlite: the first statement of either definer function that meets row-level security is the row lock on public.projects (FORCE RLS, 010).
+  const G11_SENTENCE='query would be affected by row-level security policy for table "projects"';
+  test('G11 fail-closed: when the guard function is owned by a role that row-level security filters, every insert is refused; when the lock function of a mapping is, every mapping insert is refused',async()=>{
     await mapDomain(h,ids.transport,'IBS_HI',1);
     await rolledBack(h.operator,async(tx,probe)=>{
       await tx.query('ALTER FUNCTION intelligence.ai_drafts_pointer_only_guard() OWNER TO libetech_runtime');
@@ -178,9 +209,18 @@ describe('migration 022: the pointer-only guard',()=>{
         const v=draftVals({project_id:project}),keys=Object.keys(v);
         const msg=await probe(`INSERT INTO intelligence.ai_drafts(${keys.join(',')}) VALUES(${keys.map((k,i)=>`$${i+1}${JSONB_COLUMNS.has(k)?'::jsonb':''}`).join(',')})`,keys.map(k=>v[k]));
         expect(msg,project).not.toBeNull();
-        expect(msg).toMatch(/row-level security policy for table "project_domain_mappings"/);
+        expect(msg,project).toBe(G11_SENTENCE);
       }
     });
+    // the twin: the lock function of a mapping insert owned by the runtime role
+    await rolledBack(h.operator,async(tx,probe)=>{
+      await tx.query('ALTER FUNCTION intelligence.project_domain_mappings_draft_lock() OWNER TO libetech_runtime');
+      const msg=await probe("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,'XECA',$3,'synthetic-source',1)",[ids.tenant,ids.sales,pm.id]);
+      expect(msg).not.toBeNull();
+      expect(msg).toBe(G11_SENTENCE);
+      expect((await tx.query<{n:number}>('SELECT count(*)::int n FROM public.project_domain_mappings WHERE project_id=$1',[ids.sales])).rows[0].n).toBe(0);
+    });
+    expect(await mappings(ids.sales)).toBe(0);
   });
 
   test('G12 running 022 again changes nothing: the exact triggers of the three tables, three functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role',async()=>{
@@ -220,35 +260,40 @@ describe('migration 022: the pointer-only guard',()=>{
       expect(g[0].d,n).toMatch(/BEFORE INSERT/);
       expect(g[0].d,n).toMatch(/FOR EACH ROW/);
     }
-    const PINS:Record<string,{prosecdef:boolean;proconfig:string[]}>={
-      ai_drafts_declared_scope_guard:{prosecdef:false,proconfig:['search_path=pg_catalog, pg_temp']},
-      ai_drafts_pointer_only_guard:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s']},
-      project_domain_mappings_draft_lock:{prosecdef:false,proconfig:['search_path=pg_catalog, pg_temp','lock_timeout=5s']},
+    const PINS:Record<string,{prosecdef:boolean;proconfig:string[];provolatile:string}>={
+      ai_drafts_declared_scope_guard:{prosecdef:false,proconfig:['search_path=pg_catalog, pg_temp'],provolatile:'v'},
+      ai_drafts_pointer_only_guard:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s'],provolatile:'v'},
+      project_domain_mappings_draft_lock:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s'],provolatile:'v'},
     };
     for(const n of FN){
-      const fn=await rows<{prosecdef:boolean;proconfig:string[]}>('SELECT p.prosecdef,p.proconfig FROM pg_proc p WHERE p.proname=$1',[n]);
+      const fn=await rows<{prosecdef:boolean;proconfig:string[];provolatile:string}>('SELECT p.prosecdef,p.proconfig,p.provolatile FROM pg_proc p WHERE p.proname=$1',[n]);
       expect(fn,n).toHaveLength(1);
       expect(fn[0],n).toEqual(PINS[n]);
     }
-    const owner=await rows<{super:boolean;bypass:boolean}>("SELECT r.rolsuper super,r.rolbypassrls bypass FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.proname='ai_drafts_pointer_only_guard'");
-    expect(owner[0].super||owner[0].bypass).toBe(true);
+    // the owner of both definer functions is not bound by row-level security: a superuser or a role with BYPASSRLS
+    const owners=await rows<{proname:string;ok:boolean}>(`SELECT p.proname,(r.rolsuper OR r.rolbypassrls) ok FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner
+      WHERE p.proname IN ('ai_drafts_pointer_only_guard','project_domain_mappings_draft_lock') ORDER BY 1`);
+    expect(owners).toEqual([{proname:'ai_drafts_pointer_only_guard',ok:true},{proname:'project_domain_mappings_draft_lock',ok:true}]);
     const def=(await rows<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname='ai_drafts_pointer_only_guard'"))[0].d.replace(/\s+/g,' ');
     for(const f of ['FROM public.project_domain_mappings m','m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id','ORDER BY m.mapping_version DESC LIMIT 1',
       "latest = 'IBS_HI'","ERRCODE = 'LTZ01'","current_setting('transaction_isolation') <> 'read committed'","ERRCODE = 'LTZ02'"]) expect(def,f).toContain(f);
     const src=async(n:string)=>(await rows<{p:string}>('SELECT prosrc p FROM pg_proc WHERE proname=$1',[n]))[0].p;
-    // in the definer guard: the isolation check, then the lock, then the read of the mapping
+    // in the definer guard: the isolation check, then the row lock on the project, then the read of the mapping
     const guard=await src('ai_drafts_pointer_only_guard');
     const at=(t:string)=>guard.indexOf(t);
+    for(const f of [LOCK_LINE,'IF NOT FOUND THEN',"ERRCODE = '23503'"]) expect(guard,f).toContain(f);
     expect(at("'transaction_isolation'")).toBeGreaterThan(-1);
-    expect(at("'transaction_isolation'")).toBeLessThan(at('pg_advisory_xact_lock_shared'));
-    expect(at('pg_advisory_xact_lock_shared')).toBeLessThan(at('FROM public.project_domain_mappings'));
-    expect(guard).toContain('pg_catalog.pg_advisory_xact_lock_shared(1346653516, pg_catalog.hashtext(NEW.project_id::text))');
+    expect(at("'transaction_isolation'")).toBeLessThan(at('FOR NO KEY UPDATE'));
+    expect(at('FOR NO KEY UPDATE')).toBeLessThan(at('FROM public.project_domain_mappings'));
+    expect(guard).not.toContain('pg_advisory');
     // in the scope guard: two nested IFs, the first asks only whether row-level security binds the role; the app.* settings are read inside it
     const scope=await src('ai_drafts_declared_scope_guard');
     expect(scope.indexOf('row_security_active(TG_RELID) THEN')).toBeGreaterThan(-1);
     expect(scope.indexOf('row_security_active(TG_RELID) THEN')).toBeLessThan(scope.indexOf("current_setting('app.tenant_id'"));
     for(const f of ['IF pg_catalog.row_security_active(TG_RELID) THEN','IS NOT TRUE THEN',"ERRCODE = '42501'",'HINT = ','NEW.tenant_id =','NEW.project_id = ANY','NEW.ai_principal_id =']) expect(scope,f).toContain(f);
-    expect(await src('project_domain_mappings_draft_lock')).toContain('pg_catalog.pg_advisory_xact_lock(1346653516, pg_catalog.hashtext(NEW.project_id::text))');
+    const lock=await src('project_domain_mappings_draft_lock');
+    for(const f of [LOCK_LINE,'IF NOT FOUND THEN']) expect(lock,f).toContain(f);
+    expect(lock).not.toContain('pg_advisory');
     // second comparison, after the re-apply
     await sameBodies();
     const code=sql.replace(/--.*$/gm,'');
@@ -394,30 +439,55 @@ describe('migration 022: the pointer-only guard',()=>{
       expect(e!.code,label+' '+project).not.toBe(LTZ);
     }
     expect(await count()).toBe(before);
-    // the answer of row-level security itself, with the scope guard switched off for this one transaction, which always rolls back.
-    // The transaction always rolls back (it throws), so the trigger is never left switched off, on PGlite or on a native database.
-    const own=await refusal(h.operator.transaction(async tx=>{
-      await tx.query('ALTER TABLE intelligence.ai_drafts DISABLE TRIGGER ai_drafts_declared_scope_guard');
-      await tx.query('SET LOCAL ROLE libetech_ai');
-      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.ai_principal_id',$3,true)",[ids.tenant,S.join(','),AI]);
-      await insertDraft(tx,{project_id:sameBuProject});
-      throw new Error('must not be stored');
-    }));
-    expect(own).not.toBeNull();
-    expect(own!.code).toBe('42501');
-    expect(own!.message).toBe(RLS);
+    // the answer of row-level security itself, for each of the six kinds of row (DB-3), with the scope guard switched off for one transaction each,
+    // which always rolls back (it throws), so the trigger is never left switched off, on PGlite or on a native database.
+    // The project is unmapped, so the definer guard lets the row through to the policy. Kind (b) names a project of the other tenant: a row whose
+    // (tenant, project) pair does not exist is answered 23503 by the definer guard before the policy is checked (WITH CHECK runs after BEFORE triggers).
+    type Declared={tenant?:string;projects?:string[];principal?:string|null}|null;
+    const offKinds:[string,R,Declared][]=[
+      ['(a) a project that is not in the declared list',{project_id:sameBuProject},{projects:[ids.sales]}],
+      ['(b) a row of another tenant (the scope names the project itself)',{project_id:ids.otherProject,tenant_id:ids.otherTenant},{projects:[ids.otherProject]}],
+      ['(c) another ai_principal_id on the row',{project_id:sameBuProject,ai_principal_id:randomUUID()},{projects:[sameBuProject]}],
+      ['(d) app.ai_principal_id not declared',{project_id:sameBuProject},{projects:[sameBuProject],principal:null}],
+      ['(e) app.tenant_id declared as another tenant',{project_id:sameBuProject},{tenant:ids.otherTenant,projects:[sameBuProject]}],
+      ['(f) nothing declared',{project_id:sameBuProject},null],
+    ];
+    for(const [label,over,declared] of offKinds){
+      const own=await refusal(h.operator.transaction(async tx=>{
+        await tx.query('ALTER TABLE intelligence.ai_drafts DISABLE TRIGGER ai_drafts_declared_scope_guard');
+        await tx.query('SET LOCAL ROLE libetech_ai');
+        if(declared){
+          await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[declared.tenant??ids.tenant,(declared.projects??S).join(',')]);
+          if(declared.principal!==null) await tx.query("SELECT set_config('app.ai_principal_id',$1,true)",[declared.principal??AI]);
+        }
+        await insertDraft(tx,over);
+        throw new Error('must not be stored');
+      }));
+      expect(own,label).not.toBeNull();
+      expect(own!.code,label).toBe('42501');
+      expect(own!.message,label).toBe(RLS);
+      expect(own!.hint,label).toBeUndefined();
+    }
     expect(await rows("SELECT tgenabled FROM pg_trigger WHERE tgname='ai_drafts_declared_scope_guard'")).toEqual([{tgenabled:'O'}]);
     expect(await count()).toBe(before);
   });
 
-  test('G20 the role cannot switch the scope guard off, and cannot call or change the functions of 022',async()=>{
+  test('G20 the role cannot switch the scope guard off, cannot call or change the functions of 022, and no runtime role takes the row lock of a project by itself',async()=>{
     expect((await refusal(asAi(tx=>tx.query('SET LOCAL session_replication_role = replica'))))?.message).toMatch(/permission denied/);
     expect((await refusal(asAi(tx=>tx.query('ALTER TABLE intelligence.ai_drafts DISABLE TRIGGER ai_drafts_declared_scope_guard'))))?.message).toMatch(/must be owner|permission denied/);
     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.ai_drafts_declared_scope_guard()'))))?.message).toMatch(/permission denied/);
     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.project_domain_mappings_draft_lock()'))))?.message).toMatch(/permission denied/);
+    // DB-7 (a): the cap lives in proconfig, and the role cannot change it
+    expect((await refusal(asAi(tx=>tx.query('ALTER FUNCTION intelligence.project_domain_mappings_draft_lock() SET lock_timeout = 0'))))?.message).toMatch(/must be owner/);
+    // the lock is a row lock on public.projects: a role that may only read the table (or not even that) cannot take it
+    for(const strength of ['FOR NO KEY UPDATE','FOR SHARE']){
+      const sql=`SELECT 1 FROM public.projects WHERE id=$1 ${strength}`;
+      expect((await refusal(asAi(tx=>tx.query(sql,[ids.sales]))))?.message,'AI '+strength).toMatch(/permission denied/);
+      expect((await refusal(asRuntime(pm.id,S,tx=>tx.query(sql,[ids.sales]))))?.message,'runtime '+strength).toMatch(/permission denied/);
+    }
     const PINS:Record<string,{prosecdef:boolean;proconfig:string[]}>={
       ai_drafts_declared_scope_guard:{prosecdef:false,proconfig:['search_path=pg_catalog, pg_temp']},
-      project_domain_mappings_draft_lock:{prosecdef:false,proconfig:['search_path=pg_catalog, pg_temp','lock_timeout=5s']},
+      project_domain_mappings_draft_lock:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s']},
     };
     for(const [name,pin] of Object.entries(PINS)){
       expect(await rows('SELECT p.prosecdef,p.proconfig FROM pg_proc p WHERE p.proname=$1',[name]),name).toEqual([pin]);
@@ -440,9 +510,15 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await count()).toBe(0);
   });
 
-  test('G25 the insert policy that the scope guard mirrors is pinned: one INSERT policy on intelligence.ai_drafts, permissive, for libetech_ai, with this WITH CHECK, and no restrictive policy',async()=>{
-    // Changing this constant means changing the scope guard of migration 022 (intelligence.ai_drafts_declared_scope_guard): the trigger mirrors this expression.
-    // A stricter policy, or a restrictive one, would let a row past the trigger that row-level security refuses: the definer guard would answer first again.
+  test('G25 the policies that the scope guard mirrors are pinned: one INSERT policy and one SELECT policy on intelligence.ai_drafts for libetech_ai, permissive, with this WITH CHECK and this USING, and no restrictive policy',async()=>{
+    // Changing either constant means changing the scope guard of migration 022 (intelligence.ai_drafts_declared_scope_guard). The trigger must be as
+    // tight as the INTERSECTION of ai_insert and ai_select: an insert with RETURNING or ON CONFLICT (the statement of submitDraft) is also checked
+    // against the USING of ai_select on the new row, with the same 42501. A stricter policy of either kind, or a restrictive one, would let a row past
+    // the trigger that row-level security refuses: the definer guard would answer first again.
+    const AI_SELECT_USING="((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))";
+    const select=await rows(`SELECT polname, polcmd, pg_get_expr(polqual,polrelid) using_expr FROM pg_policy
+      WHERE polrelid='intelligence.ai_drafts'::regclass AND polcmd IN ('r','*') AND (0 = ANY(polroles) OR 'libetech_ai'::regrole::oid = ANY(polroles)) ORDER BY 1`);
+    expect(select).toEqual([{polname:'ai_select',polcmd:'r',using_expr:AI_SELECT_USING}]);
     const AI_INSERT_CHECK="((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (ai_principal_id = (NULLIF(current_setting('app.ai_principal_id'::text, true), ''::text))::uuid))";
     const policies=await rows<{polname:string;polcmd:string;polpermissive:boolean;roles:string[];with_check:string}>(`SELECT polname, polcmd, polpermissive,
       (SELECT array_agg(rolname::text ORDER BY 1) FROM pg_roles WHERE oid=ANY(polroles)) roles, pg_get_expr(polwithcheck,polrelid) with_check
@@ -493,34 +569,20 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await count()).toBe(before+1);
   });
 
-  // ---- CX4: the advisory lock of a project, shared in the guard, exclusive in a mapping insert ----
-  test('G21 the guard takes a shared lock on the project before it reads the mapping, a mapping insert takes the same lock exclusively, and both are gone when the transaction ends',async()=>{
-    const salesKey=await keyOf(ids.sales),transportKey=await keyOf(ids.transport);
-    expect(await locks(h.operator)).toEqual([]);
-    await h.operator.transaction(async tx=>{
-      await insertDraft(tx,{project_id:ids.sales});
-      const l=await locks(tx);
-      expect(l).toHaveLength(1);
-      expect(l[0].mode).toBe('ShareLock');
-      expect(l[0].s).toBe(2);
-      expect(String(l[0].o)).toBe(salesKey);
-    });
-    expect(await locks(h.operator)).toEqual([]);
-    await h.operator.transaction(async tx=>{
-      await mapIn(tx,ids.sales,'XECA',1);
-      const l=await locks(tx);
-      expect(l).toHaveLength(1);
-      expect(l[0].mode).toBe('ExclusiveLock');
-      expect(l[0].s).toBe(2);
-      expect(String(l[0].o)).toBe(salesKey);
-      await mapIn(tx,ids.transport,'XECA',1);
-      const two=await locks(tx);
-      expect(two).toHaveLength(2);
-      expect(two.every(r=>r.mode==='ExclusiveLock'&&r.s===2)).toBe(true);
-      expect(new Set(two.map(r=>String(r.o))).size).toBe(2);
-      expect(String(two.map(r=>r.o).find(o=>String(o)!==salesKey))).toBe(transportKey);
-    });
-    expect(await locks(h.operator)).toEqual([]);
+  // ---- CX4: a row lock on the project row (FOR NO KEY UPDATE), in the guard and in a mapping insert ----
+  // One PGlite connection cannot observe the strength of a row lock: these cases assert what one connection sees. The strength is pinned by G12/G20
+  // (the text of the functions) and by the native cases G24, G27 and N3-N6.
+  test('G21 a draft insert and a mapping insert each lock the row of their project in public.projects (its xmax is set inside the transaction) and take no advisory lock',async()=>{
+    const xmax=async(q:Queryable)=>(await q.query<{x:string}>('SELECT xmax::text x FROM public.projects WHERE id=$1',[ids.sales])).rows[0].x;
+    for(const [label,write] of [['draft insert',(tx:Queryable)=>insertDraft(tx,{project_id:ids.sales})],['mapping insert',(tx:Queryable)=>mapIn(tx,ids.sales,'XECA',1)]] as const){
+      await rolledBack(h.operator,async tx=>{
+        await write(tx);
+        // (i) no advisory lock of the key space of the former body of 022
+        expect(await locks(tx),label).toEqual([]);
+        // (ii) the project row carries a lock of this transaction
+        expect(await xmax(tx),label).not.toBe('0');
+      });
+    }
   });
 
   test('G22 a draft insert in the transaction that wrote an IBS_HI mapping is refused; a row without a project is answered by the table',async()=>{
@@ -533,9 +595,58 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await count()).toBe(0);
     expect((await refusal(insertDraft(h.operator,{project_id:null})))?.code).toBe('23502');
     expect(await count()).toBe(0);
+    // DB-5: the other order in one transaction, a draft and then a mapping of the same project, does not wait for itself
+    await rolledBack(h.operator,async tx=>{
+      await insertDraft(tx,{project_id:ids.sales});
+      await mapIn(tx,ids.sales,'XECA',1);
+    });
+    // the order of a one-transaction restore: a new project row, a draft for it, a mapping for it, a second draft for it
+    await rolledBack(h.operator,async tx=>{
+      const p=randomUUID();
+      await tx.query('INSERT INTO projects(id,tenant_id,name,bu) VALUES($1,$2,$3,$4)',[p,ids.tenant,'Dự án phục hồi mẫu','BU mẫu']);
+      await insertDraft(tx,{project_id:p});
+      await mapIn(tx,p,'XECA',1);
+      await insertDraft(tx,{project_id:p});
+    });
+    expect(await count()).toBe(0);
   });
 
-  // Native only (G23, G24, G27): each needs two connections; PGlite has one.
+  test('N1 a draft for a (tenant, project) pair that does not exist is refused 23503 by the guard itself, and nothing is stored',async()=>{
+    const ghost=randomUUID();
+    const cases:[string,()=>Promise<Refusal>][]=[
+      ['(a) the AI role, a random project in its declared scope',()=>aiInsert({project_id:ghost},{projects:[ghost]})],
+      ['(b) the operational login, a random project',()=>refusal(insertDraft(h.operator,{project_id:randomUUID()}))],
+      ['(c) the operational login, a project of another tenant',()=>refusal(insertDraft(h.operator,{tenant_id:ids.otherTenant,project_id:ids.sales}))],
+    ];
+    for(const [label,run] of cases){
+      const e=await run();
+      expect(e,label).not.toBeNull();
+      expect(e!.code,label).toBe('23503');
+      expect(e!.message,label).toContain('foreign key');
+      expect(e!.hint,label).toContain('ai_drafts_pointer_only_guard');
+    }
+    expect(await count()).toBe(0);
+  });
+
+  test('N2 a mapping for a project that does not exist is refused 23503 by the lock function, and a mapping insert leaves the lock_timeout of the session as it was',async()=>{
+    const ghost=randomUUID();
+    const e=await refusal(mapIn(h.operator,ghost,'IBS_HI',1));
+    expect(e).not.toBeNull();
+    expect(e!.code).toBe('23503');
+    expect(e!.message).toContain('foreign key');
+    expect(e!.hint).toContain('project_domain_mappings_draft_lock');
+    expect(await mappings(ghost)).toBe(0);
+    await rolledBack(h.operator,async tx=>{
+      await tx.query("SET LOCAL lock_timeout = '1234ms'");
+      const show=async()=>(await tx.query<{lock_timeout:string}>('SHOW lock_timeout')).rows[0].lock_timeout;
+      expect(await show()).toBe('1234ms');
+      await mapIn(tx,ids.sales,'XECA',1);
+      expect(await show()).toBe('1234ms');
+    });
+    expect(await mappings(ids.sales)).toBe(0);
+  });
+
+  // Native only (G23, G24, G27, N3-N6): each needs two connections or more; PGlite has one.
   test.skipIf(!native)('G23 a draft insert waits for an uncommitted mapping of its project and then reads it: refused LTZ01 when the mapping commits IBS_HI, stored when the mapping is rolled back',async()=>{
     const gate=new Error('mapping rolled back on purpose');
     const attempt=async(project:string,end:'commit'|'rollback')=>{
@@ -593,52 +704,154 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await count()).toBe(1);
   });
 
-  test.skipIf(!native)('G27 a session of the AI role that holds the advisory key of a project stalls the mapping of that project, and this test says so: its own draft is still stored, the mapping insert fails with 55P03 inside the cap instead of hanging, and once the key is released the mapping goes through and the next draft is refused',async()=>{
-    // R34, said as a case: the key has no access control, so the role can hold it at session level. The cap of 5 seconds in the function is what turns
-    // "hangs without end and in silence" into "fails with a name". It does not make the stall impossible.
+  // Native only (G27, N3-N6): each statement that may wait runs in a transaction of its own under a statement_timeout of 8 s (capped / cappedAi), below
+  // the 20 s of the test: a wait without the cap of the functions shows as 57014 in an assertion on the code, never as a vitest timeout (S-3).
+  test.skipIf(!native)('G27 an open draft transaction of a project holds up a mapping insert of that project for no longer than the cap: 55P03 between 4 and 9 seconds, nothing written; once the draft commits the mapping goes through and the next draft is refused',async()=>{
+    // No session of the AI role can hold the lock by itself any more (G20); what it can do is keep a draft transaction open. The cap of 5 seconds in
+    // the function turns that into a refusal with a name.
     const P=ids.transport;
-    const held=latch(),opened=latch();
-    let unlocked:boolean|null=null,ownDraft:unknown;
-    const holder=h.operator.transaction(async tx=>{
-      await tx.query('SET LOCAL ROLE libetech_ai');
-      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.ai_principal_id',$3,true)",[ids.tenant,P,AI]);
-      await tx.query('SAVEPOINT held');
-      await tx.query('SELECT pg_advisory_lock($1::int, hashtext($2))',[NS,P]);
-      let ok=false;
-      try {
-        ownDraft=(await insertDraft(tx,{project_id:P})).rows[0];
-        opened.open();
-        await held.promise;
-        ok=true;
-      } finally {
-        if(!ok) await tx.query('ROLLBACK TO SAVEPOINT held').catch(()=>undefined);
-        unlocked=(await tx.query<{u:boolean}>('SELECT pg_advisory_unlock($1::int, hashtext($2)) u',[NS,P]).catch(()=>null))?.rows[0].u??null;
-        opened.open();
-      }
-    });
+    const before=await count();
+    const one=openDraft(P);
     try {
-      await opened.promise;
-      // (i) the holder's own draft is stored: its shared lock does not wait for its own exclusive one
-      expect(ownDraft).toBeDefined();
-      // (ii) the mapping insert waits out the cap of 5 seconds and fails with 55P03, naming the lock, instead of hanging
+      await one.ready;
       const t0=Date.now();
-      const e=await refusal(mapDomain(h,P,'IBS_HI',1));
+      const e=await capped(tx=>mapIn(tx,P,'IBS_HI',1));
       const elapsed=Date.now()-t0;
       expect(e).not.toBeNull();
       expect(e!.code).toBe('55P03');
       expect(elapsed).toBeGreaterThanOrEqual(4000);
       expect(elapsed).toBeLessThan(9000);
-      expect((await rows<{n:number}>('SELECT count(*)::int n FROM public.project_domain_mappings WHERE project_id=$1',[P]))[0].n).toBe(0);
+      expect(await mappings(P)).toBe(0);
+    } finally {
+      one.release();
+      await one.done;
+    }
+    expect(await count()).toBe(before+1);
+    expect(await capped(tx=>mapIn(tx,P,'IBS_HI',1))).toBeNull();
+    expect((await aiInsert({project_id:P},{projects:[P]}))?.code).toBe(LTZ);
+    expect(await count()).toBe(before+1);
+  },20000);
+
+  test.skipIf(!native)('N3 a draft of a project row that the statement cannot see is refused 23503 at that row, at once, even when the project and its IBS_HI mapping commit while the statement runs',async()=>{
+    // Gap B-1 of the database review: without the refusal the first row passes unseen and the foreign key, checked at the end of the statement, finds the
+    // project committed meanwhile. The second row is computed slowly so that the statement would still run when A commits.
+    const fresh=randomUUID();
+    const held=latch(),opened=latch();
+    const a=h.operator.transaction(async tx=>{
+      await tx.query('INSERT INTO projects(id,tenant_id,name,bu) VALUES($1,$2,$3,$4)',[fresh,ids.tenant,'Dự án mới mẫu','BU mẫu']);
+      await mapIn(tx,fresh,'IBS_HI',1);
+      opened.open();
+      await held.promise;
+    });
+    const before=await count();
+    let e:Refusal=null,elapsed=0;
+    try {
+      await Promise.race([opened.promise,a]);
+      const v=draftVals(),keys=Object.keys(v),own=keys.filter(k=>!['project_id','entity_id','dedupe_key','model_version'].includes(k));
+      const expr=(k:string)=>k==='project_id'?'u.project_id':k==='entity_id'?'gen_random_uuid()':k==='dedupe_key'?"'draft-'||gen_random_uuid()::text"
+        :k==='model_version'?'(SELECT \'synthetic-model\'::text FROM pg_sleep(u.pause))':`$${own.indexOf(k)+1}::${CAST[k]??'text'}`;
+      const t0=Date.now();
+      const b=cappedAi(tx=>tx.query(`INSERT INTO intelligence.ai_drafts(${keys.join(',')}) SELECT ${keys.map(expr).join(',')}
+        FROM (VALUES ($${own.length+1}::uuid,0::float8),($${own.length+2}::uuid,1.5::float8)) u(project_id,pause)`,[...own.map(k=>v[k]),fresh,ids.sales]),[fresh,ids.sales])
+        .then(r=>{elapsed=Date.now()-t0;return r;});
+      // A commits while B would still be computing its second row
+      await Promise.race([b,new Promise(r=>setTimeout(r,500))]);
+      held.open();
+      await a;
+      e=await b;
+    } finally {
+      held.open();
+      await a;
+    }
+    expect(e).not.toBeNull();
+    expect(e!.code).toBe('23503');
+    expect(e!.hint).toContain('ai_drafts_pointer_only_guard');
+    expect(elapsed).toBeLessThan(1000);
+    expect(await count()).toBe(before);
+    // committed now: the mapping is seen, and a single-row draft of the new project is refused
+    expect((await aiInsert({project_id:fresh},{projects:[fresh]}))?.code).toBe(LTZ);
+    expect(await count()).toBe(before);
+    // the project and its mapping are removed by the reset of afterEach (TRUNCATE projects … CASCADE), like the rows of G23 and G24
+  },20000);
+
+  test.skipIf(!native)('N4 waiters are served in order of arrival: a mapping insert that waits for an open draft is not overtaken by a draft that comes after it',async()=>{
+    const P=ids.transport;
+    const before=await count();
+    const one=openDraft(P);
+    let mapping:Promise<Refusal>|undefined,late:Promise<Refusal>|undefined;
+    try {
+      await one.ready;
+      mapping=capped(tx=>mapIn(tx,P,'IBS_HI',1));
+      await waitForBlocked(h,1);
+      late=cappedAi(tx=>insertDraft(tx,{project_id:P}),[P]);
+      await waitForBlocked(h,2);
+    } finally {
+      one.release();
+      await one.done;
+    }
+    expect(await mapping).toBeNull();
+    const e=await late;
+    expect(e).not.toBeNull();
+    expect(e!.code).toBe(LTZ);
+    expect(await count()).toBe(before+1);
+  },20000);
+
+  test.skipIf(!native)('N5 what an open draft transaction holds up: an UPDATE of the project row waits (55P03 under a lock_timeout of 500 ms); the lock of a foreign-key check of any other table does not',async()=>{
+    const P=ids.transport;
+    const one=openDraft(P);
+    try {
+      await one.ready;
+      await rolledBack(h.operator,async tx=>{
+        await tx.query("SET LOCAL statement_timeout = '8s'");
+        await tx.query("SET LOCAL lock_timeout = '500ms'");
+        await tx.query('SAVEPOINT u');
+        const e=await refusal(tx.query('UPDATE public.projects SET updated_at = updated_at WHERE id = $1',[P]));
+        await tx.query('ROLLBACK TO SAVEPOINT u');
+        expect(e).not.toBeNull();
+        expect(e!.code).toBe('55P03');
+        expect(await refusal(tx.query('SELECT 1 FROM public.projects WHERE id = $1 FOR KEY SHARE NOWAIT',[P]))).toBeNull();
+      });
+    } finally {
+      one.release();
+      await one.done;
+    }
+  },20000);
+
+  test.skipIf(!native)('N6 the old advisory key decides nothing: a session that holds it does not delay a mapping insert of its project nor a draft insert of another project',async()=>{
+    const P=ids.transport;
+    const held=latch(),opened=latch();
+    let unlocked:boolean|null=null;
+    const holder=h.operator.transaction(async tx=>{
+      await tx.query('SELECT pg_advisory_lock($1::int, hashtext($2::text))',[NS,P]);
+      try {
+        opened.open();
+        await held.promise;
+      } finally {
+        unlocked=(await tx.query<{u:boolean}>('SELECT pg_advisory_unlock($1::int, hashtext($2::text)) u',[NS,P])).rows[0].u;
+      }
+    });
+    const before=await count();
+    let mapped:Refusal=null,drafted:Refusal=null,tMap=0,tDraft=0;
+    try {
+      await Promise.race([opened.promise,holder]);
+      let t0=Date.now();
+      mapped=await capped(tx=>mapIn(tx,P,'IBS_HI',1));
+      tMap=Date.now()-t0;
+      t0=Date.now();
+      drafted=await cappedAi(tx=>insertDraft(tx,{project_id:ids.sales}),[ids.sales]);
+      tDraft=Date.now()-t0;
     } finally {
       held.open();
       await holder;
     }
-    // (iii) the key is released: the mapping goes through, and the next draft is refused
+    expect(mapped).toBeNull();
+    expect(tMap).toBeLessThan(1000);
+    expect(drafted).toBeNull();
+    expect(tDraft).toBeLessThan(1000);
+    expect(await mappings(P)).toBe(1);
+    expect(await count()).toBe(before+1);
+    // the session-level key is released before its connection goes back to the pool
     expect(unlocked).toBe(true);
-    await mapDomain(h,P,'IBS_HI',1);
-    expect(await count()).toBe(1);
-    expect((await aiInsert({project_id:P},{projects:[P]}))?.code).toBe(LTZ);
-    // a session-level lock must not go back to the pool
     expect((await rows<{n:number}>("SELECT count(*)::int n FROM pg_locks WHERE locktype='advisory' AND classid=$1",[NS]))[0].n).toBe(0);
-  });
+  },20000);
 });

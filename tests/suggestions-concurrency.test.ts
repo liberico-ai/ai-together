@@ -139,7 +139,8 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
     expect(await n('document_revisions')).toBe(revisions+1);
   });
 
-  // Migration 022 (CX4): the guard of the draft table and a mapping insert of one project take turns under an advisory lock with a cap of 5 seconds.
+  // Migration 022 (CX4): the guard of the draft table and a mapping insert of one project take turns under a row lock on the project row
+  // (FOR NO KEY UPDATE on both sides) with a cap of 5 seconds.
   const envelopeFor=async(projectId:string)=>{
     const d=await registerDoc(h,pm,{projectId});
     const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
@@ -170,15 +171,18 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
     expect(await n('intelligence.ai_drafts')).toBe(0);
   });
 
-  test('a submitDraft that waits past the cap of the guard fails with the database error 55P03 and stores nothing; the same envelope is stored once the key is free',async()=>{
+  // The service pool ends a statement after 10 s (statement_timeout of pooledDatabase): a missing cap shows as 57014 in the assertion on the code,
+  // inside the 20 s of this test, not as a vitest timeout.
+  test('a submitDraft that waits past the cap of the guard fails with the database error 55P03 and stores nothing; the same envelope is stored once the project row is free',async()=>{
     const svc=new SuggestionService(h.db,h.operator,[]);
     const ai={id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales]};
     const envelope=await envelopeFor(ids.sales);
     const before=await n('intelligence.ai_drafts');
     let release!:()=>void,opened!:()=>void;
     const held=new Promise<void>(r=>{release=r;}),ready=new Promise<void>(r=>{opened=r;});
+    // the operator connection may write public.projects, so it can hold the lock that the guard takes
     const holder=h.operator.transaction(async tx=>{
-      await tx.query('SELECT pg_advisory_xact_lock($1::int, hashtext($2))',[1346653516,ids.sales]);
+      await tx.query('SELECT 1 FROM public.projects WHERE id=$1 FOR NO KEY UPDATE',[ids.sales]);
       opened();
       await held;
     });
@@ -200,5 +204,5 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
     expect(await n('intelligence.ai_drafts')).toBe(before);
     expect(await svc.submitDraft(ai,envelope)).toMatchObject({stored:true});
     expect(await n('intelligence.ai_drafts')).toBe(before+1);
-  });
+  },20000);
 });

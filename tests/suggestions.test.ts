@@ -348,7 +348,8 @@ describe('Z4 drafts: decide',()=>{
   const pair=await rawDraft({entityType:'intake_candidate',entityId:randomUUID(),skill:'technical_writer'});
   // a candidate confirmation that carries a revision body is INVALID_INPUT before any hold (V4): the pair is sent without one
   for(const x of [gone,foreign]) await held(decide(svc(),pm,x.id,body(sha(x.value),{revision:revisionBody(d)})),'ENTITY_NOT_FOUND');
-  await held(decide(svc(),pm,pair.id,body(sha(pair.value))),'ENTITY_NOT_FOUND');
+  await refused(decide(svc(),pm,pair.id,body(sha(pair.value),{revision:revisionBody(d)})),'INVALID_INPUT',422);
+  await heldOnly(decide(svc(),pm,pair.id,body(sha(pair.value))),'ENTITY_NOT_FOUND','SUBJECT_ORDER_UNVERIFIED');
   await zeroDecisions();
  });
 

@@ -4,15 +4,24 @@
 --    binds on intelligence.ai_drafts, a row that the insert policy ai_insert (021) would refuse is refused here, with the policy's own answer (42501),
 --    before any mapping is read: such a role cannot tell an IBS_HI project outside the scope it declared from any other project. The scope is the one
 --    the role declared (app.*); what a holder of the role may declare is the business of the AI login design, not of this file.
--- 2. ai_drafts_pointer_only_guard (SECURITY DEFINER, owned by the migration login). It refuses a transaction that is not READ COMMITTED (LTZ02), takes
---    a shared advisory lock on the project, then reads the mapping row with the highest mapping_version of the row's own tenant and project (the rule
---    of isIbsHiSql in src/server/source-text.ts) and refuses IBS_HI (LTZ01). Unmapped and other labels decide nothing. row_security = off makes it fail
---    closed: an owner that row-level security would filter gets an error, never an empty read. It binds every writer, the operational login included.
--- 3. project_domain_mappings_draft_lock on public.project_domain_mappings (SECURITY INVOKER). A mapping insert takes the same advisory lock exclusively,
---    so a draft insert and a mapping insert of one project take turns: the guard reads a mapping that is committed, or the mapping waits for the draft
---    and the draft was stored first. The mapping table is append-only (013): INSERT is its only write. Key: (1346653516, hashtext(project_id::text)).
--- An advisory lock has no access control: any role of the database can take this key. Functions 2 and 3 therefore wait for it under a lock_timeout of
--- their own (5s, set in the function definition, whatever the session says): a wait that long ends in 55P03 and the statement writes nothing.
+-- 2. ai_drafts_pointer_only_guard (SECURITY DEFINER, owned by the migration login). It refuses a transaction that is not READ COMMITTED (LTZ02), locks
+--    the project row of the draft FOR NO KEY UPDATE, refuses a row whose project row it cannot see (23503, the answer of the foreign key), then reads
+--    the mapping row with the highest mapping_version of the row's own tenant and project (the rule of isIbsHiSql in src/server/source-text.ts) and
+--    refuses IBS_HI (LTZ01). Unmapped and other labels decide nothing. row_security = off makes it fail closed: an owner that row-level security would
+--    filter gets an error, never an empty read. It binds every writer, the operational login included.
+-- 3. project_domain_mappings_draft_lock on public.project_domain_mappings (SECURITY DEFINER, same owner, same settings). A mapping insert locks the
+--    same project row FOR NO KEY UPDATE and refuses when it cannot see it, so a draft insert and a mapping insert of one project take turns: the guard
+--    reads a mapping that is committed, or the mapping waits for the draft and the draft was stored first. The mapping table is append-only (013):
+--    INSERT is its only write.
+-- The lock is a row lock on public.projects: the row that the foreign keys of both tables already lock (FOR KEY SHARE) on every insert, here at a
+-- higher strength; no column changes. Only a role that may write public.projects can take it by itself, and no runtime role may (SELECT only: 001,
+-- 010, 016). FOR NO KEY UPDATE does not wait for, and is not waited for by, an insert into any other table that references the project.
+-- Both sides take the same strength on purpose: waiters then queue in order of arrival. With FOR SHARE in the guard, draft inserts that keep
+-- overlapping starve a mapping insert without any bound (measured on PostgreSQL 16:
+-- docs/reviews/oq-45-46-evidence-20261118/measurements-pg16-rowlock.txt). The price: draft inserts of one project run one at a time while their
+-- transactions are open, and an open one makes an UPDATE of that project row wait.
+-- Functions 2 and 3 wait under a lock_timeout of their own (5s, set in the function definition, whatever the session says): a wait that long ends in
+-- 55P03 and the statement writes nothing.
 -- libetech_ai is granted nothing and can call none of the three functions. Apply as the migration login (a superuser), like 019–021.
 -- Nothing here switches anything on: no login, no password, no key, no membership, no grant, no model. No data rows except schema_migrations.
 -- Rollback: migrations/rollback/022_ai_drafts_pointer_only_guard.sql (refuses while a later migration is recorded).
@@ -49,10 +58,21 @@ BEGIN
   IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
     RAISE EXCEPTION 'An AI draft is written in a READ COMMITTED transaction' USING ERRCODE = 'LTZ02';
   END IF;
-  -- Shared with other draft inserts, exclusive against a mapping insert of the same project (project_domain_mappings_draft_lock). It is a statement of
-  -- its own, before the read: the read below then takes its snapshot after the wait and sees a mapping that was committed meanwhile.
-  -- The wait is capped by the lock_timeout of this function: past it the insert fails with 55P03 and no draft is stored.
-  PERFORM pg_catalog.pg_advisory_xact_lock_shared(1346653516, pg_catalog.hashtext(NEW.project_id::text));
+  -- A row without a tenant or a project is answered by the table (23502).
+  IF NEW.tenant_id IS NOT NULL AND NEW.project_id IS NOT NULL THEN
+    -- The project row is locked to the end of this transaction, in conflict with the same lock of a mapping insert of the project
+    -- (project_domain_mappings_draft_lock) and of another draft insert of the project. It is a statement of its own, before the read: the read below
+    -- then takes its snapshot after the wait and sees a mapping that was committed meanwhile. The wait is capped by the lock_timeout of this
+    -- function: past it the insert fails with 55P03 and no draft is stored.
+    PERFORM 1 FROM public.projects p WHERE p.id = NEW.project_id AND p.tenant_id = NEW.tenant_id FOR NO KEY UPDATE;
+    IF NOT FOUND THEN
+      -- A project row this statement cannot see cannot be locked, so a mapping written with it could commit unseen: refused, with the answer the
+      -- foreign key of the table gives for a pair that does not exist.
+      RAISE EXCEPTION 'insert or update on table "%" violates foreign key constraint "ai_drafts_project_id_tenant_id_fkey"', TG_TABLE_NAME
+        USING ERRCODE = '23503', SCHEMA = TG_TABLE_SCHEMA, TABLE = TG_TABLE_NAME, CONSTRAINT = 'ai_drafts_project_id_tenant_id_fkey',
+        HINT = 'Raised by the trigger ai_drafts_pointer_only_guard (migration 022): no project row of this tenant is visible to this statement.';
+    END IF;
+  END IF;
   SELECT m.domain_code INTO latest FROM public.project_domain_mappings m
    WHERE m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id
    ORDER BY m.mapping_version DESC LIMIT 1;
@@ -64,12 +84,20 @@ END $$;
 REVOKE ALL ON FUNCTION intelligence.ai_drafts_pointer_only_guard() FROM PUBLIC;
 
 CREATE OR REPLACE FUNCTION intelligence.project_domain_mappings_draft_lock() RETURNS trigger
-LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp SET lock_timeout = '5s' AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp SET row_security = off SET lock_timeout = '5s' AS $$
 BEGIN
-  -- Held to the end of the transaction that writes the mapping: a draft insert of this project waits for it, and it waits for draft inserts in flight.
-  -- The wait is capped by the lock_timeout of this function: past it the insert fails with 55P03 and no mapping is written. Whoever holds the key
-  -- shows in pg_locks (locktype advisory, classid 1346653516).
-  PERFORM pg_catalog.pg_advisory_xact_lock(1346653516, pg_catalog.hashtext(NEW.project_id::text));
+  -- A row without a tenant or a project is answered by the table (23502).
+  IF NEW.tenant_id IS NOT NULL AND NEW.project_id IS NOT NULL THEN
+    -- Held to the end of the transaction that writes the mapping: a draft insert of this project waits for it, and it waits for draft inserts in
+    -- flight. An insert into any other table that references the project is not held up (FOR KEY SHARE). The wait is capped by the lock_timeout of
+    -- this function: past it the insert fails with 55P03 and no mapping is written.
+    PERFORM 1 FROM public.projects p WHERE p.id = NEW.project_id AND p.tenant_id = NEW.tenant_id FOR NO KEY UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'insert or update on table "%" violates foreign key constraint "project_domain_mappings_project_id_tenant_id_fkey"', TG_TABLE_NAME
+        USING ERRCODE = '23503', SCHEMA = TG_TABLE_SCHEMA, TABLE = TG_TABLE_NAME, CONSTRAINT = 'project_domain_mappings_project_id_tenant_id_fkey',
+        HINT = 'Raised by the trigger project_domain_mappings_draft_lock (migration 022): no project row of this tenant is visible to this statement.';
+    END IF;
+  END IF;
   RETURN NEW;
 END $$;
 REVOKE ALL ON FUNCTION intelligence.project_domain_mappings_draft_lock() FROM PUBLIC;

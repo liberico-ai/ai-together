@@ -7,8 +7,8 @@ DO $$ DECLARE f text; BEGIN
   IF EXISTS (SELECT 1 FROM schema_migrations WHERE version > '022') THEN
     RAISE EXCEPTION 'Roll back the later migrations before 022.';
   END IF;
-  -- dynamic and guarded, so the file can run again after a trigger, a function, a table or the schema is gone, and on a database that holds an
-  -- earlier body of 022 (one trigger, one function)
+  -- dynamic and guarded, so the file can run again after a trigger, a function, a table or the schema is gone, and on a database that holds any
+  -- earlier body of 022 (one trigger and one function; or three with an advisory lock)
   IF pg_catalog.to_regclass('intelligence.ai_drafts') IS NOT NULL THEN
     EXECUTE 'DROP TRIGGER IF EXISTS ai_drafts_pointer_only_guard ON intelligence.ai_drafts';
     EXECUTE 'DROP TRIGGER IF EXISTS ai_drafts_declared_scope_guard ON intelligence.ai_drafts';
