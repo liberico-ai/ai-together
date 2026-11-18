@@ -1686,7 +1686,7 @@ describe('Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirm
   expect(v.decision?.result).toBe('rejected');
  });
 
- test('dừng tại OQ-53 (3): every other check still runs and names its code next to the placeholder — on a draft that no mask reason holds',async()=>{
+ test('dừng tại OQ-53 (3): every other check still runs; when no mask reason holds the draft each names its code next to the placeholder, and when one does the hold names the mask reasons and the placeholder',async()=>{
   // 1 a reply recorded after the message the draft names
   const a=await candidate(),xa=await draftNaming(a,[a.sourceEventId]);
   await reply(a,'Tin trả lời ghi sau nháp');
