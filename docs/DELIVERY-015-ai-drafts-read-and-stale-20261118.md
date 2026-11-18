@@ -4,6 +4,8 @@ PR riêng vào `libetech-ai-os`, viết mã cho bốn quyết định của Chai
 
 Biên nhận này tả nhánh **sau hai vòng sửa của cổng Codex**: vòng sửa 1 (Task F1, F2, F3, F1b, F1c và F5) và vòng sửa 2 (Task G1 và Task G2). Brief của phiên cho tối đa hai vòng sửa ở cổng: cả hai đã dùng, và vòng 3 là lượt chạy cuối của cổng. Chỗ nào còn chờ một lượt chạy, một lượt soát hay một commit thì mang một nhãn giữ chỗ trong ngoặc kép góc, do phiên chính điền; biên nhận không ước con số nào.
 
+**Cập nhật 19/11/2026 (chỉ hồ sơ; mã không đổi).** Chairman đã quyết OQ-53, OQ-54, OQ-55 và OQ-56; lời chép nguyên, hộp chọn và phần ánh xạ của phiên điều phối ở `docs/OPEN-QUESTIONS.md:944`. Mã của PR không đổi vì các quyết định đó, và không lượt test, review hay cổng nào được chạy lại cho commit hồ sơ này. Những câu của biên nhận từng ghi bốn mục đó «chờ Chairman» đã được sửa tại chỗ và mang nhãn «19/11/2026». PR riêng của OQ-53 và thiết kế login AI chưa bắt đầu.
+
 **Z4 chưa bật và không được bật bởi PR này.** Không tuyến HTTP nào đọc nháp; không login, không khoá cho role `libetech_ai`; không mô hình nào được gọi. Dữ liệu thử là dữ liệu tổng hợp.
 
 ## Bốn mức — ghi riêng, không gọi mức sau khi mới đạt mức trước
@@ -30,18 +32,18 @@ Chữ trong «» ở cột giữa của bảng dưới là chữ của mục OQ-
 
 Với điểm 3 Chairman không chọn cách làm. Cách được dùng (do `planner` đề xuất; cổng bảo mật soát trên kế hoạch; đổi ba lần sau cổng Codex vòng 1): bốn trigger `BEFORE INSERT` của migration 022, ba trong đó gọi hàm `SECURITY DEFINER`. Role `libetech_ai` **không được cấp thêm quyền nào** và không gọi thẳng được hàm nào.
 
-**Quyết định phạm vi của Chairman cho finding CX3 của cổng Codex** (18/11/2026; Chairman chọn qua hộp chọn của phiên điều phối, phiên điều phối chuyển lời; câu hỏi và cả ba phương án chép nguyên ở khối cuối tệp, `docs/OPEN-QUESTIONS.md:928`). Chuỗi trả lời, chép nguyên: «B: chặn tạm (Recommended)». Chữ của phương án đó, chép nguyên: «Giữ chỗ fail-closed: không nháp ứng viên nào xác nhận được cho tới khi anh quyết điểm 3 của OQ-53. Nằm trong phạm vi brief; phải đổi kỳ vọng các ca của lát 3 đang xác nhận nháp ứng viên. Z4 đang tắt, chưa có login AI nên hôm nay không có nháp thật nào bị chặn.» Nhãn «(Recommended)» là nhãn của phiên điều phối. Đây là quyết định về phạm vi của PR này; điểm 3 của OQ-53 vẫn mở.
+**Quyết định phạm vi của Chairman cho finding CX3 của cổng Codex** (18/11/2026; Chairman chọn qua hộp chọn của phiên điều phối, phiên điều phối chuyển lời; câu hỏi và cả ba phương án chép nguyên ở khối cuối tệp, `docs/OPEN-QUESTIONS.md:928`). Chuỗi trả lời, chép nguyên: «B: chặn tạm (Recommended)». Chữ của phương án đó, chép nguyên: «Giữ chỗ fail-closed: không nháp ứng viên nào xác nhận được cho tới khi anh quyết điểm 3 của OQ-53. Nằm trong phạm vi brief; phải đổi kỳ vọng các ca của lát 3 đang xác nhận nháp ứng viên. Z4 đang tắt, chưa có login AI nên hôm nay không có nháp thật nào bị chặn.» Nhãn «(Recommended)» là nhãn của phiên điều phối. Đây là quyết định về phạm vi của PR này; lúc đó điểm 3 của OQ-53 còn mở. **Ngày 19/11/2026 Chairman đã quyết điểm 3: (b), trong một PR riêng** (bảng dưới).
 
-**Bốn câu hỏi mở do PR này ghi** (lời Chairman chưa phủ; không mục nào được tự chọn phương án):
+**Bốn câu hỏi do PR này ghi** (lời Chairman ngày 18/11/2026 chưa phủ; PR không tự chọn phương án cho mục nào). **Chairman đã quyết cả bốn ngày 19/11/2026** (`docs/OPEN-QUESTIONS.md:944`). **Mã của PR không đổi vì các quyết định đó:** cột «Hành vi trong PR» vẫn đúng với mã; cột cuối ghi quyết định và việc còn lại.
 
-| Câu hỏi | Nội dung | Hành vi trong PR |
-|---|---|---|
-| **OQ-53** (`docs/OPEN-QUESTIONS.md:872`) điểm 1 | Bản sửa của một tin: nháp chỉ nêu mã tin, không nêu bản, nên mốc Chairman chọn không so được | Giữ chỗ fail-closed, **không phải phương án được chọn**: nháp ứng viên bị giữ (`SUBJECT_EDIT_UNVERIFIED`) khi luồng có một bản sửa được ghi từ mốc trở đi |
-| OQ-53 điểm 2 | Nháp không nêu bản nào của tài liệu của nó, hoặc tin nào của luồng của nó: không có mốc | Giữ chỗ fail-closed: bị giữ (`SUBJECT_BASELINE_MISSING`) |
-| OQ-53 điểm 3 (`:924`) | Khe theo thứ tự commit của đường nhận tin (finding CX3 của cổng Codex) | Giữ chỗ fail-closed theo quyết định phạm vi của Chairman, **không phải phương án được chọn** của điểm 3: mọi lệnh xác nhận nháp ứng viên bị giữ (`SUBJECT_ORDER_UNVERIFIED`) |
-| **OQ-54** (`:884`) | Nội dung nháp đã lưu trước khi dự án thành `IBS_HI` có được nằm lại trong Z4 không | Không viết mã; dòng nằm lại (bảng bất biến), dịch vụ không trả nội dung và không cho xác nhận |
-| **OQ-55** (`:899`) | Nháp mang chữ của tin mà không nêu mã tin | Hai giữ chỗ fail-closed, **không phải phương án được chọn**: nháp ứng viên bị che và bị giữ (`THREAD_TEXT_HIDDEN`) khi luồng của nó có chữ đã lưu mà nay không được hiện; **mọi nháp** — tài liệu lẫn ứng viên — bị che và bị giữ (`PROJECT_TEXT_HIDDEN`) khi dự án có chữ như vậy. Giữ chỗ thứ hai rộng hơn chữ của phương án (e) |
-| **OQ-56** (`:914`) | Nháp của dự án **chưa có dòng ánh xạ miền** có được lưu và được đọc không | Không viết mã; hành vi cũ giữ nguyên (đọc đúng chữ «dự án `IBS_HI`», cùng luật với chữ của tin theo OQ-28 (c)). Với dữ liệu thật hôm nay mọi dự án đang «Chưa xác nhận», nên guard chưa từ chối dự án nào cho tới khi có dòng ánh xạ |
+| Câu hỏi | Nội dung | Hành vi trong PR | Quyết định 19/11/2026 và việc còn lại |
+|---|---|---|---|
+| **OQ-53** (`docs/OPEN-QUESTIONS.md:872`) điểm 1 | Bản sửa của một tin: nháp chỉ nêu mã tin, không nêu bản, nên mốc Chairman chọn không so được | Giữ chỗ fail-closed, **không phải phương án được chọn**: nháp ứng viên bị giữ (`SUBJECT_EDIT_UNVERIFIED`) khi luồng có một bản sửa được ghi từ mốc trở đi | **(b)** — nháp nêu hash hoặc số bản của từng tin nó trích. Làm trong một PR riêng; `SUBJECT_EDIT_UNVERIFIED` ở lại, vẫn là giữ chỗ, cho tới khi PR đó merge |
+| OQ-53 điểm 2 | Nháp không nêu bản nào của tài liệu của nó, hoặc tin nào của luồng của nó: không có mốc | Giữ chỗ fail-closed: bị giữ (`SUBJECT_BASELINE_MISSING`) | **(a)** — trùng hành vi của PR: `SUBJECT_BASELINE_MISSING` nay là hành vi đã quyết, không còn là giữ chỗ (ánh xạ của phiên điều phối). Còn lại, trong PR riêng: sửa ngữ cảnh `release_librarian` (R28) |
+| OQ-53 điểm 3 (`:924`) | Khe theo thứ tự commit của đường nhận tin (finding CX3 của cổng Codex) | Giữ chỗ fail-closed theo quyết định phạm vi của Chairman, **không phải phương án được chọn** của điểm 3: mọi lệnh xác nhận nháp ứng viên bị giữ (`SUBJECT_ORDER_UNVERIFIED`) | **(b)** — một số thứ tự theo luồng do CSDL cấp lúc ghi. Làm trong cùng PR riêng đó; `SUBJECT_ORDER_UNVERIFIED` ở lại, vẫn là giữ chỗ, cho tới khi PR đó merge: tới lúc đó không nháp ứng viên nào xác nhận được |
+| **OQ-54** (`:884`) | Nội dung nháp đã lưu trước khi dự án thành `IBS_HI` có được nằm lại trong Z4 không | Không viết mã; dòng nằm lại (bảng bất biến), dịch vụ không trả nội dung và không cho xác nhận | **(b)** — một lệnh có kiểm soát xoá trắng nội dung nháp của dự án đang `IBS_HI`. Làm cùng thiết kế login AI; PR này không có mã, hành vi vẫn trùng (a) |
+| **OQ-55** (`:899`) | Nháp mang chữ của tin mà không nêu mã tin | Hai giữ chỗ fail-closed, **không phải phương án được chọn**: nháp ứng viên bị che và bị giữ (`THREAD_TEXT_HIDDEN`) khi luồng của nó có chữ đã lưu mà nay không được hiện; **mọi nháp** — tài liệu lẫn ứng viên — bị che và bị giữ (`PROJECT_TEXT_HIDDEN`) khi dự án có chữ như vậy. Giữ chỗ thứ hai rộng hơn chữ của phương án (e) | **(b) làm đích**; giữ hành vi `PROJECT_TEXT_HIDDEN` hiện tại tới khi có thiết kế pipeline. Hai mã ở lại nguyên; luật phía pipeline chưa có |
+| **OQ-56** (`:914`) | Nháp của dự án **chưa có dòng ánh xạ miền** có được lưu và được đọc không | Không viết mã; hành vi cũ giữ nguyên (đọc đúng chữ «dự án `IBS_HI`», cùng luật với chữ của tin theo OQ-28 (c)). Với dữ liệu thật hôm nay mọi dự án đang «Chưa xác nhận», nên guard chưa từ chối dự án nào cho tới khi có dòng ánh xạ | **(b)** — với nháp AI, dự án chưa ánh xạ coi như chỉ con trỏ. Thời điểm làm, Chairman chọn qua hộp chọn: cùng thiết kế login AI. PR này vẫn ở (a); ca G2 và S3 ghim (a) |
 
 **Cách hiểu chờ Chairman xác nhận** (không phải lời Chairman; đầy đủ ở kế hoạch, mục «Cách hiểu chờ Chairman xác nhận», C1–C9):
 
@@ -61,8 +63,8 @@ Ba phần mở rộng đó — một của C3, hai của C9 — có các cách h
 
 **Hai điều người đọc phải biết trước mọi điều khác:**
 
-- **Sau PR này không nháp ứng viên nào xác nhận được.** Mọi lệnh xác nhận một nháp ứng viên bị giữ với mã `SUBJECT_ORDER_UNVERIFIED`, cho tới khi điểm 3 của OQ-53 được quyết. Từ chối vẫn làm được. Việc đọc không đổi vì mã này.
-- **Mọi nháp của một dự án — nháp tài liệu lẫn nháp ứng viên — bị che lúc đọc và bị giữ lúc xác nhận (`PROJECT_TEXT_HIDDEN`) chừng nào dự án còn chữ của tin đã lưu mà cấu hình nay không cho hiện.** Đó là một giữ chỗ của OQ-55, rộng hơn chữ của phương án (e). Với danh sách nhóm hiện chữ mặc định rỗng, điều này áp cho mọi dự án từng lưu chữ của tin.
+- **Sau PR này không nháp ứng viên nào xác nhận được.** Mọi lệnh xác nhận một nháp ứng viên bị giữ với mã `SUBJECT_ORDER_UNVERIFIED`. Từ chối vẫn làm được. Việc đọc không đổi vì mã này. Bản 18/11 của câu này ghi «cho tới khi điểm 3 của OQ-53 được quyết»; ngày 19/11/2026 Chairman đã quyết điểm 3 ((b), trong một PR riêng) và nói giữ hành vi chặt tới khi PR đó merge — **giữ chỗ này ở lại cho tới khi PR riêng của OQ-53 merge**.
+- **Mọi nháp của một dự án — nháp tài liệu lẫn nháp ứng viên — bị che lúc đọc và bị giữ lúc xác nhận (`PROJECT_TEXT_HIDDEN`) chừng nào dự án còn chữ của tin đã lưu mà cấu hình nay không cho hiện.** Đó là một giữ chỗ của OQ-55, rộng hơn chữ của phương án (e). Với danh sách nhóm hiện chữ mặc định rỗng, điều này áp cho mọi dự án từng lưu chữ của tin. Ngày 19/11/2026 Chairman quyết OQ-55: (b) làm đích, và **giữ hành vi `PROJECT_TEXT_HIDDEN` hiện tại tới khi có thiết kế pipeline**.
 
 **Trước cổng Codex** (các commit tới `83d5e2f`):
 
@@ -99,7 +101,7 @@ Commit của vòng sửa 1, của hồ sơ vòng 2 và của Task G1: `f5b2a36` 
 
 **Cùng vòng sửa 2 — Task G2**, sau lượt xem lại bảo mật của Task G1 (commit và log của nó: ô Task G2 của bảng «Bằng chứng kiểm»). Khi có ít nhất một mã che giữ nháp, câu `DRAFT_HELD` của lệnh xác nhận chỉ nêu các mã che — những mã mà một lần đọc cũng cho thấy trong `maskReasons` — cộng `SUBJECT_ORDER_UNVERIFIED` với nháp ứng viên; các mã khác của cổng, tức các mã tả nội dung, không được nêu. Một lần giữ không có mã che nào nêu mọi mã, như trước. Mọi phép kiểm vẫn chạy; chỉ câu trả lời nêu ít mã hơn. Mã: một hằng `MASK_REASONS` và đúng một chỗ ném `DRAFT_HELD` của nhánh xác nhận trong `src/server/suggestions.ts`. Cái giá: người quyết định một nháp bị che thấy ít mã chẩn đoán hơn cho tới khi nội dung được hiện lại.
 
-**Mã lý do, như đang có.** «Giữ chỗ» nghĩa là fail-closed chờ một câu hỏi mở, không phải phương án được chọn.
+**Mã lý do, như đang có.** «Giữ chỗ» nghĩa là fail-closed, không phải phương án được chọn. Lúc PR được viết, mỗi giữ chỗ chờ một câu hỏi mở; từ 19/11/2026 các câu hỏi đó đã có quyết định, và giữ chỗ ở lại cho tới khi PR hoặc thiết kế mang phương án được chọn xong.
 
 | Mã | Che lúc đọc | Giữ lúc xác nhận | Loại |
 |---|---|---|---|
@@ -109,14 +111,14 @@ Commit của vòng sửa 1, của hồ sơ vòng 2 và của Task G1: `f5b2a36` 
 | `SOURCE_OUT_OF_CONTEXT` | có | có | quyết định: OQ-45 điểm 2 (b), theo cách hiểu C2 |
 | `ENTITY_NOT_FOUND` | có | có | như trên |
 | `SCHEMA_INVALID` | có | có | như trên |
-| `THREAD_TEXT_HIDDEN` | có (nháp ứng viên) | có | **giữ chỗ** — OQ-55 |
-| `PROJECT_TEXT_HIDDEN` | có (mọi nháp) | có | **giữ chỗ** — OQ-55 |
+| `THREAD_TEXT_HIDDEN` | có (nháp ứng viên) | có | **giữ chỗ** — OQ-55 (19/11: (b) làm đích; hành vi này trùng (a), mà chữ của (b) dẫn lại) |
+| `PROJECT_TEXT_HIDDEN` | có (mọi nháp) | có | **giữ chỗ** — OQ-55 (19/11: Chairman nói giữ hành vi này tới khi có thiết kế pipeline) |
 | `SUBJECT_CHANGED` | không | có | quyết định: OQ-46 (b) |
-| `SUBJECT_EDIT_UNVERIFIED` | không | có (nháp ứng viên) | **giữ chỗ** — OQ-53 điểm 1 |
-| `SUBJECT_BASELINE_MISSING` | không | có | **giữ chỗ** — OQ-53 điểm 2 |
-| `SUBJECT_ORDER_UNVERIFIED` | không | có (mọi nháp ứng viên) | **giữ chỗ** — OQ-53 điểm 3, theo quyết định phạm vi của Chairman |
+| `SUBJECT_EDIT_UNVERIFIED` | không | có (nháp ứng viên) | **giữ chỗ** — OQ-53 điểm 1 (19/11: (b), trong PR riêng; ở lại tới khi PR đó merge) |
+| `SUBJECT_BASELINE_MISSING` | không | có | quyết định: OQ-53 điểm 2 (a), từ 19/11/2026; lúc PR được viết là giữ chỗ |
+| `SUBJECT_ORDER_UNVERIFIED` | không | có (mọi nháp ứng viên) | **giữ chỗ** — OQ-53 điểm 3, theo quyết định phạm vi của Chairman (19/11: (b), trong PR riêng; ở lại tới khi PR đó merge) |
 
-Tám mã đầu là toàn bộ kiểu `MaskReason`; bốn mã `SUBJECT_*` chỉ giữ. Năm mã là giữ chỗ. Các mã giữ có từ lát 3 (`MANIFEST_MISMATCH`, `VALUE_HASH_MISMATCH`, các mã của cổng đầu ra) không đổi. Điều bị che lúc đọc luôn bị giữ lúc xác nhận; chiều ngược lại không phải bất biến. Dưới mọi lớp che — cả tám mã `MaskReason` — dòng trả ra không mang nội dung, `sources` là `[]`, và sau Task G1 `valueHash` rỗng. Thứ tự câu trả lời của `decide` sau Task G1: quyền → «đã có quyết định» → `valueHash`, chỉ so cho người mà nội dung được hiện → lỗi của lệnh (`REASON_REQUIRED`; `INVALID_INPUT` cho lệnh xác nhận nháp ứng viên kèm bản đề xuất tài liệu) → các mã giữ → với lệnh xác nhận không bị giữ, `valueHash` được so lần nữa. Sau Task G2, câu giữ của một lệnh xác nhận nêu mọi mã khi không mã che nào giữ nháp; khi có ít nhất một mã che, nó chỉ nêu các mã che, cộng `SUBJECT_ORDER_UNVERIFIED` với nháp ứng viên. Cột «Giữ lúc xác nhận» của bảng trên nói mã nào giữ, không nói mã nào được nêu. Sau Task F5, một lệnh xác nhận còn có thể nhận `DRAFT_HELD` với đúng một mã `POINTER_ONLY_PROJECT` từ guard của bảng quyết định, khi dự án thành `IBS_HI` sau phép kiểm của dịch vụ.
+Tám mã đầu là toàn bộ kiểu `MaskReason`; bốn mã `SUBJECT_*` chỉ giữ. Lúc PR được viết, năm mã là giữ chỗ; sau quyết định 19/11/2026 còn bốn (`SUBJECT_BASELINE_MISSING` trùng điểm 2 (a) Chairman chọn). Các mã giữ có từ lát 3 (`MANIFEST_MISMATCH`, `VALUE_HASH_MISMATCH`, các mã của cổng đầu ra) không đổi. Điều bị che lúc đọc luôn bị giữ lúc xác nhận; chiều ngược lại không phải bất biến. Dưới mọi lớp che — cả tám mã `MaskReason` — dòng trả ra không mang nội dung, `sources` là `[]`, và sau Task G1 `valueHash` rỗng. Thứ tự câu trả lời của `decide` sau Task G1: quyền → «đã có quyết định» → `valueHash`, chỉ so cho người mà nội dung được hiện → lỗi của lệnh (`REASON_REQUIRED`; `INVALID_INPUT` cho lệnh xác nhận nháp ứng viên kèm bản đề xuất tài liệu) → các mã giữ → với lệnh xác nhận không bị giữ, `valueHash` được so lần nữa. Sau Task G2, câu giữ của một lệnh xác nhận nêu mọi mã khi không mã che nào giữ nháp; khi có ít nhất một mã che, nó chỉ nêu các mã che, cộng `SUBJECT_ORDER_UNVERIFIED` với nháp ứng viên. Cột «Giữ lúc xác nhận» của bảng trên nói mã nào giữ, không nói mã nào được nêu. Sau Task F5, một lệnh xác nhận còn có thể nhận `DRAFT_HELD` với đúng một mã `POINTER_ONLY_PROJECT` từ guard của bảng quyết định, khi dự án thành `IBS_HI` sau phép kiểm của dịch vụ.
 
 **Migration 022 sau Task F5** (`migrations/022_ai_drafts_pointer_only_guard.sql`; tệp lùi cùng tên trong `migrations/rollback/`). Bốn trigger `BEFORE INSERT … FOR EACH ROW` trên ba bảng, bốn hàm trong schema `intelligence` — một `SECURITY INVOKER`, ba `SECURITY DEFINER` — không `GRANT` nào, không dòng dữ liệu nào ngoài `schema_migrations`:
 
@@ -369,8 +371,8 @@ Các ghi chú triển khai và các câu catalog chỉ đọc để chạy sau k
 
 **Trước hết, nói lại hai điều của mục «Đã làm»:**
 
-- **Sau PR này không nháp ứng viên nào xác nhận được.** Mọi lệnh xác nhận một nháp ứng viên bị giữ với `SUBJECT_ORDER_UNVERIFIED` cho tới khi điểm 3 của OQ-53 được quyết; từ chối vẫn làm được; việc đọc không đổi vì mã này.
-- **Mọi nháp của một dự án bị che và bị giữ (`PROJECT_TEXT_HIDDEN`) chừng nào dự án còn chữ đã lưu mà nay không được hiện** — một giữ chỗ của OQ-55, rộng hơn phương án (e).
+- **Sau PR này không nháp ứng viên nào xác nhận được.** Mọi lệnh xác nhận một nháp ứng viên bị giữ với `SUBJECT_ORDER_UNVERIFIED` cho tới khi PR riêng của OQ-53 merge (Chairman quyết điểm 3 ngày 19/11/2026: (b), giữ hành vi chặt tới khi PR đó merge); từ chối vẫn làm được; việc đọc không đổi vì mã này.
+- **Mọi nháp của một dự án bị che và bị giữ (`PROJECT_TEXT_HIDDEN`) chừng nào dự án còn chữ đã lưu mà nay không được hiện** — một giữ chỗ của OQ-55, rộng hơn phương án (e); theo lời Chairman ngày 19/11/2026, hành vi này được giữ tới khi có thiết kế pipeline.
 
 **Các phần dư của vòng sửa, từng mục** (R33–R39, DB-8, R15, và hai mục sau Task G1, G2; danh sách đầy đủ ở kế hoạch):
 
@@ -404,7 +406,7 @@ Các ghi chú triển khai và các câu catalog chỉ đọc để chạy sau k
 
 **Ghi nháp và guard**
 
-7. Nội dung nháp lưu trước khi dự án thành `IBS_HI` nằm lại trong bảng (R2, OQ-54). Dự án chưa ánh xạ không bị từ chối (OQ-56).
+7. Nội dung nháp lưu trước khi dự án thành `IBS_HI` nằm lại trong bảng (R2, OQ-54). Dự án chưa ánh xạ không bị từ chối (OQ-56). Chairman đã quyết cả hai mục ngày 19/11/2026 — (b) ở cả hai, làm cùng thiết kế login AI; cho tới lúc đó hai câu trên vẫn đúng với mã.
 8. Guard có thể vắng mà dịch vụ không biết: lùi 022, tắt một trong bốn trigger, `session_replication_role = replica`, `pg_restore --disable-triggers`, hoặc một CSDL mang thân cũ (R19, R37). Chỉ trigger phạm vi bị tắt thì CX1 mở lại; chỉ trigger của bảng ánh xạ bị tắt thì CX4 mở lại; chỉ trigger của bảng quyết định bị tắt thì một lệnh xác nhận lại commit được cho dự án vừa thành `IBS_HI`. Cả các đường đó cần superuser hoặc chủ bảng.
 9. Lỗi CSDL thô đi qua `submitDraft` — mọi mã trừ `LTZ01`, kể cả `LTZ02`, `55P03`, `40P01`, `23503`; ở bản demo PGlite đối tượng lỗi mang cả tham số, tức nội dung nháp (R31). Khoảng trống 41 của lát 3 (khoá khử trùng đã dùng ở dự án khác) không đổi (R10).
 10. Đường nhận tin đọc cùng ánh xạ để chọn chế độ lưu chữ mà không lấy khoá (`src/server/intake.ts:70`; ngoài diff của PR): chữ lưu như vậy bị ẩn lúc đọc.
@@ -429,14 +431,14 @@ Các ghi chú triển khai và các câu catalog chỉ đọc để chạy sau k
 
 Ngoài bốn điều kiện ở ghi chú 3 của khối quyết định (`docs/OPEN-QUESTIONS.md:865`): hai mươi lăm điều kiện ở kế hoạch — 1–6 (`docs/plans/oq-45-46-ai-drafts.md:751`), 7–13 (`:802`), 14–17 (`:837`), 18–22 (`:1350`; điều kiện 18 hiện hành ở `:1443`), 23–24 (`:1448`), 25 (`:1877`).
 
-Tóm tắt 1–17: OQ-53 (ba điểm), OQ-54, OQ-55, OQ-56 có quyết định · pipeline từ chối khởi động khi guard vắng, bị tắt hoặc mang thân cũ · tuyến gọi `submitDraft` bọc mọi lỗi CSDL thô · danh sách nhóm hiện chữ hiện hành cho từng yêu cầu · khoảng trống 41 có quyết định · soát đường dựng `Principal` từ phiên · câu catalog sau khi áp 022 · mức cô lập của login pipeline và login runtime · bốn thiết lập log của cụm · đo lại thứ tự nạp trên bản dump thật · giới hạn tần suất `decide`, không log thân câu trả lời · hợp đồng và prompt của pipeline nêu mọi tin của luồng và bản mới nhất của tài liệu · `EXPLAIN` cho các câu đọc mới · `decide` đọc dòng nháp bằng câu lệnh siêu dữ liệu khi người gọi không có quyền.
+Tóm tắt 1–17: OQ-53 (ba điểm), OQ-54, OQ-55, OQ-56 có quyết định (đã có ngày 19/11/2026; mã cho các quyết định đó chưa có) · pipeline từ chối khởi động khi guard vắng, bị tắt hoặc mang thân cũ · tuyến gọi `submitDraft` bọc mọi lỗi CSDL thô · danh sách nhóm hiện chữ hiện hành cho từng yêu cầu · khoảng trống 41 có quyết định · soát đường dựng `Principal` từ phiên · câu catalog sau khi áp 022 · mức cô lập của login pipeline và login runtime · bốn thiết lập log của cụm · đo lại thứ tự nạp trên bản dump thật · giới hạn tần suất `decide`, không log thân câu trả lời · hợp đồng và prompt của pipeline nêu mọi tin của luồng và bản mới nhất của tài liệu · `EXPLAIN` cho các câu đọc mới · `decide` đọc dòng nháp bằng câu lệnh siêu dữ liệu khi người gọi không có quyền.
 
 Tám điều kiện của vòng sửa, nêu đủ:
 
 - **18.** Login của pipeline có `idle_in_transaction_session_timeout`. Pipeline coi `55P03` từ `submitDraft` là thử lại được, và giữ giao dịch chèn nháp ngắn — không mở giao dịch qua một lời gọi mô hình hay một lần chờ mạng, vì nháp của một dự án nay được ghi lần lượt. Pipeline ghi nháp của một dự án mỗi giao dịch (hoặc theo một thứ tự dự án cố định) và coi `40P01` là thử lại được: hai giao dịch chèn nháp cho cùng hai dự án theo thứ tự ngược nhau nay khoá chết. Tuyến đầu tiên gọi `submitDraft`, và tuyến đầu tiên gọi `decide`, đổi `55P03` và `40P01` thành một lỗi thử-lại-được của dịch vụ, không kèm `CONTEXT` của CSDL. Người ghi ánh xạ biết `55P03` nghĩa là một giao dịch chèn nháp, ghi ánh xạ hoặc xác nhận của dự án đó đang mở. **Thêm sau Task F5:** login web (role runtime) cũng có `idle_in_transaction_session_timeout`, có ca kiểm; tuyến đầu tiên gọi `decide` đổi `55P03`, `40P01`, `LTZ02`, `23503` thành lỗi thử-lại-được hoặc lỗi của dịch vụ, không kèm `CONTEXT` của CSDL.
 - **19.** Một lần `EXPLAIN` trên PostgreSQL 16 cho `projectHasHiddenText` trên một dự án nhiều tin; thêm chỉ mục nếu cần.
 - **20.** Câu catalog sau khi áp đọc thêm: bốn trigger của 022 có mặt, đang bật, đúng kiểu; tên trigger phạm vi đứng trước tên guard và không trigger `BEFORE INSERT` nào khác của bảng nháp sắp trước nó; trên bảng quyết định, `draft_decisions_guard` đứng trước `draft_decisions_pointer_only_guard`; thân, `prosecdef` và `proconfig` của bốn hàm khớp tệp (sáu câu đã chạy mới phủ ba hàm đầu); trên `intelligence.ai_drafts` có đúng một policy áp cho `INSERT` (`ai_insert`) và đúng một policy `SELECT` áp cho `libetech_ai` (`ai_select`), không policy `RESTRICTIVE`, cả hai biểu thức khớp chuỗi ghim ở ca G25.
-- **21.** Điểm 3 của OQ-53 có quyết định. Khi đó `SUBJECT_ORDER_UNVERIFIED` được gỡ hoặc thay theo quyết định, và mười hai ca E1–E12 được đưa về kỳ vọng mà quyết định đó kéo theo.
+- **21.** Điểm 3 của OQ-53 có quyết định. Khi đó `SUBJECT_ORDER_UNVERIFIED` được gỡ hoặc thay theo quyết định, và mười hai ca E1–E12 được đưa về kỳ vọng mà quyết định đó kéo theo. **Cập nhật 19/11/2026:** đã có quyết định — (b), trong một PR riêng, giữ hành vi chặt tới khi PR đó merge. Việc gỡ hoặc thay `SUBJECT_ORDER_UNVERIFIED` và việc đưa mười hai ca về kỳ vọng mới vì thế thuộc PR riêng đó, không thuộc PR này.
 - **22.** Thiết kế login AI: dưới đúng login đó, `row_security_active` trên `intelligence.ai_drafts` phải trả đúng — login không là superuser, không có `BYPASSRLS`, không sở hữu bảng. Nếu trả sai, trigger phạm vi tự bỏ qua và kênh của CX1 mở lại cho mọi dự án.
 - **23.** Lát nào thêm một đường ghi lên `public.projects`, hoặc cấp `UPDATE` trên bảng đó cho một role runtime, phải đặt `lock_timeout` cho câu lệnh đó và nêu migration 022 trong kế hoạch của nó: một giao dịch chèn nháp còn mở làm lệnh đó chờ, và một role có `UPDATE` trên `projects` tự lấy được khoá dòng.
 - **24.** Trước khi cấp `INSERT` trên `public.project_domain_mappings` cho một role chịu RLS: trigger khoá chạy trước `WITH CHECK` và với quyền definer, nên lệnh của role đó sẽ khoá hoặc chờ dòng dự án của tenant khác, và nhận `23503` hay câu của RLS tuỳ cặp (tenant, dự án) có thật hay không, trước khi RLS xét dòng. Khi đó trigger khoá phải soi phạm vi trước, như trigger phạm vi của bảng nháp.
@@ -448,10 +450,12 @@ Merge PR (phiên điều phối kiểm lại độc lập; chỉ merge khi Chair
 
 ## Cần Chairman quyết hoặc xác nhận
 
-1. **OQ-53** — ba điểm. Điểm 1 (bản sửa của tin) và điểm 2 (nháp không nêu mốc) đang có giữ chỗ. **Điểm 3 nay có một giữ chỗ chặn mọi lệnh xác nhận nháp ứng viên**: chừng nào điểm này chưa được quyết, đường xác nhận nháp ứng viên của lát 3 đóng.
-2. **OQ-54** — nội dung nháp lưu trước khi dự án thành `IBS_HI`.
-3. **OQ-55** — nháp mang chữ của tin mà không nêu mã tin. Hai giữ chỗ đang che và giữ theo luồng và theo dự án; giữ chỗ theo dự án rộng hơn chữ của phương án (e), và mục OQ-55 nêu rằng không phương án nào trong (a)–(e) nói tới nháp ứng viên chép chữ của luồng khác cùng dự án.
-4. **OQ-56** — nháp của dự án chưa có dòng ánh xạ miền.
+**Cập nhật 19/11/2026:** mục 1–4 đã có quyết định (`docs/OPEN-QUESTIONS.md:944`). Chúng nằm lại ở đây, mang nhãn «đã quyết», để số thứ tự các mục không đổi. Còn chờ Chairman: mục 5, mục 6 và việc merge.
+
+1. **OQ-53 — đã quyết 19/11/2026:** điểm 1 (b), điểm 2 (a), điểm 3 (b), làm thành một PR riêng (chưa bắt đầu; theo phiên điều phối, đợi PR này merge). Cho tới khi PR riêng đó merge, `SUBJECT_EDIT_UNVERIFIED` và `SUBJECT_ORDER_UNVERIFIED` ở lại: đường xác nhận nháp ứng viên của lát 3 vẫn đóng.
+2. **OQ-54 — đã quyết 19/11/2026:** (b), làm cùng thiết kế login AI (chưa bắt đầu). PR này không có mã cho mục này.
+3. **OQ-55 — đã quyết 19/11/2026:** (b) làm đích; giữ hành vi `PROJECT_TEXT_HIDDEN` hiện tại tới khi có thiết kế pipeline. Hai giữ chỗ vẫn che và giữ theo luồng và theo dự án. Một điểm lời Chairman chưa phủ, để thiết kế pipeline nêu lại: mục OQ-55 ghi rằng không phương án nào trong (a)–(e) nói tới nháp ứng viên chép chữ của luồng khác cùng dự án; hôm nay `PROJECT_TEXT_HIDDEN` che trường hợp đó.
+4. **OQ-56 — đã quyết 19/11/2026:** (b); thời điểm làm, Chairman chọn qua hộp chọn: cùng thiết kế login AI (chưa bắt đầu). PR này vẫn ở (a).
 5. **Cách hiểu C1–C9**; trong đó C8 (người không có quyền vẫn thấy dòng nháp) không phải hướng chặt nhất. **Ba phần mở rộng sau cổng Codex vòng 2, cũng chờ xác nhận:** C9 — dưới mọi lớp che không trả cả hash của nội dung; C9 — trên một nháp bị che, «lý do giữ» mà câu giữ của lệnh xác nhận nêu là các mã che, cộng giữ chỗ của điểm 3 OQ-53 (cách hiểu khác, rộng hơn: nêu mọi mã của một lần giữ, như trước Task G2); C3 — một nháp bị che được từ chối không cần hash. Cách hiểu khác, chặt hơn, cho cả ba, không được chọn ở đây: một nháp bị che không quyết định được gì cả — không xác nhận, không từ chối — cho tới khi nội dung của nó được hiện lại cho người quyết định; khi đó nháp của một dự án vừa thành `IBS_HI`, hoặc của một dự án đang có chữ bị ẩn, nằm chờ trong danh sách và không ai gỡ được.
 6. Việc bật Z4 vẫn cần đủ các điều kiện ở mục trên và lời Chairman cho chính việc đó.
 
