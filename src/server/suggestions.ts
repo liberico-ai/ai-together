@@ -35,6 +35,7 @@ const ENTITY_TYPES=['intake_candidate','document'] as const;
 type EntityType=typeof ENTITY_TYPES[number];
 
 export type MaskReason='CONFIRM_AUTHORITY_REQUIRED'|'ENTITY_NOT_FOUND'|'POINTER_ONLY_PROJECT'|'PROJECT_TEXT_HIDDEN'|'SCHEMA_INVALID'|'SOURCE_OUT_OF_CONTEXT'|'TEXT_NOT_VISIBLE'|'THREAD_TEXT_HIDDEN';
+const MASK_REASONS:ReadonlySet<string>=new Set(['CONFIRM_AUTHORITY_REQUIRED','ENTITY_NOT_FOUND','POINTER_ONLY_PROJECT','PROJECT_TEXT_HIDDEN','SCHEMA_INVALID','SOURCE_OUT_OF_CONTEXT','TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN'] satisfies MaskReason[]);
 export type DraftView={
   id:string;projectId:string;entityType:'intake_candidate'|'document';entityId:string;skill:SkillName;createdAt:string;
   manifestHash:string|null;        // the hash of the manifest in force for this skill, or null: never a value the writer chose
@@ -315,9 +316,15 @@ export class SuggestionService {
      // at the end). Point 3 stays open; this is not a chosen option of it. Lifting the placeholder is removing the one line below.
      //
      // Technical note of the plan, not the Chairman's words: the freshness check above cannot see a message whose intake transaction began earlier and
-     // commits later. Every check above still runs and names its code; a rejection is not held; nothing is masked at read time for this.
+     // commits later. Every check above still runs; when no mask reason holds the draft each names its code; a rejection is not held; nothing is masked at read time for this.
      if(d.entity_type==='intake_candidate') reasons.add('SUBJECT_ORDER_UNVERIFIED');
-     if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
+     if(reasons.size) {
+      // OQ-45 point 2 (b): when a mask reason holds the draft, its content is not shown to this person, and the hold names what a read names — the
+      // mask reasons — and the placeholder of OQ-53 point 3, which says nothing about the content. The other codes of the gate describe the content.
+      const masked=[...reasons].some(r=>MASK_REASONS.has(r));
+      const named=masked?[...reasons].filter(r=>MASK_REASONS.has(r)||r==='SUBJECT_ORDER_UNVERIFIED'):[...reasons];
+      throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${named.sort().join(', ')}.`,422);
+     }
      // nothing holds the draft, so its content is shown to this person now: the hash is compared after all. Reached with another hash only when the
      // draft was masked for them as the command arrived and is not any more — its state changed under the command; they read it again first.
      if(input.valueHash!==d.value_hash) throw new AppError('REVISION_CONFLICT','Nháp đã đổi. Đọc bản mới trước khi quyết định.',409);

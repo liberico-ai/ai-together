@@ -13,7 +13,7 @@ import {DocumentService} from '../src/server/documents';
 import {ids} from '../src/server/identities';
 import {canonicalJson,skillManifests} from '../src/server/skills';
 import {AppError} from '../src/server/errors';
-import {MAX_OUTPUT_BYTES,type SkillName} from '../src/server/skill-contracts';
+import {MAX_OUTPUT_BYTES,type ContextSource,type SkillName} from '../src/server/skill-contracts';
 import {buildSkillContextIn} from '../src/server/skill-context';
 import {SuggestionService,type DraftView,type MaskReason} from '../src/server/suggestions';
 import {aiScoped} from '../src/server/ai-scope';
@@ -115,6 +115,26 @@ const heldOnly=async(promise:Promise<unknown>,...reasons:string[])=>{
  return e;
 };
 const zeroDecisions=async()=>expect(await n('draft_decisions')).toBe(0);
+/** While `run` runs, every context build is the real context plus `extra` (so an id the draft names is in the context the output is checked against);
+ * afterwards the builder is back to the plain wrapper of the real one, also when `run` fails. */
+async function withExtraSources<T>(extra:ContextSource[],run:()=>Promise<T>):Promise<T>{
+ const real=(await vi.importActual<typeof import('../src/server/skill-context')>('../src/server/skill-context')).buildSkillContextIn;
+ vi.mocked(buildSkillContextIn).mockImplementation(async(...a)=>{const c=await real(...a);return {...c,sources:[...c.sources,...extra]};});
+ try {return await run();} finally {vi.mocked(buildSkillContextIn).mockReset().mockImplementation(real);}
+}
+const revisionSource=(id:string,documentId:string,revisionNo:number):ContextSource=>({id,kind:'document_revision',documentId,revisionNo,summary:null,present:[],missing:[],sourceHash:null,hashVerification:'self_declared'});
+/** The baseline rule on a shape no mask reason holds: with the named id steered into the context, the read shows no mask reason, and the
+ * confirmation (both of its context builds steered) is held by the subject check alone. */
+async function heldBySubjectOnly(o:{extra:ContextSource[];entityType:'document'|'intake_candidate';entityId:string;draftId:string;confirm:()=>Promise<unknown>},...codes:string[]){
+ return withExtraSources(o.extra,async()=>{
+  const it=(await svc().list(pm,{projectId:ids.sales,entityType:o.entityType,entityId:o.entityId})).items.find(i=>i.id===o.draftId)!;
+  expect(it.maskReasons).toEqual([]);
+  vi.mocked(buildSkillContextIn).mockClear();
+  const e=await heldOnly(o.confirm(),...codes);
+  expect(vi.mocked(buildSkillContextIn).mock.calls).toHaveLength(2);
+  return e;
+ });
+}
 
 describe('Z4 drafts: submit',()=>{
  test('DOC-05 an AI output without sources stays a draft and never reaches Z1',async()=>{
@@ -510,8 +530,13 @@ describe('Z4 drafts: a draft whose document moved on is held (OQ-46)',()=>{
   // document A has only r1; document B has r1 and r2; a draft about A names B's newest revision: it is no baseline for A, so the hold is the missing baseline, not a change
   const a=await doc(),b1=await doc(),b2=await proposeRev(h,pm,await fresh(b1.record.id));
   const bad=await docDraft({d:a,sources:[a.record.id,latest(b2)]});
-  const e=await held(decide(svc(),pm,bad.draftId,body(bad.valueHash,{revision:revisionBody(a)})),'SUBJECT_BASELINE_MISSING');
-  expect(e.message).not.toContain('SUBJECT_CHANGED');
+  // B's revision is out of the context of a draft about A, a mask reason: since Codex gate round 2 the hold names what a read names, so the baseline code is not named
+  const e=await heldOnly(decide(svc(),pm,bad.draftId,body(bad.valueHash,{revision:revisionBody(a)})),'SOURCE_OUT_OF_CONTEXT');
+  expect(e.message).not.toContain('SUBJECT_CHANGED');expect(e.message).not.toContain('SUBJECT_BASELINE_MISSING');
+  // the baseline rule itself, on a shape no mask reason holds: B's revision steered into the context, the subject check (it reads the database) holds
+  const e2=await heldBySubjectOnly({extra:[revisionSource(latest(b2),b2.record.id,2)],entityType:'document',entityId:a.record.id,draftId:bad.draftId,
+   confirm:()=>decide(svc(),pm,bad.draftId,body(bad.valueHash,{revision:revisionBody(a)}))},'SUBJECT_BASELINE_MISSING');
+  expect(e2.message).not.toContain('SUBJECT_CHANGED');
   expect(await n('draft_decisions')).toBe(1); // only the first half's confirmation
  });
 
@@ -542,7 +567,12 @@ describe('Z4 drafts: a draft whose document moved on is held (OQ-46)',()=>{
  test('an id that is not a lower-case uuid names nothing: the upper-case id of the newest revision is not a baseline',async()=>{
   const d=await doc();
   const x=await rawDraft({entityType:'document',entityId:d.record.id,value:out('technical_writer',[d.record.id,latest(d).toUpperCase()])});
-  await held(decide(svc(),pm,x.id,body(sha(x.value),{revision:revisionBody(d)})),'SUBJECT_BASELINE_MISSING');
+  // the upper-case id is out of the draft's context, a mask reason: since Codex gate round 2 the hold names what a read names, so the baseline code is not named
+  const e=await heldOnly(decide(svc(),pm,x.id,body(sha(x.value),{revision:revisionBody(d)})),'SOURCE_OUT_OF_CONTEXT');
+  expect(e.message).not.toContain('SUBJECT_BASELINE_MISSING');
+  // the baseline rule itself, on a shape no mask reason holds: the upper-case id steered into the context, the subject check holds
+  await heldBySubjectOnly({extra:[revisionSource(latest(d).toUpperCase(),d.record.id,1)],entityType:'document',entityId:d.record.id,draftId:x.id,
+   confirm:()=>decide(svc(),pm,x.id,body(sha(x.value),{revision:revisionBody(d)}))},'SUBJECT_BASELINE_MISSING');
   await zeroDecisions();
  });
 
@@ -1243,10 +1273,47 @@ describe('Z4 drafts: a masked draft gives no value hash and none is compared for
    const d2=await doc(),y=await docDraft({d:d2});
    maskFirst();
    expect((await decide(svc(),pm,y.draftId,body(y.valueHash,{revision:revisionBody(d2)}))).decision?.result).toBe('confirmed');
+   // the mask lifts while the command runs and a wrong hash was sent: REVISION_CONFLICT, nothing written (security re-look of G1, P3-3)
+   const d3=await doc(),z=await docDraft({d:d3});
+   const revs3=await n('document_revisions'),cmds3=await n('document_commands');
+   maskFirst();
+   await refused(decide(svc(),pm,z.draftId,body('a'.repeat(64),{revision:revisionBody(d3)})),'REVISION_CONFLICT',409);
+   expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[z.draftId])).toHaveLength(0);
+   expect(await n('document_revisions')).toBe(revs3);expect(await n('document_commands')).toBe(cmds3);
   } finally {
    // a steering that a failing call did not consume must not reach the next case: back to the plain wrapper of the real builder
    vi.mocked(buildSkillContextIn).mockReset().mockImplementation(real);
   }
+ });
+
+ test('H8 when a mask reason holds a draft, the hold of a confirmation names only the mask reasons (and the placeholder for a candidate draft)',async()=>{
+  const P='SUBJECT_ORDER_UNVERIFIED';
+  const none=svc(h.operator,[]);
+  const shown=async(s:SuggestionService,entityType:'document'|'intake_candidate',entityId:string,draftId:string)=>
+   (await s.list(pm,{projectId:ids.sales,entityType,entityId})).items.find(i=>i.id===draftId)!.maskReasons;
+  // (i) a stale document draft: the control on a service with the flags, then the same draft masked by stored text the empty flag list no longer shows
+  const d=await doc(),x=await docDraft({d,sources:[d.record.id,d.record.latest_revision_id!]});
+  await proposeRev(h,pm,await fresh(d.record.id));
+  await heldOnly(decide(svc(),pm,x.draftId,body(x.valueHash,{revision:revisionBody(await fresh(d.record.id))})),'SUBJECT_CHANGED');
+  await candidate();
+  const maskD=await shown(none,'document',d.record.id,x.draftId);
+  expect(maskD.length).toBeGreaterThan(0);
+  const ed=await heldOnly(decide(none,pm,x.draftId,body(x.valueHash,{revision:revisionBody(await fresh(d.record.id))})),...maskD);
+  expect(ed.message).not.toContain('SUBJECT_CHANGED');
+  // (ii) a candidate draft whose thread moved on: the row's mask reasons and the placeholder
+  const c=await candidate(),y=await draftNaming(c,[c.sourceEventId]);
+  await reply(c,'Tin trả lời đến sau nháp');
+  await heldOnly(decide(svc(),pm,y.draftId,body(y.valueHash)),'SUBJECT_CHANGED',P);
+  const maskC=await shown(none,'intake_candidate',c.candidateId,y.draftId);
+  expect(maskC.length).toBeGreaterThan(0);
+  const ec=await heldOnly(decide(none,pm,y.draftId,body(y.valueHash)),...maskC,P);
+  expect(ec.message).not.toContain('SUBJECT_CHANGED');
+  // (iii) a raw document row with a wrong manifest hash whose entity is gone
+  const gone=randomUUID(),g=await rawDraft({entityType:'document',entityId:gone,over:{manifest_hash:'d'.repeat(64)}});
+  expect(await shown(svc(),'document',gone,g.id)).toEqual(['ENTITY_NOT_FOUND']);
+  const eg=await heldOnly(decide(svc(),pm,g.id,body(sha(g.value),{revision:revisionBody(d)})),'ENTITY_NOT_FOUND');
+  expect(eg.message).not.toContain('MANIFEST_MISMATCH');
+  await zeroDecisions();
  });
 });
 
@@ -1583,7 +1650,12 @@ describe('Z4 drafts: a draft whose thread moved on is held (OQ-46)',()=>{
   const other=await candidate({}),o2=await candidate();
   const out2=out('intake_analyst',[o2.sourceEventId]);
   const y=await svc().submitDraft(ai,env('intake_candidate',other.candidateId,'intake_analyst',out2));
-  await held(decide(svc(),pm,y.draftId,body(sha(out2))),'SUBJECT_BASELINE_MISSING','SOURCE_OUT_OF_CONTEXT');
+  // a message of another thread is out of this draft's context, a mask reason: the hold names what a read names, and the placeholder (Codex gate round 2)
+  await heldOnly(decide(svc(),pm,y.draftId,body(sha(out2))),'SOURCE_OUT_OF_CONTEXT','SUBJECT_ORDER_UNVERIFIED');
+  // the baseline rule itself, on a shape no mask reason holds: the other thread's message steered into the context as shown text, the subject check holds
+  const shownMessage:ContextSource={id:o2.sourceEventId,kind:'source_event',ref:'steered',mode:'excerpt',text:'Tin của luồng khác',hash:null,observedAt:new Date().toISOString(),forwarded:false};
+  await heldBySubjectOnly({extra:[shownMessage],entityType:'intake_candidate',entityId:other.candidateId,draftId:y.draftId,
+   confirm:()=>decide(svc(),pm,y.draftId,body(sha(out2)))},'SUBJECT_BASELINE_MISSING','SUBJECT_ORDER_UNVERIFIED');
   await zeroDecisions();
  });
 
@@ -1614,7 +1686,7 @@ describe('Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirm
   expect(v.decision?.result).toBe('rejected');
  });
 
- test('dừng tại OQ-53 (3): every other check still runs and names its code next to the placeholder',async()=>{
+ test('dừng tại OQ-53 (3): every other check still runs and names its code next to the placeholder — on a draft that no mask reason holds',async()=>{
   // 1 a reply recorded after the message the draft names
   const a=await candidate(),xa=await draftNaming(a,[a.sourceEventId]);
   await reply(a,'Tin trả lời ghi sau nháp');
@@ -1628,7 +1700,8 @@ describe('Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirm
   const oc=out('intake_analyst',[d.record.id]);
   const xc=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',oc));
   await heldOnly(decide(svc(),pm,xc.draftId,body(sha(oc))),'SUBJECT_BASELINE_MISSING',P);
-  await heldOnly(decide(svc(h.operator,[]),pm,xc.draftId,body(sha(oc))),'PROJECT_TEXT_HIDDEN','SUBJECT_BASELINE_MISSING',P,'THREAD_TEXT_HIDDEN');
+  // the same draft masked for the confirmer (Codex gate round 2, the re-look of G1): the hold names what a read names, and the placeholder
+  await heldOnly(decide(svc(h.operator,[]),pm,xc.draftId,body(sha(oc))),'PROJECT_TEXT_HIDDEN',P,'THREAD_TEXT_HIDDEN');
   // 5 a draft that names a message of the thread, the group's text no longer shown
   const e=await candDraft();
   await heldOnly(decide(svc(h.operator,[]),pm,e.draftId,body(e.valueHash)),'PROJECT_TEXT_HIDDEN',P,'TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN');
