@@ -2,7 +2,7 @@
 
 > **Cho agent thực thi:** làm lần lượt từng task theo `superpowers:subagent-driven-development` (khuyến nghị) hoặc `superpowers:executing-plans`. Các bước dùng ô `- [ ]`. Mỗi task theo nhịp: viết ca kiểm → chạy thấy đỏ đúng lý do → viết mã tối thiểu → chạy xanh. Builder **không** commit, push hay mở PR: phiên chính commit ở «Điểm commit» cuối mỗi task. Kế hoạch **không** gồm cổng Codex, biên nhận, cập nhật roadmap — phiên chính làm. Builder của một task chỉ cần đọc «Global Constraints» và đúng task của mình.
 
-Version 0.4 · 18/11/2026 · **chỉ hồ sơ**, do phiên chính ghi sau sáu lượt review theo task (`docs/reviews/oq-45-46-evidence-20261118/gates/review-task-*.md`) và bốn phép đo trên PostgreSQL 16.15. Ba thứ đổi so với 0.3: (1) guard của migration 022 nay từ chối giao dịch không ở READ COMMITTED bằng SQLSTATE `LTZ02` — khối SQL của tệp thuận ở Task 1 đã được thay bằng đúng nội dung tệp; (2) một đợt sửa thêm ca kiểm và ba sửa nhỏ trong mã; (3) phần dư R20–R29 và bảy điều kiện thêm «trước khi bật Z4». Tất cả nằm ở mục «Sau các lượt review theo task», gần cuối tệp. Không đổi lời Chairman, không đổi phương án nào của OQ-53, OQ-54, OQ-55, không thêm câu hỏi mở. Các task và ca kiểm của bản 0.3 giữ nguyên chữ.
+Version 0.4 · 18/11/2026 · **chỉ hồ sơ**, do phiên chính ghi sau sáu lượt review theo task (`docs/reviews/oq-45-46-evidence-20261118/gates/review-task-*.md`) và bốn phép đo trên PostgreSQL 16.15. Ba thứ đổi so với 0.3: (1) guard của migration 022 nay từ chối giao dịch không ở READ COMMITTED bằng SQLSTATE `LTZ02` — khối SQL của tệp thuận ở Task 1 đã được thay bằng đúng nội dung tệp; (2) một đợt sửa thêm ca kiểm và ba sửa nhỏ trong mã; (3) phần dư R20–R29 và bảy điều kiện thêm «trước khi bật Z4». Tất cả nằm ở mục «Sau các lượt review theo task», gần cuối tệp. Không đổi lời Chairman, không đổi phương án nào của OQ-53, OQ-54, OQ-55. Các task và ca kiểm của bản 0.3 giữ nguyên chữ. **Bổ sung cùng ngày sau ba lượt review tầng 1 trên cả nhánh** (mục «Sau ba lượt review tầng 1 trên cả nhánh», ngay sau mục trên): một câu hỏi mở mới OQ-56 (dự án chưa ánh xạ miền), điểm 3 của OQ-53, đợt sửa 2, phần dư R30–R32 và bốn điều kiện thêm; dòng này sửa tại chỗ nên các số dòng của bản 0.4 mà ba báo cáo tầng 1 trích không xê dịch.
 
 Version 0.3 · 18/11/2026 · do agent `planner` sửa (mô hình Fable 5.2, không lùi mô hình) sau **cổng bảo mật lượt 2** trên bản 0.2 — «PLAN NEEDS CHANGES», `docs/reviews/oq-45-46-evidence-20261118/gates/security-gate-plan-round-2.md`: N1 khép một phần, N2 và N3 khép; một mục phải sửa (N4), hai mục nên sửa (cổng-R8, cổng-R9), ba ca còn thiếu (cổng-C11…C13). Theo phán quyết của phiên chính, áp tất cả. Không đổi lời Chairman. **Bản 0.3 so với 0.2:** (1) **N4, cách sửa 2 của cổng** — `sources` là `[]` dưới **mọi** lớp che; cột `sources` không còn được đọc ở câu lệnh nào (bỏ hằng `SOURCE_IDS_SQL` và tham số `maskedSources` của bản 0.2); khi không che, `sources` vẫn là `value.sources`. Chỗ sửa: cách hiểu C9 mới; C1; P5; B2 (kiểu và bảng trường); R15; Review Focus 1; Task 3 (`DRAFT_SQL`, `DRAFT_META_SQL`, `DraftRow`, `toView`, `present`; ca L9); Task 4a (`present`; ca M1 (i), M3, M8); Task 4b (ca Q1); mục 13 của «Dừng và chỗ chưa chắc». (2) **cổng-R8** — câu «luồng có chữ đang ẩn» dùng `(…) IS NOT TRUE`; mã không phải uuid trả `true` (Task 4b; ca Q5, Q8). (3) **cổng-R9** — ngữ cảnh hỗn hợp ứng viên + tài liệu (R16; `docs/OPEN-QUESTIONS.md:904`). (4) Ba ca: cổng-C11 → M8 (viết lại), cổng-C12 → Q8, cổng-C13 → Q9. (5) Một dòng về bản sao của iCloud ở «Global Constraints». Số và thứ tự task không đổi. **Theo báo cáo lượt 2 (dòng `:14` của tệp đó), nếu N4 được sửa đúng như cổng tả thì cổng không cần soát lại kế hoạch lần nữa; phiên chính quyết việc ghi nhận điều đó. Review bảo mật bắt buộc của Task 3, 4a, 4b kiểm trên mã.**
 
@@ -808,6 +808,41 @@ Bốn mục Important: một là nghĩa vụ ghi chú triển khai (đường ph
 11. Tuyến gọi `decide`: giới hạn tần suất, ánh xạ lỗi lược đồ lệnh, không log thân câu trả lời (R25).
 12. Hợp đồng và prompt của pipeline: nêu mọi tin của luồng có trong ngữ cảnh và bản mới nhất của tài liệu (R26, R28).
 13. Một lần `EXPLAIN` trên PostgreSQL 16 cho hai câu đọc luồng (`threadHasHiddenText`, `threadFreshness`) trên một luồng dài.
+
+## Sau ba lượt review tầng 1 trên cả nhánh (bổ sung của bản 0.4; phán quyết của phiên chính, không phải quyết định của Chairman)
+
+Ba báo cáo ở `docs/reviews/oq-45-46-evidence-20261118/gates/`: `tier1-code.md`, `tier1-security.md`, `tier1-database.md`. Cả ba kết luận «READY FOR GATE»; không có P0, không có P1. Mọi finding của các review theo task thuộc mã và ca kiểm được phán ADDRESSED; hai mục P3 được phán «khép một phần» (SEC-M6: thân hàm mới ghim theo đoạn; 4ab-N6 ý (c): chú thích) và được làm tiếp ở đợt sửa 2. Phán quyết T3-M4 (không đổi thứ tự trước khoá lệnh) được cả reviewer mã lẫn reviewer bảo mật khuyên giữ.
+
+**Các mục P2 và cách xử lý:**
+
+| Mục | Nội dung | Xử lý |
+|---|---|---|
+| bảo mật P2-1 | Dự án **chưa ánh xạ miền** được guard cho ghi và không bị che; lời Chairman không phủ, mã theo đúng chữ «dự án `IBS_HI`» và cùng luật với chữ của tin (OQ-28 (c)) | **OQ-56** (`docs/OPEN-QUESTIONS.md:914`). Không viết mã; hành vi cũ giữ nguyên; không tự chọn hướng chặt hơn vì đó là một chính sách dữ liệu mới, không phải một giữ chỗ |
+| bảo mật P2-2 | `excerptChats` là bản chụp lúc dựng dịch vụ: một instance sống lâu vẫn trả nội dung sau khi cờ nhóm đã gỡ | Điều kiện 4 của danh sách «trước khi bật Z4» đọc lại như dưới đây. PR này không dựng dịch vụ ở đâu ngoài test |
+| bảo mật P2-3 | Khe theo thứ tự commit của đường nhận tin (R6, R27) không nằm trong phương án nào của OQ-53 | Điểm 3 của OQ-53, ghi ở cuối `docs/OPEN-QUESTIONS.md` (ngay sau OQ-56) |
+| CSDL N-1 | 022 được sửa tại chỗ dưới cùng số bản; trình áp bỏ qua bản đã ghi; câu catalog của điều kiện 7 không xem thân hàm | Bản 022 có thân cũ (không `LTZ02`) chỉ từng nằm trong CSDL thử riêng của PR này, và đã được lùi rồi áp lại trước lượt kiểm native. Điều kiện 7 đọc lại như dưới đây, với câu catalog mới của `tier1-database.md` mục 6 |
+| CSDL N-2 | Nửa READ COMMITTED của G17 không chứng minh điều nó nêu | Đợt sửa 2: nửa đó dùng một dự án chưa có dòng ánh xạ nào lúc giao dịch mở |
+| mã F-1 | Cổng xét nháp có hai bản (`present` và bước giữ của `decide`), giữ khớp bằng tay | Đợt sửa 2 thêm một ca đi qua mọi `MaskReason` để ghim «bị che thì bị giữ». Gộp thành một hàm: làm cùng lượt mã của OQ-53 và OQ-55, không trong PR này |
+
+**Đợt sửa 2** (đợt sửa cuối; chỉ ca kiểm, một câu lệnh được viết lại cho đóng, và chú thích): G17 nửa READ COMMITTED; G16 thêm READ UNCOMMITTED và một dự án `IBS_HI`; G12 so cả thân hàm với tệp migration; G18 thêm `MERGE` dưới role AI; `threadFreshness` dùng `IS NOT TRUE` cho phép «không nêu»; T15 (bản sửa trùng thời điểm với mốc); Q10 (`threadHasHiddenText` đóng khi không có dòng trả về); Q11 (điều kiện dự án của chính câu lệnh); một ca đi qua mọi `MaskReason`; S1 dùng danh sách khoá cho phép; ba chú thích.
+
+**Không làm trong PR này** (reviewer mã, P3): hai nhánh không tới được; import thừa có từ gốc; cột `dec_key` đọc về mà không dùng; một kiểu chung cho các mã lý do; mã ca của «Bảng: yêu cầu → ca» không nằm trong tên ca; commit `bcdb360` mang loại `test` nhưng có ba chạm ở `src` (ghi ở mô tả PR).
+
+**Phần dư bổ sung:**
+
+- **R30** · Xác nhận một nháp tài liệu tạo một bản mới của tài liệu, nên mọi nháp đang chờ khác của cùng tài liệu từ đó chỉ còn từ chối được (chúng nêu bản cũ). Đúng chữ của OQ-46 (b).
+- **R31** · R23 rộng hơn đã ghi: theo mặc định PostgreSQL ghi **chữ của câu lệnh** bị lỗi vào log máy chủ (`log_min_error_statement`); với lệnh có tham số thì chữ đó chỉ có `$n`, với lệnh chèn thô bằng chữ SQL thì có cả nội dung. Khi login của pipeline cấu hình sai mức cô lập, **mọi** lệnh ghi nháp thành một dòng `ERROR`. Đối tượng lỗi của PGlite 0.5.15 mang cả `params`: lỗi CSDL thô đi qua `submitDraft` (mọi mã trừ `LTZ01`) vì vậy mang nội dung nháp ở bản demo cục bộ.
+- **R32** · `scoped` và `aiScoped` mở giao dịch bằng `BEGIN` trần và thừa hưởng mức cô lập mặc định; chỉ `IdentityService.scope` ghim READ COMMITTED. Lập luận chạy đua của `decide` (đọc sau khoá thấy commit của bên kia) dựa vào READ COMMITTED của login runtime; ở REPEATABLE READ câu khoá báo lỗi tuần tự hoá chứ không lọt (suy luận của reviewer, chưa đo).
+
+**Trước khi thêm tuyến đọc nháp hoặc bật Z4 — đọc lại và bổ sung:**
+
+- Điều kiện **4** đọc là: dịch vụ lấy danh sách nhóm hiện chữ **hiện hành cho từng yêu cầu** (hoặc được dựng lại khi cấu hình đổi), không dùng một bản chụp lúc khởi động.
+- Điều kiện **7** đọc là: sau khi áp 022 ở bất kỳ CSDL nào, chạy câu catalog của `tier1-database.md` mục 6 — ngoài chủ hàm, ACL, `tgenabled`, `tgtype` và hai thiết lập, nó xem thân hàm có phép kiểm mức cô lập, `LTZ02`, `LTZ01`, và phép kiểm mức cô lập đứng trước câu đọc ánh xạ. Một CSDL đã ghi `'022'` với thân cũ phải lùi 022 rồi áp lại.
+- Điều kiện **10** thêm: phiên phục hồi ở READ COMMITTED và không dùng `-j` (phục hồi song song).
+- **14.** Login runtime cũng ở READ COMMITTED (R32); cân nhắc ghim mức cô lập trong `scoped` và `aiScoped` như `IdentityService.scope`.
+- **15.** `decide` đọc dòng nháp bằng câu lệnh siêu dữ liệu khi người gọi không có quyền quyết định, để `value` không vào tiến trình Node (nửa còn lại của R25).
+- **16.** Tuyến gọi `submitDraft` bọc mọi lỗi CSDL thô, kể cả `LTZ02` (R31).
+- **17.** OQ-56 có quyết định; điểm 3 của OQ-53 có quyết định.
 
 ## Tự soát của planner (bản 0.3, 18/11/2026)
 

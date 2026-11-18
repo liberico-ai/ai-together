@@ -1,0 +1,11 @@
+# Task 1 on PostgreSQL 16 (native), working tree on top of 7b96dc0 — npx vitest run tests/z4-pointer-guard.test.ts tests/z4-schema.test.ts tests/migrations-rollback.test.ts tests/fix-wave-db.test.ts tests/rls-catalog.test.ts tests/slice1-harness.test.ts tests/suggestions.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  7 passed (7)
+      Tests  133 passed (133)
+   Start at  09:07:25
+   Duration  47.36s (tests 99%, import 1%)
+
+EXIT=0

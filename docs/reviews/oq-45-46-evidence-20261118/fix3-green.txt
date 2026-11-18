@@ -1,0 +1,4 @@
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G17 REPEATABLE READ opened before the IBS_HI mapping was committed is refused LTZ02; READ COMMITTED sees a mapping committed after it began and is refused LTZ01
+ ↓ tests/suggestions.test.ts > Z4 drafts: submit > the runtime role cannot submit a draft
+ Test Files  2 passed (2)
+      Tests  105 passed | 2 skipped (107)

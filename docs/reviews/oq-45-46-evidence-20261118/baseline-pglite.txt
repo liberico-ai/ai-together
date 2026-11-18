@@ -1,0 +1,11 @@
+# baseline PGlite at 4f12a3c — npx vitest run
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  65 passed | 12 skipped (77)
+      Tests  1104 passed | 62 skipped (1166)
+   Start at  07:16:58
+   Duration  424.35s (tests 99%, import 1%)
+
+EXIT=0

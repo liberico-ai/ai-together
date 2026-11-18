@@ -1,0 +1,67 @@
+$ npx vitest run tests/suggestions.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (51 tests | 2 failed | 1 skipped) 24833ms
+   ❯ Z4 drafts: IBS HI is refused at write (OQ-45 point 3) (4)
+     × a draft for an IBS HI project is refused when it is written: POINTER_ONLY_PROJECT, nothing stored, no database error text 495ms
+     × the refusal comes before the replay: an envelope first stored before the mapping is refused afterwards, and one draft stays 492ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: IBS HI is refused at write (OQ-45 point 3) > a draft for an IBS HI project is refused when it is written: POINTER_ONLY_PROJECT, nothing stored, no database error text
+AssertionError: expected error: An AI draft is not stored for a po… { …(18) } to match object { code: 'POINTER_ONLY_PROJECT', …(1) }
+(20 matching properties omitted from actual)
+
+- Expected
++ Received
+
+- {
+-   "code": "POINTER_ONLY_PROJECT",
+-   "status": 422,
++ O {
++   "code": "LTZ01",
+  }
+
+ ❯ refused tests/suggestions.test.ts:48:12
+     46|  const e=await promise.then(()=>null,x=>x);
+     47|  expect(e,'expected a refusal').toBeTruthy();
+     48|  expect(e).toMatchObject({code,status});
+       |            ^
+     49|  return e as Error;
+     50| };
+ ❯ tests/suggestions.test.ts:658:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: IBS HI is refused at write (OQ-45 point 3) > the refusal comes before the replay: an envelope first stored before the mapping is refused afterwards, and one draft stays
+AssertionError: expected error: An AI draft is not stored for a po… { …(18) } to match object { code: 'POINTER_ONLY_PROJECT', …(1) }
+(20 matching properties omitted from actual)
+
+- Expected
++ Received
+
+- {
+-   "code": "POINTER_ONLY_PROJECT",
+-   "status": 422,
++ O {
++   "code": "LTZ01",
+  }
+
+ ❯ refused tests/suggestions.test.ts:48:12
+     46|  const e=await promise.then(()=>null,x=>x);
+     47|  expect(e,'expected a refusal').toBeTruthy();
+     48|  expect(e).toMatchObject({code,status});
+       |            ^
+     49|  return e as Error;
+     50| };
+ ❯ tests/suggestions.test.ts:676:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 48 passed | 1 skipped (51)
+   Start at  09:09:07
+   Duration  25.02s (tests 99%)
+

@@ -1,0 +1,110 @@
+npx vitest run tests/suggestions.test.ts tests/skill-contracts.test.ts tests/skills-eval.test.ts tests/documents.test.ts tests/document-cases.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (80 tests | 4 failed | 1 skipped) 39427ms
+   ❯ Z4 drafts: a draft whose document moved on is held (OQ-46) (5)
+     × a document draft is held once the document has a revision newer than the newest one the draft names: no decision, no revision, the key stays free 480ms
+     × the newest revision the draft names is the baseline: naming r1 and r2 is confirmed while r2 is the newest; a revision of another document is not a baseline 499ms
+     × dừng tại OQ-53 (2): a document draft that names no revision of its own document is held as SUBJECT_BASELINE_MISSING once the document has a revision; a document with no revision yet is not held for it 488ms
+     × an id that is not a lower-case uuid names nothing: the upper-case id of the newest revision is not a baseline 514ms
+ ❯ tests/skill-contracts.test.ts (37 tests | 1 failed) 53ms
+   ❯ skill contracts (37)
+     × D6 namedIds returns every id at every id-bearing path of the skill, once each, and nothing for a value that is not an output 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > D6 namedIds returns every id at every id-bearing path of the skill, once each, and nothing for a value that is not an output
+TypeError: namedIds is not a function
+ ❯ tests/skill-contracts.test.ts:454:12
+    452|     const common = { ...base('intake_analyst', { classification: 'inci…
+    453|       sources: [{ id: 'a1' }, { id: 'a2' }, { id: 'a1' }], claims: [{ …
+    454|     expect(namedIds('intake_analyst', common)).toEqual(['a1', 'a2', 'b…
+       |            ^
+    455|     expect(sorted(namedIds('intake_analyst', { ...common, result: { cl…
+    456|     const none = (r: unknown, skill: SkillName) => ({ ...base(skill, r…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > a document draft is held once the document has a revision newer than the newest one the draft names: no decision, no revision, the key stays free
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:105:10
+ ❯ tests/suggestions.test.ts:459:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > the newest revision the draft names is the baseline: naming r1 and r2 is confirmed while r2 is the newest; a revision of another document is not a baseline
+AssertionError: expected 'Nháp được giữ lại, chưa xác nhận được…' to contain 'SUBJECT_CHANGED'
+
+Expected: "SUBJECT_CHANGED"
+Received: "Nháp được giữ lại, chưa xác nhận được: SOURCE_OUT_OF_CONTEXT."
+
+ ❯ held tests/suggestions.test.ts:106:44
+    104| const held=async(promise:Promise<unknown>,...reasons:string[])=>{
+    105|  const e=await refused(promise,'DRAFT_HELD',422);
+    106|  for(const r of reasons) expect(e.message).toContain(r);
+       |                                            ^
+    107|  expect(e.message).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/); // codes o…
+    108|  return e;
+ ❯ tests/suggestions.test.ts:475:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > dừng tại OQ-53 (2): a document draft that names no revision of its own document is held as SUBJECT_BASELINE_MISSING once the document has a revision; a document with no revision yet is not held for it
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:105:10
+ ❯ tests/suggestions.test.ts:480:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > an id that is not a lower-case uuid names nothing: the upper-case id of the newest revision is not a baseline
+AssertionError: expected 'Nháp được giữ lại, chưa xác nhận được…' to contain 'SUBJECT_BASELINE_MISSING'
+
+Expected: "SUBJECT_BASELINE_MISSING"
+Received: "Nháp được giữ lại, chưa xác nhận được: SOURCE_OUT_OF_CONTEXT."
+
+ ❯ held tests/suggestions.test.ts:106:44
+    104| const held=async(promise:Promise<unknown>,...reasons:string[])=>{
+    105|  const e=await refused(promise,'DRAFT_HELD',422);
+    106|  for(const r of reasons) expect(e.message).toContain(r);
+       |                                            ^
+    107|  expect(e.message).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/); // codes o…
+    108|  return e;
+ ❯ tests/suggestions.test.ts:505:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  2 failed | 3 passed (5)
+      Tests  5 failed | 190 passed | 1 skipped (196)
+   Start at  09:33:45
+   Duration  59.39s (tests 99%)
+

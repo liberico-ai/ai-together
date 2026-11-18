@@ -1,0 +1,56 @@
+# Fix wave 1b on PostgreSQL 16 (native), working tree on top of 8c612e0 — npx vitest run tests/z4-pointer-guard.test.ts tests/migrations-rollback.test.ts tests/z4-schema.test.ts tests/fix-wave-db.test.ts tests/suggestions.test.ts tests/source-text.test.ts tests/skill-contracts.test.ts tests/skill-context.test.ts; then tests/suggestions-concurrency.test.ts three times with the verbose reporter
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  8 passed (8)
+      Tests  255 passed (255)
+   Start at  10:16:05
+   Duration  76.24s (tests 99%)
+
+EXIT=0
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > two confirmations of one draft in parallel leave one decision and one revision 558ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a confirmation and a rejection of one draft in parallel leave one decision; the loser answers DRAFT_ALREADY_DECIDED and no revision is orphaned 406ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a draft confirmation racing a manual revision of the same document: exactly one succeeds; the manual proposal answers REVISION_CONFLICT when the confirmation won, the confirmation is held as SUBJECT_CHANGED when the manual proposal won; no decision without its revision, no revision a decision does not point to 422ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > the manual proposal waits first: it wins, and the confirmation that waited behind it reads the new revision and is held as SUBJECT_CHANGED 466ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > the confirmation waits first: it wins, and the manual proposal behind it answers REVISION_CONFLICT 564ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  10:17:22
+   Duration  2.54s (tests 97%, import 2%, transform 1%)
+
+EXIT-conc-1=0
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > two confirmations of one draft in parallel leave one decision and one revision 431ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a confirmation and a rejection of one draft in parallel leave one decision; the loser answers DRAFT_ALREADY_DECIDED and no revision is orphaned 387ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a draft confirmation racing a manual revision of the same document: exactly one succeeds; the manual proposal answers REVISION_CONFLICT when the confirmation won, the confirmation is held as SUBJECT_CHANGED when the manual proposal won; no decision without its revision, no revision a decision does not point to 397ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > the manual proposal waits first: it wins, and the confirmation that waited behind it reads the new revision and is held as SUBJECT_CHANGED 384ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > the confirmation waits first: it wins, and the manual proposal behind it answers REVISION_CONFLICT 388ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  10:17:25
+   Duration  2.11s (tests 97%, import 2%, transform 1%)
+
+EXIT-conc-2=0
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > two confirmations of one draft in parallel leave one decision and one revision 418ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a confirmation and a rejection of one draft in parallel leave one decision; the loser answers DRAFT_ALREADY_DECIDED and no revision is orphaned 387ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a draft confirmation racing a manual revision of the same document: exactly one succeeds; the manual proposal answers REVISION_CONFLICT when the confirmation won, the confirmation is held as SUBJECT_CHANGED when the manual proposal won; no decision without its revision, no revision a decision does not point to 389ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > the manual proposal waits first: it wins, and the confirmation that waited behind it reads the new revision and is held as SUBJECT_CHANGED 378ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > the confirmation waits first: it wins, and the manual proposal behind it answers REVISION_CONFLICT 404ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  10:17:27
+   Duration  2.10s (tests 97%, import 2%, transform 1%)
+
+EXIT-conc-3=0

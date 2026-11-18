@@ -1,0 +1,43 @@
+# final verification at f36e947 (code at bcdb360) — npx vitest run (PGlite; no SLICE1_* variable set)
+dupes: untracked=0 next-types=0
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/review-delegations.test.ts (47 tests | 1 failed) 23051ms
+   ❯ OQ-39, OQ-40, OQ-41 indicators and who sees what in list (11)
+     × F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first 488ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/review-delegations.test.ts > OQ-39, OQ-40, OQ-41 indicators and who sees what in list > F-5 a reader receives other people's rows ordered by delegate id, not by creation; a coordinator keeps newest first
+AssertionError: expected [ …(5) ] to deeply equal [ …(5) ]
+
+- Expected
++ Received
+
+  [
+-   "14000000-0000-4000-8000-000000000041",
+    "14000000-0000-4000-8000-000000000047",
++   "14000000-0000-4000-8000-000000000041",
+    "14000000-0000-4000-8000-000000000046",
+    "14000000-0000-4000-8000-000000000004",
+    "14000000-0000-4000-8000-000000000003",
+  ]
+
+ ❯ tests/review-delegations.test.ts:537:44
+    535|   expect(got).toEqual([...got].sort());
+    536|   const c=await svc().list(pm,{projectId:ids.sales});
+    537|   expect(c.reviewers.map(x=>x.delegateId)).toEqual([...people].reverse…
+       |                                            ^
+    538|  });
+    539|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 65 passed | 12 skipped (78)
+      Tests  1 failed | 1179 passed | 65 skipped (1245)
+   Start at  10:18:07
+   Duration  468.96s (tests 99%, import 1%)
+
+EXIT=1

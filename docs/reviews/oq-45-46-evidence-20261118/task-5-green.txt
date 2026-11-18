@@ -1,0 +1,10 @@
+npx vitest run tests/suggestions.test.ts tests/skill-contracts.test.ts tests/skills-eval.test.ts tests/documents.test.ts tests/document-cases.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  5 passed (5)
+      Tests  195 passed | 1 skipped (196)
+   Start at  09:34:58
+   Duration  57.78s (tests 100%)
+

@@ -1,0 +1,115 @@
+$ npx vitest run tests/suggestions.test.ts tests/source-text.test.ts tests/skill-context.test.ts tests/intake.test.ts tests/inbox-service.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (85 tests | 3 failed | 1 skipped) 40857ms
+   ❯ Z4 drafts: a draft whose thread moved on is held (OQ-46) (5)
+     × a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is confirmed 524ms
+     × dừng tại OQ-53 (1): an edit recorded at or after the newest named message holds the draft as SUBJECT_EDIT_UNVERIFIED, also when the edit was already there when the draft was written; an edit recorded before the newest named message does not 482ms
+     × dừng tại OQ-53 (2): a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING 481ms
+ ❯ tests/source-text.test.ts (17 tests | 3 failed) 8939ms
+   ❯ threadFreshness (3)
+     × T6 threadFreshness returns three booleans and no text: the one row handed back holds no excerpt and no content hash 512ms
+     × T7 threadFreshness: baseline, newer message, later edit, another project, malformed ids 492ms
+     × T8 threadFreshness reads nothing for a caller scoped to another tenant 517ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T6 threadFreshness returns three booleans and no text: the one row handed back holds no excerpt and no content hash
+TypeError: threadFreshness is not a function
+ ❯ tests/source-text.test.ts:210:48
+    208|   const r=await root('T6-MARKER-4417');
+    209|   const rec=recordingDb(h.db);
+    210|   const got=await scoped(rec.db,salesScope,tx=>threadFreshness(tx,ids.…
+       |                                                ^
+    211|   expect(got).toEqual({hasBaseline:true,newerMessage:false,laterEdit:f…
+    212|   const seen=rec.rows().filter(x=>(x as Record<string,unknown>).has_ba…
+ ❯ src/server/db.ts:54:12
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T7 threadFreshness: baseline, newer message, later edit, another project, malformed ids
+ FAIL  tests/source-text.test.ts > threadFreshness > T8 threadFreshness reads nothing for a caller scoped to another tenant
+TypeError: threadFreshness is not a function
+ ❯ tests/source-text.test.ts:196:114
+    194| describe('threadFreshness',()=>{
+    195|  const none={hasBaseline:false,newerMessage:false,laterEdit:false};
+    196|  const ask=(projectId:string,candidateId:string,named:readonly string[…
+       |                                                                                                                  ^
+    197|  const root=async(text:string)=>{
+    198|   const e=messageEvent({text});
+ ❯ src/server/db.ts:54:12
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is confirmed
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:105:10
+ ❯ tests/suggestions.test.ts:1126:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > dừng tại OQ-53 (1): an edit recorded at or after the newest named message holds the draft as SUBJECT_EDIT_UNVERIFIED, also when the edit was already there when the draft was written; an edit recorded before the newest named message does not
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:105:10
+ ❯ tests/suggestions.test.ts:1147:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > dừng tại OQ-53 (2): a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:105:10
+ ❯ tests/suggestions.test.ts:1167:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+
+ Test Files  2 failed | 3 passed (5)
+      Tests  6 failed | 190 passed | 2 skipped (198)
+   Start at  09:39:08
+   Duration  97.24s (tests 100%)
+

@@ -1,0 +1,11 @@
+# Task 4a on PostgreSQL 16 (native), working tree on top of 8a14c37 — npx vitest run tests/suggestions.test.ts tests/suggestions-concurrency.test.ts tests/skill-context.test.ts tests/skill-contracts.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  4 passed (4)
+      Tests  128 passed (128)
+   Start at  09:21:37
+   Duration  31.63s (tests 99%, import 1%)
+
+EXIT=0

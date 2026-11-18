@@ -1,0 +1,10 @@
+npx vitest run tests/suggestions.test.ts tests/source-text.test.ts tests/skill-context.test.ts tests/intake.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  4 passed (4)
+      Tests  157 passed | 1 skipped (158)
+   Start at  09:28:24
+   Duration  79.44s (tests 100%)
+

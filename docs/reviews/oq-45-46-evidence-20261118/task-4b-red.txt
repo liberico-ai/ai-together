@@ -1,0 +1,147 @@
+npx vitest run tests/suggestions.test.ts tests/source-text.test.ts tests/skill-context.test.ts tests/intake.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (75 tests | 5 failed | 1 skipped) 35414ms
+   ❯ Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown (6)
+     × dừng tại OQ-55: a candidate draft that names no message is masked once the stored text of its thread is no longer shown 481ms
+     × dừng tại OQ-55: a thread whose newest revision is pointer-only but an earlier revision stored text still masks its candidate drafts when the group is not flagged 482ms
+     × dừng tại OQ-55: what is masked for that reason cannot be confirmed either 476ms
+     × a draft that cites a message of such a thread carries both reasons 473ms
+     × dừng tại OQ-55: a replayed confirmation of a candidate draft answers with the recorded decision and no content once the group's flag is gone 477ms
+ ❯ tests/source-text.test.ts (14 tests | 4 failed) 6979ms
+   ❯ threadHasHiddenText (4)
+     × Q5 threadHasHiddenText: every revision of every message of the thread, the current configuration, the caller's scope 472ms
+     × Q5 the caller's scope and a malformed id 465ms
+     × Q6 threadHasHiddenText returns one boolean and no text: the one row handed back holds no excerpt and no content hash 473ms
+     × Q8 threadHasHiddenText is closed when the list of flagged groups cannot be evaluated 476ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/source-text.test.ts > threadHasHiddenText > Q5 threadHasHiddenText: every revision of every message of the thread, the current configuration, the caller's scope
+ FAIL  tests/source-text.test.ts > threadHasHiddenText > Q5 the caller's scope and a malformed id
+ FAIL  tests/source-text.test.ts > threadHasHiddenText > Q8 threadHasHiddenText is closed when the list of flagged groups cannot be evaluated
+TypeError: threadHasHiddenText is not a function
+ ❯ tests/source-text.test.ts:141:113
+
+ ❯ src/server/db.ts:54:12
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  tests/source-text.test.ts > threadHasHiddenText > Q6 threadHasHiddenText returns one boolean and no text: the one row handed back holds no excerpt and no content hash
+TypeError: threadHasHiddenText is not a function
+ ❯ tests/source-text.test.ts:174:48
+    172|   const m=await ingest({text:'Q6-MARKER-8812'},[chatSales]);
+    173|   const rec=recordingDb(h.db);
+    174|   const got=await scoped(rec.db,salesScope,tx=>threadHasHiddenText(tx,…
+       |                                                ^
+    175|   expect(got).toBe(true);
+    176|   const seen=rec.rows().filter(r=>(r as Record<string,unknown>).hidden…
+ ❯ src/server/db.ts:54:12
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a candidate draft that names no message is masked once the stored text of its thread is no longer shown
+AssertionError: expected [] to deeply equal [ 'THREAD_TEXT_HIDDEN' ]
+
+- Expected
++ Received
+
+- [
+-   "THREAD_TEXT_HIDDEN",
+- ]
++ []
+
+ ❯ tests/suggestions.test.ts:980:26
+    978|   const x=await quiet(c,d);
+    979|   const it=await first(none(),pm,c.candidateId);
+    980|   expect(it.maskReasons).toEqual(['THREAD_TEXT_HIDDEN']);
+       |                          ^
+    981|   expect(it.value).toBeNull();expect(it.sources).toEqual([]);
+    982|   expect(JSON.stringify(it)).not.toContain(MARK);expect(JSON.stringify…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a thread whose newest revision is pointer-only but an earlier revision stored text still masks its candidate drafts when the group is not flagged
+AssertionError: expected [] to deeply equal [ 'THREAD_TEXT_HIDDEN' ]
+
+- Expected
++ Received
+
+- [
+-   "THREAD_TEXT_HIDDEN",
+- ]
++ []
+
+ ❯ tests/suggestions.test.ts:996:62
+    994|   expect(modes.map(m=>m.content_mode)).toEqual(['excerpt','pointer_onl…
+    995|   await clean(c,d);
+    996|   expect((await first(none(),pm,c.candidateId)).maskReasons).toEqual([…
+       |                                                              ^
+    997|  });
+    998|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: what is masked for that reason cannot be confirmed either
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:105:10
+ ❯ tests/suggestions.test.ts:1003:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > a draft that cites a message of such a thread carries both reasons
+AssertionError: expected [ 'TEXT_NOT_VISIBLE' ] to deeply equal [ 'TEXT_NOT_VISIBLE', …(1) ]
+
+- Expected
++ Received
+
+  [
+    "TEXT_NOT_VISIBLE",
+-   "THREAD_TEXT_HIDDEN",
+  ]
+
+ ❯ tests/suggestions.test.ts:1022:26
+    1020|   await rawDraft({entityType:'intake_candidate',entityId:c.candidateId…
+    1021|   const it=await first(none(),pm,c.candidateId);
+    1022|   expect(it.maskReasons).toEqual(['TEXT_NOT_VISIBLE','THREAD_TEXT_HIDD…
+       |                          ^
+    1023|   expect(it.value).toBeNull();expect(JSON.stringify(it)).not.toContain…
+    1024|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a replayed confirmation of a candidate draft answers with the recorded decision and no content once the group's flag is gone
+AssertionError: expected [ 'TEXT_NOT_VISIBLE' ] to include 'THREAD_TEXT_HIDDEN'
+ ❯ tests/suggestions.test.ts:1035:29
+    1033|   const again=await decide(none(),pm,x.id,b,key);
+    1034|   expect(again.decision?.result).toBe('confirmed');expect(again.decisi…
+    1035|   expect(again.maskReasons).toContain('THREAD_TEXT_HIDDEN');
+       |                             ^
+    1036|   expect(again.value).toBeNull();expect(again.sources).toEqual([]);
+    1037|   expect(JSON.stringify(again)).not.toContain(MARK);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+
+ Test Files  2 failed | 2 passed (4)
+      Tests  9 failed | 148 passed | 1 skipped (158)
+   Start at  09:23:42
+   Duration  75.91s (tests 100%)
+

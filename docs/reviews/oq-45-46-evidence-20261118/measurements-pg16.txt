@@ -1,0 +1,24 @@
+# Measurements on the PR's own synthetic test database, PostgreSQL 16.15, 18/11/2026 (main session). The database was reset afterwards.
+# 1 isolation: an AI-role transaction opened before an IBS_HI mapping commits, insert after it (run before the fix wave: guard of plan v0.3).
+# 2 dumpOrder: position of TABLE DATA entries in: pg_dump -Fc --data-only --exclude-table-data=public.schema_migrations | pg_restore --list
+# 3 missingSchema: to_regclass / to_regprocedure for a schema that does not exist. 4 copy*: COPY intelligence.ai_drafts FROM STDIN.
+{
+ "serverVersion": "16.15 (Debian 16.15-1.pgdg13+2)",
+ "migrations": "022",
+ "isolation REPEATABLE READ": "STORED (guard did not see the mapping)",
+ "isolation SERIALIZABLE": "STORED (guard did not see the mapping)",
+ "isolation READ COMMITTED": "refused LTZ01",
+ "missingSchema": {
+  "regclass_null": true,
+  "regprocedure_null": true
+ },
+ "copyAsAiRole": "ERROR:  0A000: COPY FROM not supported with row-level security",
+ "copyAsOperatorIbsHi": "ERROR:  LTZ01: An AI draft is not stored for a pointer-only project",
+ "dumpTableDataEntries": 61,
+ "dumpOrder": {
+  "public.projects": 1,
+  "intelligence.ai_drafts": 27,
+  "public.project_domain_mappings": 53,
+  "public.draft_decisions": 44
+ }
+}
