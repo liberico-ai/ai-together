@@ -242,7 +242,7 @@ export class SuggestionService {
   * Order inside the one scoped transaction: (1) locate the draft in the person's scope, then narrow the scope to its project, lock on the draft id;
   * (2) for a confirmed document draft the document row is locked; (3) the one idempotency claim (replay = the recorded decision, other content = IDEMPOTENCY_CONFLICT);
   * under it: (4) authority first, then already decided, then the caller's valueHash; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet; a candidate confirmation is always held (OQ-53 point 3 placeholder));
-  * (6) a document draft: the person's own revision proposal, under the same claim; (7) the decision row. A failure at any point rolls back everything, claim included.
+  * (6) a document draft: the person's own revision proposal, under the same claim; (7) the decision row (a confirmation is refused there by migration 022 if the project became pointer-only meanwhile: DRAFT_HELD). A failure at any point rolls back everything, claim included.
   */
  async decide(p:Principal,draftId:string,raw:unknown,key:string,requestId:string):Promise<DraftView> {
   if(!p||p.role==='bot'||!p.id||!Array.isArray(p.projectIds)||!p.projectIds.length) throw denied();
@@ -320,9 +320,17 @@ export class SuggestionService {
       revisionId=(await this.documents.proposeRevisionIn(tx,p,d.entity_id,input.revision,key,{draftId:id},requestId,{claimHeld:true})).record.latest_revision_id;
      }
     }
-    const row=(await tx.query<{id:string}>(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,document_revision_id,decided_by,command_key,request_id,trace_id)
+    let row:{id:string}|undefined;
+    try {
+     row=(await tx.query<{id:string}>(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,document_revision_id,decided_by,command_key,request_id,trace_id)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
      [p.tenantId,projectId,id,d.value_hash,input.result,reason,revisionId,p.id,key,requestId,randomUUID()])).rows[0];
+    } catch(e) {
+     // migration 022 refuses a confirmation whose project became pointer-only after the check above (a mapping committed in between): the same hold
+     if(input.result==='confirmed'&&(e as {code?:string}|null)?.code===POINTER_ONLY_SQLSTATE)
+      throw new AppError('DRAFT_HELD','Nháp được giữ lại, chưa xác nhận được: POINTER_ONLY_PROJECT.',422);
+     throw e;
+    }
     if(!row) throw alreadyDecided();
     return {decisionId:row.id};
    });

@@ -64,6 +64,14 @@ const fkToProjects=async(table:string)=>{
   expect(fk,table).toHaveLength(1);
   return fk[0].conname;
 };
+// a decision row with the columns decide writes; the draft's value hash is HASH (draftVals)
+const insertDecision=(q:Queryable,draftId:string,over:R={})=>{
+  const v:R={tenant_id:ids.tenant,project_id:ids.sales,draft_id:draftId,draft_value_hash:HASH,result:'confirmed',reason:'',document_revision_id:null,decided_by:pm.id,
+    command_key:'decision-'+randomUUID(),request_id:randomUUID(),trace_id:randomUUID(),...over},keys=Object.keys(v);
+  return q.query<{id:string}>(`INSERT INTO draft_decisions(${keys.join(',')}) VALUES(${keys.map((_,i)=>`$${i+1}`).join(',')}) RETURNING id`,keys.map(k=>v[k]));
+};
+const decisions=async(draftId:string)=>(await rows<{n:number}>('SELECT count(*)::int n FROM draft_decisions WHERE draft_id=$1',[draftId]))[0].n;
+const DECISION_MESSAGE='A draft of a pointer-only project is not confirmed';
 const mappings=async(project:string)=>(await rows<{n:number}>('SELECT count(*)::int n FROM public.project_domain_mappings WHERE project_id=$1',[project]))[0].n;
 // an AI-role transaction that inserts a draft of a project and stays open until released: the shape of G24
 const openDraft=(project:string)=>{
@@ -229,14 +237,14 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await mappings(ids.sales)).toBe(0);
   });
 
-  test('G12 running 022 again changes nothing: the exact triggers of the three tables, three functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role',async()=>{
+  test('G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role',async()=>{
     const sql=await readFile(path.join(process.cwd(),'migrations',F),'utf8');
-    const FN=['ai_drafts_declared_scope_guard','ai_drafts_pointer_only_guard','project_domain_mappings_draft_lock'];
+    const FN=['ai_drafts_declared_scope_guard','ai_drafts_pointer_only_guard','project_domain_mappings_draft_lock','draft_decisions_pointer_only_guard'];
     const shape=async()=>({
       triggers:await rows(`SELECT tgrelid::regclass::text t,tgname,tgenabled,tgtype,pg_get_triggerdef(oid) d FROM pg_trigger WHERE NOT tgisinternal
         AND tgrelid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass,'public.project_domain_mappings'::regclass) ORDER BY 1,2`),
       functions:await rows(`SELECT n.nspname,p.proname,p.prosecdef,p.proconfig::text c,p.proacl::text a,pg_get_userbyid(p.proowner) o,p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-        WHERE p.proname IN ('ai_drafts_declared_scope_guard','ai_drafts_pointer_only_guard','project_domain_mappings_draft_lock','draft_decisions_guard') ORDER BY 1,2`),
+        WHERE p.proname IN ('ai_drafts_declared_scope_guard','ai_drafts_pointer_only_guard','project_domain_mappings_draft_lock','draft_decisions_pointer_only_guard','draft_decisions_guard') ORDER BY 1,2`),
       acl:await rows(`SELECT relname,relacl::text a,relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) ORDER BY 1`),
       policies:await rows("SELECT tablename,policyname,roles::text r,cmd,qual,with_check FROM pg_policies WHERE tablename IN ('ai_drafts','draft_decisions') ORDER BY 1,2"),
       migrations:await rows("SELECT version FROM schema_migrations WHERE version='022'"),
@@ -253,11 +261,14 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await shape()).toEqual(before);
     const names=async(t:string)=>(await rows<{tgname:string}>('SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid=$1::regclass ORDER BY 1',[t])).map(r=>r.tgname);
     expect(await names('intelligence.ai_drafts')).toEqual(['ai_drafts_declared_scope_guard','ai_drafts_immutable','ai_drafts_pointer_only_guard']);
-    expect(await names('public.draft_decisions')).toEqual(['draft_decisions_guard','draft_decisions_immutable']);
+    expect(await names('public.draft_decisions')).toEqual(['draft_decisions_guard','draft_decisions_immutable','draft_decisions_pointer_only_guard']);
     expect(await names('public.project_domain_mappings')).toEqual(['project_domain_mappings_draft_lock','project_domain_mappings_immutable']);
     // the order they fire in: BEFORE INSERT row triggers of one table fire by name, so the scope guard answers before the definer guard reads anything
     expect((await rows<{tgname:string}>("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid='intelligence.ai_drafts'::regclass AND tgtype=7 ORDER BY tgname")).map(r=>r.tgname))
       .toEqual(['ai_drafts_declared_scope_guard','ai_drafts_pointer_only_guard']);
+    // on the decision table: 021's guard (the draft read under the caller's own scope) answers before the definer guard reads any mapping
+    expect((await rows<{tgname:string}>("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid='public.draft_decisions'::regclass AND tgtype=7 ORDER BY tgname")).map(r=>r.tgname))
+      .toEqual(['draft_decisions_guard','draft_decisions_pointer_only_guard']);
     for(const n of FN){
       const g=await rows<{tgenabled:string;tgtype:number;d:string}>("SELECT tgenabled,tgtype,pg_get_triggerdef(oid) d FROM pg_trigger WHERE tgname=$1 AND NOT tgisinternal",[n]);
       expect(g,n).toHaveLength(1);
@@ -270,16 +281,17 @@ describe('migration 022: the pointer-only guard',()=>{
       ai_drafts_declared_scope_guard:{prosecdef:false,proconfig:['search_path=pg_catalog, pg_temp'],provolatile:'v'},
       ai_drafts_pointer_only_guard:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s'],provolatile:'v'},
       project_domain_mappings_draft_lock:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s'],provolatile:'v'},
+      draft_decisions_pointer_only_guard:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s'],provolatile:'v'},
     };
     for(const n of FN){
       const fn=await rows<{prosecdef:boolean;proconfig:string[];provolatile:string}>('SELECT p.prosecdef,p.proconfig,p.provolatile FROM pg_proc p WHERE p.proname=$1',[n]);
       expect(fn,n).toHaveLength(1);
       expect(fn[0],n).toEqual(PINS[n]);
     }
-    // the owner of both definer functions is not bound by row-level security: a superuser or a role with BYPASSRLS
+    // the owner of the three definer functions is not bound by row-level security: a superuser or a role with BYPASSRLS
     const owners=await rows<{proname:string;ok:boolean}>(`SELECT p.proname,(r.rolsuper OR r.rolbypassrls) ok FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner
-      WHERE p.proname IN ('ai_drafts_pointer_only_guard','project_domain_mappings_draft_lock') ORDER BY 1`);
-    expect(owners).toEqual([{proname:'ai_drafts_pointer_only_guard',ok:true},{proname:'project_domain_mappings_draft_lock',ok:true}]);
+      WHERE p.proname IN ('ai_drafts_pointer_only_guard','project_domain_mappings_draft_lock','draft_decisions_pointer_only_guard') ORDER BY 1`);
+    expect(owners).toEqual([{proname:'ai_drafts_pointer_only_guard',ok:true},{proname:'draft_decisions_pointer_only_guard',ok:true},{proname:'project_domain_mappings_draft_lock',ok:true}]);
     const def=(await rows<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname='ai_drafts_pointer_only_guard'"))[0].d.replace(/\s+/g,' ');
     for(const f of ['FROM public.project_domain_mappings m','m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id','ORDER BY m.mapping_version DESC LIMIT 1',
       "latest = 'IBS_HI'","ERRCODE = 'LTZ01'","current_setting('transaction_isolation') <> 'read committed'","ERRCODE = 'LTZ02'"]) expect(def,f).toContain(f);
@@ -300,6 +312,14 @@ describe('migration 022: the pointer-only guard',()=>{
     const lock=await src('project_domain_mappings_draft_lock');
     for(const f of [LOCK_LINE,'IF NOT FOUND THEN']) expect(lock,f).toContain(f);
     expect(lock).not.toContain('pg_advisory');
+    // the decision guard: a rejection returns first; then the isolation check, the row lock, the read of the mapping
+    const decision=await src('draft_decisions_pointer_only_guard');
+    for(const f of [LOCK_LINE,'IF NOT FOUND THEN',"ERRCODE = '23503'","ERRCODE = 'LTZ01'","ERRCODE = 'LTZ02'","NEW.result IS DISTINCT FROM 'confirmed'"]) expect(decision,f).toContain(f);
+    const dat=(t:string)=>decision.indexOf(t);
+    expect(dat("NEW.result IS DISTINCT FROM 'confirmed'")).toBeLessThan(dat("'transaction_isolation'"));
+    expect(dat("'transaction_isolation'")).toBeLessThan(dat('FOR NO KEY UPDATE'));
+    expect(dat('FOR NO KEY UPDATE')).toBeLessThan(dat('FROM public.project_domain_mappings'));
+    expect(decision).not.toContain('pg_advisory');
     // second comparison, after the re-apply
     await sameBodies();
     const code=sql.replace(/--.*$/gm,'');
@@ -483,6 +503,7 @@ describe('migration 022: the pointer-only guard',()=>{
     expect((await refusal(asAi(tx=>tx.query('ALTER TABLE intelligence.ai_drafts DISABLE TRIGGER ai_drafts_declared_scope_guard'))))?.message).toMatch(/must be owner|permission denied/);
     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.ai_drafts_declared_scope_guard()'))))?.message).toMatch(/permission denied/);
     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.project_domain_mappings_draft_lock()'))))?.message).toMatch(/permission denied/);
+    expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.draft_decisions_pointer_only_guard()'))))?.message).toMatch(/permission denied/);
     // DB-7 (a): the cap lives in proconfig, and the role cannot change it
     expect((await refusal(asAi(tx=>tx.query('ALTER FUNCTION intelligence.project_domain_mappings_draft_lock() SET lock_timeout = 0'))))?.message).toMatch(/must be owner/);
     // the lock is a row lock on public.projects: a role that may only read the table (or not even that) cannot take it
@@ -516,6 +537,7 @@ describe('migration 022: the pointer-only guard',()=>{
     const PINS:Record<string,{prosecdef:boolean;proconfig:string[]}>={
       ai_drafts_declared_scope_guard:{prosecdef:false,proconfig:['search_path=pg_catalog, pg_temp']},
       project_domain_mappings_draft_lock:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s']},
+      draft_decisions_pointer_only_guard:{prosecdef:true,proconfig:['search_path=pg_catalog, pg_temp','row_security=off','lock_timeout=5s']},
     };
     for(const [name,pin] of Object.entries(PINS)){
       expect(await rows('SELECT p.prosecdef,p.proconfig FROM pg_proc p WHERE p.proname=$1',[name]),name).toEqual([pin]);
@@ -697,6 +719,64 @@ describe('migration 022: the pointer-only guard',()=>{
       expect(await show()).toBe('1234ms');
     });
     expect(await mappings(ids.sales)).toBe(0);
+  });
+
+  // ---- Class sweep F1: the decision table holds a confirmation to the same rule at the moment it is written ----
+  test('P1 a confirmed decision of a project that is IBS_HI is refused LTZ01 when it is written; a rejection is stored',async()=>{
+    const draft=(await insertDraft(h.operator)).rows[0].id;
+    await mapDomain(h,ids.sales,'IBS_HI',1);
+    // the operational login
+    const e=await refusal(insertDecision(h.operator,draft));
+    expect(e).not.toBeNull();
+    expect(e!.code).toBe(LTZ);
+    expect(e!.message).toBe(DECISION_MESSAGE);
+    expect(await decisions(draft)).toBe(0);
+    // the runtime role in its scope (the role decide writes as)
+    const r=await refusal(asRuntime(pm.id,S,tx=>insertDecision(tx,draft)));
+    expect(r).not.toBeNull();
+    expect(r!.code).toBe(LTZ);
+    expect(r!.message).toBe(DECISION_MESSAGE);
+    expect(await decisions(draft)).toBe(0);
+    // a rejection confirms nothing and is stored
+    expect(await refusal(asRuntime(pm.id,S,tx=>insertDecision(tx,draft,{result:'rejected',reason:'Lý do đủ dài'})))).toBeNull();
+    expect(await decisions(draft)).toBe(1);
+  });
+
+  test('P2 the decision guard binds only confirmations of a READ COMMITTED transaction; a confirmation for a (tenant, project) pair with no draft is answered by the guard of 021 first',async()=>{
+    const draft=(await insertDraft(h.operator)).rows[0].id;
+    const repeatable=(over:R)=>refusal(h.operator.transaction(async tx=>{
+      await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+      await insertDecision(tx,draft,over);
+      throw new Error('stored, rolled back on purpose');
+    }));
+    const c=await repeatable({});
+    expect(c?.code).toBe('LTZ02');
+    expect(c?.message).toBe('A draft is confirmed in a READ COMMITTED transaction');
+    // a rejection is not held, at any isolation level: it reaches the end and is rolled back by the test itself
+    expect((await repeatable({result:'rejected',reason:'Lý do đủ dài'}))?.message).toBe('stored, rolled back on purpose');
+    expect(await decisions(draft)).toBe(0);
+    // a pair that does not exist: draft_decisions_guard (021) fires first by name and finds no draft of that project
+    const ghost=await refusal(insertDecision(h.operator,draft,{project_id:randomUUID()}));
+    expect(ghost).not.toBeNull();
+    expect(ghost!.code).toBe('P0001');
+    expect(ghost!.message).toBe('A decision names a draft of its own project');
+    expect(ghost!.where).toContain('draft_decisions_guard');
+    expect(ghost!.where).not.toContain('draft_decisions_pointer_only_guard');
+    expect(await decisions(draft)).toBe(0);
+  });
+
+  test('P3 a decision about a draft outside the caller\'s scope is answered by draft_decisions_guard, whatever the label of the project',async()=>{
+    const draft=(await insertDraft(h.operator,{project_id:ids.transport})).rows[0].id;
+    const outside=()=>refusal(asRuntime(pm.id,[ids.sales],tx=>insertDecision(tx,draft,{project_id:ids.transport})));
+    const unmapped=await outside();
+    await mapDomain(h,ids.transport,'IBS_HI',1);
+    const ibs=await outside();
+    expect(unmapped).not.toBeNull();
+    expect(ibs).not.toBeNull();
+    expect(answer(ibs)).toEqual(answer(unmapped));
+    expect(ibs!.code).not.toBe(LTZ);
+    expect(unmapped!.code).not.toBe(LTZ);
+    expect(await decisions(draft)).toBe(0);
   });
 
   // Native only (G23, G24, G27, N3-N6): each needs two connections or more; PGlite has one.
@@ -923,5 +1003,60 @@ describe('migration 022: the pointer-only guard',()=>{
     }
     expect(await second).toBeNull();
     expect(await count()).toBe(before+2);
+  },20000);
+
+  test.skipIf(!native)('P4 a confirmation waits for an uncommitted IBS_HI mapping of its project and is then refused LTZ01; when the mapping is rolled back it is stored',async()=>{
+    const gate=new Error('mapping rolled back on purpose');
+    const attempt=async(project:string,end:'commit'|'rollback')=>{
+      const draft=(await insertDraft(h.operator,{project_id:project})).rows[0].id;
+      const held=latch(),opened=latch();
+      const writer=h.operator.transaction(async tx=>{
+        await mapIn(tx,project,'IBS_HI',1);
+        opened.open();
+        await held.promise;
+        if(end==='rollback') throw gate;
+      }).catch(e=>{if(e!==gate) throw e;});
+      let confirm:Promise<Refusal>|undefined;
+      try {
+        await Promise.race([opened.promise,writer]);
+        confirm=capped(tx=>insertDecision(tx,draft,{project_id:project}));
+        await waitForBlocked(h,1);
+      } finally {
+        held.open();
+        await writer;
+      }
+      return {e:await confirm,draft};
+    };
+    const refused=await attempt(ids.transport,'commit');
+    expect(refused.e).not.toBeNull();
+    expect(refused.e!.code).toBe(LTZ);
+    expect(refused.e!.message).toBe(DECISION_MESSAGE);
+    expect(await decisions(refused.draft)).toBe(0);
+    const stored=await attempt(sameBuProject,'rollback');
+    expect(stored.e).toBeNull();
+    expect(await decisions(stored.draft)).toBe(1);
+  },20000);
+
+  test.skipIf(!native)('P5 a mapping insert waits for an open confirmation of its project: the decision is stored first and the mapping after it',async()=>{
+    const P=ids.transport;
+    const draft=(await insertDraft(h.operator,{project_id:P})).rows[0].id;
+    const held=latch(),opened=latch();
+    const holder=h.operator.transaction(async tx=>{
+      await insertDecision(tx,draft,{project_id:P});
+      opened.open();
+      await held.promise;
+    });
+    let mapping:Promise<Refusal>|undefined;
+    try {
+      await Promise.race([opened.promise,holder]);
+      mapping=capped(tx=>mapIn(tx,P,'IBS_HI',1));
+      await waitForBlocked(h,1);
+    } finally {
+      held.open();
+      await holder;
+    }
+    expect(await mapping).toBeNull();
+    expect(await decisions(draft)).toBe(1);
+    expect(await mappings(P)).toBe(1);
   },20000);
 });

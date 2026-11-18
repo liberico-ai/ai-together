@@ -205,4 +205,71 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
     expect(await svc.submitDraft(ai,envelope)).toMatchObject({stored:true});
     expect(await n('intelligence.ai_drafts')).toBe(before+1);
   },20000);
+
+  // Class sweep F1: decide checks «pointer-only» early in its transaction; the decision table's guard (migration 022) re-reads it at the decision row,
+  // under the same row lock on the project row. Both cases run above the 10 s statement timeout of the service pool: a missing cap shows as 57014.
+  test('a confirmation that waited for an uncommitted IBS_HI mapping of its project is held as POINTER_ONLY_PROJECT; nothing of it is written',async()=>{
+    const {svc,draftId,valueHash,revision}=await setup();
+    const revisions=await n('document_revisions'),commands=await n('document_commands');
+    let release!:()=>void,opened!:()=>void;
+    const held=new Promise<void>(r=>{release=r;}),ready=new Promise<void>(r=>{opened=r;});
+    const writer=h.operator.transaction(async tx=>{
+      await tx.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,'IBS_HI',$3,'synthetic-source',1)",[ids.tenant,ids.sales,pm.id]);
+      opened();
+      await held;
+    });
+    await Promise.race([ready,writer]);
+    const key='conc-key-0051';
+    // its own check reads the committed state (no mapping yet); it then waits at the decision row
+    const sent=svc.decide(pm,draftId,{result:'confirmed',valueHash,revision},key,randomUUID()).then(v=>v,e=>e);
+    try {
+      expect(await stamp(sent)).toBe('blocked');
+    } finally {
+      release();
+      await writer;
+    }
+    const e=await sent as {code?:string;status?:number;message?:string};
+    expect(e).toMatchObject({code:'DRAFT_HELD',status:422});
+    expect(e.message).toBe('Nháp được giữ lại, chưa xác nhận được: POINTER_ONLY_PROJECT.');
+    expect(await n('draft_decisions')).toBe(0);
+    expect(await n('document_revisions')).toBe(revisions);
+    expect(await n('document_commands')).toBe(commands);
+    // the key stays free
+    expect((await svc.decide(pm,draftId,{result:'rejected',valueHash,reason:'Lý do đủ dài'},key,randomUUID())).decision).toMatchObject({result:'rejected'});
+  },20000);
+
+  test('a confirmation that waits past the cap fails with the database error 55P03 and writes nothing; the same command succeeds once the project row is free',async()=>{
+    const {svc,draftId,valueHash,revision}=await setup();
+    const revisions=await n('document_revisions'),commands=await n('document_commands');
+    let release!:()=>void,opened!:()=>void;
+    const held=new Promise<void>(r=>{release=r;}),ready=new Promise<void>(r=>{opened=r;});
+    // the operator connection may write public.projects, so it can hold the lock that the decision guard takes
+    const holder=h.operator.transaction(async tx=>{
+      await tx.query('SELECT 1 FROM public.projects WHERE id=$1 FOR NO KEY UPDATE',[ids.sales]);
+      opened();
+      await held;
+    });
+    await Promise.race([ready,holder]);
+    const key='conc-key-0052',command={result:'confirmed',valueHash,revision};
+    let e:unknown=null,elapsed=0;
+    try {
+      const t0=Date.now();
+      e=await svc.decide(pm,draftId,command,key,randomUUID()).then(()=>null,x=>x);
+      elapsed=Date.now()-t0;
+    } finally {
+      release();
+      await holder;
+    }
+    expect(e).not.toBeNull();
+    expect((e as {code?:string}).code).toBe('55P03');
+    expect(e instanceof AppError).toBe(false);
+    expect(elapsed).toBeGreaterThanOrEqual(4000);
+    expect(elapsed).toBeLessThan(9000);
+    expect(await n('draft_decisions')).toBe(0);
+    expect(await n('document_revisions')).toBe(revisions);
+    expect(await n('document_commands')).toBe(commands);
+    expect((await svc.decide(pm,draftId,command,key,randomUUID())).decision).toMatchObject({result:'confirmed'});
+    expect(await n('draft_decisions')).toBe(1);
+    expect(await n('document_revisions')).toBe(revisions+1);
+  },20000);
 });

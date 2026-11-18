@@ -1,0 +1,157 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (102 tests | 1 failed | 1 skipped) 55292ms
+   ❯ Z4 drafts: decide (17)
+     × X1 a confirmation whose project became pointer-only after the service's own check is held as POINTER_ONLY_PROJECT by the guard of the decision table: no decision, no revision, the key stays free 517ms
+ ❯ tests/z4-pointer-guard.test.ts (39 tests | 4 failed | 11 skipped) 17132ms
+   ❯ migration 022: the pointer-only guard (39)
+     × G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role 557ms
+     × G20 the role cannot switch the scope guard off, cannot call or change the functions of 022, and no runtime role takes the row lock of a project by itself 708ms
+     × P1 a confirmed decision of a project that is IBS_HI is refused LTZ01 when it is written; a rejection is stored 571ms
+     × P2 the decision guard binds only confirmations of a READ COMMITTED transaction; a confirmation for a (tenant, project) pair with no draft is answered by the guard of 021 first 579ms
+ ❯ tests/migrations-rollback.test.ts (9 tests | 2 failed) 5230ms
+   × rollback 022 refuses while a later migration is applied, drops the four triggers and four functions of 022, and leaves drafts, decisions, mappings and 021 as they were 552ms
+   × 022 over a database that carries only the pointer-only trigger and its function gives the four triggers and four functions; the rollback from that shape leaves nothing of 022 546ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 022 refuses while a later migration is applied, drops the four triggers and four functions of 022, and leaves drafts, decisions, mappings and 021 as they were
+AssertionError: expected [ { …(2) }, { …(2) }, { …(2) } ] to have a length of 4 but got 3
+
+- Expected
++ Received
+
+- 4
++ 3
+
+ ❯ tests/migrations-rollback.test.ts:432:26
+    430|     for(const f of [...later].reverse()) await h.exec(await readFile(d…
+    431|     const full=await guard();
+    432|     expect(full.trigger).toHaveLength(4);expect(full.functions).toHave…
+       |                          ^
+    433|     const kept=await upstream();
+    434|     // the three of 021 and project_domain_mappings_immutable of 013
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/migrations-rollback.test.ts > 022 over a database that carries only the pointer-only trigger and its function gives the four triggers and four functions; the rollback from that shape leaves nothing of 022
+AssertionError: expected [ { …(3) }, { …(3) }, { …(3) } ] to have a length of 4 but got 3
+
+- Expected
++ Received
+
+- 4
++ 3
+
+ ❯ tests/migrations-rollback.test.ts:513:27
+    511|     for(const f of [...later].reverse()) await h.exec(await readFile(d…
+    512|     const full=await shape();
+    513|     expect(full.triggers).toHaveLength(4);expect(full.functions).toHav…
+       |                           ^
+    514|     await toOldShape();
+    515|     const old=await shape();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: decide > X1 a confirmation whose project became pointer-only after the service's own check is held as POINTER_ONLY_PROJECT by the guard of the decision table: no decision, no revision, the key stays free
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:345:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role
+AssertionError: expected [ …(3) ] to deeply equal [ …(4) ]
+
+- Expected
++ Received
+
+  [
+    "intelligence.ai_drafts_declared_scope_guard",
+    "intelligence.ai_drafts_pointer_only_guard",
+    "intelligence.project_domain_mappings_draft_lock",
+-   "intelligence.draft_decisions_pointer_only_guard",
+  ]
+
+ ❯ tests/z4-pointer-guard.test.ts:254:36
+    252|     // the whole body of each function, not fragments: the text of the…
+    253|     const fileFns=[...sql.matchAll(/CREATE OR REPLACE FUNCTION (intell…
+    254|     expect(fileFns.map(f=>f.name)).toEqual(FN.map(n=>'intelligence.'+n…
+       |                                    ^
+    255|     const bodyOf=async(name:string)=>(await rows<{p:string}>('SELECT p…
+    256|     const sameBodies=async()=>{for(const f of fileFns) expect(await bo…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G20 the role cannot switch the scope guard off, cannot call or change the functions of 022, and no runtime role takes the row lock of a project by itself
+AssertionError: expected 'function intelligence.draft_decisions…' to match /permission denied/
+
+- Expected:
+/permission denied/
+
++ Received:
+"function intelligence.draft_decisions_pointer_only_guard() does not exist"
+
+ ❯ tests/z4-pointer-guard.test.ts:506:118
+    504|     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.ai_dr…
+    505|     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.proje…
+    506|     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.draft…
+       |                                                                                                                      ^
+    507|     // DB-7 (a): the cap lives in proconfig, and the role cannot chang…
+    508|     expect((await refusal(asAi(tx=>tx.query('ALTER FUNCTION intelligen…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > P1 a confirmed decision of a project that is IBS_HI is refused LTZ01 when it is written; a rejection is stored
+AssertionError: expected null not to be null
+ ❯ tests/z4-pointer-guard.test.ts:730:19
+    728|     // the operational login
+    729|     const e=await refusal(insertDecision(h.operator,draft));
+    730|     expect(e).not.toBeNull();
+       |                   ^
+    731|     expect(e!.code).toBe(LTZ);
+    732|     expect(e!.message).toBe(DECISION_MESSAGE);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > P2 the decision guard binds only confirmations of a READ COMMITTED transaction; a confirmation for a (tenant, project) pair with no draft is answered by the guard of 021 first
+AssertionError: expected undefined to be 'LTZ02' // Object.is equality
+
+- Expected:
+"LTZ02"
+
++ Received:
+undefined
+
+ ❯ tests/z4-pointer-guard.test.ts:753:21
+    751|     }));
+    752|     const c=await repeatable({});
+    753|     expect(c?.code).toBe('LTZ02');
+       |                     ^
+    754|     expect(c?.message).toBe('A draft is confirmed in a READ COMMITTED …
+    755|     // a rejection is not held, at any isolation level: it reaches the…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  7 failed | 131 passed | 12 skipped (150)
+   Start at  14:47:58
+   Duration  78.10s (tests 100%)
+

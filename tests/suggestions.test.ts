@@ -18,7 +18,7 @@ import {buildSkillContextIn} from '../src/server/skill-context';
 import {SuggestionService,type MaskReason} from '../src/server/suggestions';
 import {aiScoped} from '../src/server/ai-scope';
 import type {AiPrincipal} from '../src/server/ai-scope';
-import type {Database,Queryable} from '../src/server/db';
+import {scoped,type Database,type Queryable} from '../src/server/db';
 import type {DocumentDetail,Principal} from '../src/server/types';
 
 // The context builder is wrapped, not replaced: the confirmation case and M5 look at its calls; M6 makes it reject once.
@@ -329,6 +329,27 @@ describe('Z4 drafts: decide',()=>{
   await mapDomain(h,ids.transport,'IBS_HI',1);
   await held(decide(svc(),pm,draftId,body(valueHash,{revision:revisionBody(d)})),'POINTER_ONLY_PROJECT');
   await zeroDecisions();
+ });
+ test('X1 a confirmation whose project became pointer-only after the service\'s own check is held as POINTER_ONLY_PROJECT by the guard of the decision table: no decision, no revision, the key stays free',async()=>{
+  // The race on one connection: the context decide builds is the one built before the IBS_HI mapping committed (steered for this one call);
+  // the database already holds the mapping when the decision row is written.
+  const {d,draftId,valueHash}=await docDraft();
+  const before=await scoped(h.db,pm,async tx=>{
+   await tx.query("SELECT set_config('app.person_id',$1,true)",[pm.id]);
+   return buildSkillContextIn(tx,pm,{skill:'technical_writer',projectId:ids.sales,documentId:d.record.id},chats);
+  });
+  expect(before.pointerOnly).toBe(false);
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  const revs=await n('document_revisions'),cmds=await n('document_commands'),key=k();
+  vi.mocked(buildSkillContextIn).mockResolvedValueOnce(before);
+  await heldOnly(decide(svc(),pm,draftId,body(valueHash,{revision:revisionBody(d)}),key),'POINTER_ONLY_PROJECT');
+  await zeroDecisions();
+  expect(await n('document_revisions')).toBe(revs);
+  expect(await n('document_commands')).toBe(cmds);
+  // the key stays free: a rejection with it is stored
+  const v=await decide(svc(),pm,draftId,{result:'rejected',valueHash,reason:'Lý do đủ dài'},key);
+  expect(v.decision).toMatchObject({result:'rejected',documentRevisionId:null});
+  expect(await n('draft_decisions')).toBe(1);
  });
  test('a draft built with an older manifest hash is held',async()=>{
   const d=await doc(),r=await rawDraft({entityType:'document',entityId:d.record.id,value:out('technical_writer',[d.record.id]),over:{manifest_hash:'d'.repeat(64)}});

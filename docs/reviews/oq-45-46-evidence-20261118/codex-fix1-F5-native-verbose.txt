@@ -1,0 +1,245 @@
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > DOC-05 an AI output without sources stays a draft and never reaches Z1 357ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an invalid output or a foreign manifest hash is refused before anything is stored 324ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an output with a NUL character answers DRAFT_INVALID before any statement reaches the database 318ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an output with a lone surrogate answers DRAFT_INVALID before any statement reaches the database 309ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an output one byte over the limit answers DRAFT_INVALID before any statement reaches the database 300ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > a valid output at exactly the limit is stored 304ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > without an AI database handle submitDraft answers AI_PIPELINE_DISABLED 307ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > the runtime role cannot submit a draft 307ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > resubmitting the same dedupe key stores one draft; the columns come from the output and the manifest 312ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > R12-a a key used in another project is a conflict, never a success 368ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > R12-b the same key with a different output or entity is a conflict; the same content is a replay 323ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > D5 the replay covers the whole envelope: another inputHash or another modelVersion under the same key is a conflict; identical is the same draft id 324ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > R12-f a skill and entity pair the context builder could never honour is refused before any statement 318ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: submit > an uppercase id is lower-cased at parse time 361ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > a confirmed document draft creates exactly one revision through the document service and one decision 343ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > W8 the dependency.flagged event of a confirmed draft carries the decision's request id 345ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > W8 a manual proposal keeps one generated request id for the flag events of its transaction 368ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidden is held 379ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > the context is built under the confirming person, not a wider principal 358ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > a draft of an IBS HI project cannot be confirmed 364ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > X1 a confirmation whose project became pointer-only after the service's own check is held as POINTER_ONLY_PROJECT by the guard of the decision table: no decision, no revision, the key stays free 322ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > a draft built with an older manifest hash is held 311ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > R12-g a stored draft whose value_hash does not describe its value is never confirmed 316ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > R12-i an entity not in the project, or a pair the builder refuses, is held as ENTITY_NOT_FOUND with codes only 326ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > the AI principal cannot decide a draft; bot and viewer cannot list or decide; another project's member gets the not-found answer 331ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > replaying the same key returns the same decision; a different key answers DRAFT_ALREADY_DECIDED and leaves one decision and one revision 332ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > rejecting needs a reason and creates no revision 334ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > forged fields are rejected 323ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results 443ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > a confirmed document draft needs a revision body 310ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: decide > step 6 a decision that lost the race answers DRAFT_ALREADY_DECIDED and rolls back the revision it created 314ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > a document draft is held once the document has a revision newer than the newest one the draft names: no decision, no revision, the key stays free 354ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > the newest revision the draft names is the baseline: naming r1 and r2 is confirmed while r2 is the newest; a revision of another document is not a baseline 370ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > dừng tại OQ-53 (2): a document draft that names no revision of its own document is held as SUBJECT_BASELINE_MISSING once the document has a revision; a document with no revision yet is not held for it 328ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > a held draft can still be rejected, and a recorded confirmation replays unchanged after the document moves on 341ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > an id that is not a lower-case uuid names nothing: the upper-case id of the newest revision is not a baseline 301ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > D7 the baseline may be named at any id-bearing path: a doc_reviewer draft that names the newest revision only as candidateRevisionId is confirmed 350ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > D8 a malformed id among the ids a draft names never reaches the database as a uuid: the answer is a hold, not a database error 308ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-1 (i) one key for two drafts about one document, same revision body: the second is IDEMPOTENCY_CONFLICT and writes nothing 320ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-1 (ii) a key first used by a manual proposal, then a draft confirmation with the same body: conflict, no decision 319ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-1 (iii) a key first used by a draft confirmation, then a manual proposal with the same body: conflict, no second revision 318ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are held for the OQ-53 (3) placeholder alone 336ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > M12-2 a stored value that cannot be hashed is VALUE_HASH_MISMATCH; any other error is not swallowed 315ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > M12-5 a malformed id of the AI principal is the module's 404, never a raw database error 302ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: fix round 1 > replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content 314ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (a) the same key and the same body replay the recorded decision: one decision row, one revision, one claim 323ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (b) the same key with another valueHash is IDEMPOTENCY_CONFLICT, not the old decision 313ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (c) the same key with a changed revision body is IDEMPOTENCY_CONFLICT 317ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (d) a rejection claims its key: the same body replays, another reason or another result is IDEMPOTENCY_CONFLICT 316ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (e) a rejection claims its key, for a document draft and for a candidate draft: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT; a held candidate confirmation leaves its key free 358ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (f) another person sending the same key string gets DRAFT_ALREADY_DECIDED and leaves no claim 365ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (g) a held confirmation leaves its key free: the same key then works for a later valid command 325ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > the inner proposal runs under the claim of the decision: one claim row for the key, whose payload names the draft 308ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: list > R12-k strict query, deterministic order, a total over the same filter 319ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L1 a candidate draft: only the project manager reads its content; engineer, technical and business get no content, no source id and no hash 315ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L2 a document draft: every role that may write the ledger reads its content; viewer and bot get the not-found answer for both kinds of draft 378ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L3 nothing the writer chose reaches the service for a reader without the authority: no value, question, confidence, version string, hash or source id in any row handed to it 308ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L4 a reader without the authority gets no bits the writer chose: sources is empty and manifestHash is the current manifest's or null 313ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L5 masking changes no row count and no order: the list and the total are the same for every reader 309ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L6 one rule for reading and deciding: a role reads the content of a draft exactly when it may decide it 413ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L7 when the content is returned every displayed field comes from the validated value: a row whose questions, confidence and sources columns say otherwise shows the value's; skillVersion and manifestHash only when they are the manifest's in force 306ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided 327ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L9 a stored value that does not fit the contract is masked as SCHEMA_INVALID even for a person who may decide 310ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M1 the content is masked when the reader cannot read the text of a message the draft cites 323ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M2 the content is masked once the project is pointer-only: mapped to IBS_HI after the draft was stored, for a document draft and a candidate draft; the latest row decides 326ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M3 what cannot be proven readable is masked: an id outside the rebuilt context, a source of another project, an entity that is gone, a pair the builder refuses 331ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M4 for a document draft a reason that is not about what the reader may read does not mask: an older manifest hash, a value hash that does not describe the value, an unsourced claim, a draft without sources 338ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M5 the read context is built under the reader, once per skill, and never for a reader without the authority 317ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M6 an error the service does not understand is not turned into a mask: the read fails and returns nothing 296ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M7 decide answers with the same masked view: a rejection by a manager who cannot read the cited text is recorded, and its answer carries no content 317ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M8 under a mask sources is empty whatever the sources column names: ids of the rebuilt context, repeated and reordered, do not come back 327ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M9 a replayed decision on a project that became pointer-only answers with the recorded decision and no content 317ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M10 a reader without the authority causes no read of the message tables; a reader of a document draft causes exactly one, a single boolean for the project 323ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: what masks at read time holds at confirmation (P3 invariant) > P3 whatever masks a draft at read time holds it at confirmation 436ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: boundaries > no route imports the suggestion service, and nothing in src builds it with an AI handle 313ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: IBS HI is refused at write (OQ-45 point 3) > a draft for an IBS HI project is refused when it is written: POINTER_ONLY_PROJECT, nothing stored, no database error text 318ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: IBS HI is refused at write (OQ-45 point 3) > the refusal comes before the replay: an envelope first stored before the mapping is refused afterwards, and one draft stays 310ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: IBS HI is refused at write (OQ-45 point 3) > an unmapped project, a project under another label and a project that left IBS_HI still store 318ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: IBS HI is refused at write (OQ-45 point 3) > the pipeline's own project list answers first: an IBS HI project outside ai.projectIds is the not-found answer, before any statement 304ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a candidate draft that names no message is masked once the stored text of its thread is no longer shown 311ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a thread whose newest revision is pointer-only but an earlier revision stored text still masks its candidate drafts when the group is not flagged 309ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: what is masked for that reason cannot be confirmed either 332ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > a draft that cites a message of such a thread carries the reason of the cited message and both placeholder reasons 300ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a replayed rejection of a candidate draft answers with the recorded decision and no content once the group's flag is gone 312ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W1 dừng tại OQ-55: a document draft is masked while its project holds stored text that is no longer shown, whatever the draft names 309ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W2 dừng tại OQ-55: what is masked for that reason cannot be confirmed either; it can still be rejected, and the answer of the rejection carries no content 343ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W3 the project decides, not the thread and not the draft: text stored without being shown masks every draft of that project and no draft of another project 339ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W4 a project whose messages stored no text masks nothing 327ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W5 the project statement runs once for a list read by a person who may decide it, for either kind of draft, and never for a reader without the authority 336ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W6 a replayed confirmation of a document draft answers with the recorded decision and no content once the project holds hidden text 324ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W7 dừng tại OQ-55: a candidate draft that carries the text of another thread of its project is masked while that text is not shown 318ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W8 the project reason stands when no context can be built: a document draft that points at no document is held for both 313ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is held for the OQ-53 (3) placeholder alone 326ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a message the draft does not name, recorded before the newest one it names, adds no hold: the draft is held for the OQ-53 (3) placeholder alone 304ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > dừng tại OQ-53 (1): an edit recorded at or after the newest named message holds the draft as SUBJECT_EDIT_UNVERIFIED, also when the edit was already there when the draft was written; an edit recorded before the newest named message does not 343ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > dừng tại OQ-53 (2): a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING 334ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a held candidate draft can still be rejected; a recorded decision replays unchanged after a new message arrives 331ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): a candidate draft that passes every other check is held as SUBJECT_ORDER_UNVERIFIED and nothing else; nothing is written and the key stays free 320ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): every other check still runs and names its code next to the placeholder 386ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): the placeholder holds a confirmation only — the manager still reads the content of a candidate draft and can reject it, and the code never appears in a list 312ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): a document draft is not touched, and a candidate confirmation that carries a revision body is INVALID_INPUT before any hold 369ms
+ ✓ tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > the fault of the command is answered after the authority, the decided state and the value hash, never before them 327ms
+ ✓ tests/source-text.test.ts > source-text > displayMode: only a stored excerpt under an allowing config is shown 304ms
+ ✓ tests/source-text.test.ts > source-text > SQL and the pure rule agree for every stored mode, flag and latest mapping 392ms
+ ✓ tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the group flag is removed > hidden 320ms
+ ✓ tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the project is mapped to IBS_HI after the text was stored > hidden 311ms
+ ✓ tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the service is built without flags > hidden 310ms
+ ✓ tests/source-text.test.ts > source-text > no row handed to the service carries hidden or pointer-only text or hash: the message stored only a pointer > hidden 313ms
+ ✓ tests/source-text.test.ts > source-text > positive control: with the flag in force the same operations do carry the text 308ms
+ ✓ tests/source-text.test.ts > source-text > an empty flag list hides every stored text and no RLS context returns no row 294ms
+ ✓ tests/source-text.test.ts > source-text > duplicate hints are unchanged: same stored hash, same project, either visibility 300ms
+ ✓ tests/source-text.test.ts > source-text > only source-text.ts reads revision text 292ms
+ ✓ tests/source-text.test.ts > threadHasHiddenText > Q5 threadHasHiddenText: every revision of every message of the thread, the current configuration, the caller's scope 312ms
+ ✓ tests/source-text.test.ts > threadHasHiddenText > Q5 the caller's scope and a malformed id 302ms
+ ✓ tests/source-text.test.ts > threadHasHiddenText > Q5 (i) a thread whose root stored no text and whose reply stored text: the reply counts, whichever message is the root 308ms
+ ✓ tests/source-text.test.ts > threadHasHiddenText > Q5 (ii) no cap: the oldest message stored text and twenty-one replies stored none 367ms
+ ✓ tests/source-text.test.ts > threadHasHiddenText > Q6 threadHasHiddenText returns one boolean and no text: the one row handed back holds no excerpt and no content hash 304ms
+ ✓ tests/source-text.test.ts > threadHasHiddenText > Q8 threadHasHiddenText is closed when the list of flagged groups cannot be evaluated 307ms
+ ✓ tests/source-text.test.ts > threadHasHiddenText > Q10 threadHasHiddenText is closed when the statement returns no row 286ms
+ ✓ tests/source-text.test.ts > threadHasHiddenText > Q11 the statement's own project condition holds for threadHasHiddenText: a principal scoped to both projects gets false for the other project 311ms
+ ✓ tests/source-text.test.ts > projectHasHiddenText > U1 projectHasHiddenText: every revision of every message of the project, the current configuration, and closed outside the caller's scope 334ms
+ ✓ tests/source-text.test.ts > projectHasHiddenText > U2 projectHasHiddenText returns one boolean and no text: the one row handed back holds no excerpt and no content hash 346ms
+ ✓ tests/source-text.test.ts > projectHasHiddenText > U3 projectHasHiddenText is closed: a list that cannot be evaluated, a statement that returns no row, a malformed project id 298ms
+ ✓ tests/source-text.test.ts > threadFreshness > T6 threadFreshness returns three booleans and no text: the one row handed back holds no excerpt and no content hash 289ms
+ ✓ tests/source-text.test.ts > threadFreshness > T7 threadFreshness: baseline, newer message, later edit, another project, malformed ids 324ms
+ ✓ tests/source-text.test.ts > threadFreshness > T8 threadFreshness reads nothing for a caller scoped to another tenant 305ms
+ ✓ tests/source-text.test.ts > threadFreshness > T9 record time decides, not the observed time the gateway declares: a reply that arrives late with an older observedAt is still a newer message of the thread 296ms
+ ✓ tests/source-text.test.ts > threadFreshness > T10 an edit of a message the draft does not name counts: later revisions of any message of the thread are looked at 301ms
+ ✓ tests/source-text.test.ts > threadFreshness > T11 two rows recorded at the same instant: the one the draft does not name counts as newer (>=) 305ms
+ ✓ tests/source-text.test.ts > threadFreshness > T15 an edit recorded at the same instant as the baseline counts (>=) 294ms
+ ✓ tests/source-text.test.ts > threadFreshness > T12 the statement's own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing for the other project 290ms
+ ✓ tests/source-text.test.ts > threadFreshness > T13 a project id that is not a lower-case uuid gives three false without a statement 295ms
+ ✓ tests/source-text.test.ts > threadFreshness > T14 no cap: in a thread of more than twenty messages a late message outside any window still holds 396ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G1 the guard refuses a draft for a project whose latest mapping row is IBS_HI: SQLSTATE LTZ01, a message without ids, nothing stored 317ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G2 an unmapped project, a project under another label and a project whose latest row left IBS_HI still store 302ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G3 the highest mapping_version decides, whatever the order the rows were written in 295ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G4 the guard reads the mapping of the row's own tenant: a row that names another tenant is answered by row-level security, a row that reaches the definer guard with a tenant that does not own the project is answered 23503, never LTZ01, and nothing is stored 308ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G5 the guard answers before the conflict check: the dedupe key of a draft stored before the mapping is refused on replay, and one row stays 337ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G6 the pointer-only guard also stops the operational login 305ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G7 34d without a transaction context nothing is stored and nothing is told: an IBS_HI project and any other project get the same answer, the one row-level security gives 300ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G8 34a 34e the AI role gains nothing to read or call 295ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G9 a role bound by row-level security cannot tell an IBS_HI project outside its declared scope from any other: the same SQLSTATE and the same message; inside the declared scope the guard answers LTZ01 295ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G10 34c update and delete of a draft stay refused 310ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G11 fail-closed: when the guard function is owned by a role that row-level security filters, every insert is refused; when the lock function of a mapping is, every mapping insert is refused 291ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role 298ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G13 the guard gives no answer to a role that may not insert drafts 309ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G14 the guard decides each row of a multi-row insert: one IBS_HI row refuses the whole statement and nothing is stored 304ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G15 a row without tenant_id or project_id is answered by the table, not by the guard 304ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G16 the guard refuses a write from a transaction that is not READ COMMITTED: READ UNCOMMITTED, REPEATABLE READ and SERIALIZABLE are answered LTZ02 whatever the project (REPEATABLE READ also for an IBS_HI project), and nothing is stored 307ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G17 REPEATABLE READ opened before the IBS_HI mapping was committed is refused LTZ02; READ COMMITTED sees a mapping committed after it began and is refused LTZ01 303ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G18 MERGE is judged like INSERT: a MERGE that would insert a draft for an IBS_HI project is refused LTZ01 and nothing is stored 306ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G19 the declared-scope guard answers for every row the insert policy would refuse, with the policy's own words, whether or not the project is IBS_HI 320ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G20 the role cannot switch the scope guard off, cannot call or change the functions of 022, and no runtime role takes the row lock of a project by itself 333ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G25 the policies that the scope guard mirrors are pinned: one INSERT policy and one SELECT policy on intelligence.ai_drafts for libetech_ai, permissive, with this WITH CHECK and this USING, and no restrictive policy 294ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G26 whatever the statement, a row outside the declared scope gets one answer for an IBS_HI project and for any other: MERGE, a multi-row insert in both orders, the statement of submitDraft on a stored key, a setting that is not a uuid 318ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G21 the guard and the lock function lock the project row of a row while that row is handled, before the foreign-key check at the end of the statement: the next row of the same statement sees the row locked by this transaction; no advisory lock is taken 298ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G22 a draft insert in the transaction that wrote an IBS_HI mapping is refused; a row without a project is answered by the table 316ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N1 a draft for a (tenant, project) pair that does not exist is refused 23503 by the guard itself, and nothing is stored 316ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N2 a mapping for a project that does not exist is refused 23503 by the lock function, and a mapping insert leaves the lock_timeout of the session as it was 313ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > P1 a confirmed decision of a project that is IBS_HI is refused LTZ01 when it is written; a rejection is stored 316ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > P2 the decision guard binds only confirmations of a READ COMMITTED transaction; a confirmation for a (tenant, project) pair with no draft is answered by the guard of 021 first 303ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > P3 a decision about a draft outside the caller's scope is answered by draft_decisions_guard, whatever the label of the project 305ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G23 a draft insert waits for an uncommitted mapping of its project and then reads it: refused LTZ01 when the mapping commits IBS_HI, stored when the mapping is rolled back 365ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G24 a mapping insert waits for an open draft insert of its project: the draft is stored first, the mapping commits after it, and the next draft is refused 363ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G27 an open draft transaction of a project holds up a mapping insert of that project for no longer than the cap: 55P03 between 4 and 9 seconds, nothing written; once the draft commits the mapping goes through and the next draft is refused 5344ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N3 a draft of a project row that the statement cannot see is refused 23503 at that row, at once, even when the project and its IBS_HI mapping commit while the statement runs 312ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N4 waiters are served in order of arrival: a mapping insert that waits for an open draft is not overtaken by a draft that comes after it 367ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N5 what an open draft transaction holds up: an UPDATE of the project row waits (55P03 under a lock_timeout of 500 ms); the lock of a foreign-key check of any other table does not 837ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N6 the old advisory key decides nothing: a session that holds it does not delay a mapping insert of its project nor a draft insert of another project 309ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N7 the ordinary contention path: a second draft of a project waits for an open draft transaction of that project and is then stored 359ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > P4 a confirmation waits for an uncommitted IBS_HI mapping of its project and is then refused LTZ01; when the mapping is rolled back it is stored 427ms
+ ✓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > P5 a mapping insert waits for an open confirmation of its project: the decision is stored first and the mapping after it 369ms
+ ✓ tests/z4-schema.test.ts > (4) the AI role cannot write any Z1 or Z2 table 402ms
+ ✓ tests/z4-schema.test.ts > privilege query: libetech_ai holds no INSERT, UPDATE, DELETE or TRUNCATE on any table of public, identity or analytics 307ms
+ ✓ tests/z4-schema.test.ts > nothing reaches libetech_ai by default: no default ACL, no usable sequence, no CREATE on a schema or on the database 290ms
+ ✓ tests/z4-schema.test.ts > no SECURITY DEFINER function is executable by libetech_ai 289ms
+ ✓ tests/z4-schema.test.ts > the role exists as NOLOGIN, without elevated attributes, with no member and in no role 297ms
+ ✓ tests/z4-schema.test.ts > the AI role writes drafts only inside its tenant, project and principal 327ms
+ ✓ tests/z4-schema.test.ts > drafts return nothing without RLS context 311ms
+ ✓ tests/z4-schema.test.ts > draft decisions are invisible to another project, another tenant and a session with no context 313ms
+ ✓ tests/z4-schema.test.ts > the table is a backstop at 49 152 bytes of stored text: the densest value that fits the application limit is stored, a larger one is refused 302ms
+ ✓ tests/z4-schema.test.ts > a confirmation can only attach a revision of the very document the draft is about 363ms
+ ✓ tests/z4-schema.test.ts > sources, questions and version strings carry database backstops, in a form that never calls an array function on a non-array 335ms
+ ✓ tests/z4-schema.test.ts > draft columns carry their own bounds: closed vocabularies, hash and key formats, array types, confidence 0 to 100 352ms
+ ✓ tests/z4-schema.test.ts > drafts and draft decisions reject update and delete 436ms
+ ✓ tests/z4-schema.test.ts > runtime reads drafts but cannot insert, update or delete them 420ms
+ ✓ tests/z4-schema.test.ts > column-level grants: ids and timestamps come from defaults; nothing is granted outside the named columns 343ms
+ ✓ tests/z4-schema.test.ts > the AI role has no privilege on draft_decisions at all 372ms
+ ✓ tests/z4-schema.test.ts > runtime cannot confirm a draft that names no source, nor with a wrong value hash; a decision is bound to the acting person; one decision per draft 357ms
+ ✓ tests/z4-schema.test.ts > a decision is refused for a draft of another project even when the decision names the right ids 313ms
+ ✓ tests/z4-schema.test.ts > the decision guard also stops the operational login 317ms
+ ✓ tests/z4-schema.test.ts > 021 refuses an AI role that has a member, is a member of a role, or can log in 494ms
+ ✓ tests/z4-schema.test.ts > a restricted login that can reach libetech_ai refuses to start 340ms
+ ✓ tests/z4-schema.test.ts > the AI role on PostgreSQL > the web login cannot assume the AI role 331ms
+ ✓ tests/z4-schema.test.ts > the AI role on PostgreSQL > the web login reads drafts through the runtime role and cannot write them 439ms
+ ✓ tests/z4-schema.test.ts > running 021 again changes nothing: one trigger, one function, the same policies and grants 319ms
+ ✓ tests/z4-schema.test.ts > the migration file pins the search_path of its function and creates no login 291ms
+ ✓ tests/skill-context.test.ts > skill context > (7) a record of an IBS HI project never enters the context of a Xeca project 377ms
+ ✓ tests/skill-context.test.ts > skill context > hidden and pointer-only message text and hash never enter a context: the group flag is removed > hidden 355ms
+ ✓ tests/skill-context.test.ts > skill context > hidden and pointer-only message text and hash never enter a context: the project is mapped to IBS_HI after the text was stored > hidden 538ms
+ ✓ tests/skill-context.test.ts > skill context > hidden and pointer-only message text and hash never enter a context: the message stored only a pointer > hidden 417ms
+ ✓ tests/skill-context.test.ts > skill context > defence in depth: a row that wrongly carries text under a pointer-only project or a non-excerpt mode is still nulled 406ms
+ ✓ tests/skill-context.test.ts > skill context > positive control: with the flag in force the same read carries the text and the hash 381ms
+ ✓ tests/skill-context.test.ts > skill context > revoked access: a principal that lost the project gets the not-found answer and no source 356ms
+ ✓ tests/skill-context.test.ts > skill context > viewer and bot are refused 371ms
+ ✓ tests/skill-context.test.ts > skill context > same name, other BU: two projects with the same document title yield only the in-scope document id 328ms
+ ✓ tests/skill-context.test.ts > skill context > each skill receives only its kinds and the caps hold 465ms
+ ✓ tests/skill-context.test.ts > skill context > R10-e: more than 20 messages in the thread give exactly the newest 20, oldest first 422ms
+ ✓ tests/skill-context.test.ts > skill context > the thread is the candidate's own chat: the same message id in another chat of the same project does not join it 325ms
+ ✓ tests/skill-context.test.ts > skill context > every statement filters by project even when the transaction is scoped to two projects 348ms
+ ✓ tests/skill-context.test.ts > skill context > R10-g: the release librarian gets only the approved revision; none when nothing is approved 416ms
+ ✓ tests/skill-context.test.ts > skill context > R10-i: an input that cannot be honoured is a 422, not silently ignored 335ms
+ ✓ tests/skill-context.test.ts > skill context > CONTEXT_KINDS is the table of the brief 441ms
+ ✓ tests/skill-context.test.ts > skill context > forged fields are rejected 391ms
+ ✓ tests/skill-context.test.ts > skill context > identifiers are lower-cased at parse time and compared with the database ids 386ms
+ ✓ tests/skill-context.test.ts > skill context > buildSkillContextIn works inside a transaction the caller opened, under that transaction's rights 466ms
+ ✓ tests/skill-context.test.ts > skill context > the context module names no revision table and holds no second copy of the mapping rule 312ms
+ ✓ tests/migrations-rollback.test.ts > every migration from 013 has a rollback file with the same name 3ms
+ ✓ tests/migrations-rollback.test.ts > forward → rollback → forward leaves source tables untouched 607ms
+ ✓ tests/migrations-rollback.test.ts > rollback 018 refuses while an access-change ballot exists 452ms
+ ✓ tests/migrations-rollback.test.ts > rollback 019 refuses while a membership or a ballot carries a doc_approve code, and while a later migration is applied 442ms
+ ✓ tests/migrations-rollback.test.ts > rollback 020 refuses while an approval decision exists and while a later migration is applied 506ms
+ ✓ tests/migrations-rollback.test.ts > rollback 021 refuses while a later migration is applied, drops the Z4 objects, keeps the AI role and touches nothing of 019 or 020 388ms
+ ✓ tests/migrations-rollback.test.ts > rollback 022 refuses while a later migration is applied, drops the four triggers and four functions of 022, and leaves drafts, decisions, mappings and 021 as they were 374ms
+ ✓ tests/migrations-rollback.test.ts > 022 over a database that carries only the pointer-only trigger and its function gives the four triggers and four functions; the rollback from that shape leaves nothing of 022 404ms
+ ✓ tests/migrations-rollback.test.ts > rollback 022 runs again after 021 was rolled back and its schema is gone 414ms
+ ✓ tests/rls-catalog.test.ts > migrations from 013 create tables, and every one has FORCE RLS plus USING and WITH CHECK from the catalog 27ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > two confirmations of one draft in parallel leave one decision and one revision 419ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a confirmation and a rejection of one draft in parallel leave one decision; the loser answers DRAFT_ALREADY_DECIDED and no revision is orphaned 395ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a draft confirmation racing a manual revision of the same document: exactly one succeeds; the manual proposal answers REVISION_CONFLICT when the confirmation won, the confirmation is held as SUBJECT_CHANGED when the manual proposal won; no decision without its revision, no revision a decision does not point to 438ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > the manual proposal waits first: it wins, and the confirmation that waited behind it reads the new revision and is held as SUBJECT_CHANGED 404ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > the confirmation waits first: it wins, and the manual proposal behind it answers REVISION_CONFLICT 395ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a submitDraft that waited for an uncommitted IBS_HI mapping of its project answers POINTER_ONLY_PROJECT, not a raw database error 370ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a submitDraft that waits past the cap of the guard fails with the database error 55P03 and stores nothing; the same envelope is stored once the project row is free 5341ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a confirmation that waited for an uncommitted IBS_HI mapping of its project is held as POINTER_ONLY_PROJECT; nothing of it is written 399ms
+ ✓ tests/suggestions-concurrency.test.ts > draft decision concurrency (native PostgreSQL) > a confirmation that waits past the cap fails with the database error 55P03 and writes nothing; the same command succeeds once the project row is free 5386ms
+
+ Test Files  8 passed (8)
+      Tests  236 passed (236)
+   Start at  14:56:04
+   Duration  95.81s (tests 100%)
+
