@@ -9,7 +9,7 @@ import {AppError,invariant} from './errors';
 import {buildSkillContextIn,CONTEXT_KINDS} from './skill-context';
 import {checkSkillOutput,MAX_OUTPUT_BYTES,namedIds,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
 import {canonicalJson,skillManifests} from './skills';
-import {threadHasHiddenText} from './source-text';
+import {threadFreshness,threadHasHiddenText} from './source-text';
 import {storable} from './text-safety';
 import {projectRole} from './types';
 import type {Principal,Role} from './types';
@@ -109,11 +109,17 @@ const DOC_SUBJECT_SQL=`SELECT coalesce(max(v.revision_no),0)::int AS newest,
 /**
  * OQ-46 (b): the draft's own subject against the newest thing the draft itself names. Codes only.
  * Only lower-case uuids are passed to the database, so a malformed or upper-case id names nothing and never raises 22P02.
- * Call it while the document row is locked. The candidate branch is Task 6.
+ * Call it while the document row is locked.
  */
 async function subjectReasons(tx:Queryable,projectId:string,d:DraftRow):Promise<string[]> {
  const named=namedIds(d.signal_type,d.value).filter(x=>UUID.test(x));
- if(d.entity_type!=='document') return [];
+ if(d.entity_type!=='document') {
+  const f=await threadFreshness(tx,projectId,d.entity_id,named);
+  // OQ-53 point 2 (open, fail-closed until the Chairman decides): a draft that names no message of its own thread has no baseline, so it is held
+  if(!f.hasBaseline) return ['SUBJECT_BASELINE_MISSING'];
+  // OQ-53 point 1 (open, fail-closed until the Chairman decides): an edit recorded at or after the baseline cannot be told apart from a change of the subject, so it is held
+  return [...(f.newerMessage?['SUBJECT_CHANGED']:[]),...(f.laterEdit?['SUBJECT_EDIT_UNVERIFIED']:[])];
+ }
  const r=(await tx.query<{newest:number;named:number}>(DOC_SUBJECT_SQL,[projectId,d.entity_id,named])).rows[0];
  if(r.newest===0) return [];
  // OQ-53 point 2 (open, fail-closed until the Chairman decides): a draft that names no revision of its own document has no baseline, so it is held

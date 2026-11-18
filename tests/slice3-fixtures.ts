@@ -133,3 +133,11 @@ export function beforeStatement(db:Database,pattern:RegExp,hook:()=>Promise<void
  }});
  return {...wrap(db),transaction:fn=>db.transaction(tx=>fn(wrap(tx))),close:()=>db.close()};
 }
+
+/** Waits until the database clock has moved on: every row written after this call has a created_at strictly later than every row written before it.
+ * PGlite's clock has millisecond resolution, so this polls (2 ms between looks) instead of assuming how fast the machine is. */
+export async function nextDbInstant(h:Harness):Promise<void> {
+ const now=async()=>(await h.operator.query<{t:string}>('SELECT now()::text AS t')).rows[0].t;
+ const start=await now();
+ while((await now())===start) await new Promise(r=>setTimeout(r,2));
+}

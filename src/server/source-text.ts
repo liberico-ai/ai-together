@@ -14,7 +14,7 @@ export function displayMode(stored:StoredMode|null,allowed:boolean):DisplayMode 
  return allowed?'excerpt':'hidden';
 }
 
-/** Latest domain code of project p (SQL expression of a uuid): the mapping row with the highest mapping_version, NULL when unmapped. The one place that reads it. */
+/** Latest domain code of project p (SQL expression of a uuid): the mapping row with the highest mapping_version, NULL when unmapped. `intelligence.ai_drafts_pointer_only_guard()` of migration 022 applies the same rule inside the database: the two must change together. */
 export const latestDomainSql=(p:string)=>
  `(SELECT m.domain_code FROM project_domain_mappings m WHERE m.project_id=${p} ORDER BY m.mapping_version DESC LIMIT 1)`;
 /** True when the latest mapping row of project p is IBS_HI (AGENTS.md:16: pointers, hashes and Tech work metadata only). Unmapped and other labels decide nothing. */
@@ -90,4 +90,30 @@ export async function threadHasHiddenText(tx:Queryable,projectId:string,candidat
     WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid AND r.project_id=$1::uuid
       AND r.content_mode='excerpt' AND (${textAllowedSql('e','$3')}) IS NOT TRUE) AS hidden`,[projectId,candidateId,[...excerptChats]])).rows[0];
  return row?.hidden===true;
+}
+
+export type ThreadFreshness={hasBaseline:boolean;newerMessage:boolean;laterEdit:boolean};
+/**
+ * For the thread of one candidate of project $1 (same chat_id and thread_key, as visibleThreadMessages) and the ids a draft names:
+ * hasBaseline = the draft names at least one message of this thread; the baseline is the latest created_at among those;
+ * newerMessage = a message of the thread the draft does not name was recorded at or after the baseline;
+ * laterEdit = a later revision (revision_no > 1) of any message of the thread was recorded at or after the baseline.
+ * Reads ids and record times only: no text and no hash leave the database. Ids that are not lower-case uuids are ignored.
+ * The tenant boundary is the row-level security of the three tables, not a condition of this statement.
+ */
+export async function threadFreshness(tx:Queryable,projectId:string,candidateId:string,namedIds:readonly string[]):Promise<ThreadFreshness> {
+ const none={hasBaseline:false,newerMessage:false,laterEdit:false};
+ if(!UUID_LOWER.test(String(projectId))||!UUID_LOWER.test(String(candidateId))) return none;
+ const named=namedIds.filter(x=>typeof x==='string'&&UUID_LOWER.test(x));
+ const row=(await tx.query<{has_baseline:boolean|null;newer_message:boolean|null;later_edit:boolean|null}>(
+  `WITH thread AS (
+    SELECT e.id, e.created_at FROM intake_candidates c
+    JOIN source_events e ON e.project_id=c.project_id AND e.chat_id=c.chat_id AND e.thread_key=c.thread_key
+    WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid),
+   base AS (SELECT max(t.created_at) AS at FROM thread t WHERE t.id = ANY($3::uuid[]))
+   SELECT (SELECT b.at IS NOT NULL FROM base b) AS has_baseline,
+    EXISTS(SELECT 1 FROM thread t, base b WHERE NOT (t.id = ANY($3::uuid[])) AND t.created_at >= b.at) AS newer_message,
+    EXISTS(SELECT 1 FROM source_event_revisions r JOIN thread t ON t.id=r.source_event_id, base b
+           WHERE r.project_id=$1::uuid AND r.revision_no>1 AND r.created_at >= b.at) AS later_edit`,[projectId,candidateId,named])).rows[0];
+ return {hasBaseline:row?.has_baseline===true,newerMessage:row?.newer_message===true,laterEdit:row?.later_edit===true};
 }

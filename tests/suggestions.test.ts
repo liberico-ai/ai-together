@@ -6,7 +6,7 @@ import {ZodError} from 'zod';
 import {native,openHarness,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
 import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent} from './slice2-fixtures';
-import {aiPrincipal,approver,mapDomain,proposeRev,recordingDb,registerDoc,reviewer,seedMembers,transportApprover} from './slice3-fixtures';
+import {aiPrincipal,approver,mapDomain,nextDbInstant,proposeRev,recordingDb,registerDoc,reviewer,seedMembers,transportApprover} from './slice3-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {DependencyService} from '../src/server/document-dependencies';
 import {DocumentService} from '../src/server/documents';
@@ -1103,5 +1103,85 @@ describe('Z4 drafts: OQ-55 placeholder — a thread with stored text that is no 
   expect(l.maskReasons).toEqual([]);expect(l.value).not.toBeNull();
   const r=await decide(none(),pm,x.draftId,body(x.valueHash,{revision:revisionBody(x.d)}));
   expect(r.decision?.result).toBe('confirmed');
+ });
+});
+
+describe('Z4 drafts: a draft whose thread moved on is held (OQ-46)',()=>{
+ const claims=()=>n('document_commands');
+ const intakeSvc=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:chats});
+ const reply=async(c:{event:ReturnType<typeof messageEvent>},text:string)=>
+  (await intakeSvc().ingest(messageEvent({text,context:{chatId:chatSales,replyToMessageId:c.event.context.messageId}}))).sourceEventId;
+ const edit=(e:ReturnType<typeof messageEvent>,text:string)=>intakeSvc().ingest({...e,text,contentHash:createHash('sha256').update(text).digest('hex'),
+  editedAt:new Date(Date.parse(e.observedAt)+60000).toISOString(),traceId:randomUUID()});
+ const draftNaming=async(c:{candidateId:string},names:string[])=>{
+  const output=out('intake_analyst',names);
+  const r=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',output));
+  return {draftId:r.draftId,valueHash:sha(output)};
+ };
+
+ test('a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is confirmed',async()=>{
+  const c=await candidate(),x=await draftNaming(c,[c.sourceEventId]),key=k();
+  const rp=await reply(c,'Tin trả lời đến sau nháp');
+  const cmds=await claims();
+  const e=await held(decide(svc(),pm,x.draftId,body(x.valueHash),key),'SUBJECT_CHANGED');
+  expect(e.message).not.toContain('SUBJECT_EDIT_UNVERIFIED');
+  await zeroDecisions();
+  expect(await claims()).toBe(cmds);
+  const y=await draftNaming(c,[c.sourceEventId,rp]);
+  const v=await decide(svc(),pm,y.draftId,body(y.valueHash),key);
+  expect(v.decision?.result).toBe('confirmed');
+ });
+
+ test('a message the draft does not name, recorded before the newest one it names, does not hold it',async()=>{
+  const c=await candidate();
+  await nextDbInstant(h);
+  const rp=await reply(c,'Tin trả lời đến sau tin gốc');
+  const x=await draftNaming(c,[rp]);
+  const v=await decide(svc(),pm,x.draftId,body(x.valueHash));
+  expect(v.decision?.result).toBe('confirmed');
+ });
+
+ test('dừng tại OQ-53 (1): an edit recorded at or after the newest named message holds the draft as SUBJECT_EDIT_UNVERIFIED, also when the edit was already there when the draft was written; an edit recorded before the newest named message does not',async()=>{
+  const a=await candidate(),xa=await draftNaming(a,[a.sourceEventId]);
+  await edit(a.event,'Bản sửa của tin gốc');
+  const ea=await held(decide(svc(),pm,xa.draftId,body(xa.valueHash)),'SUBJECT_EDIT_UNVERIFIED');
+  expect(ea.message).not.toContain('SUBJECT_CHANGED');
+  const b=await candidate();
+  await edit(b.event,'Bản sửa có trước nháp');
+  const xb=await draftNaming(b,[b.sourceEventId]);
+  const eb=await held(decide(svc(),pm,xb.draftId,body(xb.valueHash)),'SUBJECT_EDIT_UNVERIFIED');
+  expect(eb.message).not.toContain('SUBJECT_CHANGED');
+  await zeroDecisions();
+  const c=await candidate();
+  await edit(c.event,'Bản sửa có trước tin trả lời');
+  await nextDbInstant(h);
+  const rp=await reply(c,'Tin trả lời sau bản sửa');
+  const xc=await draftNaming(c,[c.sourceEventId,rp]);
+  expect((await decide(svc(),pm,xc.draftId,body(xc.valueHash))).decision?.result).toBe('confirmed');
+ });
+
+ test('dừng tại OQ-53 (2): a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING',async()=>{
+  const c=await candidate(),d=await doc();
+  const output=out('intake_analyst',[d.record.id]);
+  const x=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',output));
+  await held(decide(svc(),pm,x.draftId,body(sha(output))),'SUBJECT_BASELINE_MISSING');
+  const other=await candidate({}),o2=await candidate();
+  const out2=out('intake_analyst',[o2.sourceEventId]);
+  const y=await svc().submitDraft(ai,env('intake_candidate',other.candidateId,'intake_analyst',out2));
+  await held(decide(svc(),pm,y.draftId,body(sha(out2))),'SUBJECT_BASELINE_MISSING','SOURCE_OUT_OF_CONTEXT');
+  await zeroDecisions();
+ });
+
+ test('a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives',async()=>{
+  const c=await candidate(),x=await draftNaming(c,[c.sourceEventId]);
+  await reply(c,'Tin mới làm nháp cũ đi');
+  const r=await decide(svc(),pm,x.draftId,{result:'rejected',valueHash:x.valueHash,reason:'Nháp đã cũ rồi'});
+  expect(r.decision?.result).toBe('rejected');
+  const e=await candidate(),y=await draftNaming(e,[e.sourceEventId]),key=k(),b=body(y.valueHash);
+  const first=await decide(svc(),pm,y.draftId,b,key);
+  expect(first.decision?.result).toBe('confirmed');
+  await reply(e,'Tin đến sau khi đã xác nhận');
+  expect(await decide(svc(),pm,y.draftId,b,key)).toEqual(first);
+  expect(await rows('SELECT 1 FROM draft_decisions WHERE draft_id=$1',[y.draftId])).toHaveLength(1);
  });
 });

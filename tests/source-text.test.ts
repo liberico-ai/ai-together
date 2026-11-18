@@ -1,14 +1,14 @@
 import {afterEach,beforeEach,describe,expect,test} from 'vitest';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {readdirSync,readFileSync} from 'node:fs';
 import path from 'node:path';
 import {openHarness,type Harness} from './slice1-db';
 import {outsider,pm,seedSlice1} from './slice1-fixtures';
 import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,type EventOverride} from './slice2-fixtures';
-import {mapDomain,recordingDb} from './slice3-fixtures';
+import {mapDomain,nextDbInstant,recordingDb} from './slice3-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {InboxService} from '../src/server/inbox';
-import {displayMode,listVisibleRevisions,threadHasHiddenText} from '../src/server/source-text';
+import {displayMode,listVisibleRevisions,threadFreshness,threadHasHiddenText} from '../src/server/source-text';
 import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
 
@@ -188,5 +188,57 @@ describe('threadHasHiddenText',()=>{
   expect(await ask(ids.sales,m.id,[null,chatSales] as unknown as string[])).toBe(false);
   const p=await ingest({text:'Q8-POINTER-1'});
   expect(await ask(ids.sales,p.id,nul)).toBe(false);
+ });
+});
+
+describe('threadFreshness',()=>{
+ const none={hasBaseline:false,newerMessage:false,laterEdit:false};
+ const ask=(projectId:string,candidateId:string,named:readonly string[],scope=salesScope)=>scoped(h.db,scope,tx=>threadFreshness(tx,projectId,candidateId,named));
+ const root=async(text:string)=>{
+  const e=messageEvent({text});
+  const ack=await intake([chatSales]).ingest(e);
+  const id=(await rows<{id:string}>('SELECT id FROM intake_candidates WHERE root_source_event_id=$1',[ack.sourceEventId]))[0].id;
+  return {e,id,sourceEventId:ack.sourceEventId};
+ };
+ const reply=async(r:{e:ReturnType<typeof messageEvent>},text:string)=>
+  (await intake([chatSales]).ingest(messageEvent({text,context:{replyToMessageId:r.e.context.messageId}}))).sourceEventId;
+ const editOf=(e:ReturnType<typeof messageEvent>,text:string)=>intake([chatSales]).ingest({...e,text,contentHash:'e'.repeat(64),editedAt:new Date(1760099999000).toISOString(),traceId:randomUUID()});
+
+ test('T6 threadFreshness returns three booleans and no text: the one row handed back holds no excerpt and no content hash',async()=>{
+  const r=await root('T6-MARKER-4417');
+  const rec=recordingDb(h.db);
+  const got=await scoped(rec.db,salesScope,tx=>threadFreshness(tx,ids.sales,r.id,[r.sourceEventId]));
+  expect(got).toEqual({hasBaseline:true,newerMessage:false,laterEdit:false});
+  const seen=rec.rows().filter(x=>(x as Record<string,unknown>).has_baseline!==undefined);
+  expect(seen).toHaveLength(1);
+  expect(Object.keys(seen[0] as object).sort()).toEqual(['has_baseline','later_edit','newer_message']);
+  expect(JSON.stringify(rec.rows())).not.toContain('T6-MARKER-4417');
+  expect(JSON.stringify(rec.rows())).not.toContain(createHash('sha256').update('T6-MARKER-4417').digest('hex'));
+ });
+
+ test('T7 threadFreshness: baseline, newer message, later edit, another project, malformed ids',async()=>{
+  const r=await root('T7-ROOT');
+  expect(await ask(ids.sales,r.id,[r.sourceEventId])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:false});
+  expect(await ask(ids.sales,r.id,[])).toEqual(none);
+  expect(await ask(ids.sales,r.id,[randomUUID()])).toEqual(none);
+  await nextDbInstant(h);
+  const rp=await reply(r,'T7-REPLY');
+  expect(await ask(ids.sales,r.id,[r.sourceEventId])).toEqual({hasBaseline:true,newerMessage:true,laterEdit:false});
+  expect(await ask(ids.sales,r.id,[rp])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:false});
+  expect(await ask(ids.sales,r.id,[r.sourceEventId,rp])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:false});
+  await editOf(r.e,'T7-ROOT-EDITED');
+  expect(await ask(ids.sales,r.id,[r.sourceEventId,rp])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:true});
+  expect(await ask(ids.transport,r.id,[r.sourceEventId],{...pm,projectIds:[ids.transport]})).toEqual(none);
+  expect(await ask(ids.sales,r.id,['x',r.sourceEventId.toUpperCase()])).toEqual(none);
+  const trap:Queryable={query:async()=>{throw new Error('statement sent');}};
+  expect(await threadFreshness(trap,ids.sales,'x',[])).toEqual(none);
+  expect(await threadFreshness(trap,ids.sales,r.id.toUpperCase(),[])).toEqual(none);
+ });
+
+ test('T8 threadFreshness reads nothing for a caller scoped to another tenant',async()=>{
+  const r=await root('T8-ROOT');
+  await editOf(r.e,'T8-ROOT-EDITED');
+  expect(await ask(ids.sales,r.id,[r.sourceEventId],{...outsider,projectIds:[ids.sales]})).toEqual(none);
+  expect(await ask(ids.sales,r.id,[r.sourceEventId])).toEqual({hasBaseline:true,newerMessage:false,laterEdit:true});
  });
 });
