@@ -7,11 +7,11 @@ import {READ_ROLES} from './document-review';
 import {DocumentService,mayWriteDocuments,proposeSchema,READ_ONLY_MESSAGE} from './documents';
 import {AppError,invariant} from './errors';
 import {buildSkillContextIn,CONTEXT_KINDS} from './skill-context';
-import {checkSkillOutput,MAX_OUTPUT_BYTES,outputFits,outputSchemas,SKILLS,type SkillName} from './skill-contracts';
+import {checkSkillOutput,MAX_OUTPUT_BYTES,outputFits,outputSchemas,SKILLS,type SkillName,type SkillOutput} from './skill-contracts';
 import {canonicalJson,skillManifests} from './skills';
 import {storable} from './text-safety';
 import {projectRole} from './types';
-import type {Principal} from './types';
+import type {Principal,Role} from './types';
 
 // Slice 3, Task 12 (AR-03, E-AI-04): an AI output is written to Z4 (intelligence.ai_drafts) and only there. A person confirms or rejects it;
 // the draft's content is never copied into Z1 by this module: the one Z1 content row is the revision the person's own proposal creates.
@@ -33,8 +33,16 @@ const lower=z.string().transform(s=>s.toLowerCase());
 const ENTITY_TYPES=['intake_candidate','document'] as const;
 type EntityType=typeof ENTITY_TYPES[number];
 
-export type DraftView={id:string;projectId:string;entityType:EntityType;entityId:string;skill:SkillName;skillVersion:string;manifestHash:string;modelVersion:string;
-  value:unknown;valueHash:string;sources:{id:string}[];questions:{field:string;question:string}[];confidence:number;createdAt:string;
+export type MaskReason='CONFIRM_AUTHORITY_REQUIRED'|'ENTITY_NOT_FOUND'|'POINTER_ONLY_PROJECT'|'SCHEMA_INVALID'|'SOURCE_OUT_OF_CONTEXT'|'TEXT_NOT_VISIBLE'|'THREAD_TEXT_HIDDEN';
+export type DraftView={
+  id:string;projectId:string;entityType:'intake_candidate'|'document';entityId:string;skill:SkillName;createdAt:string;
+  manifestHash:string|null;        // the hash of the manifest in force for this skill, or null: never a value the writer chose
+  maskReasons:MaskReason[];        // sorted; empty exactly when the content is returned
+  sources:{id:string}[];           // value.sources when the content is returned; [] under every mask
+  value:SkillOutput|null;questions:{field:string;question:string}[]|null;confidence:number|null;   // from the schema-validated value, or null
+  skillVersion:string|null;        // the version of the manifest in force when the row carries exactly it and the content is returned, else null
+  modelVersion:string|null;        // as stored, only when the content is returned
+  valueHash:string|null;           // null only for a reader who may not decide the draft
   decision:{result:'confirmed'|'rejected';decidedBy:string;decidedAt:string;documentRevisionId:string|null}|null};
 
 const submitSchema=z.strictObject({
@@ -62,15 +70,34 @@ function jsonbTextBytes(v:unknown):number {
 const sha256=(v:unknown)=>createHash('sha256').update(canonicalJson(v),'utf8').digest('hex');
 const iso=(v:unknown)=>new Date(v as string).toISOString();
 
-type DraftRow={id:string;project_id:string;entity_type:EntityType;entity_id:string;signal_type:SkillName;skill_version:string;manifest_hash:string;model_version:string;
-  value:unknown;value_hash:string;sources:{id:string}[];questions:{field:string;question:string}[];confidence:number;created_at:unknown;
+type DraftRow={id:string;project_id:string;entity_type:EntityType;entity_id:string;signal_type:SkillName;skill_version:string|null;manifest_hash:string|null;model_version:string|null;
+  value:unknown;value_hash:string|null;created_at:unknown;
   dec_result:'confirmed'|'rejected'|null;dec_by:string|null;dec_at:unknown;dec_revision:string|null;dec_key:string|null};
-const DRAFT_SQL=`SELECT d.id,d.project_id,d.entity_type,d.entity_id,d.signal_type,d.skill_version,d.manifest_hash,d.model_version,d.value,d.value_hash,d.sources,d.questions,d.confidence,d.created_at,
-  x.result AS dec_result,x.decided_by AS dec_by,x.created_at AS dec_at,x.document_revision_id AS dec_revision,x.command_key AS dec_key
-  FROM intelligence.ai_drafts d LEFT JOIN draft_decisions x ON x.draft_id=d.id`;
-const toView=(r:DraftRow):DraftView=>({id:r.id,projectId:r.project_id,entityType:r.entity_type,entityId:r.entity_id,skill:r.signal_type,skillVersion:r.skill_version,manifestHash:r.manifest_hash,
-  modelVersion:r.model_version,value:r.value,valueHash:r.value_hash,sources:r.sources,questions:r.questions,confidence:Number(r.confidence),createdAt:iso(r.created_at),
-  decision:r.dec_result?{result:r.dec_result,decidedBy:r.dec_by!,decidedAt:iso(r.dec_at),documentRevisionId:r.dec_revision}:null});
+/** OQ-45 point 1 (b): the one rule for who may decide a draft, which is also who may read its content. */
+const mayDecide=(role:Role,entityType:EntityType)=>entityType==='document'?mayWriteDocuments(role):role==='manager';
+
+const HEAD='d.id,d.project_id,d.entity_type,d.entity_id,d.signal_type,d.created_at';
+const DECISION='x.result AS dec_result,x.decided_by AS dec_by,x.created_at AS dec_at,x.document_revision_id AS dec_revision,x.command_key AS dec_key';
+const FROM_DRAFTS='FROM intelligence.ai_drafts d LEFT JOIN draft_decisions x ON x.draft_id=d.id';
+/** The whole row: for a person who may decide, and for decide itself. The columns `sources`, `questions` and `confidence` are not read by any statement: the value is the one source. */
+const DRAFT_SQL=`SELECT ${HEAD},d.manifest_hash,d.skill_version,d.model_version,d.value,d.value_hash,${DECISION} ${FROM_DRAFTS}`;
+/** skill → hash of the manifest in force: the one jsonb parameter ($6) of DRAFT_META_SQL. */
+const MANIFESTS_IN_FORCE=JSON.stringify(Object.fromEntries(SKILLS.map(s=>[s,skillManifests[s].hash])));
+/** For a reader who may not decide: no content column leaves the database, and the manifest hash only when it is the one in force. */
+const DRAFT_META_SQL=`SELECT ${HEAD},CASE WHEN d.manifest_hash = ($6::jsonb ->> d.signal_type) THEN d.manifest_hash END AS manifest_hash,
+  NULL::text AS skill_version,NULL::text AS model_version,NULL::jsonb AS value,NULL::text AS value_hash,${DECISION} ${FROM_DRAFTS}`;
+
+/** The one place a DraftView is built. With an empty mask `shown` is the schema-validated value and every content field comes from it, never from a column the writer chose. */
+const toView=(r:DraftRow,mask:MaskReason[],shown:SkillOutput|null):DraftView=>{
+ const m=skillManifests[r.signal_type];
+ const head={id:r.id,projectId:r.project_id,entityType:r.entity_type,entityId:r.entity_id,skill:r.signal_type,createdAt:iso(r.created_at),
+  manifestHash:r.manifest_hash===m.hash?r.manifest_hash:null,maskReasons:mask,
+  decision:r.dec_result?{result:r.dec_result,decidedBy:r.dec_by!,decidedAt:iso(r.dec_at),documentRevisionId:r.dec_revision}:null};
+ if(mask.length===0&&shown) return {...head,value:shown,questions:shown.questions,confidence:shown.confidence,sources:shown.sources,
+  skillVersion:r.skill_version===m.version?r.skill_version:null,modelVersion:r.model_version,valueHash:r.value_hash};
+ return {...head,value:null,questions:null,confidence:null,sources:[],skillVersion:null,modelVersion:null,
+  valueHash:mask.includes('CONFIRM_AUTHORITY_REQUIRED')?null:r.value_hash};
+};
 
 export class SuggestionService {
  private documents:DocumentService;
@@ -117,6 +144,15 @@ export class SuggestionService {
   }
  }
 
+ /** Every DraftView leaves the service through here. A person who may not decide a draft gets one mask reason and no content; a stored value that does not fit the contract is masked for everyone. */
+ private async present(_tx:Queryable,p:Principal,projectId:string,rows:DraftRow[]):Promise<DraftView[]> {
+  return rows.map(r=>{
+   if(!mayDecide(projectRole(p,projectId),r.entity_type)) return toView(r,['CONFIRM_AUTHORITY_REQUIRED'],null);
+   const parsed=outputFits(r.value)?outputSchemas[r.signal_type].safeParse(r.value):null;
+   return parsed?.success?toView(r,[],parsed.data):toView(r,['SCHEMA_INVALID'],null);
+  });
+ }
+
  async list(p:Principal,raw:unknown):Promise<{items:DraftView[];total:number}> {
   if(!p||p.role==='bot'||!p.id||!Array.isArray(p.projectIds)) throw denied();
   const peek=(raw as {projectId?:unknown}|null)?.projectId;
@@ -125,17 +161,18 @@ export class SuggestionService {
   const q=listSchema.parse(raw);
   if(!UUID.test(q.entityId)) throw denied();
   return scoped(this.db,{...p,projectIds:[own]},async tx=>{
-   const items=(await tx.query<DraftRow>(`${DRAFT_SQL} WHERE d.project_id=$1 AND d.entity_type=$2 AND d.entity_id=$3 ORDER BY d.created_at DESC, d.id DESC LIMIT $4 OFFSET $5`,
-    [own,q.entityType,q.entityId,q.limit,q.offset])).rows.map(toView);
+   const content=mayDecide(projectRole(p,own),q.entityType);
+   const rows=(await tx.query<DraftRow>(`${content?DRAFT_SQL:DRAFT_META_SQL} WHERE d.project_id=$1 AND d.entity_type=$2 AND d.entity_id=$3 ORDER BY d.created_at DESC, d.id DESC LIMIT $4 OFFSET $5`,
+    content?[own,q.entityType,q.entityId,q.limit,q.offset]:[own,q.entityType,q.entityId,q.limit,q.offset,MANIFESTS_IN_FORCE])).rows;
    const total=(await tx.query<{n:number}>('SELECT count(*)::int AS n FROM intelligence.ai_drafts WHERE project_id=$1 AND entity_type=$2 AND entity_id=$3',[own,q.entityType,q.entityId])).rows[0].n;
-   return {items,total};
+   return {items:await this.present(tx,p,own,rows),total};
   });
  }
 
  /**
   * Order inside the one scoped transaction: (1) locate the draft in the person's scope, then narrow the scope to its project, lock on the draft id;
   * (2) for a confirmed document draft the document row is locked; (3) the one idempotency claim (replay = the recorded decision, other content = IDEMPOTENCY_CONFLICT);
-  * under it: (4) already decided, caller's valueHash, authority; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet);
+  * under it: (4) authority first, then already decided, then the caller's valueHash; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet);
   * (6) a document draft: the person's own revision proposal, under the same claim; (7) the decision row. A failure at any point rolls back everything, claim included.
   */
  async decide(p:Principal,draftId:string,raw:unknown,key:string,requestId:string):Promise<DraftView> {
@@ -161,11 +198,13 @@ export class SuggestionService {
    // the same person, key and content replay the recorded outcome (the decision's id; the view is read again); the same key with other content is IDEMPOTENCY_CONFLICT.
    // Anything thrown below rolls the claim back with the rest, so a refusal or a hold leaves the key free.
    await claimDocumentCommand(tx,p,projectId,key,{op:'draft.decide',draftId:id,...input},async()=>{
+    // authority first: a person who may not decide learns nothing from the draft's state or from the hash they sent (OQ-45 point 1)
+    if(!mayDecide(projectRole(p,projectId),d.entity_type)) {
+     if(d.entity_type==='document') throw new AppError('READ_ONLY',READ_ONLY_MESSAGE,403);
+     throw new AppError('MANAGER_REQUIRED','Chỉ điều phối dự án được thực hiện thao tác này.',403);
+    }
     if(d.dec_result) throw alreadyDecided();
     if(input.valueHash!==d.value_hash) throw new AppError('REVISION_CONFLICT','Nháp đã đổi. Đọc bản mới trước khi quyết định.',409);
-    const role=projectRole(p,projectId);
-    if(d.entity_type==='document') invariant(mayWriteDocuments(role),'READ_ONLY',READ_ONLY_MESSAGE,403);
-    else if(role!=='manager') throw new AppError('MANAGER_REQUIRED','Chỉ điều phối dự án được thực hiện thao tác này.',403);
     let reason='';
     if(input.result==='rejected') {
      reason=(input.reason??'').trim();
@@ -209,7 +248,7 @@ export class SuggestionService {
    // the stored idempotent response holds the decision's id only; the view is always read again
    const view=(await tx.query<DraftRow>(`${DRAFT_SQL} WHERE d.id=$1::uuid`,[id])).rows[0];
    if(!view||!view.dec_result) throw denied();
-   return toView(view);
+   return (await this.present(tx,p,projectId,[view]))[0];
   });
  }
 }

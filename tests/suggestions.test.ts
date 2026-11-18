@@ -6,7 +6,7 @@ import {ZodError} from 'zod';
 import {native,openHarness,type Harness} from './slice1-db';
 import {bot,member,outsider,pm,seedSlice1,viewer} from './slice1-fixtures';
 import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent} from './slice2-fixtures';
-import {aiPrincipal,mapDomain,proposeRev,registerDoc,reviewer,seedMembers,transportApprover} from './slice3-fixtures';
+import {aiPrincipal,approver,mapDomain,proposeRev,recordingDb,registerDoc,reviewer,seedMembers,transportApprover} from './slice3-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {DependencyService} from '../src/server/document-dependencies';
 import {DocumentService} from '../src/server/documents';
@@ -514,13 +514,14 @@ describe('Z4 drafts: fix round 1',()=>{
   expect(await n('intelligence.ai_drafts')).toBe(0);
  });
 
- test('replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded view',async()=>{
+ test('replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content',async()=>{
   const c=await candDraft(),key=k(),first=await decide(svc(),pm,c.draftId,body(c.valueHash),key);
   const b=body(c.valueHash);
   await denied(decide(svc(),{...pm,projectIds:[ids.transport]},c.draftId,b,key));
   await denied(decide(svc(),{...pm,grants:[{projectId:ids.sales,role:'viewer',reportPermissions:[]}]},c.draftId,b,key));
   const lowered:Principal={...pm,grants:[{projectId:ids.sales,role:'engineer',reportPermissions:[]},{projectId:ids.transport,role:'manager',reportPermissions:[]}]};
-  expect(await decide(svc(),lowered,c.draftId,b,key)).toEqual(first);
+  expect(await decide(svc(),lowered,c.draftId,b,key)).toEqual({...first,sources:[],value:null,questions:null,confidence:null,skillVersion:null,modelVersion:null,valueHash:null,
+   maskReasons:['CONFIRM_AUTHORITY_REQUIRED']});
   expect(await n('draft_decisions')).toBe(1);
  });
 });
@@ -633,7 +634,128 @@ describe('Z4 drafts: list',()=>{
   for(const bad of [{...q,limit:0},{...q,limit:201},{...q,offset:-1},{...q,extra:1},{...q,tenantId:ids.tenant},{...q,entityType:'work'}])
    await expect(svc().list(pm,bad),JSON.stringify(bad)).rejects.toBeInstanceOf(ZodError);
   const first=all.items[0];
-  expect(Object.keys(first).sort()).toEqual(['confidence','createdAt','decision','entityId','entityType','id','manifestHash','modelVersion','projectId','questions','skill','skillVersion','sources','value','valueHash']);
+  expect(Object.keys(first).sort()).toEqual(['confidence','createdAt','decision','entityId','entityType','id','manifestHash','maskReasons','modelVersion','projectId','questions','skill','skillVersion','sources','value','valueHash']);
+ });
+});
+
+describe('Z4 drafts: who reads the content (OQ-45 point 1)',()=>{
+ const MARK='zq-mark-'+randomUUID().replace(/-/g,'');
+ const q=(entityType:'intake_candidate'|'document',entityId:string)=>({projectId:ids.sales,entityType,entityId});
+ const viewerByGrant:Principal={...member,grants:[{projectId:ids.sales,role:'viewer',reportPermissions:[]}]};
+ const loud=async()=>{
+  const c=await candidate();
+  const output=out('intake_analyst',[c.sourceEventId],{claims:[{field:'classification',value:MARK,basis:[c.sourceEventId]}],questions:[{field:'classification',question:MARK}]});
+  const r=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',output));
+  return {...c,output,draftId:r.draftId};
+ };
+ const uuidFrom=(i:number)=>{const x=createHash('sha256').update(MARK+i).digest('hex');return `${x.slice(0,8)}-${x.slice(8,12)}-${x.slice(12,16)}-${x.slice(16,20)}-${x.slice(20,32)}`;};
+
+ test('L1 a candidate draft: only the project manager reads its content; engineer, technical and business get no content, no source id and no hash',async()=>{
+  const x=await loud(),m=skillManifests.intake_analyst;
+  const mine=(await svc().list(pm,q('intake_candidate',x.candidateId))).items[0] as unknown as R;
+  expect(mine.value).toEqual(x.output);expect(mine.maskReasons).toEqual([]);
+  expect(JSON.stringify(mine.questions)).toContain(MARK);expect(mine.confidence).toBe(70);expect(mine.sources).toEqual(x.output.sources);
+  expect(mine.skillVersion).toBe(m.version);expect(mine.modelVersion).toBe('synthetic-model-1');expect(mine.valueHash).toBe(sha(x.output));expect(mine.manifestHash).toBe(m.hash);
+  for(const p of [member,reviewer,approver]) {
+   const l=await svc().list(p,q('intake_candidate',x.candidateId));
+   expect(l.total).toBe(1);
+   expect(l.items[0]).toEqual({id:x.draftId,projectId:ids.sales,entityType:'intake_candidate',entityId:x.candidateId,skill:'intake_analyst',manifestHash:m.hash,createdAt:expect.any(String),
+    sources:[],maskReasons:['CONFIRM_AUTHORITY_REQUIRED'],value:null,questions:null,confidence:null,skillVersion:null,modelVersion:null,valueHash:null,decision:null});
+   const text=JSON.stringify(l);
+   expect(text).not.toContain(MARK);expect(text).not.toContain(x.sourceEventId);
+  }
+ });
+
+ test('L2 a document draft: every role that may write the ledger reads its content; viewer and bot get the not-found answer for both kinds of draft',async()=>{
+  const d=await docDraft(),c=await candDraft();
+  for(const p of [pm,member,reviewer,approver]) {
+   const it=(await svc().list(p,q('document',d.d.record.id))).items[0] as unknown as R;
+   expect(it.value).toEqual(d.output);expect(it.maskReasons).toEqual([]);
+  }
+  const bots={...ai,role:'bot',name:'x',projectIds:[ids.sales]} as unknown as Principal;
+  for(const p of [viewerByGrant,bots,bot,outsider,transportApprover]) {
+   await denied(svc().list(p,q('document',d.d.record.id)));
+   await denied(svc().list(p,q('intake_candidate',c.candidateId)));
+  }
+ });
+
+ test('L3 nothing the writer chose reaches the service for a reader without the authority: no value, question, confidence, version string, hash or source id in any row handed to it',async()=>{
+  const x=await loud(),rec=recordingDb(h.db);
+  await new SuggestionService(rec.db,h.operator,chats).list(member,q('intake_candidate',x.candidateId));
+  const seen=JSON.stringify(rec.rows());
+  expect(seen).not.toContain(MARK);expect(seen).not.toContain(sha(x.output));expect(seen).not.toContain('synthetic-model-1');expect(seen).not.toContain(x.sourceEventId);
+ });
+
+ test('L4 a reader without the authority gets no bits the writer chose: sources is empty and manifestHash is the current manifest\'s or null',async()=>{
+  const c=await candidate(),codes=Array.from({length:100},(_,i)=>uuidFrom(i)),hex=createHash('sha256').update(MARK).digest('hex');
+  const bad=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,over:{sources:JSON.stringify(codes.map(id=>({id}))),manifest_hash:hex}});
+  const good=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId});
+  const rec=recordingDb(h.db);
+  const l=await new SuggestionService(rec.db,h.operator,chats).list(member,q('intake_candidate',c.candidateId));
+  const byId=(id:string)=>l.items.find(i=>i.id===id) as unknown as R;
+  expect(byId(bad.id)).toMatchObject({sources:[],manifestHash:null});
+  expect(byId(good.id)).toMatchObject({sources:[],manifestHash:skillManifests.intake_analyst.hash});
+  for(const text of [JSON.stringify(l),JSON.stringify(rec.rows())]) {
+   for(const code of codes) expect(text).not.toContain(code);
+   expect(text).not.toContain(hex);
+  }
+ });
+
+ test('L5 masking changes no row count and no order: the list and the total are the same for every reader',async()=>{
+  const c=await candidate();
+  const ids3:string[]=[];
+  for(const at of ['2026-11-10T10:00:00Z','2026-11-12T10:00:00Z','2026-11-11T10:00:00Z']) ids3.push((await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,over:{created_at:at}})).id);
+  const a=await svc().list(pm,q('intake_candidate',c.candidateId)),b=await svc().list(member,q('intake_candidate',c.candidateId));
+  expect(a.total).toBe(3);expect(b.total).toBe(3);
+  expect(a.items.map(i=>i.id)).toEqual([ids3[1],ids3[2],ids3[0]]);
+  expect(b.items.map(i=>i.id)).toEqual(a.items.map(i=>i.id));
+ });
+
+ test('L6 one rule for reading and deciding: a role reads the content of a draft exactly when it may decide it',async()=>{
+  for(const p of [pm,member,reviewer,approver]) for(const kind of ['document','intake_candidate'] as const) {
+   const x=kind==='document'?await docDraft():await candDraft();
+   const entityId=kind==='document'?(x as Awaited<ReturnType<typeof docDraft>>).d.record.id:(x as Awaited<ReturnType<typeof candDraft>>).candidateId;
+   const row=(await svc().list(p,q(kind,entityId))).items[0] as unknown as R;
+   const e=await decide(svc(),p,x.draftId,{result:'rejected',valueHash:x.valueHash,reason:'Không phù hợp phạm vi'}).then(()=>null,y=>y as {code?:string});
+   const refusedByAuthority=e!==null&&(e.code==='READ_ONLY'||e.code==='MANAGER_REQUIRED');
+   expect((row.maskReasons as unknown[]|undefined)?.length===0,`${p.role} ${kind}`).toBe(!refusedByAuthority);
+  }
+ });
+
+ test('L7 when the content is returned every displayed field comes from the validated value: a row whose questions, confidence and sources columns say otherwise shows the value\'s; skillVersion and manifestHash only when they are the manifest\'s in force',async()=>{
+  const d=await doc(),value=out('technical_writer',[d.record.id]);
+  const x=await rawDraft({entityType:'document',entityId:d.record.id,value,over:{questions:JSON.stringify([{field:'x',question:MARK}]),confidence:5,sources:JSON.stringify([{id:randomUUID()}]),
+   skill_version:'9.9.9',manifest_hash:'d'.repeat(64)}});
+  const l=await svc().list(pm,q('document',d.record.id));
+  const it=l.items.find(i=>i.id===x.id) as unknown as R;
+  expect(it.maskReasons).toEqual([]);expect(it.questions).toEqual([]);expect(it.confidence).toBe(70);expect(it.sources).toEqual(value.sources);
+  expect(it.skillVersion).toBeNull();expect(it.manifestHash).toBeNull();expect(it.modelVersion).toBe('synthetic-model');
+  expect(JSON.stringify(l)).not.toContain(MARK);
+ });
+
+ test('L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided',async()=>{
+  const x=await candDraft(),before=await n('document_commands');
+  const same=async(valueHash:string)=>{
+   for(const b of [{result:'confirmed',valueHash},{result:'rejected',valueHash,reason:'Không phù hợp phạm vi'}]) {
+    const e=await refused(decide(svc(),member,x.draftId,b),'MANAGER_REQUIRED',403);
+    expect(e.message).toBe('Chỉ điều phối dự án được thực hiện thao tác này.');
+   }
+  };
+  await same('a'.repeat(64));await same(x.valueHash);
+  expect(await n('document_commands')).toBe(before);
+  await decide(svc(),pm,x.draftId,body(x.valueHash));
+  const after=await n('document_commands');
+  await same('a'.repeat(64));await same(x.valueHash);
+  expect(await n('document_commands')).toBe(after);expect(await n('draft_decisions')).toBe(1);
+ });
+
+ test('L9 a stored value that does not fit the contract is masked as SCHEMA_INVALID even for a person who may decide',async()=>{
+  const c=await candidate();
+  const x=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value:{...out('intake_analyst',[c.sourceEventId]),surprise:MARK}});
+  const l=await svc().list(pm,q('intake_candidate',c.candidateId));
+  const it=l.items.find(i=>i.id===x.id) as unknown as R;
+  expect(it).toMatchObject({maskReasons:['SCHEMA_INVALID'],value:null,sources:[]});
+  expect(JSON.stringify(l)).not.toContain(MARK);
  });
 });
 
