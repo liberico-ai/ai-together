@@ -43,7 +43,7 @@ export type DraftView={
   value:SkillOutput|null;questions:{field:string;question:string}[]|null;confidence:number|null;   // from the schema-validated value, or null
   skillVersion:string|null;        // the version of the manifest in force when the row carries exactly it and the content is returned, else null
   modelVersion:string|null;        // as stored, only when the content is returned
-  valueHash:string|null;           // null only for a reader who may not decide the draft
+  valueHash:string|null;           // only when the content is returned; null under every mask
   decision:{result:'confirmed'|'rejected';decidedBy:string;decidedAt:string;documentRevisionId:string|null}|null};
 
 const submitSchema=z.strictObject({
@@ -52,7 +52,7 @@ const submitSchema=z.strictObject({
  dedupeKey:z.string().regex(/^[A-Za-z0-9_-]{8,100}$/),traceId:uuidIn,
 });
 const decideSchema=z.strictObject({
- result:z.enum(['confirmed','rejected']),valueHash:z.string().regex(HEX64),
+ result:z.enum(['confirmed','rejected']),valueHash:z.string().regex(HEX64).optional(),
  reason:z.string().max(1000).refine(storable).optional(),revision:proposeSchema.optional(),
 }).superRefine((v,ctx)=>{if(v.result==='rejected'&&v.revision!==undefined) ctx.addIssue({code:'custom',path:['revision'],message:'Từ chối không kèm bản đề xuất.'});});
 const listSchema=z.strictObject({
@@ -103,7 +103,7 @@ const toView=(r:DraftRow,given:MaskReason[],shown:SkillOutput|null):DraftView=>{
  if(mask.length===0&&shown) return {...head,value:shown,questions:shown.questions,confidence:shown.confidence,sources:shown.sources,
   skillVersion:r.skill_version===m.version?r.skill_version:null,modelVersion:r.model_version,valueHash:r.value_hash};
  return {...head,value:null,questions:null,confidence:null,sources:[],skillVersion:null,modelVersion:null,
-  valueHash:mask.includes('CONFIRM_AUTHORITY_REQUIRED')?null:r.value_hash};
+  valueHash:null};
 };
 
 const DOC_SUBJECT_SQL=`SELECT coalesce(max(v.revision_no),0)::int AS newest,
@@ -241,7 +241,7 @@ export class SuggestionService {
  /**
   * Order inside the one scoped transaction: (1) locate the draft in the person's scope, then narrow the scope to its project, lock on the draft id;
   * (2) for a confirmed document draft the document row is locked; (3) the one idempotency claim (replay = the recorded decision, other content = IDEMPOTENCY_CONFLICT);
-  * under it: (4) authority first, then already decided, then the caller's valueHash; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet; a candidate confirmation is always held (OQ-53 point 3 placeholder));
+  * under it: (4) authority first, then already decided, then the caller's valueHash — compared only for a person to whom the content is shown; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet; a candidate confirmation is always held (OQ-53 point 3 placeholder));
   * (6) a document draft: the person's own revision proposal, under the same claim; (7) the decision row (a confirmation is refused there by migration 022 if the project became pointer-only meanwhile: DRAFT_HELD). A failure at any point rolls back everything, claim included.
   */
  async decide(p:Principal,draftId:string,raw:unknown,key:string,requestId:string):Promise<DraftView> {
@@ -275,7 +275,11 @@ export class SuggestionService {
      throw new AppError('MANAGER_REQUIRED','Chỉ điều phối dự án được thực hiện thao tác này.',403);
     }
     if(d.dec_result) throw alreadyDecided();
-    if(input.valueHash!==d.value_hash) throw new AppError('REVISION_CONFLICT','Nháp đã đổi. Đọc bản mới trước khi quyết định.',409);
+    // OQ-45 point 2 (b): a person for whom the draft is masked was shown no hash, so none is compared for them — whatever was sent, the answer below
+    // is the same, and a guess cannot be told from a miss. The mask is worked out as a read works it out, on a context of its own: the context kept
+    // for the answer is still built where it was (a confirmation) or by the answer itself (a rejection, a replay).
+    const maskedForCaller=(await this.present(tx,p,projectId,[d],new Map()))[0].maskReasons.length>0;
+    if(!maskedForCaller&&input.valueHash!==d.value_hash) throw new AppError('REVISION_CONFLICT','Nháp đã đổi. Đọc bản mới trước khi quyết định.',409);
     let reason='';
     if(input.result==='rejected') {
      reason=(input.reason??'').trim();
@@ -314,6 +318,9 @@ export class SuggestionService {
      // commits later. Every check above still runs and names its code; a rejection is not held; nothing is masked at read time for this.
      if(d.entity_type==='intake_candidate') reasons.add('SUBJECT_ORDER_UNVERIFIED');
      if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
+     // nothing holds the draft, so its content is shown to this person now: the hash is compared after all. Reached with another hash only when the
+     // draft was masked for them as the command arrived and is not any more — its state changed under the command; they read it again first.
+     if(input.valueHash!==d.value_hash) throw new AppError('REVISION_CONFLICT','Nháp đã đổi. Đọc bản mới trước khi quyết định.',409);
      if(d.entity_type==='document') {
       if(!input.revision) throw new AppError('REVISION_REQUIRED','Nháp gắn tài liệu cần kèm nội dung bản đề xuất.',422);
       // the inner proposal runs under the claim held above and claims nothing itself
