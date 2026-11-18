@@ -9,6 +9,7 @@ import {AppError,invariant} from './errors';
 import {buildSkillContextIn,CONTEXT_KINDS} from './skill-context';
 import {checkSkillOutput,MAX_OUTPUT_BYTES,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
 import {canonicalJson,skillManifests} from './skills';
+import {threadHasHiddenText} from './source-text';
 import {storable} from './text-safety';
 import {projectRole} from './types';
 import type {Principal,Role} from './types';
@@ -164,6 +165,7 @@ export class SuggestionService {
   */
  private async present(tx:Queryable,p:Principal,projectId:string,rows:DraftRow[],contexts:Map<string,SkillContext|null>=new Map()):Promise<DraftView[]> {
   const views:DraftView[]=[];
+  const hiddenThread=new Map<string,boolean>();
   for(const r of rows) {
    if(!mayDecide(projectRole(p,projectId),r.entity_type)) {views.push(toView(r,['CONFIRM_AUTHORITY_REQUIRED'],null));continue;}
    const reasons=new Set<MaskReason>();
@@ -177,6 +179,11 @@ export class SuggestionService {
     if(ctx.pointerOnly) reasons.add('POINTER_ONLY_PROJECT');
     const m=skillManifests[r.signal_type];
     for(const x of checkSkillOutput({name:m.name,hash:m.hash,toolAllowlist:m.toolAllowlist},ctx,r.value).reasons) if(VISIBILITY.has(x)) reasons.add(x as MaskReason);
+   }
+   // OQ-55 placeholder (fail-closed until the Chairman decides): a candidate draft is masked while its thread holds stored text that is no longer shown
+   if(r.entity_type==='intake_candidate') {
+    if(!hiddenThread.has(r.entity_id)) hiddenThread.set(r.entity_id,await threadHasHiddenText(tx,projectId,r.entity_id,this.excerptChats));
+    if(hiddenThread.get(r.entity_id)) reasons.add('THREAD_TEXT_HIDDEN');
    }
    views.push(reasons.size===0&&parsed?.success?toView(r,[],parsed.data):toView(r,[...reasons].sort(),null));
   }
@@ -260,6 +267,8 @@ export class SuggestionService {
      if(ctx) {
       if(ctx.pointerOnly) reasons.add('POINTER_ONLY_PROJECT');
       for(const r of checkSkillOutput({name:manifest.name,hash:manifest.hash,toolAllowlist:manifest.toolAllowlist},ctx,d.value).reasons) reasons.add(r);
+      // OQ-55 placeholder (P3): what read masks for a hidden thread, confirm holds
+      if(d.entity_type==='intake_candidate'&&await threadHasHiddenText(tx,projectId,d.entity_id,this.excerptChats)) reasons.add('THREAD_TEXT_HIDDEN');
      }
      if(reasons.size) throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${[...reasons].sort().join(', ')}.`,422);
      if(d.entity_type==='document') {

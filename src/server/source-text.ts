@@ -71,3 +71,23 @@ export async function visibleThreadMessages(tx:Queryable,projectId:string,candid
    ORDER BY t.observed_at ASC, t.id ASC`,[projectId,candidateId,[...excerptChats],n])).rows;
  return rows.map(r=>({sourceEventId:r.id,ref:r.source_id,observedAt:new Date(r.observed_at as string).toISOString(),forwarded:r.forwarded,displayMode:r.display_mode,text:r.visible_text,contentHash:r.visible_hash}));
 }
+
+const UUID_LOWER=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/**
+ * True when the thread of one candidate of project $1 (same chat_id and thread_key, as visibleThreadMessages) holds at least one revision, of any
+ * message, that stored text which the current configuration does not show: the group is not flagged, or the project's latest mapping is IBS_HI.
+ * Every revision of every message of the thread is looked at: no cap, and not only the newest revision of a message.
+ * A flag list that cannot be evaluated (a null element and no match) counts as not flagged: the test is IS NOT TRUE, never NOT.
+ * One boolean: no text and no hash leave the database. A candidate or project id that is not a lower-case uuid gives true without a statement:
+ * closed, because such an id is never a reason to show content.
+ */
+export async function threadHasHiddenText(tx:Queryable,projectId:string,candidateId:string,excerptChats:readonly string[]):Promise<boolean> {
+ if(!UUID_LOWER.test(String(projectId))||!UUID_LOWER.test(String(candidateId))) return true;
+ const row=(await tx.query<{hidden:boolean}>(
+  `SELECT EXISTS(SELECT 1 FROM intake_candidates c
+    JOIN source_events e ON e.project_id=c.project_id AND e.chat_id=c.chat_id AND e.thread_key=c.thread_key
+    JOIN source_event_revisions r ON r.source_event_id=e.id
+    WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid AND r.project_id=$1::uuid
+      AND r.content_mode='excerpt' AND (${textAllowedSql('e','$3')}) IS NOT TRUE) AS hidden`,[projectId,candidateId,[...excerptChats]])).rows[0];
+ return row?.hidden===true;
+}

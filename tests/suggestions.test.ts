@@ -954,3 +954,96 @@ describe('Z4 drafts: IBS HI is refused at write (OQ-45 point 3)',()=>{
   await denied(svc(handle).submitDraft({...ai,projectIds:[ids.sales]},env('document',d.record.id,'technical_writer',out('technical_writer',[d.record.id]),{projectId:ids.transport})));
  });
 });
+
+describe('Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown',()=>{
+ const MARK='zq-thread-'+randomUUID().replace(/-/g,'');
+ const none=()=>svc(h.operator,[]);
+ const q=(entityId:string)=>({projectId:ids.sales,entityType:'intake_candidate' as const,entityId});
+ const first=async(s:SuggestionService,p:Principal,entityId:string)=>(await s.list(p,q(entityId))).items[0] as unknown as R;
+ /** A candidate draft that names no message: the claim has no basis and the one source is a document of the project. */
+ const quiet=async(c:{candidateId:string},d:DocumentDetail,over:R={})=>{
+  const value=out('intake_analyst',[d.record.id],{claims:[{field:'classification',value:MARK,basis:[]}],...over});
+  const x=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value});
+  return {...x,valueHash:sha(value)};
+ };
+ /** A clean draft: one document source and no claims. */
+ const clean=async(c:{candidateId:string},d:DocumentDetail)=>{
+  const value=out('intake_analyst',[d.record.id]);
+  const x=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value});
+  return {...x,valueHash:sha(value)};
+ };
+
+ test('dừng tại OQ-55: a candidate draft that names no message is masked once the stored text of its thread is no longer shown',async()=>{
+  const c=await candidate(),d=await doc();
+  const x=await quiet(c,d);
+  const it=await first(none(),pm,c.candidateId);
+  expect(it.maskReasons).toEqual(['THREAD_TEXT_HIDDEN']);
+  expect(it.value).toBeNull();expect(it.sources).toEqual([]);
+  expect(JSON.stringify(it)).not.toContain(MARK);expect(JSON.stringify(it)).not.toContain(d.record.id);
+  expect((await first(none(),member,c.candidateId)).maskReasons).toEqual(['CONFIRM_AUTHORITY_REQUIRED']);
+  const ok=await first(svc(),pm,c.candidateId);
+  expect(ok.maskReasons).toEqual([]);expect(JSON.stringify(ok.value)).toContain(MARK);
+  expect(x.id).toBe(ok.id);
+ });
+
+ test('dừng tại OQ-55: a thread whose newest revision is pointer-only but an earlier revision stored text still masks its candidate drafts when the group is not flagged',async()=>{
+  const c=await candidate(),d=await doc();
+  await new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:[]})
+   .ingest({...c.event,text:'Bản sửa chỉ con trỏ',contentHash:'e'.repeat(64),editedAt:new Date(1760099999000).toISOString(),traceId:randomUUID()});
+  const modes=await rows<{content_mode:string}>('SELECT content_mode FROM source_event_revisions WHERE source_event_id=$1 ORDER BY revision_no',[c.sourceEventId]);
+  expect(modes.map(m=>m.content_mode)).toEqual(['excerpt','pointer_only']);
+  await clean(c,d);
+  expect((await first(none(),pm,c.candidateId)).maskReasons).toEqual(['THREAD_TEXT_HIDDEN']);
+ });
+
+ test('dừng tại OQ-55: what is masked for that reason cannot be confirmed either',async()=>{
+  const c=await candidate(),d=await doc();
+  const x=await clean(c,d);
+  const decisions=await n('document_commands');
+  await held(decide(none(),pm,x.id,body(x.valueHash)),'THREAD_TEXT_HIDDEN');
+  await zeroDecisions();
+  expect(await n('document_commands')).toBe(decisions);
+  const r=await decide(none(),pm,x.id,{result:'rejected',valueHash:x.valueHash,reason:'Không đủ căn cứ'});
+  expect(r.decision?.result).toBe('rejected');
+  expect(await n('draft_decisions')).toBe(1);
+  // a raw row whose value is off the contract is held for that reason as well
+  const c2=await candidate();
+  const bad=out('intake_analyst',[d.record.id],{confidence:'cao'});
+  const y=await rawDraft({entityType:'intake_candidate',entityId:c2.candidateId,value:bad});
+  await held(decide(none(),pm,y.id,body(sha(bad))),'SCHEMA_INVALID');
+  expect(await n('draft_decisions')).toBe(1);
+ });
+
+ test('a draft that cites a message of such a thread carries both reasons',async()=>{
+  const c=await candidate();
+  const value=out('intake_analyst',[c.sourceEventId],{claims:[{field:'classification',value:MARK,basis:[c.sourceEventId]}]});
+  await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value});
+  const it=await first(none(),pm,c.candidateId);
+  expect(it.maskReasons).toEqual(['TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN']);
+  expect(it.value).toBeNull();expect(JSON.stringify(it)).not.toContain(MARK);
+ });
+
+ test('dừng tại OQ-55: a replayed confirmation of a candidate draft answers with the recorded decision and no content once the group\'s flag is gone',async()=>{
+  const c=await candidate();
+  const value=out('intake_analyst',[c.sourceEventId],{claims:[{field:'classification',value:MARK,basis:[c.sourceEventId]}]});
+  const x=await rawDraft({entityType:'intake_candidate',entityId:c.candidateId,value});
+  const key=k(),b=body(sha(value));
+  const firstAns=await decide(svc(),pm,x.id,b,key);
+  expect(firstAns.decision?.result).toBe('confirmed');
+  const again=await decide(none(),pm,x.id,b,key);
+  expect(again.decision?.result).toBe('confirmed');expect(again.decision?.decidedAt).toBe(firstAns.decision?.decidedAt);
+  expect(again.maskReasons).toContain('THREAD_TEXT_HIDDEN');
+  expect(again.value).toBeNull();expect(again.sources).toEqual([]);
+  expect(JSON.stringify(again)).not.toContain(MARK);
+  expect(await n('draft_decisions')).toBe(1);
+ });
+
+ test('dừng tại OQ-55: a document draft is not touched by the placeholder',async()=>{
+  await candidate();
+  const x=await docDraft();
+  const l=(await none().list(pm,{projectId:ids.sales,entityType:'document',entityId:x.d.record.id})).items[0] as unknown as R;
+  expect(l.maskReasons).toEqual([]);expect(l.value).not.toBeNull();
+  const r=await decide(none(),pm,x.draftId,body(x.valueHash,{revision:revisionBody(x.d)}));
+  expect(r.decision?.result).toBe('confirmed');
+ });
+});

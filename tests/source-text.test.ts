@@ -3,13 +3,13 @@ import {randomUUID} from 'node:crypto';
 import {readdirSync,readFileSync} from 'node:fs';
 import path from 'node:path';
 import {openHarness,type Harness} from './slice1-db';
-import {pm,seedSlice1} from './slice1-fixtures';
+import {outsider,pm,seedSlice1} from './slice1-fixtures';
 import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,type EventOverride} from './slice2-fixtures';
 import {mapDomain,recordingDb} from './slice3-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {InboxService} from '../src/server/inbox';
-import {displayMode,listVisibleRevisions} from '../src/server/source-text';
-import {scoped} from '../src/server/db';
+import {displayMode,listVisibleRevisions,threadHasHiddenText} from '../src/server/source-text';
+import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
 
 let h:Harness;
@@ -134,5 +134,59 @@ describe('source-text',()=>{
   const having=(s:string)=>files.filter(f=>readFileSync(f,'utf8').includes(s)).map(f=>path.relative(process.cwd(),f).split(path.sep).join('/')).sort();
   expect(having('text_excerpt')).toEqual(['src/server/intake.ts','src/server/source-text.ts']);
   expect(having('source_event_revisions')).toEqual(['src/server/intake.ts','src/server/source-text.ts']);
+ });
+});
+
+describe('threadHasHiddenText',()=>{
+ const ask=(projectId:string,candidateId:string,list:readonly string[],scope=salesScope)=>scoped(h.db,scope,tx=>threadHasHiddenText(tx,projectId,candidateId,list));
+ const edit=(e:ReturnType<typeof messageEvent>,text:string,list:string[])=>intake(list).ingest({...e,text,contentHash:'e'.repeat(64),editedAt:new Date(1760099999000).toISOString(),traceId:randomUUID()});
+
+ test('Q5 threadHasHiddenText: every revision of every message of the thread, the current configuration, the caller\'s scope',async()=>{
+  const a=await ingest({text:'Q5-STORED-1'},[chatSales]);
+  expect(await ask(ids.sales,a.id,[chatSales])).toBe(false);
+  expect(await ask(ids.sales,a.id,[])).toBe(true);
+  const b=await ingest({text:'Q5-POINTER-1'});
+  expect(await ask(ids.sales,b.id,[])).toBe(false);
+  const e=messageEvent({text:'Q5-EDITED-1'});
+  const ack=await intake([chatSales]).ingest(e);
+  const c=(await rows<{id:string}>('SELECT id FROM intake_candidates WHERE root_source_event_id=$1',[ack.sourceEventId]))[0].id;
+  await edit(e,'Q5-EDITED-2',[]);
+  const modes=await rows<{content_mode:string}>('SELECT r.content_mode FROM source_event_revisions r WHERE r.source_event_id=$1 ORDER BY r.revision_no',[ack.sourceEventId]);
+  expect(modes.map(m=>m.content_mode)).toEqual(['excerpt','pointer_only']);
+  expect(await ask(ids.sales,c,[])).toBe(true);
+  expect(await ask(ids.sales,c,[chatSales])).toBe(false);
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  expect(await ask(ids.sales,a.id,[chatSales])).toBe(true);
+ });
+
+ test('Q5 the caller\'s scope and a malformed id',async()=>{
+  const a=await ingest({text:'Q5-SCOPE-1'},[chatSales]);
+  expect(await ask(ids.transport,a.id,[],{...pm,projectIds:[ids.transport]})).toBe(false);
+  expect(await ask(ids.sales,a.id,[],{...outsider,projectIds:[ids.sales]})).toBe(false);
+  const trap:Queryable={query:async()=>{throw new Error('statement sent');}};
+  expect(await threadHasHiddenText(trap,ids.sales,'x',[])).toBe(true);
+  expect(await threadHasHiddenText(trap,'x',a.id,[])).toBe(true);
+ });
+
+ test('Q6 threadHasHiddenText returns one boolean and no text: the one row handed back holds no excerpt and no content hash',async()=>{
+  const m=await ingest({text:'Q6-MARKER-8812'},[chatSales]);
+  const rec=recordingDb(h.db);
+  const got=await scoped(rec.db,salesScope,tx=>threadHasHiddenText(tx,ids.sales,m.id,[]));
+  expect(got).toBe(true);
+  const seen=rec.rows().filter(r=>(r as Record<string,unknown>).hidden!==undefined);
+  expect(seen).toHaveLength(1);
+  expect(Object.keys(seen[0] as object)).toEqual(['hidden']);
+  expect(JSON.stringify(rec.rows())).not.toContain('Q6-MARKER-8812');
+  expect(JSON.stringify(rec.rows())).not.toContain(m.hash);
+ });
+
+ test('Q8 threadHasHiddenText is closed when the list of flagged groups cannot be evaluated',async()=>{
+  const m=await ingest({text:'Q8-STORED-1'},[chatSales]);
+  const nul=[null] as unknown as string[];
+  expect(await ask(ids.sales,m.id,nul)).toBe(true);
+  expect(await ask(ids.sales,m.id,[null,chatTransport] as unknown as string[])).toBe(true);
+  expect(await ask(ids.sales,m.id,[null,chatSales] as unknown as string[])).toBe(false);
+  const p=await ingest({text:'Q8-POINTER-1'});
+  expect(await ask(ids.sales,p.id,nul)).toBe(false);
  });
 });
