@@ -1,0 +1,229 @@
+# Chu trình migration 023 — CSDL thử slice1_verify_5311195 (PostgreSQL 16, 127.0.0.1:55471)
+
+## Áp 001–023 qua harness (npx vitest run tests/thread-order.test.ts)
+ Test Files  1 passed (1)
+      Tests  37 passed (37)
+EXIT=0
+
+## (a) catalog sau áp (psql, CSDL thử)
+== triggers on the 023 tables (tgenabled O/A/D; bits: before, row, ins, del, upd)
+          relname          |                 tgname                 | tgenabled | before_ | row_level | on_ins | on_del | on_upd |                   fn                   
+---------------------------+----------------------------------------+-----------+---------+-----------+--------+--------+--------+----------------------------------------
+ draft_decisions           | draft_decisions_guard                  | O         | t       | t         | t      | f      | f      | draft_decisions_guard
+ draft_decisions           | draft_decisions_immutable              | O         | t       | t         | f      | t      | t      | reject_history_mutation
+ draft_decisions           | draft_decisions_pointer_only_guard     | O         | t       | t         | t      | f      | f      | draft_decisions_pointer_only_guard
+ draft_decisions           | draft_decisions_subject_order_guard    | O         | f       | t         | t      | f      | f      | draft_decisions_subject_order_guard
+ intake_thread_heads       | intake_thread_heads_no_delete          | O         | t       | t         | f      | t      | f      | reject_history_mutation
+ source_event_revisions    | source_event_revisions_immutable       | O         | t       | t         | f      | t      | t      | reject_history_mutation
+ source_event_revisions    | source_event_revisions_thread_position | A         | f       | t         | t      | f      | f      | source_event_revisions_thread_position
+ source_revision_positions | source_revision_positions_immutable    | O         | t       | t         | f      | t      | t      | reject_history_mutation
+(8 rows)
+
+== functions of 023 (prosecdef, proconfig, owner, superuser owner, EXECUTE grantees)
+                proname                 | prosecdef |                                               proconfig                                                |     owner     | owner_super | execute_grantees 
+----------------------------------------+-----------+--------------------------------------------------------------------------------------------------------+---------------+-------------+------------------
+ draft_decisions_subject_order_guard    | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s,plan_cache_mode=force_custom_plan} | oq53_operator | t           | oq53_operator
+ source_event_revisions_thread_position | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s}                                   | oq53_operator | t           | oq53_operator
+(2 rows)
+
+== new tables (relrowsecurity, relforcerowsecurity, policies: polcmd r = SELECT)
+          relname          | relrowsecurity | relforcerowsecurity | n_policies |     policies     
+---------------------------+----------------+---------------------+------------+------------------
+ intake_thread_heads       | t              | t                   |          1 | runtime_select:r
+ source_revision_positions | t              | t                   |          1 | runtime_select:r
+(2 rows)
+
+== column draft_decisions.subject_thread_seq
+    column_name     | data_type 
+--------------------+-----------
+ subject_thread_seq | bigint
+(1 row)
+
+== revisions without a number (expect 0 on an empty database)
+ revisions_without_number 
+--------------------------
+                        0
+(1 row)
+
+== 022 and 023 recorded
+ version 
+---------
+ 022
+ 023
+(2 rows)
+
+
+## (b) lùi 023 + đối tượng còn lại (expect 0)
+== (b) rollback 023
+BEGIN
+SET
+SET
+DO
+DELETE 1
+COMMIT
+EXIT=0
+== (b) objects after rollback (expect all 0)
+           what            | count 
+---------------------------+-------
+ tables_023                |     0
+ functions_023             |     0
+ triggers_023              |     0
+ column_subject_thread_seq |     0
+ recorded_023              |     0
+(5 rows)
+
+EXIT=0
+
+## (c) áp lại 023
+== (c) forward 023 (re-apply after rollback)
+BEGIN
+SET
+DO
+LOCK TABLE
+LOCK TABLE
+DO
+DO
+CREATE TABLE
+DROP TRIGGER
+NOTICE:  trigger "intake_thread_heads_no_delete" for relation "public.intake_thread_heads" does not exist, skipping
+CREATE TRIGGER
+CREATE TABLE
+NOTICE:  trigger "source_revision_positions_immutable" for relation "public.source_revision_positions" does not exist, skipping
+DROP TRIGGER
+CREATE TRIGGER
+COMMENT
+COMMENT
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+NOTICE:  policy "runtime_select" for relation "public.intake_thread_heads" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+NOTICE:  policy "runtime_select" for relation "public.source_revision_positions" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+DO
+INSERT 0 0
+CREATE TRIGGER
+ALTER TABLE
+ANALYZE
+ALTER TABLE
+COMMENT
+DO
+GRANT
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+NOTICE:  trigger "draft_decisions_subject_order_guard" for relation "public.draft_decisions" does not exist, skipping
+DO
+INSERT 0 1
+COMMIT
+EXIT=0
+--- diff (a) vs (c) catalog:
+15,18c15,18
+<                 proname                 | prosecdef |                                               proconfig                                                |     owner     | owner_super | execute_grantees 
+< ----------------------------------------+-----------+--------------------------------------------------------------------------------------------------------+---------------+-------------+------------------
+<  draft_decisions_subject_order_guard    | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s,plan_cache_mode=force_custom_plan} | oq53_operator | t           | oq53_operator
+<  source_event_revisions_thread_position | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s}                                   | oq53_operator | t           | oq53_operator
+---
+>                 proname                 | prosecdef |                                               proconfig                                                |  owner   | owner_super | execute_grantees 
+> ----------------------------------------+-----------+--------------------------------------------------------------------------------------------------------+----------+-------------+------------------
+>  draft_decisions_subject_order_guard    | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s,plan_cache_mode=force_custom_plan} | postgres | t           | postgres
+>  source_event_revisions_thread_position | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s}                                   | postgres | t           | postgres
+
+## (d) áp 023 lần hai
+== (d) forward 023 applied a second time (idempotent)
+BEGIN
+SET
+DO
+LOCK TABLE
+LOCK TABLE
+DO
+DO
+NOTICE:  relation "intake_thread_heads" already exists, skipping
+CREATE TABLE
+DROP TRIGGER
+CREATE TRIGGER
+CREATE TABLE
+DROP TRIGGER
+NOTICE:  relation "source_revision_positions" already exists, skipping
+CREATE TRIGGER
+COMMENT
+COMMENT
+NOTICE:  relation "idx_intake_thread_heads_scope_created" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "idx_intake_thread_heads_project_fk" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "idx_source_revision_positions_scope_created" already exists, skipping
+NOTICE:  relation "idx_source_revision_positions_project_fk" already exists, skipping
+CREATE INDEX
+CREATE INDEX
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+DROP POLICY
+CREATE POLICY
+DROP POLICY
+CREATE POLICY
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+DO
+INSERT 0 0
+CREATE TRIGGER
+ALTER TABLE
+ANALYZE
+NOTICE:  column "subject_thread_seq" of relation "draft_decisions" already exists, skipping
+ALTER TABLE
+COMMENT
+DO
+GRANT
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+DO
+INSERT 0 0
+COMMIT
+EXIT=0
+--- diff (a) vs (d) catalog:
+15,18c15,18
+<                 proname                 | prosecdef |                                               proconfig                                                |     owner     | owner_super | execute_grantees 
+< ----------------------------------------+-----------+--------------------------------------------------------------------------------------------------------+---------------+-------------+------------------
+<  draft_decisions_subject_order_guard    | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s,plan_cache_mode=force_custom_plan} | oq53_operator | t           | oq53_operator
+<  source_event_revisions_thread_position | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s}                                   | oq53_operator | t           | oq53_operator
+---
+>                 proname                 | prosecdef |                                               proconfig                                                |  owner   | owner_super | execute_grantees 
+> ----------------------------------------+-----------+--------------------------------------------------------------------------------------------------------+----------+-------------+------------------
+>  draft_decisions_subject_order_guard    | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s,plan_cache_mode=force_custom_plan} | postgres | t           | postgres
+>  source_event_revisions_thread_position | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s}                                   | postgres | t           | postgres
+
+## (e) lùi 022 khi 023 còn ghi nhận
+== (e) rollback 022 while 023 is recorded (expect REFUSAL)
+BEGIN
+SET
+ERROR:  Roll back the later migrations before 022.
+CONTEXT:  PL/pgSQL function inline_code_block line 3 at RAISE
+EXIT=3
+== objects after the refusal (expect 023 still in place: 2/2/4/1/1)
+           what            | count 
+---------------------------+-------
+ tables_023                |     2
+ functions_023             |     2
+ triggers_023              |     4
+ column_subject_thread_seq |     1
+ recorded_023              |     1
+(5 rows)
+

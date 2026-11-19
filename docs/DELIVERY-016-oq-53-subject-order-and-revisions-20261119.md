@@ -2,7 +2,7 @@
 
 PR riêng vào `libetech-ai-os` (không vào `main`), làm ba điểm Chairman đã quyết ngày 19/11/2026 cho OQ-53 và sửa ngữ cảnh `release_librarian` (OQ-57), rồi gỡ hai giữ chỗ fail-closed của PR #22. Nhánh `feat/oq-53-subject-verification`, gốc `80c1ad8` (đầu `libetech-ai-os` sau PR #22). Kế hoạch: `docs/plans/oq-53-subject-verification.md` bản 0.3. Review và bằng chứng: `docs/reviews/oq-53-evidence-20261119/`. PR: «CHỜ: số PR».
 
-Mã đã đo ở `4df2db3` (đầu của lượt kiểm toàn bộ); commit sau đó chỉ thêm hồ sơ. Chỗ nào còn chờ một lượt chạy, một cổng hay một số PR thì mang nhãn «CHỜ: …» do phiên chính điền; biên nhận không ước con số nào.
+Mã đã đo ở `affe28a` (đầu của lượt kiểm toàn bộ thứ hai, sau hai vòng sửa của cổng Codex và đợt quét theo lớp); lượt đầu ở `4df2db3` ghi để đối chiếu; commit sau `affe28a` chỉ thêm hồ sơ. Chỗ nào còn chờ một lượt chạy, một cổng hay một số PR thì mang nhãn «CHỜ: …» do phiên chính điền; biên nhận không ước con số nào.
 
 **Z4 chưa bật và không được bật bởi PR này.** Không tuyến HTTP nào đọc hay xác nhận nháp (ca «no route imports the suggestion service, and nothing in src builds it with an AI handle» không bị sửa, thân ca giống từng byte với `80c1ad8`); không login hay khoá cho role `libetech_ai`; không mô hình nào được gọi; migration 023 chưa áp ở đâu ngoài các CSDL thử của phiên (đã xoá hoặc chỉ nghe loopback). Dữ liệu thử là dữ liệu tổng hợp.
 
@@ -10,7 +10,7 @@ Mã đã đo ở `4df2db3` (đầu của lượt kiểm toàn bộ); commit sau 
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | «CHỜ: điền sau cổng Codex và `liberico-reality-checker`». Số đo ở `4df2db3`: typecheck 0; build 0; PGlite 1 280 ca đạt / 112 bỏ qua; PostgreSQL 16.15 1 392 đạt / 0 bỏ qua; mọi ghế review tầng 1 `READY_FOR_GATE` ở `26ba304` (đợt sửa 3 ở `4df2db3` chưa có ghế xem lại: xem mục «Review») | Bảng «Bằng chứng kiểm» và mục «Review»; chưa merge — chờ Chairman |
+| **Đã có mã** | «CHỜ: điền sau cổng Codex và `liberico-reality-checker`». Số đo ở `affe28a`: typecheck 0; build 0; PGlite 1 287 ca đạt / 118 bỏ qua; PostgreSQL 16.15 1 405 đạt / 0 bỏ qua; mọi ghế review tầng 1 `READY_FOR_GATE` ở `26ba304` (đợt sửa 3 ở `4df2db3` chưa có ghế xem lại: xem mục «Review») | Bảng «Bằng chứng kiểm» và mục «Review»; chưa merge — chờ Chairman |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1; 023 chưa áp lên dữ liệu thật; không khởi động lại gateway | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Không dòng nháp nào ngoài CSDL thử; không pipeline nào ghi `messageRevisions`; không ai gọi `SuggestionService` ngoài test | — |
 | Đã nghiệm thu | **Chưa.** | — |
@@ -106,18 +106,18 @@ Tuyến HTTP đọc/xác nhận nháp · login hay khoá cho `libetech_ai` · g�
 
 ## Bằng chứng kiểm
 
-Tệp ở `docs/reviews/oq-53-evidence-20261119/`; đường dẫn máy trong log đã thay bằng `<repo>` hoặc `<scratch>`. Quét bằng mẫu rộng (thư mục home, tiền tố thư mục home viết bằng dấu gạch, thư mục tạm hệ thống, tên người dùng, tiền tố thư mục phiên, thư mục đệm của macOS) trên toàn thư mục bằng chứng, kế hoạch, câu hỏi mở và biên nhận: 0 dòng. Lượt kiểm toàn bộ lần đầu ghi «0» nhưng sót hai dòng đường dẫn tạm của phiên ở `task-9-hygiene.txt`; `liberico-reality-checker` bắt được; commit chứa chúng chưa từng được push và đã được viết lại. PostgreSQL 16.15 trong container thử chỉ nghe loopback, trên CSDL riêng của phiên; PGlite của repo là `@electric-sql/pglite` 0.5.15 (PostgreSQL 18.6). Lượt kiểm toàn bộ do `scout` chạy (`task-9-verification-summary.md`); các task có log đỏ/xanh riêng ở `logs/task-*`.
+Tệp ở `docs/reviews/oq-53-evidence-20261119/`; đường dẫn máy trong log đã thay bằng `<repo>` hoặc `<scratch>`. Quét bằng mẫu rộng (thư mục home, tiền tố thư mục home viết bằng dấu gạch, thư mục tạm hệ thống, tên người dùng, tiền tố thư mục phiên, thư mục đệm của macOS) trên toàn thư mục bằng chứng, kế hoạch, câu hỏi mở và biên nhận: 0 dòng. Lượt kiểm toàn bộ lần đầu ghi «0» nhưng sót hai dòng đường dẫn tạm của phiên ở `task-9b-hygiene.txt`; `liberico-reality-checker` bắt được; commit chứa chúng chưa từng được push và đã được viết lại. PostgreSQL 16.15 trong container thử chỉ nghe loopback, trên CSDL riêng của phiên; PGlite của repo là `@electric-sql/pglite` 0.5.15 (PostgreSQL 18.6). Lượt kiểm toàn bộ do `scout` chạy (`task-9-verification-summary.md`); các task có log đỏ/xanh riêng ở `logs/task-*`.
 
 | Lệnh | Kết quả | Log |
 |---|---|---|
 | Nền, đầu `80c1ad8` (PR #22) | PGlite 1 220 đạt / 79 bỏ qua (66 tệp đạt, 12 bỏ qua); PostgreSQL 16 1 299 đạt / 0 bỏ qua (78 tệp) | `docs/reviews/oq-45-46-evidence-20261118/` |
-| Ở `4df2db3`: `npm run typecheck` | mã thoát 0 | `task-9-typecheck.txt` |
-| `rm -rf .next && npm run build` | mã thoát 0 | `task-9-build.txt` |
-| `npx vitest run --coverage` trên PGlite | 67 tệp đạt, 13 bỏ qua; **1 280 ca đạt, 112 bỏ qua** (1 392); 0 đỏ; 0 hook-timeout; 0 `AssertionError` | `task-9-pglite-coverage.txt` |
-| `npx vitest run --reporter=verbose` trên PostgreSQL 16 | 80 tệp đạt; **1 392 ca đạt, 0 bỏ qua**; 0 đỏ; 0 hook-timeout; không `40P01` thật (8 dòng khớp «deadlock» đều là tên ca đạt) | `task-9-native-verbose.txt` |
-| Coverage mọi tệp (câu lệnh · nhánh · hàm · dòng) | nền 96,35 · 91,68 · 98,06 · 97,61 → 96,40 · 91,89 · 98,07 · 97,64; `suggestions.ts` 97,61 · 96,47 · 100 · 99,42 → 97,71 · 96,98 · 100 · 99,46; `skill-context.ts` không đổi; `source-text.ts` 100 · 97,5 · 100 · 100. khối tổng có covered/total: câu lệnh 3 386/3 514 → 3 435/3 563; nhánh 2 204/2 404 → 2 257/2 456; hàm 761/776 → 763/778; dòng 2 536/2 598 → 2 575/2 637; `skill-contracts.ts` 99,38 · 100 · 100 · 100 | `task-9-pglite-coverage.txt` |
-| Áp – lùi – áp lại 023 (CSDL thử riêng, đã xoá) | (a) catalog đúng; (b) lùi: hai bảng, hai hàm, hai trigger, cột đều hết; (c) áp lại: catalog như (a); (d) áp lần hai: không đổi; (e) lùi 022 khi 023 còn ghi nhận: **từ chối** «Roll back the later migrations before 022.». CSDL đó có 0 bản nên kiểm «mỗi luồng đếm bằng số dòng số» chỉ đúng tầm thường; việc đánh số bản cũ do ca A7 kiểm | `task-9-migration-cycle.txt` |
-| Vệ sinh | `AGENTS.md`, `CLAUDE.md`, `bot-plugin/`, `ai-scope.ts`, `intake.ts`, `src/app/` không đổi; ca canh «no route imports…» giống từng byte; hai mã giữ chỗ 0 dòng; dòng thêm của diff không trúng mẫu bí mật/đường dẫn máy | `task-9-hygiene.txt` |
+| Ở `affe28a` (lượt đầu ở `4df2db3`: cùng kết quả, số ca thấp hơn): `npm run typecheck` | mã thoát 0 | `task-9b-typecheck.txt` |
+| `rm -rf .next && npm run build` | mã thoát 0 | `task-9b-build.txt` |
+| `npx vitest run --coverage` trên PGlite | 67 tệp đạt, 13 bỏ qua; **1 287 ca đạt, 118 bỏ qua** (1 405); 0 đỏ; 0 hook-timeout; 0 `AssertionError` (lượt đầu ở `4df2db3`: 1 280 / 112) | `task-9b-pglite-coverage.txt` |
+| `npx vitest run --reporter=verbose` trên PostgreSQL 16 | 80 tệp đạt; **1 405 ca đạt, 0 bỏ qua**; 0 đỏ; 0 hook-timeout; không `40P01` thật (9 dòng khớp «deadlock» đều là tên ca đạt) (lượt đầu ở `4df2db3`: 1 392 / 0) | `task-9b-native-verbose.txt` |
+| Coverage mọi tệp (câu lệnh · nhánh · hàm · dòng) | nền 96,35 · 91,68 · 98,06 · 97,61 → 96,40 · 91,89 · 98,07 · 97,64; `suggestions.ts` 97,61 · 96,47 · 100 · 99,42 → 97,71 · 96,98 · 100 · 99,46; `skill-context.ts` không đổi; `source-text.ts` 100 · 97,5 · 100 · 100. khối tổng có covered/total: câu lệnh 3 386/3 514 → 3 435/3 563; nhánh 2 204/2 404 → 2 257/2 456; hàm 761/776 → 763/778; dòng 2 536/2 598 → 2 575/2 637; `skill-contracts.ts` 99,38 · 100 · 100 · 100 | `task-9b-pglite-coverage.txt` |
+| Áp – lùi – áp lại 023 (CSDL thử riêng, đã xoá) | (a) catalog đúng (trigger cấp số `AFTER INSERT ROW`, `tgenabled = 'A'`; trigger xác nhận `O`; hàm xác nhận thêm `plan_cache_mode = force_custom_plan`); (b) lùi: hai bảng, hai hàm, hai trigger, cột đều hết; (c) áp lại: catalog như (a); (d) áp lần hai: không đổi; (e) lùi 022 khi 023 còn ghi nhận: **từ chối** «Roll back the later migrations before 022.». CSDL đó có 0 bản nên kiểm «mỗi luồng đếm bằng số dòng số» chỉ đúng tầm thường; việc đánh số bản cũ do ca A7 kiểm | `task-9b-migration-cycle.txt` |
+| Vệ sinh | `AGENTS.md`, `CLAUDE.md`, `bot-plugin/`, `ai-scope.ts`, `intake.ts`, `src/app/` không đổi; ca canh «no route imports…» giống từng byte; hai mã giữ chỗ 0 dòng; quét mẫu rộng trên dòng thêm của **mọi** commit `80c1ad8..HEAD` và trên bốn nhóm tài liệu: 0 dòng trúng; mọi chat ID `-100…` gặp đều là id giả | `task-9b-hygiene.txt` |
 | Đột biến (đối chiếu log builder, không chạy lại) | 9 trong 11 đột biến của kế hoạch Task 9 có log của builder với ca đỏ; **db1** (trigger cấp số thành `BEFORE INSERT`) không có log của builder (`m-before` trong `task-2*-mutants.txt` là trigger của bảng quyết định) — `liberico-reality-checker` chạy trên bản sao ngoài repo: 19 ca đỏ; **db9** (thêm `FOR UPDATE` thừa ở trigger cấp số, kế hoạch đòi N16 đỏ) không thực hiện được: trigger `AFTER INSERT` không được gọi cho dòng `ON CONFLICT DO NOTHING` bỏ qua nên N16 không đổi màu; N16 có thêm đối chứng (một bản thật sự lưu thì giữ dòng đếm) | `task-9-mutation-matrix.txt`, `logs/task-1-mutants-and-numbering-time.txt` |
 
 Thời gian giữ khoá của lệnh xác nhận (từ lệnh ghi quyết định tới commit), do review CSDL đo trên PostgreSQL 16.15 với dự án 99,8 nghìn bản qua `SuggestionService` thật: 2,3–2,7 ms (lần đầu lạnh 8,9 ms) so với 32–34 ms khi phần đuôi còn quét bảng tin; sau lệnh ghi chỉ còn ba câu, không câu nào chạm bảng tin hay hai bảng số (ca K4). 2,3–2,7 ms là số đo trên dữ liệu giả; trần 500 ms là mục tiêu của kế hoạch (điều kiện N11), chưa đo trên dữ liệu thật. `visibleThreadMessages` và `projectHasHiddenText` (có trước PR, chạy trước lệnh ghi) tốn khoảng 30 ms ở 60 000 tin (SV-DB-4).
@@ -131,9 +131,9 @@ Thời gian giữ khoá của lệnh xác nhận (từ lệnh ghi quyết địn
 | luồng đến ngược thứ tự commit, PostgreSQL thật, hai kết nối | N12 (giao dịch nhận tin M_A bắt đầu sớm, M_B nhận và commit, nháp nêu M_B, M_A commit sau ⇒ `SUBJECT_CHANGED`; ca khẳng định `created_at` của M_A sớm hơn); N1, N7, N8, N14 cho cơ chế |
 | nháp không nêu bản/tin nào | T4, J2 (`tests/suggestions.test.ts`), T18 (`tests/source-text.test.ts`); nháp tài liệu: ca ở `tests/suggestions.test.ts:551` |
 | role/dự án ngoài phạm vi không lấy được khoá theo luồng | A4, A5, B4, B8, N5, N10, N20, N21 |
-| 023 áp, lùi, áp lại | RB-023 (`tests/migrations-rollback.test.ts`), A6, A7, A7b; lượt `task-9-migration-cycle.txt` |
+| 023 áp, lùi, áp lại | RB-023 (`tests/migrations-rollback.test.ts`), A6, A7, A7b; lượt `task-9b-migration-cycle.txt` |
 | R10-g / OQ-57: nguồn con trỏ không mang nội dung | các ca theo tiêu đề (nhãn L1–L4 là nhãn của kế hoạch, dễ lẫn với L1–L9 khác trong `tests/suggestions.test.ts` và L4 hiệu năng trong `tests/skill-context.test.ts`): `skill-context.test.ts:358`, `:394`; `suggestions.test.ts:1930`, `:1941`; `skill-contracts.test.ts:329`; trong đó (chuỗi đánh dấu của bản chưa duyệt không có trong `JSON.stringify(context)` lẫn trong các dòng `recordingDb` ghi lại), L2–L4, R10-g (`tests/skill-context.test.ts`, `tests/suggestions.test.ts`, `tests/skill-contracts.test.ts`) |
-| ca canh «no route imports the suggestion service…» không sửa | kiểm bằng `diff` trong `task-9-hygiene.txt` |
+| ca canh «no route imports the suggestion service…» không sửa | kiểm bằng `diff` trong `task-9b-hygiene.txt` |
 
 ## Review
 
