@@ -407,11 +407,16 @@ test('A8 (iii) the file carries the check that refuses while a login that can ac
   // The order of the file (reviews R-DB-1, R-S-3): the check of the superuser, the locks on the revision table and on the draft table, the check of the logins under them, and
   // only then the first table. One lock on the revision table, the one at the top: the lock that stood at step 8 is gone.
   const at=(t:string)=>code.indexOf(t);
+  // The lock on the decision table is the third of the three and is taken by a second run only (class sweep CS-DB-7): inside a block that asks whether the counter table exists, which it
+  // does only once the file has been applied. A first application has no confirmation trigger to deadlock with, and the lock would stop every decision for the length of the numbering.
+  const again="IF pg_catalog.to_regclass('public.intake_thread_heads') IS NOT NULL THEN";
   const order=['must be applied by a superuser','LOCK TABLE public.source_event_revisions IN SHARE ROW EXCLUSIVE MODE','LOCK TABLE intelligence.ai_drafts IN SHARE ROW EXCLUSIVE MODE',
-    'LOCK TABLE public.draft_decisions IN SHARE ROW EXCLUSIVE MODE','pg_catalog.pg_stat_activity','CREATE TABLE IF NOT EXISTS public.intake_thread_heads'].map(at);
+    again,'LOCK TABLE public.draft_decisions IN SHARE ROW EXCLUSIVE MODE','pg_catalog.pg_stat_activity','CREATE TABLE IF NOT EXISTS public.intake_thread_heads'].map(at);
   expect(order.every(i=>i>-1),'every part of the order is in the file').toBe(true);
   expect([...order].sort((a,b)=>a-b)).toEqual(order);
   expect(code.split('LOCK TABLE public.source_event_revisions').length-1).toBe(1);
+  expect(code.split('LOCK TABLE public.draft_decisions').length-1,'one lock on the decision table at step 1').toBe(1);
+  expect(code,'the lock on the decision table is taken only by a second run, and nothing else is in the block').toContain(`DO $$ BEGIN ${again} LOCK TABLE public.draft_decisions IN SHARE ROW EXCLUSIVE MODE; END IF; END $$;`);
   // the statistics before the step that holds ACCESS EXCLUSIVE on the decision table (R-DB-7), and the trigger of the intake half replaced in place: a second run takes no
   // ACCESS EXCLUSIVE on the revision table (A12)
   expect(at('ANALYZE public.source_revision_positions')).toBeGreaterThan(-1);
@@ -1144,9 +1149,58 @@ test('B11 a confirmation is refused while the numbering trigger is switched off 
   await h.exec(`ALTER TABLE ${table} ENABLE ALWAYS TRIGGER ${trigger}`);
 });
 
+// Class sweep CS-DB-6: the name and the state are not enough. The owner of the table can create the trigger again under the same name, enabled, and make it do nothing: with a WHEN condition that never
+// holds, on UPDATE instead of INSERT, or calling another function. The check reads the kind (AFTER INSERT, for each row: tgtype 5), the absence of a WHEN condition (tgqual) and the function (tgfoid).
+// What it does not read is the body of the function: replacing that is the same hand as the owner switching the guards off, the trust boundary of R19 and R37 (stated in the header).
+test('B11b a confirmation is refused while the numbering trigger has the right name and state but would not number a revision (a WHEN condition, another event, another function); applying 023 again puts it right',async()=>{
+  const table='public.source_event_revisions',trigger='source_event_revisions_thread_position',other='public.thread_order_not_the_numbering_function';
+  await h.exec(await forwardSql());
+  const c=await realCandidate();await anotherMessage(c);
+  const pos=await position(c.thread);
+  const recreate=(event:string,when:string,fn:string)=>`CREATE OR REPLACE TRIGGER ${trigger} ${event} ON ${table} FOR EACH ROW ${when} EXECUTE FUNCTION ${fn}()`;
+  const mine=`public.${trigger}`;
+  const variants:[string,string][]=[
+    ['a WHEN condition that never holds',recreate('AFTER INSERT','WHEN (false)',mine)],
+    ['AFTER UPDATE, not AFTER INSERT',recreate('AFTER UPDATE','',mine)],
+    ['another function',recreate('AFTER INSERT','',other)],
+  ];
+  const state=async()=>(await q<{tgenabled:string}>(`SELECT tgenabled FROM pg_trigger WHERE tgname='${trigger}' AND tgrelid='${table}'::regclass AND NOT tgisinternal`))[0].tgenabled;
+  try {
+    await h.exec(`CREATE FUNCTION ${other}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$`);
+    let decisions=0;
+    for(const [label,ddl] of variants){
+      const draft=await draftOf('intake_candidate',c.id);
+      await h.exec(ddl);
+      // the state that the old check let through: enabled for the origin role, nothing unnumbered in the thread, the position current
+      expect(await state(),label).toBe('O');
+      expect(await unnumberedCount(),label).toBe(0);
+      const e=await decide(draft,{subject_thread_seq:pos});
+      expect(e,label).not.toBeNull();
+      expect(e!.code,label).toBe('LTZ03');
+      expect(e!.message,label).toBe('The thread of the candidate moved on');
+      expect(await decisionCount(),label).toBe(decisions);
+      // put right: a person decides the undecided draft (refusal 4 of the file), then the file is applied again
+      expect(await decide(draft,{result:'rejected',reason:'Lý do đủ dài'}),label).toBeNull();decisions++;
+      await h.exec(await forwardSql());
+      expect(await state(),label).toBe('A');
+      expect(await position(c.thread),label).toBe(pos);
+      const again=await draftOf('intake_candidate',c.id);
+      expect(await decide(again,{subject_thread_seq:pos}),label).toBeNull();decisions++;
+      expect(await decisionCount(),label).toBe(decisions);
+    }
+  } finally {
+    // whatever happened, the shared database is left with the trigger of the file
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.reset();
+    await h.exec(await forwardSql());
+    await h.exec(`DROP FUNCTION IF EXISTS ${other}()`);
+  }
+});
+
 // Class sweep CS-DB-3: the order of the locks of a second run. The file holds the counter table from step 2 on (it drops and creates the triggers and policies again) and asks for the decision
 // table at step 10; a confirmation that had written its row (a lock on the decision table) and then asked for the counter row in its trigger waited for the file, which waited for it: 40P01.
-// The file now takes the decision table at step 1 (SHARE ROW EXCLUSIVE: inserts wait), so such a confirmation waits at its INSERT, holding nothing, and goes through after the file.
+// A second run takes the decision table at step 1 (SHARE ROW EXCLUSIVE: inserts wait; the lock is for a second run only, CS-DB-7 and A16), so such a confirmation waits at its INSERT, holding nothing,
+// and goes through after the file. The case is a second run: the file is applied already, and the raw confirmation is the one that has read nothing of the thread.
 test.skipIf(!native)('A15 a confirmation that is written while the file is applied again does not deadlock with it: it waits for the file and is then stored',async()=>{
   const forward=await forwardSql();
   const c=await realCandidate();await anotherMessage(c);
@@ -1167,6 +1221,55 @@ test.skipIf(!native)('A15 a confirmation that is written while the file is appli
   expect(await storedPosition(draft)).toBe(pos);
 });
 
+// Class sweep CS-DB-7: the price of the lock of step 1. On a first application nothing waits for the decision table's lock to avoid a deadlock (the confirmation trigger does not exist yet), and
+// SHARE ROW EXCLUSIVE there would stop every decision for the length of the numbering (1 961 ms against 14 ms, measured at 150 000 revisions). So a first application holds none of it from step 1
+// and ACCESS EXCLUSIVE only from step 10; a second run holds it from step 1 (A15 is the case that needs it). Read from pg_locks in the open transaction of the file cut at a marker, then rolled back.
+test('A16 the first application of the file takes no SHARE ROW EXCLUSIVE lock on the decision table at step 1, a second run does; the first two locks are taken either way',async()=>{
+  needsForward=true;
+  const forward=await forwardSql(),rollback=await rollbackSql();
+  const upTo=(marker:string)=>{const i=forward.indexOf(marker);expect(i,marker).toBeGreaterThan(-1);return forward.slice(0,i);};
+  const held=async(table:string)=>(await q<{mode:string}>('SELECT l.mode FROM pg_locks l WHERE l.pid=pg_backend_pid() AND l.locktype=\'relation\' AND l.relation=$1::regclass AND l.granted ORDER BY 1',[table])).map(r=>r.mode);
+  /** The file up to the marker, its own BEGIN included; the locks it holds; the transaction rolled back. */
+  const probe=async(marker:string)=>{
+    await h.exec(upTo(marker));
+    try {
+      return {revisions:await held('public.source_event_revisions'),drafts:await held('intelligence.ai_drafts'),decisions:await held('public.draft_decisions')};
+    } finally {
+      await h.exec('ROLLBACK');
+    }
+  };
+  const SRE='ShareRowExclusiveLock',AEL='AccessExclusiveLock';
+  // step 1 is the file up to step 2; "after the numbering" is the file up to step 10 (the trigger of step 11 and its drop take other locks on the decision table, so the end says nothing about step 1)
+  const step1='-- Step 2: the counter row of a thread.',numbered='-- Step 10: the position a confirmation carries.',end='INSERT INTO schema_migrations';
+  // a first application: 023 is not there
+  await h.exec(rollback);
+  expect(await regclass('public.intake_thread_heads')).toBeNull();
+  const first1=await probe(step1);
+  expect(first1.revisions,'first application, revision table').toContain(SRE);
+  expect(first1.drafts,'first application, draft table').toContain(SRE);
+  expect(first1.decisions,'first application, decision table, step 1').not.toContain(SRE);
+  expect(first1.decisions).not.toContain(AEL);
+  const first2=await probe(numbered);
+  expect(first2.decisions,'first application, decision table, after the numbering (steps 2 to 9): still no SHARE ROW EXCLUSIVE').not.toContain(SRE);
+  expect(first2.decisions,'first application, decision table, before step 10: no ACCESS EXCLUSIVE yet').not.toContain(AEL);
+  expect(first2.revisions).toContain(SRE);
+  const first3=await probe(end);
+  expect(first3.decisions,'first application, decision table, end: ACCESS EXCLUSIVE from step 10').toContain(AEL);
+  // a second run: the file is there
+  await h.exec(forward);
+  expect(await regclass('public.intake_thread_heads')).not.toBeNull();
+  const again1=await probe(step1);
+  expect(again1.revisions,'second run, revision table').toContain(SRE);
+  expect(again1.drafts,'second run, draft table').toContain(SRE);
+  expect(again1.decisions,'second run, decision table, step 1').toContain(SRE);
+  expect(again1.decisions).not.toContain(AEL);
+  const again2=await probe(numbered);
+  expect(again2.decisions,'second run, decision table, after the numbering').toContain(SRE);
+  expect(again2.decisions,'second run, decision table, before step 10').not.toContain(AEL);
+  const again3=await probe(end);
+  expect(again3.decisions,'second run, decision table, end').toEqual(expect.arrayContaining([SRE,AEL]));
+});
+
 // The header says what is closed and what is not (class sweep CS-DB-1): the replica path and a numbering trigger that is off or gone are closed; what remains is the table owner switching the
 // trigger off by name, writing and switching it on again in one transaction without the counter row, the trust boundary of R19 and R37 of PR #22; and the rule for a maintenance session that
 // writes a revision without a number on purpose (take the counter row FOR UPDATE first), which is condition N15.
@@ -1176,4 +1279,17 @@ test('A8 (iv) the header says what is closed, the rule for a maintenance session
   // the earlier wording of the limit (the replica path is not an open window any more)
   expect(head).not.toContain('The path exists only for a session that bypasses the numbering trigger');
   expect(head).not.toContain('It is stated, not closed (L7)');
+});
+
+// Class sweep, review of the fix (CS-DB-6, CS-DB-7, CS-DB-8): what the header has to say after the second look.
+test('A8 (v) the header says what the check of the numbering trigger reads and what it does not, the lock window of a first application, and what a loader of its own has to do',async()=>{
+  const head=(await forwardSql()).split('\nBEGIN;')[0].replace(/^-- ?/gm,'').replace(/\s+/g,' ');
+  // CS-DB-6: the three things the check reads besides the name and the state, and the one thing it does not read
+  for(const part of ['tgtype','tgqual','tgfoid','AFTER INSERT','WHEN','CS-DB-6','the body of the function']) expect(head,part).toContain(part);
+  // CS-DB-7: the decision table is locked at step 1 by a second run only; a first application holds ACCESS EXCLUSIVE there from step 10 only
+  for(const part of ['CS-DB-7','second run only','first application']) expect(head,part).toContain(part);
+  expect(head).not.toContain('the three tables from step 1');
+  expect(head).not.toContain('on intelligence.ai_drafts (no draft is written) and on public.draft_decisions (no decision is written)');
+  // CS-DB-8: a loader of its own that runs under session_replication_role = replica fails now, and what to do; pg_restore sets the state back to O
+  for(const part of ['CS-DB-8','loader','23503','23505','DISABLE TRIGGER','pg_restore --disable-triggers','ENABLE ALWAYS TRIGGER','the intent of ENABLE ALWAYS']) expect(head,part).toContain(part);
 });

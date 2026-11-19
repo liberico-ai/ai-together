@@ -26,16 +26,23 @@
 --    source_revision_positions. last_seq counts what the numbering trigger counted; a revision that was stored without a number does not move it, so the comparison alone would pass a
 --    position that is stale. The check is made after the lock and the comparison, in the thread of the candidate (tenant, project, chat_id, thread_key, as the counter row), over three
 --    existing indexes and no new one: about 4 ms on a thread of 3 000 messages, which a confirmation holds the counter row for on top of the rest (codex-fix1-explain.txt). Second: the
---    numbering trigger is enabled (tgenabled O or A, read from pg_catalog.pg_trigger: 0.004 ms): while it is switched off or gone, whatever a restore left, no confirmation goes through, so a
---    revision written in that time has no window to slip into. Both give LTZ03 and the same sentence. They are those invariants only: the rules about what the draft read (the revision of
---    each message, the mark) stay in the service. The first clears when this file numbers the revision again (a re-application).
+--    numbering trigger is in force (read from pg_catalog.pg_trigger: 0.004 ms). Not only enabled under its name (tgenabled O or A) but an AFTER INSERT trigger for each row (tgtype 5), without a
+--    WHEN condition (tgqual null), that calls the numbering function (tgfoid) (class sweep, review of the fix, CS-DB-6): a trigger that the owner of the table created again under the same
+--    name and that does nothing (WHEN (false), AFTER UPDATE, another function) is refused like one that is off. While it is switched off, gone or hollow, whatever a restore or a person left,
+--    no confirmation goes through, so a revision written in that time has no window to slip into. The check does not read the body of the function: replacing that (CREATE OR REPLACE
+--    FUNCTION) is the hand that can switch the guards off too, the trust boundary of R19 and R37 below. Both give LTZ03 and the same sentence. They are those invariants only: the rules about
+--    what the draft read (the revision of each message, the mark) stay in the service. The first clears when this file numbers the revision again (a re-application).
 --    What is closed, and what is not (class sweep CS-DB-1; tests B10, B11, N22 to N25). CLOSED: a session with session_replication_role = replica (a restore) fires the numbering trigger,
 --    because step 9 enables it for every session role (ENABLE ALWAYS, after the replacement: CREATE OR REPLACE TRIGGER sets the state back to O); it takes the counter row like any writer
 --    of a revision, waits for a confirmation that holds it, and is numbered after it. CLOSED: a numbering trigger that is switched off or dropped and stays so (the second invariant).
 --    RULE, condition N15: a maintenance session that writes a revision without a number on purpose (a restore that switches the numbering trigger off, a correction of data) takes the
 --    counter row of the thread FOR UPDATE first and keeps it to its commit; measured in both orders, a confirmation then waits for the session or the session waits for the confirmation.
 --    A restore with pg_restore --disable-triggers sets every trigger of the table back to O, not A (condition N4): apply the step that enables the trigger for every role again after a
---    restore (re-applying this file does it). NOT CLOSED, the boundary that remains: the table owner or a superuser who runs ALTER TABLE ... DISABLE TRIGGER on the numbering trigger,
+--    restore (re-applying this file does it), or run ALTER TABLE public.source_event_revisions ENABLE ALWAYS TRIGGER source_event_revisions_thread_position (class sweep, review of the fix,
+--    CS-DB-8). A loader of its own that runs under session_replication_role = replica (not pg_restore, which disables the triggers instead) fails now, and that is the intent of ENABLE ALWAYS:
+--    a revision loaded before its source event gets 23503 (the numbering trigger looks the event up, and the foreign keys are not checked in that mode); a revision followed by its row of
+--    source_revision_positions, as it was dumped, gets 23505 (the trigger has numbered the revision already). Such a loader has to DISABLE TRIGGER the numbering trigger, as pg_restore
+--    --disable-triggers does, and take the counter row of each thread FOR UPDATE first (the rule above), or load in an order that the trigger accepts. NOT CLOSED, the boundary that remains: the table owner or a superuser who runs ALTER TABLE ... DISABLE TRIGGER on the numbering trigger,
 --    writes a revision without a number and switches the trigger on again, all in one transaction and without taking the counter row, whose commit falls between the check of a
 --    confirmation and the commit of its decision (a window of milliseconds). Nothing makes that writer wait, and a lock that would (SHARE ROW EXCLUSIVE on the revision table taken by every
 --    confirmation, or a deferred check at the commit of the decision) makes every intake wait for every confirmation, or moves the failure to a COMMIT that the service cannot answer:
@@ -50,26 +57,31 @@
 -- written before the numbering can be confirmed against it. Hence refusal 4 below.
 -- Exception to E-DB-12 (optimistic locking), recorded here as the Database review asked: E-DB-12 không áp: bảng chỉ được ghi bởi
 -- `source_event_revisions_thread_position()`, dưới khoá dòng giữ tới commit, bằng tăng nguyên tử; `last_seq` chính là phiên bản.
--- Lock window, from step 1 to the commit (reviews R-DB-1, R-DB-7, R-S-3; class sweep CS-DB-3). Right after the check of the superuser the file takes SHARE ROW EXCLUSIVE on
--- public.source_event_revisions (inserts wait, reads do not), on intelligence.ai_drafts (no draft is written) and on public.draft_decisions (no decision is written), in that order, and
--- every check that follows is made under those locks: a revision that is being taken in when the file begins is waited for (the wait ends at lock_timeout with 55P03 and nothing
--- changes), and nothing new commits into any of the three tables until this transaction does. What pg_locks shows after step 9 (measured, codex-fix1b-locks.txt): SHARE ROW EXCLUSIVE on
--- the three tables from step 1; on a first application, SHARE ROW EXCLUSIVE on public.projects from step 2 on (the foreign keys of the new tables; an INSERT, UPDATE or DELETE of a project row waits for
--- it, the row locks of the foreign keys and of 022 do not); ACCESS EXCLUSIVE on public.draft_decisions from step 10 on (the lock of step 1 raised). A second run asks for the same
--- locks on the revision table, the draft table and the decision table (up to step 10) and for no stronger one there (the trigger of step 9 is replaced in place, CREATE OR REPLACE
+-- Lock window, from step 1 to the commit (reviews R-DB-1, R-DB-7, R-S-3; class sweep CS-DB-3, CS-DB-7). Right after the check of the superuser the file takes SHARE ROW EXCLUSIVE on
+-- public.source_event_revisions (inserts wait, reads do not) and on intelligence.ai_drafts (no draft is written) and, on a second run only, on public.draft_decisions (no decision is
+-- written), in that order, and every check that follows is made under those locks: a revision that is being taken in when the file begins is waited for (the wait ends at lock_timeout
+-- with 55P03 and nothing changes), and nothing new commits into those tables until this transaction does. What pg_locks shows after step 9 (measured, codex-fix1b-locks.txt and
+-- codex-fix1c-locks.txt): SHARE ROW EXCLUSIVE on the revision table and the draft table from step 1, and on the decision table from step 1 of a second run only; on a first application,
+-- SHARE ROW EXCLUSIVE on public.projects from step 2 on (the foreign keys of the new tables; an INSERT, UPDATE or DELETE of a project row waits for it, the row locks of the foreign keys
+-- and of 022 do not); ACCESS EXCLUSIVE on public.draft_decisions from step 10 on (on a second run the lock of step 1 raised, on a first application a lock taken then). A second run asks for
+-- the same locks on the revision table, the draft table and the decision table (up to step 10) and for no stronger one there (the trigger of step 9 is replaced in place, CREATE OR REPLACE
 -- TRIGGER, not dropped and created). It also asks for ACCESS EXCLUSIVE on the two new tables, from steps 2 and 3, which drop and create their triggers and policies again: a reader
 -- of those two tables waits for the length of a second run (A12; review R-DB-12; the choice was to say so, not to guard steps 2 to 6 with a catalog check, for a window in which
 -- there is nothing to number). Ordering the first version got wrong: it checked the logins at step 1, before the first wait, and asked for the lock of the revision table at step 8,
--- after steps 2 and 3 had already waited for it; a login that connected during the wait was not seen. The three locks are taken in the order revision table, draft table, decision
--- table, which is the order of the rollback file. The decision table is taken at step 1 and not only at step 10 so that a confirmation that has written its row and then asks for the
--- counter row in its trigger cannot wait for the file while the file (which holds the counter table from step 2 on of a second run) waits for it: it waits at its INSERT, holding
--- nothing, and goes through after the file (test A15; before, one of the two got 40P01). No path of the service writes the revision table and the draft table in one transaction, so no
+-- after steps 2 and 3 had already waited for it; a login that connected during the wait was not seen. The locks are taken in the order revision table, draft table, decision
+-- table, which is the order of the rollback file. A second run takes the decision table at step 1 and not only at step 10 so that a confirmation that has written its row and then asks for
+-- the counter row in its trigger cannot wait for the file while the file (which holds the counter table from step 2 on of a second run) waits for it: it waits at its INSERT, holding
+-- nothing, and goes through after the file (test A15; before, one of the two got 40P01). A first application does not take that lock (class sweep, review of the fix, CS-DB-7): the
+-- confirmation trigger, and with it a confirmation that waits for the counter row, does not exist before step 11, so nothing can deadlock with the file, and the lock would stop every decision
+-- for the length of the numbering of step 8 (measured at 150 000 revisions without a number: a decision written during the file waited 1 961 ms, against 14 ms without the lock). The decision
+-- table is locked from step 10, after the numbering, for the few milliseconds that remain. The block asks whether the counter table exists, which it does once the file has been applied
+-- (tests A8 (iii), A16). No path of the service writes the revision table and the draft table in one transaction, so no
 -- order of those two can deadlock with the service (a raw transaction that takes them the other way round can). The price is on the intake path, which waits for the first lock: while
 -- an AI draft is being written at the moment the file is applied, an intake can wait behind the file, up to lock_timeout (5 s), for that draft (review R-S-10).
 -- Four refusals, each with a fixed message and nothing created or changed (the whole file is one transaction):
 -- 1. The migration login is not a superuser (P2): the function is owned by it, runs with row_security = off and must not be bound by the FORCE
 --    row-level security of the tables it writes; with an owner that is bound, every intake statement would fail. Checked before any lock.
--- 2. A session of a login that is not a superuser and can act as libetech_ai is connected (P6 (ii)), checked twice, both times under the two locks: right after them (step 1),
+-- 2. A session of a login that is not a superuser and can act as libetech_ai is connected (P6 (ii)), checked twice, both times under the locks of step 1: right after them,
 --    and again right before the record of the migration (step 12), after every step that can wait (the step that adds the column waits for the readers of the decision table: a
 --    login that connects while the file waits there is seen by the second check, test A14; review R-S-8). A pipeline run that is still open may have
 --    read a context before the old rows were numbered. pg_stat_activity shows the login, not a role taken with SET ROLE or SET SESSION AUTHORIZATION (measured
@@ -107,7 +119,7 @@
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 
--- Step 1: refusal 1, before any lock; then the two locks that open the lock window; then refusal 2, under them.
+-- Step 1: refusal 1, before any lock; then the locks that open the lock window (the third only on a second run, CS-DB-7); then refusal 2, under them.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles r WHERE r.rolname = current_user AND r.rolsuper) THEN
     RAISE EXCEPTION 'Migration 023 must be applied by a superuser: its trigger function is owned by the migration login, which row-level security must not bind.';
@@ -115,7 +127,12 @@ DO $$ BEGIN
 END $$;
 LOCK TABLE public.source_event_revisions IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE intelligence.ai_drafts IN SHARE ROW EXCLUSIVE MODE;
-LOCK TABLE public.draft_decisions IN SHARE ROW EXCLUSIVE MODE;
+-- The third lock is for a second run only (CS-DB-7, header): a first application has no confirmation trigger to deadlock with, and the lock would stop every decision for the length of the numbering.
+DO $$ BEGIN
+  IF pg_catalog.to_regclass('public.intake_thread_heads') IS NOT NULL THEN
+    LOCK TABLE public.draft_decisions IN SHARE ROW EXCLUSIVE MODE;
+  END IF;
+END $$;
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_catalog.pg_stat_activity a JOIN pg_catalog.pg_roles r ON r.oid = a.usesysid
               WHERE a.pid <> pg_catalog.pg_backend_pid() AND a.datname = pg_catalog.current_database() AND NOT r.rolsuper
@@ -319,11 +336,16 @@ BEGIN
                 AND NOT EXISTS (SELECT 1 FROM public.source_revision_positions p WHERE p.revision_id = rv.id)) THEN
     RAISE EXCEPTION 'The thread of the candidate moved on' USING ERRCODE = 'LTZ03';
   END IF;
-  -- The numbering trigger must be enabled (O for the origin role, or A for every role: step 9 gives it A). While it is switched off or gone (a restore that left the triggers disabled,
-  -- DISABLE TRIGGER, DROP TRIGGER committed) a revision written in that time would be stored without a number and would not move the counter row; no confirmation goes through then, so such a
-  -- revision has no window to slip into. Read from the catalog (0.004 ms): the state that this statement sees, which is the committed one and the one of this transaction.
+  -- The numbering trigger must be in force: enabled (O for the origin role, or A for every role: step 9 gives it A), an AFTER INSERT trigger for each row (tgtype 5: BEFORE, UPDATE, statement-level
+  -- are other values), without a WHEN condition (tgqual), calling the numbering function (tgfoid; to_regprocedure answers null, not an error, if the function is gone) (class sweep CS-DB-6). While
+  -- it is switched off, gone or hollow (a restore that left the triggers disabled, DISABLE TRIGGER, DROP TRIGGER or a trigger created again under the same name with a WHEN (false), on UPDATE, or
+  -- on another function, committed) a revision written in that time would be stored without a number and would not move the counter row; no confirmation goes through then, so such a revision
+  -- has no window to slip into. The body of the function is not read: replacing it is the trust boundary of R19 and R37 (header). Read from the catalog (0.004 ms): the state that this statement
+  -- sees, which is the committed one and the one of this transaction.
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_trigger g WHERE g.tgrelid = 'public.source_event_revisions'::pg_catalog.regclass
-                  AND g.tgname = 'source_event_revisions_thread_position' AND g.tgenabled IN ('O','A') AND NOT g.tgisinternal) THEN
+                  AND g.tgname = 'source_event_revisions_thread_position' AND g.tgenabled IN ('O','A') AND NOT g.tgisinternal
+                  AND g.tgtype = 5 AND g.tgqual IS NULL
+                  AND g.tgfoid = pg_catalog.to_regprocedure('public.source_event_revisions_thread_position()')) THEN
     RAISE EXCEPTION 'The thread of the candidate moved on' USING ERRCODE = 'LTZ03';
   END IF;
   RETURN NULL;
@@ -333,7 +355,7 @@ DROP TRIGGER IF EXISTS draft_decisions_subject_order_guard ON public.draft_decis
 CREATE TRIGGER draft_decisions_subject_order_guard AFTER INSERT ON public.draft_decisions
   FOR EACH ROW EXECUTE FUNCTION public.draft_decisions_subject_order_guard();
 
--- Step 12: refusal 2 once more, under the same two locks, now that every step that can wait has been passed (review R-S-8): a login that connected while the file waited at a
+-- Step 12: refusal 2 once more, under the same locks, now that every step that can wait has been passed (review R-S-8): a login that connected while the file waited at a
 -- later step is seen here. PostgreSQL keeps the first reading of pg_stat_activity for the rest of the transaction, so the cached reading of the first check is thrown away
 -- first (without that the second check sees what the first saw: found by test A14). Then the record of the migration.
 DO $$ BEGIN

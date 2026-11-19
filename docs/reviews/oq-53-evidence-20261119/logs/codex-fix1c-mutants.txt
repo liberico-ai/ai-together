@@ -1,0 +1,28 @@
+Codex gate round 1, fix 1c (review of the class-sweep fix: CS-DB-6, CS-DB-7, CS-DB-8): checks that the new lines of migration 023 and their cases are sensitive.
+Each mutant is an edit of one place in migrations/023_thread_order.sql, applied in place, run, and put back; all four files (the migration, its rollback, tests/thread-order.test.ts,
+tests/thread-order-concurrency.test.ts) were compared byte for byte with the saved originals after the batch (cmp: identical). For a native run the isolated database was emptied (the table
+list of tests/slice1-db.ts), the triggers that a case had left switched off were turned on again, and 023 was rolled back, before and after the run.
+Engines: pglite = PostgreSQL 18.6 in memory, native = PostgreSQL 16.15 in the isolated container. Only the cases that went red are listed. Every red line is an AssertionError (hook timeouts 0
+in each log); the first batch stopped after its first mutant because the driver started vitest while the process of the earlier run was still ending, and the other seven were run again.
+
+mutant              what changed                                                   files run (engine)             cases that went red
+no-tgtype           the check of the numbering trigger no longer reads tgtype      thread-order (pglite)          B11b, the variant "AFTER UPDATE, not AFTER INSERT"
+no-tgqual           the check no longer reads tgqual (the WHEN condition)          thread-order (pglite)          B11b, the variant "a WHEN condition that never holds"
+no-tgfoid           the check no longer reads tgfoid (the function)                thread-order (pglite)          B11b, the variant "another function"
+lock-unconditional  the lock on the decision table at step 1 is taken by a first   thread-order (pglite)          A16 (first application holds the lock at step 1), A8 (iii) (the file has
+                    application too (the block asks nothing)                       thread-order (native)          the guarded block)
+lock-inverted       the lock is taken by a first application and not by a second   thread-order (pglite)          A16, A8 (iii)
+                    run (the condition reversed)                                   thread-order (native)          A15 (the raw confirmation of a second run deadlocks with the file: 40P01),
+                                                                                                                  A16, A8 (iii)
+lock-removed        the lock at step 1 is gone (the block is empty)                thread-order (pglite)          A16 (a second run holds no lock), A8 (iii)
+                                                                                   thread-order (native)          A15, A16, A8 (iii)
+header-no-intent    the header no longer says that the failure of a replica        thread-order (pglite)          A8 (v)
+                    loader is the intent of ENABLE ALWAYS
+header-no-body      the header no longer says that the body of the function is     thread-order (pglite)          A8 (v)
+                    not read
+
+Each of the three conditions added to the catalog check is killed by its own variant of B11b and by no other: none of them is redundant, and none is equivalent. Not covered by a case: a
+numbering trigger recreated BEFORE INSERT or at statement level (other values of tgtype, refused by the same condition tgtype = 5; B11b has the AFTER UPDATE variant for that condition).
+The function dropped with its trigger (DROP FUNCTION ... CASCADE) is the case "dropped" of B11: the trigger is gone, and to_regprocedure answers null, not an error.
+A16 and A15 stand for two different things and each has its own mutant: A16 pins who holds the lock at step 1 (a first application does not, a second run does), A15 pins that the lock of a
+second run is there when a raw confirmation meets the file (native only: two sessions and the lock queue); on pglite only A16 and the static order of A8 (iii) go red for a missing lock.

@@ -181,3 +181,118 @@ Một phiên raw của role `libetech_runtime` hoặc `libetech_intake`, qua `SE
 2. CS-DB-2: sửa N4 thành #fact; bộ cài `--disable-triggers` + khẳng định `tgenabled='A'` sau lần nạp (không chặn vòng 2).
 3. CS-DB-3, CS-DB-4: P3, một dòng mỗi cái (khoá `draft_decisions` ở bước 1 hoặc ghi giới hạn; `force_custom_plan`).
 4. CS-DB-5: ghi vào biên nhận, không sửa.
+
+---
+
+## Xem lại bản sửa (`bc10fb6`)
+
+VERDICT: READY_FOR_GATE
+
+Đối tượng: `git diff 235c89e bc10fb6 -- migrations tests` (xem trên bản `git archive bc10fb6` đặt ngoài repo; CSDL riêng `slice1_verify_5311198` tạo lại rồi `DROP` cuối phiên, kiểm lại: không còn). Ghế: review CSDL, quét lớp, vòng xem lại. Ngày 19/11/2026.
+
+| Mức | Số finding mới |
+|---|---|
+| P0 | 0 |
+| P1 | 0 |
+| P2 | 0 |
+| P3 | 3 (CS-DB-6, CS-DB-7, CS-DB-8) |
+
+CS-DB-1, CS-DB-3, CS-DB-4 **đã đóng đúng** (mục 1). Bản sửa không gây lỗi P1/P2 mới; ba P3 mới (một phép kiểm catalog bị đánh lừa được bởi DDL của chủ bảng, một giá của khoá bước 1 ở lần áp đầu, một hồi quy cho loader chạy bằng `replica`) và CS-DB-2 còn nguyên (không có cách vá rẻ làm cho `pg_restore --data-only` thường chạy được; có hai cách vá rẻ cho phần «hạ `A` về `O`», mục 4). Một câu cho vòng 2 ở cuối mục.
+
+### 0 · Cách làm (vòng này)
+
+- Bản sao `git archive bc10fb6` ngoài repo (`<scratch>/cs9/copy/`), 023 và tệp lùi của `bc10fb6` áp lên CSDL riêng; các thử là tệp node/SQL trong `<scratch>/cs9/` (và `<scratch>/cs8/` của vòng trước). Không sửa tệp nào của worktree: `git status` chỉ có các tệp báo cáo. Mọi DDL thử nghiệm (trigger hoãn, trigger sự kiện, hàm guard biến thể, tệp 023 biến thể) chạy chỉ trong CSDL riêng và được trả về trạng thái của `bc10fb6` sau mỗi thử.
+- Nền: ca của builder trên `bc10fb6` chạy xanh trên CSDL của tôi, native 16.15: `tests/thread-order.test.ts` 34/34, `tests/thread-order-concurrency.test.ts` 30/30 (không chạy `pglite`).
+- `pgrep -f '[v]itest' | wc -l` = 0 trước mỗi lần vitest (kiểm trong vòng lặp; không tệp nào bị bỏ qua). Tải máy 4–10 trong lúc đo: số thời gian là cỡ độ lớn.
+- Nhãn như trên: **[đo]**, **[mã]**, **#inference**.
+
+### 1 · Ba finding cũ đã đóng đúng chưa
+
+**CS-DB-1 (N22): đóng đúng cho hai đường mà vòng 1 nêu; phần còn lại đúng như header nói.**
+
+- Kịch bản `replica` dựng lại trên `bc10fb6` [đo]: lệnh xác nhận (role runtime) đã ghi quyết định đúng vị trí và để mở; phiên B `SET LOCAL session_replication_role = replica; INSERT` một bản vào tin gốc: `tgenabled = A`, **B chờ** (còn chờ sau 400 ms), commit 409 ms sau khi A commit; kết quả: 1 quyết định, 0 bản không số của luồng, `last_seq` = 4 (bản của B có số 4, sau quyết định). Trên `235c89e` cùng kịch bản: B commit sau 1,8 ms, 1 bản không số.
+- Trạng thái trigger cấp số sau khi áp lại 023, từ mọi trạng thái xuất phát [đo, `e20`]: `A` → `A`; `D` (tắt theo tên) → `A`; `O` (cái mà `pg_restore --disable-triggers` để lại) → `A`; vắng (đã `DROP`) → `A` (tạo lại); `R` (chỉ replica) → `A`; hai lần áp liền nhau → `A` → `A`; `schema_migrations` có đúng một dòng `023`; sau lần áp lại từ `D` và từ vắng, một bản do role nhận tin ghi **được đánh số**. `CREATE OR REPLACE TRIGGER` đặt `A` về `O` (đo ở vòng trước) nhưng `ALTER … ENABLE ALWAYS` đứng ngay sau nó trong cùng giao dịch của tệp, nên không giao dịch nào khác thấy trạng thái `O` trung gian (#inference từ cấu trúc: tệp là một `BEGIN…COMMIT`; thử không quan sát được trạng thái trung gian).
+- Phép kiểm catalog: builder có B11 (xanh). Của tôi: `DISABLE` theo tên, `DISABLE TRIGGER ALL`, `DROP`, `ENABLE REPLICA` → `LTZ03`; `O`, `A` → qua [đo, vòng trước và `e22`]. **Bị đánh lừa được**: CS-DB-6.
+- `pg_dump -s` giữ `ENABLE ALWAYS` (dòng `ALTER TABLE … ENABLE ALWAYS TRIGGER …` sau `CREATE TRIGGER`) [đo]: một dump đầy đủ phục hồi (dữ liệu nạp trước `CREATE TRIGGER`, như đã đo ở vòng trước) cho `A`.
+- Quy tắc bảo trì (khoá `FOR UPDATE` dòng đếm trước): đã đo ở vòng trước, cả hai thứ tự; builder có N24/N25.
+
+**CS-DB-3 (thứ tự khoá của lần áp lại): đóng đúng.**
+
+- Lệnh xác nhận **raw** (không đọc `heads` trước) trùng với lần áp lại, dựng bằng một giao dịch đọc `heads` giữ lần áp lại chờ ở bước 2 [đo, `e14`, 3 lần trên `bc10fb6`]: lệnh xác nhận chờ lần áp lại 424–425 ms rồi **thành công**, lần áp lại thành công, không `40P01`. Trên `235c89e`: 3/3 lần `40P01` (lệnh xác nhận bị huỷ sau 1,02 s). Lệnh xác nhận có đọc `heads` trước (như `decide`): thành công sau 11–12 ms (2/2, vòng trước), không đổi.
+- Lệnh xác nhận **đang bay** (đã giữ dòng đếm và `ROW EXCLUSIVE` của `draft_decisions`) và một lần nhận tin của cùng luồng đang chờ nó, lần áp lại bắt đầu giữa chừng [đo, `e12`]: giữ 2 s → lần áp lại chờ và xong 2,04 s, nhận tin được số kế tiếp sau quyết định; giữ 7 s → nhận tin `55P03` sau 5 s (khoá của hàm, như thiết kế) và lần áp lại vẫn xong (mỗi lần chờ khoá tính `lock_timeout` riêng; nhận tin bị lỗi nhả khoá của nó khi lỗi), trạng thái cuối nhất quán (một quyết định, trigger `A`).
+- Máy dò ngẫu nhiên **kèm 24 lần áp lại** [đo, `stress2`, hai lượt 25 s và 30 s]: 2 luồng nhận tin (sửa tin và trả lời tin mới, có khoá tư vấn theo tin), 2 luồng xác nhận, 1 từ chối, 1 phân loại (`FOR UPDATE` rồi `UPDATE` ứng viên), 1 luồng **ghi ánh xạ** (`project_domain_mappings`, khoá dự án của 022), 1 luồng **ghi nháp AI** (role `libetech_ai`, khoá dự án của 022), và áp lại 023 mỗi 1,5–3 s. Tổng hai lượt: 31 109 nhận tin, 3 541 xác nhận được ghi (2 320 `LTZ03`), 3 139 từ chối, 9 852 phân loại, 782 ánh xạ, 1 517 nháp AI, **24/24 lần áp lại xong (mã 0), 0 `40P01`, 0 `55P03`**, 0 xác nhận cũ (máy dò «bản mang số vị trí + 1 đã báo commit trước khi lệnh `COMMIT` của quyết định được gửi»), bất biến sau chạy giữ (0 bản không số; dòng đếm bằng số dòng và số lớn nhất của bảng số ở mọi luồng). Lượt đầu có **một** lỗi `23505` của luồng nhận tin (không bắt tên ràng buộc; lượt hai bắt tên và không còn lỗi nào): rất có thể là va chạm `message_id` ngẫu nhiên của máy sinh tin của tôi, **chưa chứng minh** (#inference); nếu là `UNIQUE(…, thread_seq)` của bảng số thì đó là lỗi thật, và tôi không dựng lại được nó trong lượt thứ hai (16 480 lần nhận tin, 0 lỗi).
+- Khoá bước 1 chặn đường nào [đo, `e25`/`e26`, lần áp đầu với 150 000 bản chưa số; lần đánh số ≈ 1,9–2,1 s]: **ghi quyết định** (từ chối, xác nhận nháp tài liệu, xác nhận ứng viên): chờ cả lần áp (độ trễ cực đại 1 961 ms, so với 36 ms trước bản sửa): CS-DB-7. **Ghi nháp AI**: bị chặn từ trước bản sửa (khoá `intelligence.ai_drafts` ở bước 1), không đổi. **Nhận tin**: bị chặn từ trước (khoá bảng bản sửa), không đổi. **Ghi ánh xạ**: **không** bị chặn (cực đại 5 ms trong lần áp 2 s, 568 lần ghi, 0 lỗi). Khoá `draft_decisions` ở bước 1 là `SHARE ROW EXCLUSIVE`: đọc không bị chặn.
+- Vòng chờ [mã + đo]: tệp giữ theo thứ tự bản sửa → nháp AI → quyết định; không đường nào của dịch vụ giữ khoá của một bảng ở sau rồi cần khoá mạnh hơn lên một bảng ở trước: nhận tin giữ `ROW EXCLUSIVE` bản sửa rồi dòng đếm/ứng viên/outbox; ghi nháp AI giữ `ROW EXCLUSIVE` nháp AI rồi dòng dự án (022); ghi ánh xạ chỉ dòng dự án; xác nhận đọc bản sửa và nháp AI (`ACCESS SHARE`, tương thích với `SHARE ROW EXCLUSIVE`) rồi ghi quyết định rồi dòng đếm. Máy dò trên đủ năm đường kèm áp lại: 0 `40P01`.
+
+**CS-DB-4 (plan chung): đóng đúng.** `pg_proc.proconfig` của hàm guard có `plan_cache_mode=force_custom_plan` [đo]. Hai lượt 14 lần `INSERT` xác nhận trong **một backend** trên luồng 3 000 tin giữa 150 luồng nhiễu (lần 1 là lần nguội: 8,2 và 10,3 ms): lần 2–5 so với 6–14 là 4,6–4,9 so với 4,0–4,7 ms, và 5,9–6,5 so với 5,9–6,9 ms (tải máy 5–6, tuyệt đối cao hơn vòng trước): **không có bậc nhảy ở lần thứ 6** (vòng trước, không có thuộc tính: 2,1 → 3,7). Thuộc tính `SET plan_cache_mode` trên hàm `SECURITY DEFINER`: chạy được (tham số cấp người dùng), được lưu và khôi phục theo lần gọi, không rò ra phiên (#inference từ cách PostgreSQL xử lý `SET` của hàm; kết quả `proconfig` và thời gian khớp).
+
+### 2 · Lỗi MỚI do bản sửa gây ra
+
+| Mã | Mức | Lớp | Vị trí | Tóm tắt |
+|---|---|---|---|---|
+| CS-DB-6 | P3 | 1 | `023_thread_order.sql:325-328` (phép kiểm catalog; bước 9 ở `:253`) | Phép kiểm `tgenabled IN ('O','A')` đọc tên và trạng thái, không đọc loại, điều kiện `WHEN`, hàm: `CREATE OR REPLACE TRIGGER … WHEN (false)`, trigger tạo lại trên `UPDATE`, hàm cấp số thay bằng thân rỗng vẫn qua (đo); hai trong ba đóng được bằng ba điều kiện thêm |
+| CS-DB-7 | P3 | 2 | `023_thread_order.sql:118` (khoá `draft_decisions` ở bước 1) | Ở **lần áp đầu** trên bảng bản sửa lớn, mọi ghi quyết định chờ hết lần đánh số (đo 1 961 ms ở 150 000 bản; tuyến tính tới trần 250 000, và tới `statement_timeout` 10 s của pool ở trường hợp xấu nhất của review CSDL); khoá chỉ cần ở lần áp lại |
+| CS-DB-8 | P3 | 2 | bước 9 (`ENABLE ALWAYS`) và điều kiện N4/N15 | Loader tự chạy bằng `session_replication_role = replica` (không phải `pg_restore`): nạp bản trước tin → `23503`; nạp bản rồi dòng số đã dump → `23505` (đo); trước bản sửa cả hai chạy |
+
+**CS-DB-6 · P3.** Đo [`e22`, DDL committed của chủ bảng rồi thử một lệnh xác nhận không có bản không số nào, và một ghi bình thường của role nhận tin]: V1 `CREATE OR REPLACE TRIGGER … WHEN (false)`: **qua**; V2 tạo lại trigger trên `AFTER UPDATE`: **qua**; V3 `CREATE OR REPLACE FUNCTION` thân rỗng: **qua**; V4 `ENABLE REPLICA`: `LTZ03`; V5 `DISABLE` theo tên: `LTZ03`. Ở V1–V3 một ghi bình thường của **role nhận tin** sau đó **không được đánh số** (positions 3/4), tức khe N22 mở lại cho cả người ghi thường (không chỉ phiên bỏ qua), chừng nào trạng thái còn. Đây vẫn là DDL của chủ bảng (cùng bàn tay có thể `DISABLE` thẳng), nhưng phép kiểm được viết để chặn đúng loại «tắt mà vẫn commit», nên tên «bật» mà không chạy là chỗ yếu nhất của nó. **Cách ĐÓNG** (0,004 ms; một biểu thức): thêm vào cùng `EXISTS`: `AND g.tgtype = 5 AND g.tgqual IS NULL AND g.tgfoid = 'public.source_event_revisions_thread_position()'::pg_catalog.regprocedure`. Đo với biến thể: V1 và V2 → `LTZ03`; V3 vẫn qua (thân hàm: phải so `md5(prosrc)` với một hằng, hoặc ghi vào header là phần còn lại; tôi không khuyên so băm: mỗi lần sửa hàm phải sửa hằng).
+
+**CS-DB-7 · P3.** Đo [`e25`; tệp 023 ở ba biến thể, mỗi biến thể trên cùng 150 000 bản chưa số, một luồng ghi từ chối (role runtime, nháp tài liệu) chạy suốt]:
+
+| Tệp | Thời gian tệp | Ghi quyết định | p50 | cực đại |
+|---|---|---|---|---|
+| `235c89e` (không khoá `draft_decisions` ở bước 1) | 1 852 ms | 429, 0 lỗi | 1,9 ms | 36 ms |
+| `bc10fb6` (khoá ở bước 1) | 2 018 ms | 121, 0 lỗi | 1,9 ms | **1 961 ms** |
+| `bc10fb6` với khoá chỉ khi `intake_thread_heads` đã có | 2 129 ms | 449, 0 lỗi | 2,4 ms | 14 ms |
+
+Khoá ở bước 1 chỉ cần ở lần áp lại (lúc đó `intake_thread_heads` có sẵn và bước 2 lấy `ACCESS EXCLUSIVE` lên nó, tạo ra đảo thứ tự của CS-DB-3). Ở lần áp đầu bảng chưa có, trigger xác nhận chưa có, không có đảo thứ tự: biến thể có điều kiện không gây `40P01` (0 lỗi trong lần đo) và trả độ trễ về 14 ms. **Cách ĐÓNG** (thay dòng `LOCK TABLE public.draft_decisions …` ở bước 1):
+```sql
+DO $$ BEGIN
+  IF pg_catalog.to_regclass('public.intake_thread_heads') IS NOT NULL THEN
+    LOCK TABLE public.draft_decisions IN SHARE ROW EXCLUSIVE MODE;
+  END IF;
+END $$;
+```
+Cập nhật câu «three tables from step 1» của header cho đúng: ở lần áp đầu, hai bảng từ bước 1 và bảng quyết định từ bước 10. Đo cả hai đường [đo]: lần áp đầu (bảng trên); lần áp lại với lệnh xác nhận raw (`e14`, 3 lần): lệnh xác nhận chờ 423–426 ms rồi thành công, lần áp lại thành công, không `40P01`, y như `bc10fb6`. A15 vẫn kiểm đúng đường áp lại (`intake_thread_heads` có sẵn nên khoá được lấy); ca A8 (iii) kiểm thứ tự tĩnh của tệp phải đổi theo dòng `DO` (#inference, không chạy).
+
+**CS-DB-8 · P3.** [đo, `e21`] Với trigger cấp số ở `A`, một phiên `replica` nạp (a) một bản **trước** tin của nó (thứ tự bảng tuỳ ý, vì khoá ngoại không được kiểm ở chế độ ấy): `23503 The source event of a revision is not visible` (trigger cần tra tin); (b) một bản rồi dòng bảng số đã dump của nó: `23505 … source_revision_positions_revision_id_key`. Trước bản sửa cả hai chạy (bản không số ghi âm thầm). Không ảnh hưởng `pg_restore` (không dùng chế độ `replica`: nó `DISABLE TRIGGER`), cũng không ảnh hưởng `TRUNCATE projects … CASCADE` của harness (đo: sau đó chèn bình thường, 2/2 bản có số). **Cách ĐÓNG:** chữ, không mã: điều kiện N4 và N15 phải nói «loader tự chạy ở chế độ `replica` phải **tắt trigger cấp số** (`DISABLE TRIGGER`) như `pg_restore --disable-triggers`, vì từ nay chế độ `replica` không còn bỏ qua nó»; và ghi vào header rằng đó là chủ ý của `ENABLE ALWAYS`.
+
+**Không tìm thấy lỗi** ở: đường nhận tin dưới `ENABLE ALWAYS` (31 109 lần nhận tin trong máy dò bằng SQL qua role nhận tin, một `23505` chưa rõ nguyên nhân ở trên, không lỗi nào khác; dịch vụ nhận tin thật do ca của builder phủ: 34/34 và 30/30 xanh); `TRUNCATE … CASCADE` của harness; `CREATE OR REPLACE TRIGGER` ở lần áp lại (xem mục 1); `pg_dump -s`; tệp lùi sau bản sửa (áp lùi rồi áp đầu 3 lần trong `e25`: trigger về `A`, không lỗi); thứ tự khoá (mục 1); `plan_cache_mode` trên hàm định nghĩa (mục 1).
+
+### 3 · Phần còn lại: «chủ bảng/superuser tắt trigger theo tên, ghi, bật lại trong một giao dịch, không khoá dòng đếm»
+
+**Đúng ranh giới R19/R37?** Có, với bốn lý do đã đo hoặc đọc từ mã:
+
+1. **Người ghi phải là superuser hoặc chủ bảng**: không role ứng dụng nào đặt được `session_replication_role` (`has_parameter_privilege` = false cho cả chín role, `SET` thật bị từ chối), có `CREATE` trên `public`, hay có `BYPASSRLS` (đo, vòng trước); `ALTER TABLE … DISABLE TRIGGER` cần chủ bảng.
+2. **Cùng bàn tay làm được nhiều hơn**: `DISABLE TRIGGER USER` hoặc `ALL` trong cùng giao dịch cũng tắt `source_event_revisions_immutable` (bảng chỉ-thêm, 016) và trigger xác nhận; `CREATE OR REPLACE FUNCTION` đổi thân hàm cấp số (CS-DB-6, V3) không cần khoá bảng nào.
+3. **Cổng Codex vòng 3 của PR #22 PASS** với R19/R37 trong danh sách «Đã ghi nhận» (`docs/reviews/oq-45-46-evidence-20261118/codex-context-round-3.md:35`, `codex-round-3.md:1`).
+4. **Đã đo mọi cách rẻ hơn đóng thêm và cái nào còn lại** (bảng dưới). Không cách nào làm cho phần còn lại biến mất mà không hoặc đổi thiết kế (cột có số trong bảng bản sửa, D2) hoặc chặn nhận tin của mọi tenant (khoá bảng, vòng trước).
+
+**Phương án B của ghế bảo mật (trigger ràng buộc hoãn phía người ghi): tôi khuyên KHÔNG làm trước vòng 2.** Đã đo [`e23`]: trigger ràng buộc `AFTER INSERT … DEFERRABLE INITIALLY DEFERRED` trên bảng bản sửa, kiểm «bản có dòng ở `source_revision_positions`», đặt `ENABLE ALWAYS`:
+
+| Cách ghi bản không số | Không có B | Có B |
+|---|---|---|
+| `replica` (trigger cấp số `A`) | được đánh số | được đánh số |
+| `DISABLE` trigger cấp số theo tên, cùng giao dịch, rồi commit | commit được | **từ chối** (`LTZ04` ở `COMMIT`) |
+| `DISABLE` theo tên, `INSERT`, `ENABLE ALWAYS` lại, commit (phần còn lại của header) | commit được | **không thể**: `55006 cannot ALTER TABLE … pending trigger events` |
+| `DISABLE` theo tên **cộng** `replica` | commit được | **từ chối** |
+| `DROP` trigger cấp số cùng giao dịch | commit được | **từ chối** |
+| `DISABLE TRIGGER USER`, ghi, bật lại | commit được | **commit được** |
+| `DISABLE TRIGGER ALL`, ghi, commit | commit được | **commit được** |
+
+Chi phí đo: chèn bản + commit 0,86 ms so với 0,81 ms. Lý do KHÔNG: (a) **không xoá phần còn lại, chỉ đổi câu chữ**: từ «`DISABLE` theo tên trigger cấp số» sang «`DISABLE TRIGGER USER/ALL`», tức cùng bàn tay, cùng loại, và đúng loại đã được nhận ở R19/R37; (b) lỗi `LTZ04` ném **ở `COMMIT`** của đường nhận tin (`intake.ts` không được sửa trong PR này, kế hoạch C5): gateway nhận 5xx thô (đo: «intake FAILS at COMMIT with LTZ04» khi trigger cấp số bị tắt theo tên và commit); an toàn (đóng, không âm thầm) nhưng là một kiểu lỗi mới ở đường nóng; (c) cái bẫy `55006`: mọi `ALTER TABLE` trên bảng sau một `INSERT` của cùng giao dịch hỏng (phép thử, harness, DBA); (d) một đối tượng nữa phải khớp trong catalog, tệp lùi, ca A6 và câu catalog của Task 9. Nếu cổng nêu lại phần còn lại ở vòng 2, đây là phương án dự phòng ≈ 25 dòng đã đo, không cần thiết kế lại.
+
+**Các cách rẻ khác đã đo, và không đủ:** khoá ngoại hoãn (vòng trước): kém B (không chặn `DISABLE` theo tên + `replica`); trigger hoãn phía lệnh xác nhận (vòng trước): chỉ thu hẹp, cần đổi `db.ts`; khoá bảng `SHARE ROW EXCLUSIVE` trong trigger xác nhận (vòng trước): đóng kín nhưng một phiên raw chặn nhận tin của mọi tenant; `ROW EXCLUSIVE` trong trigger xác nhận: vẫn đảo thứ tự khoá với tệp 023 (xác nhận giữ `draft_decisions` rồi xin bản sửa, tệp giữ bản sửa rồi chờ `draft_decisions`: **#inference**, không dựng lại sau khi khoá của bước 1 đổi).
+
+### 4 · CS-DB-2: có cách vá rẻ ở migration không?
+
+- **`pg_restore --data-only` thường (cờ của bộ cài) chạy được nhờ vá migration? Không.** Trigger xác nhận so với trạng thái hiện tại nên không chạy lại được trên dòng lịch sử; trigger cấp số tạo dòng số trong lúc nạp bản rồi va dòng số đã dump (CS-DB-8, 23505); cả hai chỉ tắt được bằng `DISABLE TRIGGER`. Đây là điều kiện N4, không phải lỗi của tệp.
+- **Phần «hạ `A` về `O` sau `--disable-triggers`»: có hai cách vá rẻ ở migration**, đã đo [`e24`] (trạng thái sau một lần phục hồi `--disable-triggers`: trigger cấp số = `O`):
+  1. **Phép kiểm chặt `tgenabled = 'A'`** (đổi `IN ('O','A')` thành `= 'A'`, một biểu thức): sau phục hồi, lệnh xác nhận **bị từ chối `LTZ03`** cho tới khi áp lại bước bật (đo: `O` → từ chối; sau khi áp lại 023 → `A`, qua). Đóng-khi-lỗi, không cần nhớ quy trình. Giá: lý do trả về là `SUBJECT_CHANGED` dù nguyên nhân là catalog (ghi ở header); một ca của builder phải đổi: trên bản chặt, `tests/thread-order.test.ts` 33/34, chỉ **B11** đỏ (nhánh «bật cho role gốc `O` thì qua»); `thread-order-concurrency` 30/30, `source-text` 41/41; `suggestions` 122/122.
+  2. **Trigger sự kiện** `ddl_command_end` cho `ALTER TABLE` và `CREATE TRIGGER`, đặt lại `A` khi thấy `O`: sau `--disable-triggers` → `A`; sau `ENABLE TRIGGER` thường → `A`; `DISABLE` theo tên vẫn `D` (đo). Tự lành, nhưng thêm một đối tượng toàn CSDL (cần superuser, vào mọi bản dump đầy đủ, chạy ở mọi `ALTER TABLE` của CSDL; một lỗi của hàm chặn mọi DDL). Không khuyên.
+- **Khuyến nghị:** không cần cách nào trước vòng 2 (trạng thái `O` sau phục hồi chỉ mở lại đường `replica` cho phiên superuser: cùng ranh giới ở mục 3); ghi vào N4/N15 «sau `--disable-triggers` áp lại 023 (hoặc câu `ENABLE ALWAYS`), rồi chạy câu catalog khẳng định `tgenabled = 'A'`». Nếu muốn ép: cách 1.
+
+### 5 · Việc còn lại trước vòng 2
+
+Không chặn cổng. Hai việc rẻ nên làm vì chúng làm biên nhận chính xác hơn: (1) CS-DB-7 (khoá `draft_decisions` có điều kiện, 5 dòng; đo 1 961 ms → 14 ms) và (2) CS-DB-6 (thêm `tgtype`, `tgqual`, `tgfoid` vào phép kiểm catalog; 0 ms; header ghi thêm «thân hàm thay được»). Còn lại là chữ: N4/N15 (CS-DB-2, CS-DB-8), header (câu «three tables from step 1»).
+
+**Một câu: trước vòng 2 chỉ còn nên đóng hai việc rẻ (CS-DB-7 khoá `draft_decisions` có điều kiện, CS-DB-6 siết phép kiểm catalog) và viết đúng N4/N15 và header; không làm phương án B, không đóng thêm phần còn lại của N22.**
