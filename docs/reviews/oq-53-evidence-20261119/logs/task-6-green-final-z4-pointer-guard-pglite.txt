@@ -1,0 +1,11 @@
+# final run, pglite, tests/z4-pointer-guard.test.ts, exit=0
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  29 passed | 11 skipped (40)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  29 passed | 11 skipped (40)
+   Start at  14:46:40
+   Duration  14.11s (tests 100%)
+

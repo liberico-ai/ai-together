@@ -1,0 +1,3 @@
+# tsc --noEmit after Task 5 and Task 6 (final tree)
+
+tsc exit=0

@@ -1,0 +1,47 @@
+# Task 6 mutants: one change at a time to src/server/suggestions.ts (subjectReasons), applied, tests/suggestions.test.ts run on PGlite (112 passed, 1 skipped on the original), file restored and compared byte for byte with the original.
+# t1  `changed` does not become SUBJECT_CHANGED               return {reasons:[],position:f.position}
+# t2  a leftover of the code of the edit                      const LEFTOVER='SUBJECT_EDIT_UNVERIFIED' in suggestions.ts
+# t3  `position` is not handed back                           position:null
+# t4  the pairs the draft states are not passed on            threadFreshness(...,[])
+# t5  no baseline gives no reason                             if(!f.hasBaseline) return {reasons:[],position:null}
+# Each block: label, result summary, number of '^AssertionError' lines, hook timeouts, red cases (first 150 characters).
+MUTANT t1
+  result: 5 failed | 107 passed | 1 skipped (113)
+  hook-timeouts: 0  AssertionError lines: 5
+  red: H8 when a mask reason holds a draft, the hold of a confirmation names only the mask reasons (and the placeholder for a candidate draft)
+  red: J1 an edit that arrives after the draft holds it as SUBJECT_CHANGED; an edit the draft read does not hold it; naming the older revision of an edited m
+  red: J4 the subject check hands back the number of the thread it read, for a candidate draft only, and reasons that are codes
+  red: a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draf
+  red: dừng tại OQ-53 (3): every other check still runs; when no mask reason holds the draft each names its code next to the placeholder, and when one does t
+MUTANT t2
+  result: 1 failed | 111 passed | 1 skipped (113)
+  hook-timeouts: 0  AssertionError lines: 1
+  red: J3 the code SUBJECT_EDIT_UNVERIFIED is gone
+MUTANT t3
+  result: 1 failed | 111 passed | 1 skipped (113)
+  hook-timeouts: 0  AssertionError lines: 1
+  red: J4 the subject check hands back the number of the thread it read, for a candidate draft only, and reasons that are codes
+MUTANT t4
+  result: 12 failed | 100 passed | 1 skipped (113)
+  hook-timeouts: 0  AssertionError lines: 12
+  red: (e) a rejection claims its key, for a document draft and for a candidate draft: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT; 
+  red: F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are held for 
+  red: H8 when a mask reason holds a draft, the hold of a confirmation names only the mask reasons (and the placeholder for a candidate draft)
+  red: J1 an edit that arrives after the draft holds it as SUBJECT_CHANGED; an edit the draft read does not hold it; naming the older revision of an edited m
+  red: J2 a draft that names a message of its thread without its revision has no baseline
+  red: J4 the subject check hands back the number of the thread it read, for a candidate draft only, and reasons that are codes
+  red: R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results
+  red: a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draf
+  red: a message the draft does not name, recorded before the newest one it names, adds no hold: the draft is held for the OQ-53 (3) placeholder alone
+  red: dừng tại OQ-53 (3): a candidate draft that passes every other check is held as SUBJECT_ORDER_UNVERIFIED and nothing else; nothing is written and the k
+  red: dừng tại OQ-53 (3): every other check still runs; when no mask reason holds the draft each names its code next to the placeholder, and when one does t
+  red: the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidd
+MUTANT t5
+  result: 4 failed | 108 passed | 1 skipped (113)
+  hook-timeouts: 0  AssertionError lines: 4
+  red: J2 a draft that names a message of its thread without its revision has no baseline
+  red: J4 the subject check hands back the number of the thread it read, for a candidate draft only, and reasons that are codes
+  red: a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING
+  red: dừng tại OQ-53 (3): every other check still runs; when no mask reason holds the draft each names its code next to the placeholder, and when one does t
+
+# all five restored identical to the original: cmp = 0

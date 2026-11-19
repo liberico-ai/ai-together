@@ -114,30 +114,56 @@ export async function projectHasHiddenText(tx:Queryable,projectId:string,excerpt
  return row?.hidden!==false;
 }
 
-export type ThreadFreshness={hasBaseline:boolean;newerMessage:boolean;laterEdit:boolean};
+/** What the check of one candidate draft against its thread found. `hasBaseline:false` is the whole answer for a draft with no baseline: `changed` is then false and `position` null, and the caller holds the draft. */
+export type ThreadFreshness={hasBaseline:boolean;changed:boolean;position:string|null};
+/** A revision number is a whole number that fits the integer column it is compared with. */
+const MAX_REVISION_NO=2147483647;
 /**
- * For the thread of one candidate of project $1 (same chat_id and thread_key, as visibleThreadMessages) and the ids a draft names:
- * hasBaseline = the draft names at least one message of this thread; the baseline is the latest created_at among those;
- * newerMessage = a message of the thread the draft does not name was recorded at or after the baseline;
- * laterEdit = a later revision (revision_no > 1) of any message of the thread was recorded at or after the baseline.
- * Reads ids and record times only: no text and no hash leave the database. Ids that are not lower-case uuids are ignored.
- * The tenant boundary is the row-level security of the three tables, not a condition of this statement.
- * hasBaseline:false is also the answer for a malformed id and for a candidate that is not visible; the other two fields then mean nothing and the caller must hold the draft.
- * tx must be a transaction already scoped to the tenant and project (scoped): the tenant boundary is row-level security.
+ * OQ-53 (1 (b), 2 (a), 3 (b)). For the thread of one candidate of project $1 (same chat_id and thread_key, as visibleThreadMessages), the ids a draft names (`namedIds`) and the
+ * pairs (message id, revision number) it states in `messageRevisions` (`revisions`), in one statement and so one snapshot:
+ * 1. hasBaseline is false when no named message belongs to the thread, or a named message of the thread has no pair, or the candidate is not visible: no later rule is looked at.
+ * 2. changed when a pair names a revision that is not the latest of its message by LATEST_REVISION_ORDER (a number the message does not have is not the latest either);
+ * 3. changed when the number of the last revision of the thread differs from the baseline, the largest number among the pairs of the thread, or the thread has no counter, or no pair has a number;
+ * 4. changed when any revision of any message of the thread has no number (a revision stored while the numbering was off), whether or not the draft names it.
+ * position is that last number as text, to be written down by the confirmation; it is not a number the caller may trust beyond the rule that produced it.
+ * Reads ids and numbers only: no text and no hash leave the database. A project or candidate id that is not a lower-case uuid gives hasBaseline:false without a statement; a named id that is
+ * not a lower-case uuid is ignored; a pair whose id is not a lower-case uuid, or whose number is not a whole number from 1 to 2147483647, is left out and never sent.
+ * Every table is read under the project of the call in the statement itself, not through row-level security alone. tx must be a transaction already scoped to the tenant and project
+ * (scoped): the tenant boundary is row-level security. The tables that number a thread are named here and nowhere else in src.
  */
-export async function threadFreshness(tx:Queryable,projectId:string,candidateId:string,namedIds:readonly string[]):Promise<ThreadFreshness> {
- const none={hasBaseline:false,newerMessage:false,laterEdit:false};
+export async function threadFreshness(tx:Queryable,projectId:string,candidateId:string,namedIds:readonly string[],revisions:readonly {id:string;revisionNo:number}[]):Promise<ThreadFreshness> {
+ const none:ThreadFreshness={hasBaseline:false,changed:false,position:null};
  if(!UUID_LOWER.test(String(projectId))||!UUID_LOWER.test(String(candidateId))) return none;
  const named=namedIds.filter(x=>typeof x==='string'&&UUID_LOWER.test(x));
- const row=(await tx.query<{has_baseline:boolean|null;newer_message:boolean|null;later_edit:boolean|null}>(
+ const pairIds:string[]=[],pairNumbers:number[]=[];
+ for(const p of Array.isArray(revisions)?revisions:[]) {
+  if(!p||typeof p.id!=='string'||!UUID_LOWER.test(p.id)||typeof p.revisionNo!=='number'||!Number.isInteger(p.revisionNo)||p.revisionNo<1||p.revisionNo>MAX_REVISION_NO) continue;
+  pairIds.push(p.id);pairNumbers.push(p.revisionNo);
+ }
+ const row=(await tx.query<{has_baseline:boolean|null;not_latest:boolean|null;unnumbered:boolean|null;baseline:string|null;head:string|null}>(
   `WITH thread AS (
-    SELECT e.id, e.created_at FROM intake_candidates c
+    SELECT e.id FROM intake_candidates c
     JOIN source_events e ON e.project_id=c.project_id AND e.chat_id=c.chat_id AND e.thread_key=c.thread_key
     WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid),
-   base AS (SELECT max(t.created_at) AS at FROM thread t WHERE t.id = ANY($3::uuid[]))
-   SELECT (SELECT b.at IS NOT NULL FROM base b) AS has_baseline,
-    EXISTS(SELECT 1 FROM thread t, base b WHERE (t.id = ANY($3::uuid[])) IS NOT TRUE AND t.created_at >= b.at) AS newer_message,
-    EXISTS(SELECT 1 FROM source_event_revisions r JOIN thread t ON t.id=r.source_event_id, base b
-           WHERE r.project_id=$1::uuid AND r.revision_no>1 AND r.created_at >= b.at) AS later_edit`,[projectId,candidateId,named])).rows[0];
- return {hasBaseline:row?.has_baseline===true,newerMessage:row?.newer_message===true,laterEdit:row?.later_edit===true};
+   latest AS (
+    SELECT t.id AS event_id, l.revision_no FROM thread t
+    JOIN LATERAL (SELECT r.revision_no FROM source_event_revisions r WHERE r.source_event_id=t.id AND r.project_id=$1::uuid ORDER BY ${LATEST_REVISION_ORDER} LIMIT 1) l ON true),
+   stated AS (SELECT p.id AS event_id, p.no FROM unnest($4::uuid[],$5::int[]) AS p(id,no) JOIN thread t ON t.id=p.id)
+   SELECT
+    (EXISTS(SELECT 1 FROM thread t WHERE t.id = ANY($3::uuid[]))
+      AND NOT EXISTS(SELECT 1 FROM thread t WHERE t.id = ANY($3::uuid[]) AND NOT EXISTS(SELECT 1 FROM stated s WHERE s.event_id=t.id))) AS has_baseline,
+    EXISTS(SELECT 1 FROM stated s WHERE NOT EXISTS(SELECT 1 FROM latest l WHERE l.event_id=s.event_id AND l.revision_no=s.no)) AS not_latest,
+    EXISTS(SELECT 1 FROM thread t JOIN source_event_revisions r ON r.source_event_id=t.id AND r.project_id=$1::uuid
+           WHERE NOT EXISTS(SELECT 1 FROM source_revision_positions q WHERE q.revision_id=r.id AND q.project_id=$1::uuid)) AS unnumbered,
+    (SELECT max(q.thread_seq)::text FROM stated s
+       JOIN source_event_revisions r ON r.source_event_id=s.event_id AND r.revision_no=s.no AND r.project_id=$1::uuid
+       JOIN source_revision_positions q ON q.revision_id=r.id AND q.project_id=$1::uuid) AS baseline,
+    (SELECT h.last_seq::text FROM intake_candidates c
+       JOIN intake_thread_heads h ON h.tenant_id=c.tenant_id AND h.project_id=$1::uuid AND h.chat_id=c.chat_id AND h.thread_key=c.thread_key
+       WHERE c.id=$2::uuid AND c.project_id=$1::uuid) AS head`,[projectId,candidateId,named,pairIds,pairNumbers])).rows[0];
+ if(row?.has_baseline!==true) return none;
+ const baseline=row.baseline??null,head=row.head??null;
+ // anything the statement does not say plainly counts as a change
+ const changed=row.not_latest!==false||row.unnumbered!==false||baseline===null||head===null||head!==baseline;
+ return {hasBaseline:true,changed,position:head};
 }

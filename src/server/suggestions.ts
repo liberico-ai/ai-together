@@ -7,7 +7,7 @@ import {READ_ROLES} from './document-review';
 import {DocumentService,mayWriteDocuments,proposeSchema,READ_ONLY_MESSAGE} from './documents';
 import {AppError,invariant} from './errors';
 import {buildSkillContextIn,CONTEXT_KINDS} from './skill-context';
-import {checkSkillOutput,MAX_OUTPUT_BYTES,namedIds,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
+import {checkSkillOutput,MAX_OUTPUT_BYTES,namedIds,namedRevisions,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
 import {canonicalJson,skillManifests} from './skills';
 import {projectHasHiddenText,threadFreshness,threadHasHiddenText} from './source-text';
 import {storable} from './text-safety';
@@ -110,25 +110,28 @@ const toView=(r:DraftRow,given:MaskReason[],shown:SkillOutput|null):DraftView=>{
 const DOC_SUBJECT_SQL=`SELECT coalesce(max(v.revision_no),0)::int AS newest,
   coalesce(max(v.revision_no) FILTER (WHERE v.id = ANY($3::uuid[])),0)::int AS named
   FROM document_revisions v WHERE v.project_id=$1::uuid AND v.document_id=$2::uuid`;
+/** What the subject check found: the hold reasons, codes only, and the number of the thread as the check read it (null for a document draft, and when the draft has no baseline). The number is meaningful only when `reasons` is empty. */
+export type SubjectCheck={reasons:string[];position:string|null};
 /**
  * OQ-46 (b): the draft's own subject against the newest thing the draft itself names. Codes only.
  * Only lower-case uuids are passed to the database, so a malformed or upper-case id names nothing and never raises 22P02.
  * Call it while the document row is locked.
  */
-async function subjectReasons(tx:Queryable,projectId:string,d:DraftRow):Promise<string[]> {
+export async function subjectReasons(tx:Queryable,projectId:string,d:Pick<DraftRow,'signal_type'|'value'|'entity_type'|'entity_id'>):Promise<SubjectCheck> {
  const ids=namedIds(d.signal_type,d.value).filter(x=>UUID.test(x));
  if(d.entity_type!=='document') {
-  const f=await threadFreshness(tx,projectId,d.entity_id,ids);
-  // OQ-53 point 2 (open, fail-closed until the Chairman decides): a draft that names no message of its own thread has no baseline, so it is held
-  if(!f.hasBaseline) return ['SUBJECT_BASELINE_MISSING'];
-  // OQ-53 point 1 (open, fail-closed until the Chairman decides): an edit recorded at or after the baseline cannot be told apart from a change of the subject, so it is held
-  return [...(f.newerMessage?['SUBJECT_CHANGED']:[]),...(f.laterEdit?['SUBJECT_EDIT_UNVERIFIED']:[])];
+  // OQ-53 point 2 (a), decided 19/11/2026: a draft that names no message of its own thread, or names one without stating its revision, has no baseline, so it is held
+  // OQ-53 point 1 (b), decided 19/11/2026: the draft states the revision it read of each message; a revision that is not the latest of its message, or anything stored in the thread
+  // since the one it read last, is a change of the subject. An edit the draft read is not.
+  const f=await threadFreshness(tx,projectId,d.entity_id,ids,namedRevisions(d.signal_type,d.value));
+  if(!f.hasBaseline) return {reasons:['SUBJECT_BASELINE_MISSING'],position:null};
+  return {reasons:f.changed?['SUBJECT_CHANGED']:[],position:f.position};
  }
  const r=(await tx.query<{newest:number;named:number}>(DOC_SUBJECT_SQL,[projectId,d.entity_id,ids])).rows[0];
- if(r.newest===0) return [];
- // OQ-53 point 2 (open, fail-closed until the Chairman decides): a draft that names no revision of its own document has no baseline, so it is held
- if(r.named===0) return ['SUBJECT_BASELINE_MISSING'];
- return r.newest>r.named?['SUBJECT_CHANGED']:[];
+ if(r.newest===0) return {reasons:[],position:null};
+ // OQ-53 point 2 (a), decided 19/11/2026: a draft that names no revision of its own document has no baseline, so it is held
+ if(r.named===0) return {reasons:['SUBJECT_BASELINE_MISSING'],position:null};
+ return {reasons:r.newest>r.named?['SUBJECT_CHANGED']:[],position:null};
 }
 
 export class SuggestionService {
@@ -308,7 +311,7 @@ export class SuggestionService {
       for(const r of checkSkillOutput({name:manifest.name,hash:manifest.hash,toolAllowlist:manifest.toolAllowlist},ctx,d.value).reasons) reasons.add(r);
       // OQ-55 placeholder: what read masks for a hidden thread, confirm holds
       if(d.entity_type==='intake_candidate'&&await threadHasHiddenText(tx,projectId,d.entity_id,this.excerptChats)) reasons.add('THREAD_TEXT_HIDDEN');
-      for(const r of await subjectReasons(tx,projectId,d)) reasons.add(r);
+      for(const r of (await subjectReasons(tx,projectId,d)).reasons) reasons.add(r);
      }
      // OQ-55 placeholder by project, for every draft and outside the context check, so the code stands when no context can be built (fail-closed until the Chairman decides; wider than option (e))
      if(await projectHasHiddenText(tx,projectId,this.excerptChats)) reasons.add('PROJECT_TEXT_HIDDEN');

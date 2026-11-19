@@ -1,0 +1,11 @@
+# final run, pglite, tests/inbox-service.test.ts, exit=0
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  26 passed | 1 skipped (27)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  26 passed | 1 skipped (27)
+   Start at  14:47:45
+   Duration  12.84s (tests 100%)
+
