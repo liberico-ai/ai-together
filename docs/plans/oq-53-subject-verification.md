@@ -2,7 +2,7 @@
 
 > **Cho người thực thi:** dùng `superpowers:subagent-driven-development` hoặc `superpowers:executing-plans`. Mỗi task: viết ca kiểm trước, chạy cho đỏ vì đúng lý do ghi ở task, rồi mới viết mã. Ô `- [ ]` là bước theo dõi.
 
-Version 0.2 · 19/11/2026 · agent `planner` (mô hình Fable 5.2, không lùi mô hình) · nhánh `feat/oq-53-subject-verification`, gốc `80c1ad8` (sau PR #22); bản 0.1 ở commit `725c5da` · nhánh tích hợp `libetech-ai-os`. **Đã qua cổng bảo mật và review CSDL vòng 1: cả hai `READY_TO_BUILD`, 0 P0/P1** (`docs/reviews/oq-53-evidence-20261119/gates/plan-security-round-1.md`: 3 P2, 6 P3; `docs/reviews/oq-53-evidence-20261119/gates/plan-database-round-1.md`: 3 P2, 7 P3). Bản 0.2 áp mọi finding (mục 0). Không finding nào đổi thiết kế đã chọn ở mục 2; ba finding thêm cơ chế nhỏ (ba phép từ chối của migration, một đổi trong phần đuôi của `decide`). SQL thật của 023 vẫn qua review riêng ở Task 1 và Task 2. Số dòng nêu ở đây là của tệp ở `80c1ad8`.
+Version 0.3 (chỉ Task 8: OQ-57 đã có lời Chairman, ghi ở dòng này bởi phiên chính; phần còn lại là bản 0.2) · 19/11/2026 · agent `planner` (mô hình Fable 5.2, không lùi mô hình) · nhánh `feat/oq-53-subject-verification`, gốc `80c1ad8` (sau PR #22); bản 0.1 ở commit `725c5da` · nhánh tích hợp `libetech-ai-os`. **Đã qua cổng bảo mật và review CSDL vòng 1: cả hai `READY_TO_BUILD`, 0 P0/P1** (`docs/reviews/oq-53-evidence-20261119/gates/plan-security-round-1.md`: 3 P2, 6 P3; `docs/reviews/oq-53-evidence-20261119/gates/plan-database-round-1.md`: 3 P2, 7 P3). Bản 0.2 áp mọi finding (mục 0). Không finding nào đổi thiết kế đã chọn ở mục 2; ba finding thêm cơ chế nhỏ (ba phép từ chối của migration, một đổi trong phần đuôi của `decide`). SQL thật của 023 vẫn qua review riêng ở Task 1 và Task 2. Số dòng nêu ở đây là của tệp ở `80c1ad8`.
 
 **Mục tiêu.** Gỡ hai giữ chỗ fail-closed của PR #22 bằng thiết kế thật: `SUBJECT_EDIT_UNVERIFIED` (điểm 1) và `SUBJECT_ORDER_UNVERIFIED` (điểm 3); giữ `SUBJECT_BASELINE_MISSING` (điểm 2, đã quyết); sửa ngữ cảnh `release_librarian`.
 
@@ -22,7 +22,7 @@ Version 0.2 · 19/11/2026 · agent `planner` (mô hình Fable 5.2, không lùi m
 | S-4 | P3 | **Áp (chữ).** Câu «dòng trong phạm vi được khoá trước» sai theo hướng an toàn hơn: trigger không chạy khi một dòng của lệnh vi phạm `WITH CHECK` (m1, m2, m6 của cổng). L4 thu hẹp: lệnh lỗi nhả khoá ngay (m8 của cổng); người giữ cần một lệnh **thành công** rồi để giao dịch mở | §9; L4; §19 |
 | S-5 | P3 | **Áp cả bảy ý.** (1) A3 thêm `SELECT` thuần của mọi role khác; (2) ca native N16 «gửi lại khi luồng bị giữ»; (3) A5 và N5 thêm dạng hai dòng; (4) A9 phủ lời của `23503`; (5) B4 khẳng định đúng mã và đúng lời; (6) đột biến đb2 hai dạng; (7) B6 giữ một ca mỗi guard trên nháp ứng viên | Task 1, 2, 9; P10 |
 | S-6 | P3 | **Áp.** Chú thích đầu 023 và chú thích của cột: cột không chứng minh luật của dịch vụ đã chạy; câu catalog kiểm `tgenabled='O'` cho cả hai trigger (N12) | §7 bước 10 và đoạn mở; L6; Task 9; N12 |
-| S-7 | P3 | **Áp vào Task 8 (vẫn dừng tại OQ-57).** `hashVerification` của nguồn con trỏ là hằng `self_declared`; không thêm luật cấm làm `basis`; một ca eval để người duyệt đọc | Task 8 |
+| S-7 | P3 | **Áp vào Task 8** (OQ-57 đã quyết 19/11/2026: điểm 1 (a), điểm 2 (a)). `hashVerification` của nguồn con trỏ là hằng `self_declared`; không thêm luật cấm làm `basis`; một ca eval để người duyệt đọc | Task 8 |
 | S-8 | P3 | **Áp, ghi cả hai mặt.** U1 trả lời được từ mã của gateway; dòng 64 của chính tệp đó ghi chưa kiểm trên gateway chạy thật | N2; §18 |
 | S-9 | P3 | **Áp (chữ).** L9 nói về hậu quả và dẫn tiền lệ vòng 3; không mở rộng sang `PROJECT_TEXT_HIDDEN` | L9 |
 | DB-1 | P2 | **Áp.** Mẫu «gỡ nếu có, rồi tạo» cho cả bốn trigger và hai policy; chỉ mục tạo có điều kiện | §7 bước 2–5, 9, 11 |
@@ -66,7 +66,7 @@ Số đo: `docs/reviews/oq-53-evidence-20261119/measurements-pg16.txt` (PostgreS
 | D4 | Số bản của tin (điểm 1 b) | Ngữ cảnh nêu `revisionNo` của bản đang hiện của từng tin. Đầu ra của ba kỹ năng nhận tin có trường mới `messageRevisions: {id, revisionNo}[]` — các tin, và bản của chúng, mà nháp **đã đọc** (prompt dặn: mọi tin có văn bản được hiển thị của ngữ cảnh, không chỉ các tin được trích). Lúc xác nhận: mỗi tin của luồng mà nháp nêu phải có số bản, và số đó phải là bản mới nhất của tin theo `LATEST_REVISION_ORDER` | Số bản là khoá duy nhất của một bản (`UNIQUE(source_event_id, revision_no)`, `migrations/016_intake_inbox.sql:76`); hash thì không (C1) |
 | D5 | Mốc của luồng (nối điểm 1 và 3) | Mốc = `thread_seq` lớn nhất trong các cặp (tin, số bản) nháp nêu thuộc luồng của nó. Nháp còn mới ⇔ mọi cặp là bản mới nhất của tin đó **và** `last_seq` của luồng bằng mốc **và** không bản nào của luồng thiếu số. Bản sửa mà nháp đã đọc đúng bản đó không còn giữ nháp | Mục 8 |
 | D6 | Điểm 2 (a) | Không đổi mã lý do: nháp không nêu tin nào của luồng, hoặc nêu một tin mà thiếu số bản của tin đó ⇒ `SUBJECT_BASELINE_MISSING` (C2) | — |
-| D7 | `release_librarian` | **Dừng tại OQ-57.** Task 8 viết sẵn cho phương án planner khuyến nghị (thêm một nguồn chỉ-con-trỏ cho bản mới nhất chưa duyệt), không làm khi chưa có lời Chairman | Mục OQ-57 |
+| D7 | `release_librarian` | **Chairman đã quyết OQ-57 ngày 19/11/2026: điểm 1 (a), điểm 2 (a)** (chuỗi trả lời chép nguyên ở khối cuối `docs/OPEN-QUESTIONS.md`, «Quyết định của Chairman ngày 19/11/2026 về OQ-57»): thêm một nguồn chỉ-con-trỏ cho bản mới nhất chưa duyệt; bản chưa duyệt mới hơn bản chuẩn làm nháp «đã cũ» như mọi kỹ năng. Task 8 được làm trong cùng PR | Mục OQ-57 |
 
 **Hai giữ chỗ được gỡ ở đâu.** `SUBJECT_EDIT_UNVERIFIED` (`src/server/suggestions.ts:125`): Task 6. `SUBJECT_ORDER_UNVERIFIED` (`:320`, và nhánh ở `:325`): Task 7, **task cuối cùng chạm `decide`**, chỉ sau khi trigger so-và-ghi (Task 2) và luật mới (Task 5, 6) đã có. Cho tới commit của Task 7 không nháp ứng viên nào xác nhận được, như hôm nay.
 
@@ -97,7 +97,7 @@ Số đo: `docs/reviews/oq-53-evidence-20261119/measurements-pg16.txt` (PostgreS
 | C6 | Mã `SUBJECT_EDIT_UNVERIFIED` biến mất. Bản sửa đến sau thứ nháp nêu hiện thành `SUBJECT_CHANGED` (chữ của OQ-46 (b): «luồng của ứng viên có tin hoặc bản sửa mới») | giữ một mã riêng cho bản sửa |
 | C7 | Hai trường hợp bị giữ mà nháp không cũ, chấp nhận như giới hạn fail-closed (mục 17, L1, L2): một bản sửa **cũ đến muộn** (số bản và `thread_seq` cao nhất nhưng `edited_at` cũ hơn bản đang hiện), và một tin đến muộn nằm ngoài cửa sổ 20 tin của ngữ cảnh. Cả hai hết khi luồng có tin mới | đổi cửa sổ ngữ cảnh sang xếp theo `thread_seq`: đổi nghĩa ngữ cảnh của lát 3, ngoài PR này |
 | C8 | Nhãn hợp đồng: `inputContract` thành `SkillContext/v2` cho **cả sáu** kỹ năng (lược đồ ngữ cảnh dùng chung đổi); `outputContract` thành `…/v2` cho ba kỹ năng nhận tin; `version` thành `0.2.0` cho cả sáu. Hệ quả: hash manifest của cả sáu đổi; mọi nháp đã lưu nhận `MANIFEST_MISMATCH`; nháp đã lưu của ba kỹ năng nhận tin còn bị che `SCHEMA_INVALID` (thiếu trường bắt buộc). Không có dòng nháp thật nào (Z4 chưa bật; 021 chưa áp lên dữ liệu thật) | trường tuỳ chọn và giữ nhãn v1: nháp cũ vẫn đọc được nhưng hợp đồng thôi «strict» |
-| C9 | «sửa ngữ cảnh release_librarian» ⇒ OQ-57, hai điểm. Không tự chọn | — |
+| C9 | «sửa ngữ cảnh release_librarian» ⇒ OQ-57, hai điểm; **đã quyết 19/11/2026**: điểm 1 (a), điểm 2 (a). R10-g từ nay đọc là «chỉ nội dung của bản chuẩn» (chữ của phương án) | — |
 
 ## 5 · Phán quyết kỹ thuật của planner (cổng bảo mật và review CSDL soát)
 
@@ -288,7 +288,7 @@ Lúc ghi dòng quyết định `confirmed` của nháp ứng viên: `subject_thr
 | `tests/z4-schema.test.ts`, `tests/z4-pointer-guard.test.ts` | 2 | fixture `entity_type` (P10); danh sách trigger của `draft_decisions` |
 | `src/server/source-text.ts` | 3, 5 | `VisibleMessage.revisionNo`; `threadFreshness` mới |
 | `src/server/skill-contracts.ts` | 3, 4 | `ContextSource`, `contextSchema`; `messageRevisions`, `SKILL_IDS`, `namedRevisions` |
-| `src/server/skill-context.ts` | 3, 8 | chép `revisionNo`; ngữ cảnh `release_librarian` (Task 8, dừng tại OQ-57) |
+| `src/server/skill-context.ts` | 3, 8 | chép `revisionNo`; ngữ cảnh `release_librarian` (Task 8) |
 | `src/server/skills.ts` | 3 | kiểu `inputContract: 'SkillContext/v2'` |
 | `skills/*/manifest.json` (6), `prompt.md` (6), `eval.json` (3 kỹ năng nhận tin; `release-librarian` ở Task 8) | 3, 4, 8 | nhãn, sha, hash; chữ prompt; ngữ cảnh và đầu ra mẫu |
 | `src/server/suggestions.ts` | 6, 7 | `subjectReasons`; cột mới ở lệnh ghi; `LTZ03`; gỡ hai giữ chỗ |
@@ -345,7 +345,7 @@ Tìm bằng `grep -rn "SUBJECT_ORDER_UNVERIFIED\|SUBJECT_EDIT_UNVERIFIED" src te
 
 ## 13 · Tasks
 
-Phụ thuộc: `1 → 2`; `3 → 4`; `1, 4 → 5 → 6`; `2, 6 → 7`; `8` chỉ sau OQ-57 (độc lập với 1–7 về mã, sau Task 4 về manifest); `9` cuối.
+Phụ thuộc: `1 → 2`; `3 → 4`; `1, 4 → 5 → 6`; `2, 6 → 7`; `8` (độc lập với 1–7 về mã, sau Task 4 về manifest; OQ-57 đã quyết); `9` cuối.
 
 ### Task 1: Migration 023, phần nhận tin — hai bảng, trigger cấp số, đánh số dòng cũ, tệp lùi — **review riêng: CSDL và bảo mật**
 
@@ -466,9 +466,9 @@ Giữ chỗ của điểm 3 **còn nguyên** ở task này: mọi lệnh xác nh
 - [ ] Ca canh `:1321` xanh **không sửa**. (ca âm f)
 - [ ] Lệnh: `tests/suggestions.test.ts`, `tests/suggestions-concurrency.test.ts`, `tests/thread-order-concurrency.test.ts` (native), `tests/z4-schema.test.ts`, `tests/z4-pointer-guard.test.ts`; cả hai engine; `npx tsc --noEmit`.
 
-### Task 8: Ngữ cảnh `release_librarian` — **dừng tại OQ-57**
+### Task 8: Ngữ cảnh `release_librarian` — OQ-57 (1 (a), 2 (a)) — **review riêng, bắt buộc bảo mật**
 
-Không làm khi chưa có lời Chairman cho OQ-57. Viết sẵn cho phương án planner khuyến nghị — điểm 1 (a), điểm 2 (a) của OQ-57; phương án khác thì planner viết lại riêng task này.
+Chairman đã quyết OQ-57 ngày 19/11/2026: điểm 1 (a), điểm 2 (a) — phương án mà task này viết (lời chép nguyên ở khối cuối `docs/OPEN-QUESTIONS.md`). «Nháp phải nêu cả bản mới nhất (với con trỏ ở điểm 1); một bản được trình sau khi nháp viết xong giữ nháp dù bản chuẩn không đổi.» Task này chạm luật R10-g của lát 3, nay đọc là «chỉ **nội dung** của bản chuẩn»; `NOT_APPROVED_REVISION` không đổi. Điều phải đối chiếu: chú thích `src/server/skill-context.ts:27` (sửa chữ cho đúng cách đọc mới), câu lệnh `:76-86`, tên và thân ca `tests/skill-context.test.ts:283`; chữ ở `docs/plans/slice-3-review-skills.md:992` **không sửa** (ghi chú ở khối quyết định cuối `docs/OPEN-QUESTIONS.md`, như phiên điều phối dặn); không sửa SPEC-009. Cổng bảo mật tầng 1 xem riêng: nguồn chỉ-con-trỏ không mang nội dung, tóm tắt, danh sách «có/thiếu» hay hash nguồn của bản chưa duyệt; ca L1 ghim điều đó (ca âm).
 
 **Tệp:** `src/server/skill-context.ts:74-88` (với `release_librarian`: ngoài bản chuẩn, thêm **bản mới nhất** của tài liệu khi nó không phải bản chuẩn, dưới dạng chỉ-con-trỏ: `id`, `documentId`, `revisionNo`; `summary: null`, `present: []`, `missing: []`, `sourceHash: null`; `hashVerification` là **hằng `'self_declared'`**, không phải giá trị đã lưu — một `verified` đi kèm `sourceHash: null` là một bit siêu dữ liệu tự mâu thuẫn (S-7); mọi trường bị che **ngay trong câu SQL**, như `pointerOnly` ở `:79-81`), chú thích `:27`; `skills/release-librarian/{prompt.md,eval.json,manifest.json}`; `tests/skill-context.test.ts:283`, `tests/skills-eval.test.ts:43-46`, `tests/skill-contracts.test.ts`, `tests/suggestions.test.ts`.
 
@@ -505,7 +505,7 @@ Không làm khi chưa có lời Chairman cho OQ-57. Viết sẵn cho phương á
 | Migration tự từ chối khi không an toàn (P2, P6, P12) | A7, A8 |
 | Gửi lại không lấy khoá | A2, N16 |
 | Gỡ hai giữ chỗ | J3; grep 0 dòng; E1–E12 |
-| `release_librarian` | L1–L4 (dừng tại OQ-57) |
+| `release_librarian` | L1–L4 (OQ-57 đã quyết) |
 
 ## 15 · Ca chỉ chạy trên PostgreSQL 16 thật
 
@@ -555,7 +555,7 @@ Cổng Codex của PR #22 không nhận «phần dư đã ghi» cho ba lớp: ki
 
 ## 18 · Dừng và chỗ chưa chắc
 
-- **Dừng tại OQ-57:** Task 8. Lời Chairman nói sửa trong cùng PR; PR chưa xong khi OQ-57 chưa có lời.
+- **OQ-57 đã quyết (19/11/2026):** Task 8 được làm trong cùng PR, theo điểm 1 (a) và điểm 2 (a). Không còn câu hỏi mở nào chặn một task.
 - **U1 — đã trả lời từ mã (S-8, DB-4):** gateway gửi lại 5xx và không xoá tin; chi tiết và hai điều còn lại ở N2. Còn `#inference` ở đúng một chỗ: chưa quan sát trên gateway chạy thật (`bot-plugin/__init__.py:64`).
 - **U2 (#inference):** «hai bảng lát 2 đã có dữ liệu thật» là lời của brief; planner không đọc CSDL thật. Đo 6 dùng 60 000 bản giả.
 - **U3 — đã đo bởi cổng CSDL, đạt (DB-8):** đúng SQL của mục 7 chạy trên PGlite của repo, là PostgreSQL **18.6**, không phải 16. Ca khoá hai kết nối vẫn chỉ native.
@@ -600,6 +600,6 @@ Bản 0.1 hỏi cổng bảo mật bảy câu và review CSDL mười câu. Cả
 - **Không finding nào làm planner đổi ý về thiết kế.** Ba finding thêm cơ chế nhỏ, cùng hướng với thiết kế: ba phép từ chối của migration (S-1, DB-2, và P2 có sẵn), và việc phần đuôi của lệnh xác nhận dùng lại kết quả đã kiểm (S-3). Hai chỗ planner làm khác chữ của cổng, đều nêu ở mục 0: không thêm ca eval thứ sáu (S-2); nhánh từ chối của S-1 không có ca hành vi (đo 9).
 - Ba câu sai của bản 0.1 đã sửa: mã trả về của nháp ngoài phạm vi (`P0001`, không phải `42501`); «khoá luồng luôn là khoá cuối cùng» (không đúng với nhận tin); «dòng trong phạm vi được khoá trước» (không đúng). Một số đo của bản 0.1 không còn dùng để ước lượng: 260 ms của đo 6a.
 - Mỗi số mới mang nhãn «(cổng)» nếu là của hai báo cáo, hoặc «đo 9» nếu là của planner. Planner không đo lại số của cổng.
-- Không OQ mới: mọi điểm của bản 0.2 là kỹ thuật hoặc vận hành, không chạm lời Chairman hay SPEC. OQ-57 không đổi và vẫn chặn Task 8.
+- Không OQ mới: mọi điểm của bản 0.2 là kỹ thuật hoặc vận hành, không chạm lời Chairman hay SPEC. OQ-57 không đổi trong bản 0.2; bản 0.3 chỉ ghi rằng Chairman đã quyết nó.
 - Không tạo hay sửa tệp nào trong `src/`, `migrations/`, `tests/`, `skills/`, `bot-plugin/`. Tệp đã ghi ở bản 0.2: kế hoạch này; phần nối cuối của `docs/reviews/oq-53-evidence-20261119/measurements-pg16.txt` (đo 9) và `probe-3.cjs`.
 - Chưa làm: chạy bộ ca hiện có trên nhánh; đếm từng ca bị P10 chạm (U5).
