@@ -14,7 +14,7 @@ export function displayMode(stored:StoredMode|null,allowed:boolean):DisplayMode 
  return allowed?'excerpt':'hidden';
 }
 
-/** Latest domain code of project p (SQL expression of a uuid): the mapping row with the highest mapping_version, NULL when unmapped. The one place that reads it. */
+/** Latest domain code of project p (SQL expression of a uuid): the mapping row with the highest mapping_version, NULL when unmapped. `intelligence.ai_drafts_pointer_only_guard()` of migration 022 applies the same rule inside the database: the two must change together. */
 export const latestDomainSql=(p:string)=>
  `(SELECT m.domain_code FROM project_domain_mappings m WHERE m.project_id=${p} ORDER BY m.mapping_version DESC LIMIT 1)`;
 /** True when the latest mapping row of project p is IBS_HI (AGENTS.md:16: pointers, hashes and Tech work metadata only). Unmapped and other labels decide nothing. */
@@ -70,4 +70,72 @@ export async function visibleThreadMessages(tx:Queryable,projectId:string,candid
      ORDER BY e.observed_at DESC, e.id DESC LIMIT $4::int) t
    ORDER BY t.observed_at ASC, t.id ASC`,[projectId,candidateId,[...excerptChats],n])).rows;
  return rows.map(r=>({sourceEventId:r.id,ref:r.source_id,observedAt:new Date(r.observed_at as string).toISOString(),forwarded:r.forwarded,displayMode:r.display_mode,text:r.visible_text,contentHash:r.visible_hash}));
+}
+
+const UUID_LOWER=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/**
+ * True when the thread of one candidate of project $1 (same chat_id and thread_key, as visibleThreadMessages) holds at least one revision, of any
+ * message, that stored text which the current configuration does not show: the group is not flagged, or the project's latest mapping is IBS_HI.
+ * Every revision of every message of the thread is looked at: no cap, and not only the newest revision of a message.
+ * A flag list that cannot be evaluated (a null element and no match) counts as not flagged: the test is IS NOT TRUE, never NOT.
+ * One boolean: no text and no hash leave the database. A candidate or project id that is not a lower-case uuid gives true without a statement:
+ * closed, because such an id is never a reason to show content. A candidate that is not in the project gives false (EXISTS over nothing): callers reach this only for a
+ * draft row of the project, and the context check already answers ENTITY_NOT_FOUND for a missing entity.
+ */
+export async function threadHasHiddenText(tx:Queryable,projectId:string,candidateId:string,excerptChats:readonly string[]):Promise<boolean> {
+ if(!UUID_LOWER.test(String(projectId))||!UUID_LOWER.test(String(candidateId))) return true;
+ const row=(await tx.query<{hidden:boolean}>(
+  `SELECT EXISTS(SELECT 1 FROM intake_candidates c
+    JOIN source_events e ON e.project_id=c.project_id AND e.chat_id=c.chat_id AND e.thread_key=c.thread_key
+    JOIN source_event_revisions r ON r.source_event_id=e.id
+    WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid AND r.project_id=$1::uuid
+      AND r.content_mode='excerpt' AND (${textAllowedSql('e','$3')}) IS NOT TRUE) AS hidden`,[projectId,candidateId,[...excerptChats]])).rows[0];
+ return row?.hidden!==false;
+}
+
+/**
+ * True when project $1 holds at least one revision, of any message, that stored text which the current configuration does not show: its group is not
+ * flagged, or the project's latest mapping is IBS_HI. Every revision of every message of the project is looked at: no cap, and not only the newest revision.
+ * A flag list that cannot be evaluated (a null element and no match) counts as not flagged: the test is IS NOT TRUE, never NOT.
+ * One boolean: no text and no hash leave the database.
+ * Closed: a project id that is not a lower-case uuid, a statement that returns no row, and a project the calling transaction cannot see (another tenant,
+ * a project outside its scope, an id that does not exist) all give true.
+ * tx must be a transaction already scoped to the tenant and project (scoped): the tenant boundary is row-level security.
+ */
+export async function projectHasHiddenText(tx:Queryable,projectId:string,excerptChats:readonly string[]):Promise<boolean> {
+ if(!UUID_LOWER.test(String(projectId))) return true;
+ const row=(await tx.query<{hidden:boolean}>(
+  `SELECT (NOT EXISTS(SELECT 1 FROM projects p WHERE p.id=$1::uuid)
+     OR EXISTS(SELECT 1 FROM source_events e JOIN source_event_revisions r ON r.source_event_id=e.id
+      WHERE e.project_id=$1::uuid AND r.project_id=$1::uuid
+        AND r.content_mode='excerpt' AND (${textAllowedSql('e','$2')}) IS NOT TRUE)) AS hidden`,[projectId,[...excerptChats]])).rows[0];
+ return row?.hidden!==false;
+}
+
+export type ThreadFreshness={hasBaseline:boolean;newerMessage:boolean;laterEdit:boolean};
+/**
+ * For the thread of one candidate of project $1 (same chat_id and thread_key, as visibleThreadMessages) and the ids a draft names:
+ * hasBaseline = the draft names at least one message of this thread; the baseline is the latest created_at among those;
+ * newerMessage = a message of the thread the draft does not name was recorded at or after the baseline;
+ * laterEdit = a later revision (revision_no > 1) of any message of the thread was recorded at or after the baseline.
+ * Reads ids and record times only: no text and no hash leave the database. Ids that are not lower-case uuids are ignored.
+ * The tenant boundary is the row-level security of the three tables, not a condition of this statement.
+ * hasBaseline:false is also the answer for a malformed id and for a candidate that is not visible; the other two fields then mean nothing and the caller must hold the draft.
+ * tx must be a transaction already scoped to the tenant and project (scoped): the tenant boundary is row-level security.
+ */
+export async function threadFreshness(tx:Queryable,projectId:string,candidateId:string,namedIds:readonly string[]):Promise<ThreadFreshness> {
+ const none={hasBaseline:false,newerMessage:false,laterEdit:false};
+ if(!UUID_LOWER.test(String(projectId))||!UUID_LOWER.test(String(candidateId))) return none;
+ const named=namedIds.filter(x=>typeof x==='string'&&UUID_LOWER.test(x));
+ const row=(await tx.query<{has_baseline:boolean|null;newer_message:boolean|null;later_edit:boolean|null}>(
+  `WITH thread AS (
+    SELECT e.id, e.created_at FROM intake_candidates c
+    JOIN source_events e ON e.project_id=c.project_id AND e.chat_id=c.chat_id AND e.thread_key=c.thread_key
+    WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid),
+   base AS (SELECT max(t.created_at) AS at FROM thread t WHERE t.id = ANY($3::uuid[]))
+   SELECT (SELECT b.at IS NOT NULL FROM base b) AS has_baseline,
+    EXISTS(SELECT 1 FROM thread t, base b WHERE (t.id = ANY($3::uuid[])) IS NOT TRUE AND t.created_at >= b.at) AS newer_message,
+    EXISTS(SELECT 1 FROM source_event_revisions r JOIN thread t ON t.id=r.source_event_id, base b
+           WHERE r.project_id=$1::uuid AND r.revision_no>1 AND r.created_at >= b.at) AS later_edit`,[projectId,candidateId,named])).rows[0];
+ return {hasBaseline:row?.has_baseline===true,newerMessage:row?.newer_message===true,laterEdit:row?.later_edit===true};
 }

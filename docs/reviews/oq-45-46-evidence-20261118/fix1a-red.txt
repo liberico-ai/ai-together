@@ -1,0 +1,46 @@
+# npx vitest run tests/z4-pointer-guard.test.ts tests/migrations-rollback.test.ts tests/z4-schema.test.ts tests/fix-wave-db.test.ts tests/suggestions.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/z4-pointer-guard.test.ts (18 tests | 2 failed | 1 skipped) 8787ms
+   ❯ migration 022: the pointer-only guard (18)
+     × G12 running 022 again changes nothing: the exact triggers of both tables, one enabled BEFORE INSERT row guard, one function, pinned settings, no grant; the file inserts no data and creates no role 528ms
+     × G16 the guard refuses a write from a transaction that is not READ COMMITTED: REPEATABLE READ and SERIALIZABLE are answered LTZ02 whatever the project, and nothing is stored 506ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of both tables, one enabled BEFORE INSERT row guard, one function, pinned settings, no grant; the file inserts no data and creates no role
+AssertionError: current_setting('transaction_isolation') <> 'read committed': expected 'CREATE OR REPLACE FUNCTION intelligen…' to contain 'current_setting(\'transaction_isolati…'
+
+Expected: "current_setting('transaction_isolation') <> 'read committed'"
+Received: "CREATE OR REPLACE FUNCTION intelligence.ai_drafts_pointer_only_guard() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog', 'pg_temp' SET row_security TO 'off' AS $function$ DECLARE latest text; BEGIN SELECT m.domain_code INTO latest FROM public.project_domain_mappings m WHERE m.tenant_id = NEW.tenant_id AND m.project_id = NEW.project_id ORDER BY m.mapping_version DESC LIMIT 1; IF latest = 'IBS_HI' THEN RAISE EXCEPTION 'An AI draft is not stored for a pointer-only project' USING ERRCODE = 'LTZ01'; END IF; RETURN NEW; END $function$ "
+
+ ❯ tests/z4-pointer-guard.test.ts:198:146
+    196|     const def=(await rows<{d:string}>("SELECT pg_get_functiondef(p.oid…
+    197|     for(const f of ['FROM public.project_domain_mappings m','m.tenant_…
+    198|       "latest = 'IBS_HI'","ERRCODE = 'LTZ01'","current_setting('transa…
+       |                                                                                                                                                  ^
+    199|     const code=sql.replace(/--.*$/gm,'');
+    200|     expect(code).not.toMatch(/\bINSERT INTO (?!schema_migrations)/i);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G16 the guard refuses a write from a transaction that is not READ COMMITTED: REPEATABLE READ and SERIALIZABLE are answered LTZ02 whatever the project, and nothing is stored
+AssertionError: REPEATABLE READ: expected null not to be null
+ ❯ check tests/z4-pointer-guard.test.ts:249:27
+    247|     const LTZ2='LTZ02',MSG2='An AI draft is written in a READ COMMITTE…
+    248|     const check=(e:Refusal,label:string)=>{
+    249|       expect(e,label).not.toBeNull();
+       |                           ^
+    250|       expect(e!.code,label).toBe(LTZ2);
+    251|       expect(e!.message,label).toBe(MSG2);
+ ❯ tests/z4-pointer-guard.test.ts:262:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 4 passed (5)
+      Tests  2 failed | 164 passed | 4 skipped (170)
+   Start at  10:00:57
+   Duration  87.83s (tests 100%)
+

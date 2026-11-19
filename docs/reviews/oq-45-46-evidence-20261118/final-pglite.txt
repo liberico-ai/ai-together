@@ -1,0 +1,12 @@
+# final verification, code at 383c394 — npx vitest run (PGlite; no SLICE1_* variable set)
+dupes: untracked=0 next-types=0
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  66 passed | 12 skipped (78)
+      Tests  1184 passed | 65 skipped (1249)
+   Start at  10:46:15
+   Duration  473.60s (tests 99%, import 1%)
+
+EXIT=0

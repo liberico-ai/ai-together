@@ -1,0 +1,14 @@
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  4 passed (4)
+      Tests  197 passed | 1 skipped (198)
+   Start at  15:46:14
+   Duration  94.06s (tests 100%)
+
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+typecheck exit: 0

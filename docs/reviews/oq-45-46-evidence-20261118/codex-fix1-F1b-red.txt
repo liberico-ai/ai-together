@@ -1,0 +1,144 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/z4-pointer-guard.test.ts (33 tests | 6 failed | 8 skipped) 13081ms
+   ❯ migration 022: the pointer-only guard (33)
+     × G11 fail-closed: when the guard function is owned by a role that row-level security filters, every insert is refused; when the lock function of a mapping is, every mapping insert is refused 513ms
+     × G12 running 022 again changes nothing: the exact triggers of the three tables, three functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role 565ms
+     × G20 the role cannot switch the scope guard off, cannot call or change the functions of 022, and no runtime role takes the row lock of a project by itself 500ms
+     × G21 a draft insert and a mapping insert each lock the row of their project in public.projects (its xmax is set inside the transaction) and take no advisory lock 517ms
+     × N1 a draft for a (tenant, project) pair that does not exist is refused 23503 by the guard itself, and nothing is stored 506ms
+     × N2 a mapping for a project that does not exist is refused 23503 by the lock function, and a mapping insert leaves the lock_timeout of the session as it was 496ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G11 fail-closed: when the guard function is owned by a role that row-level security filters, every insert is refused; when the lock function of a mapping is, every mapping insert is refused
+AssertionError: 11000000-0000-4000-8000-000000000001: expected 'query would be affected by row-level …' to be 'query would be affected by row-level …' // Object.is equality
+
+Expected: "query would be affected by row-level security policy for table "projects""
+Received: "query would be affected by row-level security policy for table "project_domain_mappings""
+
+ ❯ tests/z4-pointer-guard.test.ts:212:29
+    210|         const msg=await probe(`INSERT INTO intelligence.ai_drafts(${ke…
+    211|         expect(msg,project).not.toBeNull();
+    212|         expect(msg,project).toBe(G11_SENTENCE);
+       |                             ^
+    213|       }
+    214|     });
+ ❯ tests/slice2-fixtures.ts:91:5
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of the three tables, three functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role
+AssertionError: project_domain_mappings_draft_lock: expected { prosecdef: false, …(2) } to deeply equal { prosecdef: true, …(2) }
+
+- Expected
++ Received
+
+  {
+    "proconfig": [
+      "search_path=pg_catalog, pg_temp",
+-     "row_security=off",
+      "lock_timeout=5s",
+    ],
+-   "prosecdef": true,
++   "prosecdef": false,
+    "provolatile": "v",
+  }
+
+ ❯ tests/z4-pointer-guard.test.ts:271:23
+    269|       const fn=await rows<{prosecdef:boolean;proconfig:string[];provol…
+    270|       expect(fn,n).toHaveLength(1);
+    271|       expect(fn[0],n).toEqual(PINS[n]);
+       |                       ^
+    272|     }
+    273|     // the owner of both definer functions is not bound by row-level s…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G20 the role cannot switch the scope guard off, cannot call or change the functions of 022, and no runtime role takes the row lock of a project by itself
+AssertionError: project_domain_mappings_draft_lock: expected [ { prosecdef: false, …(1) } ] to deeply equal [ { prosecdef: true, …(1) } ]
+
+- Expected
++ Received
+
+  [
+    {
+      "proconfig": [
+        "search_path=pg_catalog, pg_temp",
+-       "row_security=off",
+        "lock_timeout=5s",
+      ],
+-     "prosecdef": true,
++     "prosecdef": false,
+    },
+  ]
+
+ ❯ tests/z4-pointer-guard.test.ts:493:106
+    491|     };
+    492|     for(const [name,pin] of Object.entries(PINS)){
+    493|       expect(await rows('SELECT p.prosecdef,p.proconfig FROM pg_proc p…
+       |                                                                                                          ^
+    494|       expect(await rows<{is_owner:boolean}>(`SELECT a.grantee = p.proo…
+    495|         WHERE n.nspname='intelligence' AND p.proname=$1`,[name]),name)…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G21 a draft insert and a mapping insert each lock the row of their project in public.projects (its xmax is set inside the transaction) and take no advisory lock
+AssertionError: draft insert: expected [ { mode: 'ShareLock', …(2) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "mode": "ShareLock",
++     "o": 2546182335,
++     "s": 2,
++   },
++ ]
+
+ ❯ tests/z4-pointer-guard.test.ts:581:39
+    579|         await write(tx);
+    580|         // (i) no advisory lock of the key space of the former body of…
+    581|         expect(await locks(tx),label).toEqual([]);
+       |                                       ^
+    582|         // (ii) the project row carries a lock of this transaction
+    583|         expect(await xmax(tx),label).not.toBe('0');
+ ❯ tests/slice2-fixtures.ts:91:5
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N1 a draft for a (tenant, project) pair that does not exist is refused 23503 by the guard itself, and nothing is stored
+AssertionError: (a) the AI role, a random project in its declared scope: the given combination of arguments (undefined and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
+ ❯ tests/z4-pointer-guard.test.ts:626:29
+    624|       expect(e!.code,label).toBe('23503');
+    625|       expect(e!.message,label).toContain('foreign key');
+    626|       expect(e!.hint,label).toContain('ai_drafts_pointer_only_guard');
+       |                             ^
+    627|     }
+    628|     expect(await count()).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > N2 a mapping for a project that does not exist is refused 23503 by the lock function, and a mapping insert leaves the lock_timeout of the session as it was
+AssertionError: the given combination of arguments (undefined and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
+ ❯ tests/z4-pointer-guard.test.ts:637:21
+    635|     expect(e!.code).toBe('23503');
+    636|     expect(e!.message).toContain('foreign key');
+    637|     expect(e!.hint).toContain('project_domain_mappings_draft_lock');
+       |                     ^
+    638|     expect(await mappings(ghost)).toBe(0);
+    639|     await rolledBack(h.operator,async tx=>{
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  6 failed | 128 passed | 9 skipped (143)
+   Start at  14:00:29
+   Duration  69.21s (tests 100%)
+

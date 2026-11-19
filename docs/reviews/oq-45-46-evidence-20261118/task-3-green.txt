@@ -1,0 +1,10 @@
+$ npx vitest run tests/suggestions.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  59 passed | 1 skipped (60)
+   Start at  09:14:50
+   Duration  28.94s (tests 100%)
+

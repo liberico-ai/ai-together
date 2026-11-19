@@ -1,0 +1,176 @@
+$ npx vitest run tests/z4-pointer-guard.test.ts tests/migrations-rollback.test.ts   (migration 022 files not present)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/z4-pointer-guard.test.ts (15 tests | 10 failed) 7490ms
+   ❯ migration 022: the pointer-only guard (15)
+     × G1 the guard refuses a draft for a project whose latest mapping row is IBS_HI: SQLSTATE LTZ01, a message without ids, nothing stored 646ms
+     × G3 the highest mapping_version decides, whatever the order the rows were written in 478ms
+     × G5 the guard answers before the conflict check: the dedupe key of a draft stored before the mapping is refused on replay, and one row stays 477ms
+     × G6 the pointer-only guard also stops the operational login 469ms
+     × G7 34d without a transaction context nothing is stored: an IBS_HI project is answered by the guard, any other project by row-level security 469ms
+     × G8 34a 34e the AI role gains nothing to read or call 477ms
+     × G9 what the AI role can tell apart is one bit, and this test says so: an IBS_HI project outside the declared scope is answered LTZ01, any other project outside it by row-level security 465ms
+     × G11 fail-closed: when the guard function is owned by a role that row-level security filters, every insert is refused 510ms
+     × G12 running 022 again changes nothing: the exact triggers of both tables, one enabled BEFORE INSERT row guard, one function, pinned settings, no grant; the file inserts no data and creates no role 537ms
+     × G14 the guard decides each row of a multi-row insert: one IBS_HI row refuses the whole statement and nothing is stored 490ms
+ ❯ tests/migrations-rollback.test.ts (7 tests | 1 failed) 3475ms
+   × rollback 022 refuses while a later migration is applied, drops the guard trigger and its function, and leaves drafts, decisions and 021 as they were 477ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 022 refuses while a later migration is applied, drops the guard trigger and its function, and leaves drafts, decisions and 021 as they were
+Error: ENOENT: no such file or directory, open '<repo>/migrations/022_ai_drafts_pointer_only_guard.sql'
+ ❯ tests/migrations-rollback.test.ts:398:17
+    396| test('rollback 022 refuses while a later migration is applied, drops t…
+    397|   const h=await openHarness();
+    398|   const forward=await readFile(dir('migrations/022_ai_drafts_pointer_o…
+       |                 ^
+    399|   const rollback=await readFile(dir('migrations/rollback/022_ai_drafts…
+    400|   expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+R…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G1 the guard refuses a draft for a project whose latest mapping row is IBS_HI: SQLSTATE LTZ01, a message without ids, nothing stored
+AssertionError: expected null not to be null
+ ❯ tests/z4-pointer-guard.test.ts:56:19
+     54|     const before=await count();
+     55|     const e=await aiInsert({project_id:ids.transport},{projects:[ids.t…
+     56|     expect(e).not.toBeNull();
+       |                   ^
+     57|     expect(e!.code).toBe(LTZ);
+     58|     expect(e!.message).toBe(MESSAGE);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G3 the highest mapping_version decides, whatever the order the rows were written in
+AssertionError: expected undefined to be 'LTZ01' // Object.is equality
+
+- Expected:
+"LTZ01"
+
++ Received:
+undefined
+
+ ❯ tests/z4-pointer-guard.test.ts:77:21
+     75|     await mapDomain(h,ids.sales,'XECA',4);
+     76|     const e=await aiInsert();
+     77|     expect(e?.code).toBe(LTZ);
+       |                     ^
+     78|     expect(await count()).toBe(0);
+     79|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G5 the guard answers before the conflict check: the dedupe key of a draft stored before the mapping is refused on replay, and one row stays
+AssertionError: expected null not to be null
+ ❯ tests/z4-pointer-guard.test.ts:96:19
+     94|     const e=await refusal(asAi(tx=>tx.query(`INSERT INTO intelligence.…
+     95|       ON CONFLICT(tenant_id,dedupe_key) DO NOTHING RETURNING id`,keys.…
+     96|     expect(e).not.toBeNull();
+       |                   ^
+     97|     expect(e!.code).toBe(LTZ);
+     98|     expect((await rows<{n:number}>('SELECT count(*)::int n FROM intell…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G6 the pointer-only guard also stops the operational login
+AssertionError: expected undefined to be 'LTZ01' // Object.is equality
+
+- Expected:
+"LTZ01"
+
++ Received:
+undefined
+
+ ❯ tests/z4-pointer-guard.test.ts:104:21
+    102|     await mapDomain(h,ids.transport,'IBS_HI',1);
+    103|     const e=await refusal(insertDraft(h.operator,{project_id:ids.trans…
+    104|     expect(e?.code).toBe(LTZ);
+       |                     ^
+    105|     expect(await count()).toBe(0);
+    106|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G7 34d without a transaction context nothing is stored: an IBS_HI project is answered by the guard, any other project by row-level security
+AssertionError: expected '42501' to be 'LTZ01' // Object.is equality
+
+Expected: "LTZ01"
+Received: "42501"
+
+ ❯ tests/z4-pointer-guard.test.ts:111:60
+    109|     await mapDomain(h,ids.transport,'IBS_HI',1);
+    110|     const bare=(over:R)=>refusal(h.operator.transaction(async tx=>{awa…
+    111|     expect((await bare({project_id:ids.transport}))?.code).toBe(LTZ);
+       |                                                            ^
+    112|     const other=await bare({project_id:ids.sales});
+    113|     expect(other?.message).toMatch(/row-level security/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G8 34a 34e the AI role gains nothing to read or call
+AssertionError: expected 'function intelligence.ai_drafts_point…' to match /permission denied/
+
+- Expected:
+/permission denied/
+
++ Received:
+"function intelligence.ai_drafts_pointer_only_guard() does not exist"
+
+ ❯ tests/z4-pointer-guard.test.ts:120:112
+    118|   test('G8 34a 34e the AI role gains nothing to read or call',async()=…
+    119|     expect((await refusal(asAi(tx=>tx.query('SELECT 1 FROM public.proj…
+    120|     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.ai_dr…
+       |                                                                                                                ^
+    121|     const owner=(await rows<{o:string}>(`SELECT pg_get_userbyid(p.proo…
+    122|       WHERE n.nspname='intelligence' AND p.proname='ai_drafts_pointer_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G9 what the AI role can tell apart is one bit, and this test says so: an IBS_HI project outside the declared scope is answered LTZ01, any other project outside it by row-level security
+AssertionError: expected '42501' to be 'LTZ01' // Object.is equality
+
+Expected: "LTZ01"
+Received: "42501"
+
+ ❯ tests/z4-pointer-guard.test.ts:135:87
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G11 fail-closed: when the guard function is owned by a role that row-level security filters, every insert is refused
+error: function intelligence.ai_drafts_pointer_only_guard() does not exist
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of both tables, one enabled BEFORE INSERT row guard, one function, pinned settings, no grant; the file inserts no data and creates no role
+Error: ENOENT: no such file or directory, open '<repo>/migrations/022_ai_drafts_pointer_only_guard.sql'
+ ❯ tests/z4-pointer-guard.test.ts:169:15
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G14 the guard decides each row of a multi-row insert: one IBS_HI row refuses the whole statement and nothing is stored
+AssertionError: expected null not to be null
+ ❯ tests/z4-pointer-guard.test.ts:226:19
+    224|     },{projects:[ids.sales,ids.transport]}));
+    225|     const e=await many([ids.sales,ids.transport]);
+    226|     expect(e).not.toBeNull();
+       |                   ^
+    227|     expect(e!.code).toBe(LTZ);
+    228|     expect(await count()).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  11 failed | 11 passed (22)
+   Start at  09:04:04
+   Duration  11.17s (tests 99%, import 1%)
+

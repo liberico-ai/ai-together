@@ -1,0 +1,11 @@
+# Task 4b on PostgreSQL 16 (native), working tree on top of edc82bf — npx vitest run tests/suggestions.test.ts tests/suggestions-concurrency.test.ts tests/source-text.test.ts tests/skill-context.test.ts tests/intake.test.ts tests/outbox-schema.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  6 passed (6)
+      Tests  209 passed (209)
+   Start at  09:30:17
+   Duration  70.81s (tests 100%)
+
+EXIT=0

@@ -1,0 +1,10 @@
+$ npx vitest run tests/suggestions.test.ts tests/source-text.test.ts tests/skill-context.test.ts tests/intake.test.ts tests/inbox-service.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  5 passed (5)
+      Tests  196 passed | 2 skipped (198)
+   Start at  09:40:59
+   Duration  98.83s (tests 100%)
+

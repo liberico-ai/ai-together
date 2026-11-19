@@ -214,8 +214,8 @@ PR đã merge vào `libetech-ai-os` ngày 16/11/2026 (`08322d3`) sau khi Chairma
 
 ## Câu hỏi mở chưa quyết
 
-- **OQ-45** (`docs/OPEN-QUESTIONS.md:661`) — ai đọc nội dung một nháp AI; có xét lại quyền lúc đọc không; nháp của dự án `IBS_HI` có được lưu không. **Chặn việc thêm tuyến đọc nháp và việc bật Z4.** Chairman quyết ngày 18/11/2026: (b) ở cả ba điểm; chưa có mã, nên vẫn chặn.
-- **OQ-46** (`:677`) — nháp AI dựng trên đầu vào đã cũ có được xác nhận không (ví dụ nháp phân tích bản r3, sau đó có bản r4). Hành vi hiện tại: không kiểm thêm; người xác nhận nháp tài liệu vẫn phải gửi phiên bản tài liệu mình thấy. **Cùng OQ-45, chặn việc bật Z4.** Chairman quyết ngày 18/11/2026: (b), mốc là bản mới nhất nháp nêu; chưa có mã, nên vẫn chặn.
+- **OQ-45** (`docs/OPEN-QUESTIONS.md:661`) — ai đọc nội dung một nháp AI; có xét lại quyền lúc đọc không; nháp của dự án `IBS_HI` có được lưu không. **Chặn việc thêm tuyến đọc nháp và việc bật Z4.** Chairman quyết ngày 18/11/2026: (b) ở cả ba điểm; mã đã được viết trên nhánh `feat/oq-45-46-ai-drafts` (biên nhận `docs/DELIVERY-015-ai-drafts-read-and-stale-20261118.md`), nên vẫn chặn cho tới khi nhánh đó được merge và các điều kiện của biên nhận đó được đáp ứng.
+- **OQ-46** (`:677`) — nháp AI dựng trên đầu vào đã cũ có được xác nhận không (ví dụ nháp phân tích bản r3, sau đó có bản r4). Hành vi hiện tại: không kiểm thêm; người xác nhận nháp tài liệu vẫn phải gửi phiên bản tài liệu mình thấy. **Cùng OQ-45, chặn việc bật Z4.** Chairman quyết ngày 18/11/2026: (b), mốc là bản mới nhất nháp nêu; mã đã được viết trên nhánh `feat/oq-45-46-ai-drafts` (biên nhận `docs/DELIVERY-015-ai-drafts-read-and-stale-20261118.md`), nên vẫn chặn cho tới khi nhánh đó được merge và các điều kiện của biên nhận đó được đáp ứng.
 OQ-45 an toàn ở mức «chưa triển khai» theo reviewer bảo mật tầng 1. OQ-43 và OQ-44 (mở sau review Task 7d) đã được Chairman quyết ngày 16/11/2026, đều phương án (a) — xem «Căn cứ và quyết định». OQ-46 do reviewer mã nêu khi quét lớp lỗi; phiên lát 3 không tự chọn phương án vì SPEC không định nghĩa nháp «cũ».
 
 ## Cách hiểu chờ Chairman xác nhận (không phải lời Chairman; đều theo hướng chặt)

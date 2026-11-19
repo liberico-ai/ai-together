@@ -1,0 +1,5 @@
+$ npx vitest run tests/z4-pointer-guard.test.ts tests/source-text.test.ts tests/suggestions.test.ts tests/skill-context.test.ts tests/intake.test.ts
+ ↓ tests/suggestions.test.ts > Z4 drafts: submit > the runtime role cannot submit a draft
+ ↓ tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G17 REPEATABLE READ opened before the IBS_HI mapping was committed is refused LTZ02; READ COMMITTED sees a mapping committed after it began and is refused LTZ01
+ Test Files  5 passed (5)
+      Tests  202 passed | 2 skipped (204)

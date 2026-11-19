@@ -1,0 +1,7 @@
+# head 83d5e2f (last change to tests: 5c08fda; last change to src and migrations: 383c394) — npm run typecheck
+dupes: untracked=0 next-types=0
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+EXIT=0

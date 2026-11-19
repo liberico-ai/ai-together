@@ -1,0 +1,49 @@
+=== npx vitest run tests/suggestions.test.ts -t 'the newest revision the draft names is the baseline'
+mutation: D2 second half: in DOC_SUBJECT_SQL, 'named' computed over every revision of the project with no document filter: (SELECT coalesce(max(w.revision_no),0)::int FROM document_revisions w WHERE w.project_id=$1::uuid AND w.id = ANY($3::uuid[])) AS named
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > the newest revision the draft names is the baseline: naming r1 and r2 is confirmed while r2 is the newest; a revision of another document is not a baseline
+AssertionError: expected 'Nháp được giữ lại, chưa xác nhận được…' to contain 'SUBJECT_BASELINE_MISSING'
+      Tests  1 failed | 87 skipped (88)
+AssertionError count: 1; 'timed out' count: 0
+
+=== npx vitest run tests/source-text.test.ts -t threadHasHiddenText
+mutation: Q5 (i): in threadHasHiddenText, join only the root message (JOIN source_events e ON e.id=c.root_source_event_id) instead of the thread join
+ FAIL  tests/source-text.test.ts > threadHasHiddenText > Q5 (i) a thread whose root stored no text and whose reply stored text: the reply counts, whichever message is the root
+AssertionError: expected false to be true // Object.is equality
+      Tests  1 failed | 5 passed | 19 skipped (25)
+AssertionError count: 1; 'timed out' count: 0
+
+=== npx vitest run tests/source-text.test.ts -t 'T9 record time'
+mutation: T9: in threadFreshness, messages compared by observed_at instead of created_at (thread CTE selects e.observed_at AS created_at)
+ FAIL  tests/source-text.test.ts > threadFreshness > T9 record time decides, not the observed time the gateway declares: a reply that arrives late with an older observedAt is still a newer message of the thread
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+      Tests  1 failed | 24 skipped (25)
+AssertionError count: 1; 'timed out' count: 0
+
+=== npx vitest run tests/source-text.test.ts -t 'T10 an edit'
+mutation: T10: in threadFreshness, later_edit restricted to the named messages (AND r.source_event_id = ANY($3::uuid[]))
+ FAIL  tests/source-text.test.ts > threadFreshness > T10 an edit of a message the draft does not name counts: later revisions of any message of the thread are looked at
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+      Tests  1 failed | 24 skipped (25)
+AssertionError count: 1; 'timed out' count: 0
+
+=== npx vitest run tests/source-text.test.ts -t 'T11 two rows'
+mutation: T11: in threadFreshness, newer_message compares with > instead of >=
+ FAIL  tests/source-text.test.ts > threadFreshness > T11 two rows recorded at the same instant: the one the draft does not name counts as newer (>=)
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+      Tests  1 failed | 24 skipped (25)
+AssertionError count: 1; 'timed out' count: 0
+
+=== npx vitest run tests/source-text.test.ts -t 'T12 the statement'
+mutation: T12: in threadFreshness, the thread CTE loses its project conditions (c.project_id=$1::uuid and e.project_id=$1::uuid)
+ FAIL  tests/source-text.test.ts > threadFreshness > T12 the statement's own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing for the other project
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: false, …(2) }
+      Tests  1 failed | 24 skipped (25)
+AssertionError count: 1; 'timed out' count: 0
+
+=== npx vitest run tests/source-text.test.ts -t 'T14 no cap'
+mutation: T14: in threadFreshness, the thread CTE keeps only the 20 newest messages by observed_at (ORDER BY e.observed_at DESC LIMIT 20)
+ FAIL  tests/source-text.test.ts > threadFreshness > T14 no cap: in a thread of more than twenty messages a late message outside any window still holds
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+      Tests  1 failed | 24 skipped (25)
+AssertionError count: 1; 'timed out' count: 0
+

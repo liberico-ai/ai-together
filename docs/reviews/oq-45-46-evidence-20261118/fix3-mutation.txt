@@ -1,0 +1,5 @@
+$ npx vitest run tests/z4-pointer-guard.test.ts -t G12 ; temporary mutation: before the first comparison, re-install the function with an extra "PERFORM 1;" statement (all seven fragments still present)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of both tables, one enabled BEFORE INSERT row guard, one function, pinned settings, no grant; the file inserts no data and creates no role
+AssertionError: expected 'DECLARE latest text;\nBEGIN PERFORM 1…' to be 'DECLARE latest text;\nBEGIN\n  -- The…' // Object.is equality
+      Tests  1 failed | 17 skipped (18)

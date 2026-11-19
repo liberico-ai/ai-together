@@ -1,0 +1,11 @@
+# interim full suite, PGlite, at 5013f75 — npx vitest run
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  66 passed | 12 skipped (78)
+      Tests  1166 passed | 62 skipped (1228)
+   Start at  09:44:58
+   Duration  457.51s (tests 99%, import 1%)
+
+EXIT=0

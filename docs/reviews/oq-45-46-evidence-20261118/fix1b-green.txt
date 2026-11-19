@@ -1,0 +1,9 @@
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  8 passed (8)
+      Tests  251 passed | 4 skipped (255)
+   Start at  10:13:22
+   Duration  109.11s (tests 100%)
+

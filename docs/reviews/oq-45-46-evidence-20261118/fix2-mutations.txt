@@ -1,0 +1,10 @@
+### npx vitest run tests/source-text.test.ts -t T15 ; mutation: later_edit line r.created_at >= b.at -> > 
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/source-text.test.ts > threadFreshness > T15 an edit recorded at the same instant as the baseline counts (>=)
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+      Tests  1 failed | 27 skipped (28)
+### npx vitest run tests/source-text.test.ts -t Q10 ; mutation: row?.hidden!==false -> row?.hidden===true
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/source-text.test.ts > threadHasHiddenText > Q10 threadHasHiddenText is closed when the statement returns no row
+AssertionError: expected false to be true // Object.is equality
+      Tests  1 failed | 27 skipped (28)

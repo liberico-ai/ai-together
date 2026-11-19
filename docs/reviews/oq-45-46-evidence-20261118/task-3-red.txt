@@ -1,0 +1,615 @@
+$ npx vitest run tests/suggestions.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (60 tests | 10 failed | 1 skipped) 29430ms
+   ❯ Z4 drafts: fix round 1 (7)
+     × replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content 491ms
+   ❯ Z4 drafts: list (1)
+     × R12-k strict query, deterministic order, a total over the same filter 490ms
+   ❯ Z4 drafts: who reads the content (OQ-45 point 1) (9)
+     × L1 a candidate draft: only the project manager reads its content; engineer, technical and business get no content, no source id and no hash 477ms
+     × L2 a document draft: every role that may write the ledger reads its content; viewer and bot get the not-found answer for both kinds of draft 517ms
+     × L3 nothing the writer chose reaches the service for a reader without the authority: no value, question, confidence, version string, hash or source id in any row handed to it 482ms
+     × L4 a reader without the authority gets no bits the writer chose: sources is empty and manifestHash is the current manifest's or null 486ms
+     × L6 one rule for reading and deciding: a role reads the content of a draft exactly when it may decide it 493ms
+     × L7 when the content is returned every displayed field comes from the validated value: a row whose questions, confidence and sources columns say otherwise shows the value's; skillVersion and manifestHash only when they are the manifest's in force 481ms
+     × L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided 483ms
+     × L9 a stored value that does not fit the contract is masked as SCHEMA_INVALID even for a person who may decide 474ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: fix round 1 > replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content
+AssertionError: expected { …(15) } to deeply equal { …(16) }
+
+- Expected
++ Received
+
+@@ -1,7 +1,7 @@
+  {
+-   "confidence": null,
++   "confidence": 70,
+    "createdAt": "2026-11-18T02:14:15.792Z",
+    "decision": {
+      "decidedAt": "2026-11-18T02:14:15.793Z",
+      "decidedBy": "14000000-0000-4000-8000-000000000001",
+      "documentRevisionId": null,
+@@ -9,17 +9,36 @@
+    },
+    "entityId": "41f4d01b-eac8-47c9-87ab-429deab5f1cf",
+    "entityType": "intake_candidate",
+    "id": "41da904c-6870-488c-8bf4-7be22e96a6a0",
+    "manifestHash": "e007b1885b091fe0386f8ce3970d916c02436b0cd362511c8992d3e3e7f989f7",
+-   "maskReasons": [
+-     "CONFIRM_AUTHORITY_REQUIRED",
++   "modelVersion": "synthetic-model-1",
++   "projectId": "11000000-0000-4000-8000-000000000001",
++   "questions": [],
++   "skill": "intake_analyst",
++   "skillVersion": "0.1.0",
++   "sources": [
++     {
++       "id": "52732d9a-607f-4b04-a42a-6b4876f8990b",
++     },
+    ],
+-   "modelVersion": null,
+-   "projectId": "11000000-0000-4000-8000-000000000001",
+-   "questions": null,
++   "value": {
++     "claims": [],
++     "confidence": 70,
++     "conflicts": [],
++     "manifestHash": "e007b1885b091fe0386f8ce3970d916c02436b0cd362511c8992d3e3e7f989f7",
++     "questions": [],
++     "result": {
++       "classification": "incident",
++       "duplicateOf": null,
++       "missingFields": [],
++     },
+      "skill": "intake_analyst",
+-   "skillVersion": null,
+-   "sources": [],
+-   "value": null,
+-   "valueHash": null,
++     "sources": [
++       {
++         "id": "52732d9a-607f-4b04-a42a-6b4876f8990b",
++       },
++     ],
++     "toolRequests": [],
++   },
++   "valueHash": "f5f27cf64086c974555f3dcc409c9ba3517d22536b4c72bcc8298df06b7acb06",
+  }
+
+ ❯ tests/suggestions.test.ts:523:55
+    521|   await denied(decide(svc(),{...pm,grants:[{projectId:ids.sales,role:'…
+    522|   const lowered:Principal={...pm,grants:[{projectId:ids.sales,role:'en…
+    523|   expect(await decide(svc(),lowered,c.draftId,b,key)).toEqual({...firs…
+       |                                                       ^
+    524|    maskReasons:['CONFIRM_AUTHORITY_REQUIRED']});
+    525|   expect(await n('draft_decisions')).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: list > R12-k strict query, deterministic order, a total over the same filter
+AssertionError: expected [ 'confidence', 'createdAt', …(13) ] to deeply equal [ 'confidence', 'createdAt', …(14) ]
+
+- Expected
++ Received
+
+@@ -4,11 +4,10 @@
+    "decision",
+    "entityId",
+    "entityType",
+    "id",
+    "manifestHash",
+-   "maskReasons",
+    "modelVersion",
+    "projectId",
+    "questions",
+    "skill",
+    "skillVersion",
+
+ ❯ tests/suggestions.test.ts:637:37
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L1 a candidate draft: only the project manager reads its content; engineer, technical and business get no content, no source id and no hash
+AssertionError: expected undefined to deeply equal []
+
+- Expected:
+[]
+
++ Received:
+undefined
+
+ ❯ tests/suggestions.test.ts:656:65
+    654|   const x=await loud(),m=skillManifests.intake_analyst;
+    655|   const mine=(await svc().list(pm,q('intake_candidate',x.candidateId))…
+    656|   expect(mine.value).toEqual(x.output);expect(mine.maskReasons).toEqua…
+       |                                                                 ^
+    657|   expect(JSON.stringify(mine.questions)).toContain(MARK);expect(mine.c…
+    658|   expect(mine.skillVersion).toBe(m.version);expect(mine.modelVersion).…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L2 a document draft: every role that may write the ledger reads its content; viewer and bot get the not-found answer for both kinds of draft
+AssertionError: expected undefined to deeply equal []
+
+- Expected:
+[]
+
++ Received:
+undefined
+
+ ❯ tests/suggestions.test.ts:673:62
+    671|   for(const p of [pm,member,reviewer,approver]) {
+    672|    const it=(await svc().list(p,q('document',d.d.record.id))).items[0]…
+    673|    expect(it.value).toEqual(d.output);expect(it.maskReasons).toEqual([…
+       |                                                              ^
+    674|   }
+    675|   const bots={...ai,role:'bot',name:'x',projectIds:[ids.sales]} as unk…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L3 nothing the writer chose reaches the service for a reader without the authority: no value, question, confidence, version string, hash or source id in any row handed to it
+AssertionError: expected '[{"set_config":"11000000-0000-4000-80…' not to contain 'zq-mark-14c8b172f6d74ca18946bff65856e…'
+
+Expected: "zq-mark-14c8b172f6d74ca18946bff65856ec33"
+Received: "[{"set_config":"11000000-0000-4000-8000-000000000001"},{"id":"4f4b915d-da20-4b0e-ae7a-7779071b81c1","project_id":"11000000-0000-4000-8000-000000000001","entity_type":"intake_candidate","entity_id":"3381b014-2944-446c-85bb-8660ceb329a7","signal_type":"intake_analyst","skill_version":"0.1.0","manifest_hash":"e007b1885b091fe0386f8ce3970d916c02436b0cd362511c8992d3e3e7f989f7","model_version":"synthetic-model-1","value":{"skill":"intake_analyst","claims":[{"basis":["d021da62-067e-463e-9d53-1a4d3412c06e"],"field":"classification","value":"zq-mark-14c8b172f6d74ca18946bff65856ec33"}],"result":{"duplicateOf":null,"missingFields":[],"classification":"incident"},"sources":[{"id":"d021da62-067e-463e-9d53-1a4d3412c06e"}],"conflicts":[],"questions":[{"field":"classification","question":"zq-mark-14c8b172f6d74ca18946bff65856ec33"}],"confidence":70,"manifestHash":"e007b1885b091fe0386f8ce3970d916c02436b0cd362511c8992d3e3e7f989f7","toolRequests":[]},"value_hash":"e21409c0e0c26aa2e708b2d3954a43b5c1c989e8500de762dfb8880ba22d4d80","sources":[{"id":"d021da62-067e-463e-9d53-1a4d3412c06e"}],"questions":[{"field":"classification","question":"zq-mark-14c8b172f6d74ca18946bff65856ec33"}],"confidence":70,"created_at":"2026-11-18T02:14:21.659Z","dec_result":null,"dec_by":null,"dec_at":null,"dec_revision":null,"dec_key":null},{"n":1}]"
+
+ ❯ tests/suggestions.test.ts:686:20
+    684|   await new SuggestionService(rec.db,h.operator,chats).list(member,q('…
+    685|   const seen=JSON.stringify(rec.rows());
+    686|   expect(seen).not.toContain(MARK);expect(seen).not.toContain(sha(x.ou…
+       |                    ^
+    687|  });
+    688|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L4 a reader without the authority gets no bits the writer chose: sources is empty and manifestHash is the current manifest's or null
+AssertionError: expected { …(15) } to match object { sources: [], manifestHash: null }
+(22 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "manifestHash": null,
+-   "sources": [],
++   "manifestHash": "ab210f644345735fd798464b8b75316a998bf6944d0ae48f9cabb6a554d0dbfc",
++   "sources": [
++     {
++       "id": "7402b61d-dc18-311a-41e1-0e7d152f2df4",
++     },
++     {
++       "id": "16dd93f8-db6f-de50-5337-22c19b2a2e57",
++     },
++     {
++       "id": "eac7df2c-e3a4-be13-9f3c-5a052787a8a7",
++     },
++     {
++       "id": "b0562326-b2e9-272d-0cd4-226b52de7549",
++     },
++     {
++       "id": "6f774977-61c7-5838-9f1e-8a294efb97d1",
++     },
++     {
++       "id": "4e71e705-50b3-b5e6-6de9-02ead19b14df",
++     },
++     {
++       "id": "e856682a-0df8-0200-0ece-15384acd0153",
++     },
++     {
++       "id": "785162cc-89d8-55a2-d4fb-eab5b5536a40",
++     },
++     {
++       "id": "9ee12286-f60d-dbbf-c5c7-b7de6fe632a3",
++     },
++     {
++       "id": "3414f95b-05a3-9ec3-c6aa-122a4ccf4493",
++     },
++     {
++       "id": "54164c16-9b4b-cb97-4253-33d6950c2821",
++     },
++     {
++       "id": "c52675e0-cd90-33ae-32cf-847ea6193a60",
++     },
++     {
++       "id": "5c83396c-1076-5f54-eb41-e7aad13b31c0",
++     },
++     {
++       "id": "d28d8054-4978-91d9-b883-c0bdc246c316",
++     },
++     {
++       "id": "9e509317-9798-d258-3576-cd0e72f66b1d",
++     },
++     {
++       "id": "83d16e7d-3f58-7e91-8358-0edd83111df6",
++     },
++     {
++       "id": "ab864025-df76-bece-dc68-eb0556f6663b",
++     },
++     {
++       "id": "1403a4cc-45ec-8ffd-4485-4072c96305d3",
++     },
++     {
++       "id": "bf38d081-9841-120b-1b47-6532fa5e88bb",
++     },
++     {
++       "id": "9c4f3dce-e1c1-1dad-db0a-7cd14acfdc4e",
++     },
++     {
++       "id": "1716a86a-f39a-8a99-5178-00834ac6897e",
++     },
++     {
++       "id": "a8957336-bc5b-2482-052e-afb1a2bc2318",
++     },
++     {
++       "id": "bb2e45ee-25a6-c87b-20f1-98aa4ecbc2d8",
++     },
++     {
++       "id": "8876af29-11fd-01d1-3e84-319216eab0a9",
++     },
++     {
++       "id": "dde4c382-d95d-539e-9d92-537bb427d0d8",
++     },
++     {
++       "id": "0c60a2cf-6cf5-6488-4c09-926e5f3477c2",
++     },
++     {
++       "id": "1441dd91-e084-8475-96ed-cb70a2240658",
++     },
++     {
++       "id": "413fddd5-1f37-bcc3-a092-3418f2ab2c8e",
++     },
++     {
++       "id": "a84f15d7-ccca-394a-9702-0544a7c30263",
++     },
++     {
++       "id": "af0fa595-8342-d88e-3afa-74021306acf7",
++     },
++     {
++       "id": "d1702b79-d9b9-4629-ec2b-64441c64a54d",
++     },
++     {
++       "id": "15cae0a4-da07-662d-00af-68da4807e2f0",
++     },
++     {
++       "id": "b73ab2b0-60a7-4b8a-e55d-97aeb8a0033f",
++     },
++     {
++       "id": "b05da15d-2e6c-971e-eb60-63d505f333c7",
++     },
++     {
++       "id": "d18b6fcc-7646-9704-266f-2ed30009c8ec",
++     },
++     {
++       "id": "c4927964-1b6a-d95d-b687-8bbd3015c6e5",
++     },
++     {
++       "id": "05130391-3124-c9f6-46c8-dcea06f9ada9",
++     },
++     {
++       "id": "a5ae9989-3298-360e-f176-1f434dda3060",
++     },
++     {
++       "id": "f53829b5-eaff-27a4-a020-c0c58be925f6",
++     },
++     {
++       "id": "5f62c936-c8a2-7864-d00f-011f2bfaefeb",
++     },
++     {
++       "id": "84c10d96-2aca-d678-1bed-f05c555fa2b9",
++     },
++     {
++       "id": "b3438f4b-85c9-4d01-1099-ba330da39c1b",
++     },
++     {
++       "id": "d3e0de50-3c89-43e6-eee8-f6813835f718",
++     },
++     {
++       "id": "0b0d7a2d-2f1d-511b-a5ce-1e2093cadabc",
++     },
++     {
++       "id": "9a8005af-391d-641d-5bf5-1cc4c8492224",
++     },
++     {
++       "id": "acf43a69-f083-b400-ee9d-45b38188ff1f",
++     },
++     {
++       "id": "f4894ca6-061f-2b45-38ad-58389d46182e",
++     },
++     {
++       "id": "259d1b54-1c13-33e5-804b-1b3c07ab2838",
++     },
++     {
++       "id": "1141a440-d308-0abb-e500-4b080ab8372a",
++     },
++     {
++       "id": "001b5055-f1df-0b88-018a-34ce5632dd10",
++     },
++     {
++       "id": "071ecdd9-4529-6da1-9fa3-410527b20893",
++     },
++     {
++       "id": "96bcdb45-546e-2b3b-da5c-b7115f982039",
++     },
++     {
++       "id": "9265775e-f063-f725-7039-9cd245e1a7a9",
++     },
++     {
++       "id": "f3e4b4e4-f14f-6ae1-ba96-3712963d96db",
++     },
++     {
++       "id": "c804b165-43cd-0ff5-6b12-8b9907f71e7a",
++     },
++     {
++       "id": "18199cf5-5526-0524-b6cc-7ae3089590ce",
++     },
++     {
++       "id": "a16393fc-25de-93fd-47b2-930f22258777",
++     },
++     {
++       "id": "76b9031f-886f-f7f4-a3aa-dd75c2aea9e7",
++     },
++     {
++       "id": "08e70594-775e-ada3-0a12-ba730d33bae0",
++     },
++     {
++       "id": "e7786588-3336-5eb4-bed9-ca038eef892d",
++     },
++     {
++       "id": "d095518d-ddd2-286e-f383-b8daf3bbe1cd",
++     },
++     {
++       "id": "34b7f8e9-9aee-3f7f-ff46-46f9a43b5051",
++     },
++     {
++       "id": "3db26fc8-2e74-8cc3-b77a-9a59954b95a6",
++     },
++     {
++       "id": "ef66ac6e-a19e-117a-494a-5e3b69774ec3",
++     },
++     {
++       "id": "f252fbcd-3ae3-cdc5-c135-d51c0c086f12",
++     },
++     {
++       "id": "32ccbf7d-587d-1596-b275-2798c704592d",
++     },
++     {
++       "id": "69c31973-5cae-432b-1931-7c6c1fae99da",
++     },
++     {
++       "id": "c262a862-f202-2992-5d85-dad31ef44e1a",
++     },
++     {
++       "id": "a2c1c783-f526-9f04-f77f-9b2a63cb6164",
++     },
++     {
++       "id": "605c4553-bf89-96c1-3607-1b43d2119102",
++     },
++     {
++       "id": "6995ae69-87d6-f9cd-8151-c748ba9ba7a0",
++     },
++     {
++       "id": "b75debb6-441c-6f01-d373-fa561f815c81",
++     },
++     {
++       "id": "a28f63e1-bf99-dc69-d70b-984f33603612",
++     },
++     {
++       "id": "18432ea5-bf0c-bdb2-ac57-1d86fa39e29d",
++     },
++     {
++       "id": "1ca2b7a8-2fa3-99de-a14d-955a32633fcf",
++     },
++     {
++       "id": "c847d0b3-38b8-27fa-db25-f7c3c77d3834",
++     },
++     {
++       "id": "961a3f11-27ad-fb32-4add-171932db0d65",
++     },
++     {
++       "id": "2fd2e7da-a908-8673-1145-675a4a2e3f7b",
++     },
++     {
++       "id": "562a243c-753f-5482-93cb-50b13ba64cfc",
++     },
++     {
++       "id": "d04e84ac-3d32-b24c-591e-c24c6fe1882d",
++     },
++     {
++       "id": "a119df4f-7502-6fa1-8d05-87ed1dc68ab6",
++     },
++     {
++       "id": "a43fd00d-b744-b49d-ebc8-c4eae5c71744",
++     },
++     {
++       "id": "029444ae-2900-a2ae-21ff-ecce2645e207",
++     },
++     {
++       "id": "bf91d629-468e-81a0-30f6-76e9834cc478",
++     },
++     {
++       "id": "a758048e-f337-6998-b751-1597da1f604c",
++     },
++     {
++       "id": "071bb7f7-a69b-595e-da8c-448b31260bd9",
++     },
++     {
++       "id": "8e0705ca-e9f1-eee0-aeda-c234f8a25266",
++     },
++     {
++       "id": "40d0a211-9e53-81da-118a-fd227fb33479",
++     },
++     {
++       "id": "0af45e30-e5c8-736f-dbc4-52429ec0479d",
++     },
++     {
++       "id": "516194c4-4e2d-bb41-135d-27da3496d319",
++     },
++     {
++       "id": "01ad53d0-9ac5-3229-935e-86aa83bb9502",
++     },
++     {
++       "id": "0547b225-652f-07f3-88f6-1ab5d19af8cb",
++     },
++     {
++       "id": "d304f32b-82e9-1813-caaa-0f5e3fc78a1c",
++     },
++     {
++       "id": "50001efd-6388-574f-235b-bd8a14e6b47e",
++     },
++     {
++       "id": "6a9d659d-c669-f3c5-2aa1-46089e6b599f",
++     },
++     {
++       "id": "031179e6-5d5f-60a4-11c1-0dfc90e479e3",
++     },
++     {
++       "id": "61552c69-b271-5782-abe9-786a3e5e7a21",
++     },
++     {
++       "id": "b73d1f37-79e3-15ed-6227-22b2840bb5e2",
++     },
++     {
++       "id": "03dcd459-90e6-8a4f-086b-f62359e61f00",
++     },
++     {
++       "id": "850de0ea-e347-6c54-27d7-e9a762cd498a",
++     },
++   ],
+  }
+
+ ❯ tests/suggestions.test.ts:696:24
+    694|   const l=await new SuggestionService(rec.db,h.operator,chats).list(me…
+    695|   const byId=(id:string)=>l.items.find(i=>i.id===id) as unknown as R;
+    696|   expect(byId(bad.id)).toMatchObject({sources:[],manifestHash:null});
+       |                        ^
+    697|   expect(byId(good.id)).toMatchObject({sources:[],manifestHash:skillMa…
+    698|   for(const text of [JSON.stringify(l),JSON.stringify(rec.rows())]) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L6 one rule for reading and deciding: a role reads the content of a draft exactly when it may decide it
+AssertionError: manager document: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/suggestions.test.ts:721:85
+    719|    const e=await decide(svc(),p,x.draftId,{result:'rejected',valueHash…
+    720|    const refusedByAuthority=e!==null&&(e.code==='READ_ONLY'||e.code===…
+    721|    expect((row.maskReasons as unknown[]|undefined)?.length===0,`${p.ro…
+       |                                                                                     ^
+    722|   }
+    723|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L7 when the content is returned every displayed field comes from the validated value: a row whose questions, confidence and sources columns say otherwise shows the value's; skillVersion and manifestHash only when they are the manifest's in force
+AssertionError: expected undefined to deeply equal []
+
+- Expected:
+[]
+
++ Received:
+undefined
+
+ ❯ tests/suggestions.test.ts:731:26
+    729|   const l=await svc().list(pm,q('document',d.record.id));
+    730|   const it=l.items.find(i=>i.id===x.id) as unknown as R;
+    731|   expect(it.maskReasons).toEqual([]);expect(it.questions).toEqual([]);…
+       |                          ^
+    732|   expect(it.skillVersion).toBeNull();expect(it.manifestHash).toBeNull(…
+    733|   expect(JSON.stringify(l)).not.toContain(MARK);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided
+AssertionError: expected Error: Nháp đã đổi. Đọc bản mới trước khi… { …(2) } to match object { code: 'MANAGER_REQUIRED', …(1) }
+
+- Expected
++ Received
+
+- {
+-   "code": "MANAGER_REQUIRED",
+-   "status": 403,
++ AppError {
++   "code": "REVISION_CONFLICT",
++   "status": 409,
+  }
+
+ ❯ refused tests/suggestions.test.ts:48:12
+     46|  const e=await promise.then(()=>null,x=>x);
+     47|  expect(e,'expected a refusal').toBeTruthy();
+     48|  expect(e).toMatchObject({code,status});
+       |            ^
+     49|  return e as Error;
+     50| };
+ ❯ same tests/suggestions.test.ts:740:13
+ ❯ tests/suggestions.test.ts:744:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L9 a stored value that does not fit the contract is masked as SCHEMA_INVALID even for a person who may decide
+AssertionError: expected { …(15) } to match object { …(3) }
+(13 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "maskReasons": [
+-     "SCHEMA_INVALID",
++   "sources": [
++     {
++       "id": "eccbf5c6-fb85-407e-903a-2b84ea40b9cb",
++     },
+    ],
+-   "sources": [],
+-   "value": null,
++   "value": {
++     "claims": [],
++     "confidence": 70,
++     "conflicts": [],
++     "manifestHash": "e007b1885b091fe0386f8ce3970d916c02436b0cd362511c8992d3e3e7f989f7",
++     "questions": [],
++     "result": {
++       "classification": "incident",
++       "duplicateOf": null,
++       "missingFields": [],
++     },
++     "skill": "intake_analyst",
++     "sources": [
++       {
++         "id": "eccbf5c6-fb85-407e-903a-2b84ea40b9cb",
++       },
++     ],
++     "surprise": "zq-mark-14c8b172f6d74ca18946bff65856ec33",
++     "toolRequests": [],
++   },
+  }
+
+ ❯ tests/suggestions.test.ts:757:14
+    755|   const l=await svc().list(pm,q('intake_candidate',c.candidateId));
+    756|   const it=l.items.find(i=>i.id===x.id) as unknown as R;
+    757|   expect(it).toMatchObject({maskReasons:['SCHEMA_INVALID'],value:null,…
+       |              ^
+    758|   expect(JSON.stringify(l)).not.toContain(MARK);
+    759|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  10 failed | 49 passed | 1 skipped (60)
+   Start at  09:13:57
+   Duration  29.60s (tests 100%)
+

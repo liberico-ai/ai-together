@@ -1,0 +1,286 @@
+$ npx vitest run tests/suggestions.test.ts tests/source-text.test.ts tests/skill-context.test.ts tests/intake.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (96 tests | 12 failed | 1 skipped) 44939ms
+   ❯ Z4 drafts: the content is re-checked at read time (OQ-45 point 2) (10)
+     × M10 a reader without the authority causes no read of the message tables; a reader of a document draft causes exactly one, a single boolean for the project 475ms
+   ❯ Z4 drafts: what masks at read time holds at confirmation (P3 invariant) (1)
+     × P3 whatever masks a draft at read time holds it at confirmation 499ms
+   ❯ Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown (5)
+     × dừng tại OQ-55: a candidate draft that names no message is masked once the stored text of its thread is no longer shown 473ms
+     × dừng tại OQ-55: a thread whose newest revision is pointer-only but an earlier revision stored text still masks its candidate drafts when the group is not flagged 475ms
+     × a draft that cites a message of such a thread carries the reason of the cited message and both placeholder reasons 465ms
+   ❯ Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) (8)
+     × W1 dừng tại OQ-55: a document draft is masked while its project holds stored text that is no longer shown, whatever the draft names 465ms
+     × W2 dừng tại OQ-55: what is masked for that reason cannot be confirmed either; it can still be rejected, and the answer of the rejection carries no content 473ms
+     × W3 the project decides, not the thread and not the draft: text stored without being shown masks every draft of that project and no draft of another project 469ms
+     × W5 the project statement runs once for a list read by a person who may decide it, for either kind of draft, and never for a reader without the authority 459ms
+     × W6 a replayed confirmation of a document draft answers with the recorded decision and no content once the project holds hidden text 467ms
+     × W7 dừng tại OQ-55: a candidate draft that carries the text of another thread of its project is masked while that text is not shown 463ms
+     × W8 the project reason stands when no context can be built: a document draft that points at no document is held for both 469ms
+ ❯ tests/source-text.test.ts (31 tests | 3 failed) 14900ms
+   ❯ projectHasHiddenText (3)
+     × U1 projectHasHiddenText: every revision of every message of the project, the current configuration, and closed outside the caller's scope 460ms
+     × U2 projectHasHiddenText returns one boolean and no text: the one row handed back holds no excerpt and no content hash 469ms
+     × U3 projectHasHiddenText is closed: a list that cannot be evaluated, a statement that returns no row, a malformed project id 468ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 15 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/source-text.test.ts > projectHasHiddenText > U1 projectHasHiddenText: every revision of every message of the project, the current configuration, and closed outside the caller's scope
+ FAIL  tests/source-text.test.ts > projectHasHiddenText > U3 projectHasHiddenText is closed: a list that cannot be evaluated, a statement that returns no row, a malformed project id
+TypeError: projectHasHiddenText is not a function
+ ❯ tests/source-text.test.ts:230:124
+
+ ❯ src/server/db.ts:54:12
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/15]⎯
+
+ FAIL  tests/source-text.test.ts > projectHasHiddenText > U2 projectHasHiddenText returns one boolean and no text: the one row handed back holds no excerpt and no content hash
+TypeError: projectHasHiddenText is not a function
+ ❯ tests/source-text.test.ts:263:48
+    261|   const m=await ingest({text:'U2-MARKER-8812'},[chatSales]);
+    262|   const rec=recordingDb(h.db);
+    263|   const got=await scoped(rec.db,salesScope,tx=>projectHasHiddenText(tx…
+       |                                                ^
+    264|   expect(got).toBe(true);
+    265|   const seen=rec.rows().filter(r=>(r as Record<string,unknown>).hidden…
+ ❯ src/server/db.ts:54:12
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M10 a reader without the authority causes no read of the message tables; a reader of a document draft causes exactly one, a single boolean for the project
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/suggestions.test.ts:1025:52
+    1023|   await sp().list(pm,q('document',d.d.record.id));
+    1024|   expect(texts.length).toBeGreaterThan(0);
+    1025|   expect(texts.filter(t=>/source_events/.test(t))).toHaveLength(1);
+       |                                                    ^
+    1026|   expect(texts.filter(t=>/source_events/.test(t))[0]).toMatch(/SELECT …
+    1027|   expect(texts.filter(t=>/intake_candidates/.test(t))).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: what masks at read time holds at confirmation (P3 invariant) > P3 whatever masks a draft at read time holds it at confirmation
+AssertionError: PROJECT_TEXT_HIDDEN: expected [] to include 'PROJECT_TEXT_HIDDEN'
+ ❯ tests/suggestions.test.ts:1082:34
+    1080|    const l=await x.service.list(pm,{projectId:ids.sales,entityType:x.e…
+    1081|    const it=l.items.find(i=>i.id===x.draftId)!;
+    1082|    expect(it.maskReasons,reason).toContain(reason);
+       |                                  ^
+    1083|    expect(it.value,reason).toBeNull();
+    1084|    const e=await refused(decide(x.service,pm,x.draftId,body(x.valueHas…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a candidate draft that names no message is masked once the stored text of its thread is no longer shown
+AssertionError: expected [ 'THREAD_TEXT_HIDDEN' ] to deeply equal [ 'PROJECT_TEXT_HIDDEN', …(1) ]
+
+- Expected
++ Received
+
+  [
+-   "PROJECT_TEXT_HIDDEN",
+    "THREAD_TEXT_HIDDEN",
+  ]
+
+ ❯ tests/suggestions.test.ts:1177:26
+    1175|   const x=await quiet(c,d);
+    1176|   const it=await first(none(),pm,c.candidateId);
+    1177|   expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN','THREAD_TEXT_H…
+       |                          ^
+    1178|   expect(it.value).toBeNull();expect(it.sources).toEqual([]);
+    1179|   expect(JSON.stringify(it)).not.toContain(MARK);expect(JSON.stringify…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a thread whose newest revision is pointer-only but an earlier revision stored text still masks its candidate drafts when the group is not flagged
+AssertionError: expected [ 'THREAD_TEXT_HIDDEN' ] to deeply equal [ 'PROJECT_TEXT_HIDDEN', …(1) ]
+
+- Expected
++ Received
+
+  [
+-   "PROJECT_TEXT_HIDDEN",
+    "THREAD_TEXT_HIDDEN",
+  ]
+
+ ❯ tests/suggestions.test.ts:1193:62
+    1191|   expect(modes.map(m=>m.content_mode)).toEqual(['excerpt','pointer_onl…
+    1192|   await clean(c,d);
+    1193|   expect((await first(none(),pm,c.candidateId)).maskReasons).toEqual([…
+       |                                                              ^
+    1194|  });
+    1195|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > a draft that cites a message of such a thread carries the reason of the cited message and both placeholder reasons
+AssertionError: expected [ 'TEXT_NOT_VISIBLE', …(1) ] to deeply equal [ 'PROJECT_TEXT_HIDDEN', …(2) ]
+
+- Expected
++ Received
+
+  [
+-   "PROJECT_TEXT_HIDDEN",
+    "TEXT_NOT_VISIBLE",
+    "THREAD_TEXT_HIDDEN",
+  ]
+
+ ❯ tests/suggestions.test.ts:1219:26
+    1217|   await rawDraft({entityType:'intake_candidate',entityId:c.candidateId…
+    1218|   const it=await first(none(),pm,c.candidateId);
+    1219|   expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN','TEXT_NOT_VISI…
+       |                          ^
+    1220|   expect(it.value).toBeNull();expect(JSON.stringify(it)).not.toContain…
+    1221|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W1 dừng tại OQ-55: a document draft is masked while its project holds stored text that is no longer shown, whatever the draft names
+AssertionError: expected [] to deeply equal [ 'PROJECT_TEXT_HIDDEN' ]
+
+- Expected
++ Received
+
+- [
+-   "PROJECT_TEXT_HIDDEN",
+- ]
++ []
+
+ ❯ tests/suggestions.test.ts:1254:26
+    1252|   const d=await doc(),x=await noisy(d);
+    1253|   const it=await firstOf(none(),pm,dq(d.record.id));
+    1254|   expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN']);
+       |                          ^
+    1255|   expect(it.value).toBeNull();expect(it.sources).toEqual([]);
+    1256|   expect(JSON.stringify(it)).not.toContain(MARK);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W2 dừng tại OQ-55: what is masked for that reason cannot be confirmed either; it can still be rejected, and the answer of the rejection carries no content
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:106:10
+ ❯ tests/suggestions.test.ts:1266:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W3 the project decides, not the thread and not the draft: text stored without being shown masks every draft of that project and no draft of another project
+AssertionError: expected [] to deeply equal [ 'PROJECT_TEXT_HIDDEN' ]
+
+- Expected
++ Received
+
+- [
+-   "PROJECT_TEXT_HIDDEN",
+- ]
++ []
+
+ ❯ tests/suggestions.test.ts:1286:81
+    1284|   await transportMessage();
+    1285|   expect((await firstOf(none(),pm,dq(ds.record.id))).maskReasons).toEq…
+    1286|   expect((await firstOf(none(),pm,dq(dt.record.id,ids.transport))).mas…
+       |                                                                                 ^
+    1287|   await candidate();
+    1288|   const ds2=await doc(ids.sales);await noisy(ds2);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W5 the project statement runs once for a list read by a person who may decide it, for either kind of draft, and never for a reader without the authority
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/suggestions.test.ts:1313:21
+    1311|   texts.length=0;
+    1312|   expect((await sp().list(pm,dq(d.record.id))).items).toHaveLength(3);
+    1313|   expect(project()).toHaveLength(1);
+       |                     ^
+    1314|   const c=await candidate(),dd=await doc();
+    1315|   for(let i=0;i<2;i++) await rawDraft({entityType:'intake_candidate',e…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W6 a replayed confirmation of a document draft answers with the recorded decision and no content once the project holds hidden text
+AssertionError: expected [] to include 'PROJECT_TEXT_HIDDEN'
+ ❯ tests/suggestions.test.ts:1333:29
+    1331|   const again=await decide(none(),pm,x.draftId,b,key);
+    1332|   expect(again.decision?.result).toBe('confirmed');expect(again.decisi…
+    1333|   expect(again.maskReasons).toContain('PROJECT_TEXT_HIDDEN');
+       |                             ^
+    1334|   expect(again.value).toBeNull();expect(JSON.stringify(again)).not.toC…
+    1335|   expect(await n('draft_decisions')).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W7 dừng tại OQ-55: a candidate draft that carries the text of another thread of its project is masked while that text is not shown
+AssertionError: expected [] to deeply equal [ 'PROJECT_TEXT_HIDDEN' ]
+
+- Expected
++ Received
+
+- [
+-   "PROJECT_TEXT_HIDDEN",
+- ]
++ []
+
+ ❯ tests/suggestions.test.ts:1345:26
+    1343|   await rawDraft({entityType:'intake_candidate',entityId:t1.candidateI…
+    1344|   const it=await firstOf(none(),pm,cq(t1.candidateId));
+    1345|   expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN']);
+       |                          ^
+    1346|   expect(it.value).toBeNull();expect(JSON.stringify(it)).not.toContain…
+    1347|   const ok=await firstOf(svc(),pm,cq(t1.candidateId));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/15]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W8 the project reason stands when no context can be built: a document draft that points at no document is held for both
+AssertionError: expected 'Nháp được giữ lại, chưa xác nhận được…' to contain 'PROJECT_TEXT_HIDDEN'
+
+Expected: "PROJECT_TEXT_HIDDEN"
+Received: "Nháp được giữ lại, chưa xác nhận được: ENTITY_NOT_FOUND."
+
+ ❯ held tests/suggestions.test.ts:107:44
+    105| const held=async(promise:Promise<unknown>,...reasons:string[])=>{
+    106|  const e=await refused(promise,'DRAFT_HELD',422);
+    107|  for(const r of reasons) expect(e.message).toContain(r);
+       |                                            ^
+    108|  expect(e.message).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/); // codes o…
+    109|  return e;
+ ❯ tests/suggestions.test.ts:1354:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/15]⎯
+
+
+ Test Files  2 failed | 2 passed (4)
+      Tests  15 failed | 180 passed | 1 skipped (196)
+   Start at  13:10:07
+   Duration  93.07s (tests 100%)
+

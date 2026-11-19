@@ -346,7 +346,7 @@ test('rollback 021 refuses while a later migration is applied, drops the Z4 obje
   let later:string[]=[];
   try {
     await h.reset();await seedSlice1(h);
-    // migrations after 021 sit on top of it (none today): take them off in reverse order first, put them back at the end
+    // migrations after 021 sit on top of it (022 today): take them off in reverse order first, put them back at the end
     later=(await from013()).filter(f=>num(f)>21);
     for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
     const full=await objects();
@@ -388,6 +388,169 @@ test('rollback 021 refuses while a later migration is applied, drops the Z4 obje
   } finally {
     await h.exec('ROLLBACK').catch(()=>{});
     await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});
+
+test('rollback 022 refuses while a later migration is applied, drops the four triggers and four functions of 022, and leaves drafts, decisions, mappings and 021 as they were',async()=>{
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/022_ai_drafts_pointer_only_guard.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/022_ai_drafts_pointer_only_guard.sql'),'utf8');
+  expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+ROLE|DROP\s+TABLE|DROP\s+SCHEMA/i);
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  // 022 has four triggers (two on intelligence.ai_drafts, one on public.project_domain_mappings, one on public.draft_decisions) and four functions
+  const OWN="('ai_drafts_declared_scope_guard','ai_drafts_pointer_only_guard','project_domain_mappings_draft_lock','draft_decisions_pointer_only_guard')";
+  const guard=async()=>({
+    trigger:(await q<{t:string;d:string}>(`SELECT tgrelid::regclass::text t,pg_get_triggerdef(oid) d FROM pg_trigger WHERE tgname IN ${OWN} AND NOT tgisinternal ORDER BY 1,2`)),
+    functions:(await q<{d:string}>(`SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname IN ${OWN} ORDER BY p.proname`)).map(r=>r.d),
+  });
+  const upstream=async()=>({
+    triggers:(await q<{t:string;d:string}>(`SELECT tgrelid::regclass::text t,pg_get_triggerdef(oid) d FROM pg_trigger WHERE NOT tgisinternal AND tgname NOT IN ${OWN}
+      AND tgrelid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass,'public.project_domain_mappings'::regclass) ORDER BY 1,2`)),
+    guardFn:(await q<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname='draft_decisions_guard'")).map(r=>r.d),
+    applied:(await q("SELECT version FROM schema_migrations WHERE version IN ('021') ORDER BY 1")).map(r=>(r as {version:string}).version),
+  });
+  const counts=async()=>({
+    drafts:(await q<{n:number}>('SELECT count(*)::int n FROM intelligence.ai_drafts'))[0].n,
+    decisions:(await q<{n:number}>('SELECT count(*)::int n FROM draft_decisions'))[0].n,
+    mappings:(await q<{n:number}>('SELECT count(*)::int n FROM public.project_domain_mappings'))[0].n,
+  });
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='022'")).length;
+  // the refusal raises inside the file's own BEGIN; PGlite keeps that aborted block open (a pooled client that errors is discarded)
+  const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
+  const hash='c'.repeat(64);
+  const insertDraft=()=>q(`INSERT INTO intelligence.ai_drafts(tenant_id,project_id,entity_type,entity_id,signal_type,skill_version,manifest_hash,model_version,value,value_hash,confidence,input_hash,ai_principal_id,trace_id,dedupe_key)
+    VALUES($1,$2,'intake_candidate',$3,'intake_analyst','1',$4,'m','{}',$4,1,$4,$3,$3,$5) RETURNING id`,[ids.tenant,ids.transport,randomUUID(),hash,'rollback-draft-'+randomUUID()]);
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);
+    // migrations after 022 sit on top of it (none today): take them off in reverse order first, put them back at the end
+    later=(await from013()).filter(f=>num(f)>22);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    const full=await guard();
+    expect(full.trigger).toHaveLength(4);expect(full.functions).toHaveLength(4);
+    const kept=await upstream();
+    // the three of 021 and project_domain_mappings_immutable of 013
+    expect(kept.triggers).toHaveLength(4);
+    // 1. a later version applied blocks it; nothing was dropped
+    await q("INSERT INTO schema_migrations(version) VALUES('023')");
+    try { await refused(/later|023/i); }
+    finally { await q("DELETE FROM schema_migrations WHERE version='023'"); }
+    expect(await guard()).toEqual(full);expect(await applied()).toBe(1);
+    // a draft and a person's decision exist: rolling back keeps both
+    const draftId=(await insertDraft())[0].id as string;
+    await q(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,decided_by,command_key,request_id,trace_id)
+      VALUES($1,$2,$3,$4,'rejected','Lý do đủ dài',$5,'rollback-key',$6,$6)`,[ids.tenant,ids.transport,draftId,hash,pm.id,randomUUID()]);
+    const rows0=await counts();
+    expect(rows0).toMatchObject({drafts:1,decisions:1});
+    // 2. clean: the four triggers and four functions go, 022 is forgotten, tables, rows and 021 stay
+    await h.exec(rollback);
+    expect(await guard()).toEqual({trigger:[],functions:[]});
+    expect(await applied()).toBe(0);
+    expect(await counts()).toEqual(rows0);
+    expect(await upstream()).toEqual(kept);
+    // the decision table keeps only the triggers of 021
+    expect((await q<{tgname:string}>("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid='public.draft_decisions'::regclass ORDER BY 1")).map(r=>r.tgname))
+      .toEqual(['draft_decisions_guard','draft_decisions_immutable']);
+    // what the rollback re-opens: an IBS_HI project's draft is stored again (inside a transaction that always rolls back)
+    const done=new Error('rolled back');
+    await h.operator.transaction(async tx=>{
+      await tx.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,'IBS_HI',$3,'synthetic-source',1)",[ids.tenant,ids.transport,pm.id]);
+      await tx.query(`INSERT INTO intelligence.ai_drafts(tenant_id,project_id,entity_type,entity_id,signal_type,skill_version,manifest_hash,model_version,value,value_hash,confidence,input_hash,ai_principal_id,trace_id,dedupe_key)
+        VALUES($1,$2,'intake_candidate',$3,'intake_analyst','1',$4,'m','{}',$4,1,$4,$3,$3,$5)`,[ids.tenant,ids.transport,randomUUID(),hash,'rollback-reopened']);
+      expect((await tx.query('SELECT count(*)::int n FROM intelligence.ai_drafts')).rows[0]).toEqual({n:2});
+      throw done;
+    }).catch(e=>{if(e!==done) throw e;});
+    expect(await counts()).toEqual(rows0);
+    // 3. repeatable once rolled back; forward twice restores the same shape
+    await h.exec(rollback);
+    await h.exec(forward);await h.exec(forward);
+    expect(await applied()).toBe(1);
+    expect(await guard()).toEqual(full);expect(await upstream()).toEqual(kept);expect(await counts()).toEqual(rows0);
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});
+
+// The hand-made removal of two triggers and two functions below restores the state in its finally block (forward file, later migrations, reset), like RB1 and RB2.
+test('022 over a database that carries only the pointer-only trigger and its function gives the four triggers and four functions; the rollback from that shape leaves nothing of 022',async()=>{
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/022_ai_drafts_pointer_only_guard.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/022_ai_drafts_pointer_only_guard.sql'),'utf8');
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  const OWN="('ai_drafts_declared_scope_guard','ai_drafts_pointer_only_guard','project_domain_mappings_draft_lock','draft_decisions_pointer_only_guard')";
+  const shape=async()=>({
+    triggers:await q(`SELECT tgrelid::regclass::text t,tgname,pg_get_triggerdef(oid) d FROM pg_trigger WHERE tgname IN ${OWN} AND NOT tgisinternal ORDER BY 1,2`),
+    functions:await q(`SELECT p.proname,pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname IN ${OWN} ORDER BY 1`),
+  });
+  const counts=async()=>({
+    drafts:(await q<{n:number}>('SELECT count(*)::int n FROM intelligence.ai_drafts'))[0].n,
+    mappings:(await q<{n:number}>('SELECT count(*)::int n FROM public.project_domain_mappings'))[0].n,
+  });
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='022'")).length;
+  // the shape that the first body of 022 left: the pointer-only trigger and its function, and nothing else of 022
+  const toOldShape=async()=>{
+    await q('DROP TRIGGER IF EXISTS ai_drafts_declared_scope_guard ON intelligence.ai_drafts');
+    await q('DROP TRIGGER IF EXISTS project_domain_mappings_draft_lock ON public.project_domain_mappings');
+    await q('DROP FUNCTION IF EXISTS intelligence.ai_drafts_declared_scope_guard()');
+    await q('DROP FUNCTION IF EXISTS intelligence.project_domain_mappings_draft_lock()');
+    await q('DROP TRIGGER IF EXISTS draft_decisions_pointer_only_guard ON public.draft_decisions');
+    await q('DROP FUNCTION IF EXISTS intelligence.draft_decisions_pointer_only_guard()');
+    // the first body of 022 had no lock_timeout of its own: step (i) proves that the forward file puts it back
+    await q('ALTER FUNCTION intelligence.ai_drafts_pointer_only_guard() RESET lock_timeout');
+    expect((await q<{c:string[]}>("SELECT proconfig c FROM pg_proc WHERE proname='ai_drafts_pointer_only_guard'"))[0].c).toEqual(['search_path=pg_catalog, pg_temp','row_security=off']);
+  };
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);
+    later=(await from013()).filter(f=>num(f)>22);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    const full=await shape();
+    expect(full.triggers).toHaveLength(4);expect(full.functions).toHaveLength(4);
+    await toOldShape();
+    const old=await shape();
+    expect(old.triggers.map(r=>r.tgname)).toEqual(['ai_drafts_pointer_only_guard']);
+    expect(old.functions.map(r=>r.proname)).toEqual(['ai_drafts_pointer_only_guard']);
+    // (i) the forward file gives the full shape
+    await h.exec(forward);
+    expect(await shape()).toEqual(full);
+    // (ii) from the old shape, the rollback leaves nothing of 022 and touches no row
+    await toOldShape();
+    const rows0=await counts();
+    await h.exec(rollback);
+    expect(await shape()).toEqual({triggers:[],functions:[]});
+    expect(await applied()).toBe(0);
+    expect(await counts()).toEqual(rows0);
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});
+
+test('rollback 022 runs again after 021 was rolled back and its schema is gone',async()=>{
+  const h=await openHarness();
+  const f21=await readFile(dir('migrations/021_ai_suggestions_z4.sql'),'utf8');
+  const f22=await readFile(dir('migrations/022_ai_drafts_pointer_only_guard.sql'),'utf8');
+  const r21=await readFile(dir('migrations/rollback/021_ai_suggestions_z4.sql'),'utf8');
+  const r22=await readFile(dir('migrations/rollback/022_ai_drafts_pointer_only_guard.sql'),'utf8');
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);
+    later=(await from013()).filter(f=>num(f)>22);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    await h.exec(r22);
+    await h.exec(r21);
+    await h.exec(r22);
+    expect((await h.operator.query<{t:string|null}>("SELECT to_regclass('intelligence.ai_drafts')::text t")).rows[0].t).toBeNull();
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(f21);await h.exec(f22);
     for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
     await h.reset();await h.close();
   }

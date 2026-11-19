@@ -1,0 +1,10 @@
+# npx vitest run tests/z4-pointer-guard.test.ts tests/migrations-rollback.test.ts tests/z4-schema.test.ts tests/fix-wave-db.test.ts tests/suggestions.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  5 passed (5)
+      Tests  166 passed | 4 skipped (170)
+   Start at  10:02:30
+   Duration  91.91s (tests 100%)
+

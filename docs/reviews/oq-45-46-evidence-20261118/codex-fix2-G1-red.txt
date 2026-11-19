@@ -1,0 +1,197 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (109 tests | 7 failed | 1 skipped) 57810ms
+   ❯ Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) (7)
+     × H1 under every mask the view of a person who may decide carries no value hash 536ms
+     × H2 for a person to whom the draft is masked, decide answers the same whatever value hash is sent: the right one, a wrong one, none 541ms
+     × H3 a masked draft is rejected without a value hash, and with a wrong one; the answer carries the recorded decision and no content 561ms
+     × H4 for a person to whom the content is shown the hash is still required: none, or a wrong one, is REVISION_CONFLICT 546ms
+     × H5 a reader without the authority gets the authority answer with a hash, with a wrong one and with none 548ms
+     × H6 a recorded decision replays under a mask with no value hash 520ms
+     × H7 a confirmation never goes through without the right hash, also when the mask lifts while the command runs 522ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H1 under every mask the view of a person who may decide carries no value hash
+AssertionError: ENTITY_NOT_FOUND: expected { value: null, sources: [], …(3) } to deeply equal { value: null, sources: [], …(3) }
+
+- Expected
++ Received
+
+  {
+    "confidence": null,
+    "questions": null,
+    "sources": [],
+    "value": null,
+-   "valueHash": null,
++   "valueHash": "197f0a78f1bd7f730b6bb4f2ca959e0c745ab84fd1823cea4bc12c3a3fc70f82",
+  }
+
+ ❯ tests/suggestions.test.ts:1147:126
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H2 for a person to whom the draft is masked, decide answers the same whatever value hash is sent: the right one, a wrong one, none
+AssertionError: expected Error: Nháp đã đổi. Đọc bản mới trước khi… { …(2) } to match object { code: 'DRAFT_HELD', status: 422 }
+
+- Expected
++ Received
+
+- {
+-   "code": "DRAFT_HELD",
+-   "status": 422,
++ AppError {
++   "code": "REVISION_CONFLICT",
++   "status": 409,
+  }
+
+ ❯ refused tests/suggestions.test.ts:49:12
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+     49|  expect(e).toMatchObject({code,status});
+       |            ^
+     50|  return e as Error;
+     51| };
+ ❯ tests/suggestions.test.ts:1159:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H3 a masked draft is rejected without a value hash, and with a wrong one; the answer carries the recorded decision and no content
+AssertionError: expected undefined to be 'rejected' // Object.is equality
+
+- Expected:
+"rejected"
+
++ Received:
+undefined
+
+ ❯ tests/suggestions.test.ts:1176:31
+    1174|   for(const [draftId,cmd] of shapes){
+    1175|    const v=await decide(none,pm,draftId,cmd).catch(e=>e) as DraftView;
+    1176|    expect(v.decision?.result).toBe('rejected');
+       |                               ^
+    1177|    expect(v.value).toBeNull();
+    1178|    expect(v.valueHash).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H4 for a person to whom the content is shown the hash is still required: none, or a wrong one, is REVISION_CONFLICT
+AssertionError: expected ZodError: [
+  {
+    "expected": "string",… { …(2) } to match object { code: 'REVISION_CONFLICT', …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+- {
+-   "code": "REVISION_CONFLICT",
+-   "status": 409,
++ ZodError {
++   "message": "[
++   {
++     \"expected\": \"string\",
++     \"code\": \"invalid_type\",
++     \"path\": [
++       \"valueHash\"
++     ],
++     \"message\": \"Invalid input: expected string, received undefined\"
++   }
++ ]",
++   "name": "ZodError",
+  }
+
+ ❯ refused tests/suggestions.test.ts:49:12
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+     49|  expect(e).toMatchObject({code,status});
+       |            ^
+     50|  return e as Error;
+     51| };
+ ❯ tests/suggestions.test.ts:1189:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H5 a reader without the authority gets the authority answer with a hash, with a wrong one and with none
+AssertionError: MANAGER_REQUIRED: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ tests/suggestions.test.ts:1209:87
+    1207|     answers.push({code:e!.code,status:e!.status,message:e!.message,res…
+    1208|    }
+    1209|    expect(new Set(answers.map(a=>JSON.stringify({...a,result:undefined…
+       |                                                                                       ^
+    1210|    expect(answers[0].code,code).toBe(code);
+    1211|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H6 a recorded decision replays under a mask with no value hash
+AssertionError: expected 'b82083f5af89b58d93d43b15d1df886ce4e3a…' to be null
+
+- Expected:
+null
+
++ Received:
+"b82083f5af89b58d93d43b15d1df886ce4e3af6c77b0421fe416089b7b84310b"
+
+ ❯ tests/suggestions.test.ts:1223:27
+    1221|   expect(again.decision).toEqual(first.decision);
+    1222|   expect(again.value).toBeNull();
+    1223|   expect(again.valueHash).toBeNull();
+       |                           ^
+    1224|   expect(again.maskReasons).toContain('POINTER_ONLY_PROJECT');
+    1225|   expect(await n('draft_decisions')).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H7 a confirmation never goes through without the right hash, also when the mask lifts while the command runs
+AssertionError: expected ZodError: [
+  {
+    "expected": "string",… { …(2) } to match object { code: 'REVISION_CONFLICT', …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+- {
+-   "code": "REVISION_CONFLICT",
+-   "status": 409,
++ ZodError {
++   "message": "[
++   {
++     \"expected\": \"string\",
++     \"code\": \"invalid_type\",
++     \"path\": [
++       \"valueHash\"
++     ],
++     \"message\": \"Invalid input: expected string, received undefined\"
++   }
++ ]",
++   "name": "ZodError",
+  }
+
+ ❯ refused tests/suggestions.test.ts:49:12
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+     49|  expect(e).toMatchObject({code,status});
+       |            ^
+     50|  return e as Error;
+     51| };
+ ❯ tests/suggestions.test.ts:1236:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 101 passed | 1 skipped (109)
+   Start at  15:19:18
+   Duration  58.02s (tests 100%)
+

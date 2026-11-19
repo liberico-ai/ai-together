@@ -1,0 +1,82 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (110 tests | 3 failed | 1 skipped) 65586ms
+   ❯ Z4 drafts: a draft whose document moved on is held (OQ-46) (7)
+     × the newest revision the draft names is the baseline: naming r1 and r2 is confirmed while r2 is the newest; a revision of another document is not a baseline 599ms
+     × an id that is not a lower-case uuid names nothing: the upper-case id of the newest revision is not a baseline 535ms
+   ❯ Z4 drafts: a draft whose thread moved on is held (OQ-46) (5)
+     × dừng tại OQ-53 (2): a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING 600ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > the newest revision the draft names is the baseline: naming r1 and r2 is confirmed while r2 is the newest; a revision of another document is not a baseline
+AssertionError: expected 'Nháp được giữ lại, chưa xác nhận được…' to contain 'SUBJECT_CHANGED'
+
+Expected: "SUBJECT_CHANGED"
+Received: "Nháp được giữ lại, chưa xác nhận được: SUBJECT_BASELINE_MISSING."
+
+ ❯ held tests/suggestions.test.ts:107:44
+    105| const held=async(promise:Promise<unknown>,...reasons:string[])=>{
+    106|  const e=await refused(promise,'DRAFT_HELD',422);
+    107|  for(const r of reasons) expect(e.message).toContain(r);
+       |                                            ^
+    108|  expect(e.message).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/); // codes o…
+    109|  return e;
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:133:11
+ ❯ withExtraSources tests/suggestions.test.ts:123:14
+ ❯ tests/suggestions.test.ts:537:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose document moved on is held (OQ-46) > an id that is not a lower-case uuid names nothing: the upper-case id of the newest revision is not a baseline
+AssertionError: expected 'Nháp được giữ lại, chưa xác nhận được…' to contain 'SOURCE_OUT_OF_CONTEXT'
+
+Expected: "SOURCE_OUT_OF_CONTEXT"
+Received: "Nháp được giữ lại, chưa xác nhận được: SUBJECT_BASELINE_MISSING."
+
+ ❯ held tests/suggestions.test.ts:107:44
+    105| const held=async(promise:Promise<unknown>,...reasons:string[])=>{
+    106|  const e=await refused(promise,'DRAFT_HELD',422);
+    107|  for(const r of reasons) expect(e.message).toContain(r);
+       |                                            ^
+    108|  expect(e.message).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/); // codes o…
+    109|  return e;
+ ❯ heldOnly tests/suggestions.test.ts:113:10
+ ❯ tests/suggestions.test.ts:133:11
+ ❯ withExtraSources tests/suggestions.test.ts:123:14
+ ❯ tests/suggestions.test.ts:574:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > dừng tại OQ-53 (2): a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING
+AssertionError: expected [ 'SUBJECT_BASELINE_MISSING', …(1) ] to deeply equal [ 'SUBJECT_ORDER_UNVERIFIED' ]
+
+- Expected
++ Received
+
+  [
++   "SUBJECT_BASELINE_MISSING",
+    "SUBJECT_ORDER_UNVERIFIED",
+  ]
+
+ ❯ heldOnly tests/suggestions.test.ts:114:83
+    112| const heldOnly=async(promise:Promise<unknown>,...reasons:string[])=>{
+    113|  const e=await held(promise,...reasons);
+    114|  expect(e.message.slice(e.message.indexOf(': ')+2).replace(/\.$/,'').s…
+       |                                                                                   ^
+    115|  return e;
+    116| };
+ ❯ tests/suggestions.test.ts:133:11
+ ❯ withExtraSources tests/suggestions.test.ts:123:14
+ ❯ tests/suggestions.test.ts:1657:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 106 passed | 1 skipped (110)
+   Start at  15:44:56
+   Duration  65.84s (tests 100%)
+

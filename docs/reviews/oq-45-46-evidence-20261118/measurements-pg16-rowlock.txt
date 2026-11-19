@@ -1,0 +1,130 @@
+# Measurements on PostgreSQL 16.15 — lock mechanism of migration 022 (CX4), 18/11/2026
+
+Where: the PR's own synthetic test database, in a scratch schema created for the probe and dropped at the end; no table of the application is written.
+The scratch schema mirrors the shape: p (projects), m (mappings, references p), d (drafts, references p), a BEFORE INSERT trigger on d (the guard) and
+one on m (the mapping lock). Two to five connections. Times are wall-clock milliseconds of one statement. Synthetic ids only.
+
+## Probe 1 — conflict matrix of row locks on the parent row, and privileges
+{
+ "A holds NO KEY UPDATE → B fk insert": "ok 1ms",
+ "A holds NO KEY UPDATE → B FOR SHARE": "55P03 404ms",
+ "A holds SHARE → B NO KEY UPDATE": "55P03 402ms",
+ "A holds SHARE → B fk insert": "ok 1ms",
+ "A holds SHARE → B FOR SHARE": "ok 1ms",
+ "A holds SHARE → B UPDATE name": "55P03 405ms",
+ "B waited for A, then read": "IBS_HI",
+ "libetech_runtime: SELECT … FOR SHARE on public.projects": "42501 2ms",
+ "libetech_runtime: SELECT … FOR KEY SHARE on public.projects": "42501 1ms"
+}
+
+Reading: a holder of FOR NO KEY UPDATE does not block an insert into a table that references the row (FOR KEY SHARE); it blocks FOR SHARE. A holder of
+FOR SHARE blocks FOR NO KEY UPDATE and a plain UPDATE, not a referencing insert nor a second FOR SHARE. A PL/pgSQL function that waited for the lock
+reads, in its next statement, the row the other transaction committed meanwhile (READ COMMITTED). The runtime role, which holds SELECT only on
+public.projects, cannot take a row lock there (42501).
+
+Catalog of the test database after migrations 001-022 (read with information_schema and pg_catalog): on public.projects the only grants to
+non-superuser roles are SELECT (libetech_runtime: table; libetech_identity, libetech_intake: columns); no function of a non-system schema writes
+projects; no user trigger on it; 33 foreign keys reference it. On public.project_domain_mappings the only grants to non-superuser roles are SELECT.
+
+## Probe 3 — the gap of an unseen project row, starvation, the cap, one-transaction order, names
+{
+ "B-1 refusal off: two-row insert": "ok 1510ms rows=2",
+ "B-1 refusal off: drafts stored for the project mapped IBS_HI": 1,
+ "B-1 refusal on: two-row insert": "23503 1ms",
+ "B-1 refusal on: drafts stored for the project mapped IBS_HI": 0,
+ "guard share: mapping insert while three draft writers overlap": "57014 14003ms",
+ "guard share: draft transactions": {
+  "ok": 282,
+  "err": {}
+ },
+ "guard share: mapping insert after the writers stopped": "ok 2ms rows=1",
+ "guard nku: mapping insert while three draft writers overlap": "ok 418ms rows=1",
+ "guard nku: draft transactions": {
+  "ok": 9,
+  "err": {}
+ },
+ "guard nku: mapping insert after the writers stopped": "ok 2ms rows=1",
+ "guard nku, a draft transaction left open: second draft insert | mapping insert": "55P03 5003ms | 55P03 5003ms",
+ "one transaction (share): project, draft, mapping, draft": [
+  "ok 1ms rows=1",
+  "ok 1ms rows=1",
+  "ok 1ms rows=1",
+  "ok 0ms rows=1"
+ ],
+ "one transaction (nku): project, draft, mapping, draft": [
+  "ok 0ms rows=1",
+  "ok 1ms rows=1",
+  "ok 1ms rows=1",
+  "ok 0ms rows=1"
+ ],
+ "fk of project_domain_mappings to projects": [
+  {
+   "conname": "project_domain_mappings_project_id_tenant_id_fkey",
+   "def": "FOREIGN KEY (project_id, tenant_id) REFERENCES public.projects(id, tenant_id)"
+  }
+ ],
+ "fk of ai_drafts to projects": [
+  {
+   "conname": "ai_drafts_project_id_tenant_id_fkey",
+   "def": "FOREIGN KEY (project_id, tenant_id) REFERENCES public.projects(id, tenant_id)"
+  }
+ ],
+ "session lock_timeout after the mapping insert": "1234ms"
+}
+
+Reading:
+- «B-1 refusal off»: a transaction creates a project and maps it IBS_HI, uncommitted. Another connection inserts two draft rows in one statement: the
+  first for that project (its row is not visible: nothing to lock, the guard lets it through), the second, for another project, computed slowly. The
+  first transaction commits meanwhile. The foreign-key check at the end of the statement then finds the project: one draft is stored for a project
+  that was IBS_HI before the draft was committed, and the guard never read the mapping. «refusal on»: the guard refuses a row whose project row it
+  cannot see (23503, 1 ms): nothing is stored.
+- «guard share»: with FOR SHARE in the guard, three connections that keep short draft transactions of one project going (150 ms each) starve the
+  mapping insert: it never gets the lock and is ended by the 14 s statement_timeout of its session (57014); the 5 s lock_timeout of the function does
+  not fire, because it applies to each lock acquisition separately and every wait is short. 282 draft transactions went through meanwhile.
+- «guard nku»: with FOR NO KEY UPDATE in the guard, the same mapping insert gets the lock in 418 ms: waiters queue in order of arrival. Draft
+  transactions of one project then run one at a time (9 in the same window).
+- «guard nku, a draft transaction left open»: a second draft insert and a mapping insert of that project each fail with 55P03 at 5.0 s.
+- One transaction that creates a project, inserts a draft for it, maps it and inserts another draft: no error, no wait, under either mode.
+- The foreign keys: project_domain_mappings_project_id_tenant_id_fkey and ai_drafts_project_id_tenant_id_fkey, both (project_id, tenant_id) to
+  public.projects(id, tenant_id).
+- A session's own lock_timeout is back at its value after a statement that ran a function with a lock_timeout of its own.
+
+A first version of probe 3 without a statement_timeout did not return (the mapping insert waited for as long as the draft transactions kept
+overlapping); it was stopped by hand. That is the same starvation, seen without a bound.
+
+## Probe 4 — which roles can take a row lock on public.projects by themselves
+
+For every role whose name starts with libetech (nine roles after migrations 001-022; an earlier wording of this file said ten, a miscount), in a transaction that is rolled back:
+SET LOCAL ROLE <role>; SELECT id FROM public.projects LIMIT 1 <FOR NO KEY UPDATE | FOR SHARE | FOR KEY SHARE>.
+{
+ "libetech_ai FOR NO KEY UPDATE": "42501",
+ "libetech_ai FOR SHARE": "42501",
+ "libetech_ai FOR KEY SHARE": "42501",
+ "libetech_auth FOR NO KEY UPDATE": "42501",
+ "libetech_auth FOR SHARE": "42501",
+ "libetech_auth FOR KEY SHARE": "42501",
+ "libetech_identity FOR NO KEY UPDATE": "42501",
+ "libetech_identity FOR SHARE": "42501",
+ "libetech_identity FOR KEY SHARE": "42501",
+ "libetech_intake FOR NO KEY UPDATE": "42501",
+ "libetech_intake FOR SHARE": "42501",
+ "libetech_intake FOR KEY SHARE": "42501",
+ "libetech_intake_svc FOR NO KEY UPDATE": "42501",
+ "libetech_intake_svc FOR SHARE": "42501",
+ "libetech_intake_svc FOR KEY SHARE": "42501",
+ "libetech_outbox_audit FOR NO KEY UPDATE": "42501",
+ "libetech_outbox_audit FOR SHARE": "42501",
+ "libetech_outbox_audit FOR KEY SHARE": "42501",
+ "libetech_projector FOR NO KEY UPDATE": "42501",
+ "libetech_projector FOR SHARE": "42501",
+ "libetech_projector FOR KEY SHARE": "42501",
+ "libetech_runtime FOR NO KEY UPDATE": "42501",
+ "libetech_runtime FOR SHARE": "42501",
+ "libetech_runtime FOR KEY SHARE": "42501",
+ "libetech_web FOR NO KEY UPDATE": "42501",
+ "libetech_web FOR SHARE": "42501",
+ "libetech_web FOR KEY SHARE": "42501",
+ "superuser of the connection": "true"
+}
+
+Reading: none of them can (42501 for each of the three strengths). The connection that ran the probe is a superuser, as the migration login is.

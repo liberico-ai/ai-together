@@ -1,0 +1,10 @@
+$ npx vitest run tests/z4-pointer-guard.test.ts tests/z4-schema.test.ts tests/migrations-rollback.test.ts tests/fix-wave-db.test.ts tests/rls-catalog.test.ts tests/project-registry.test.ts tests/outbox-schema.test.ts tests/suggestions.test.ts tests/suggestions-concurrency.test.ts tests/skill-context.test.ts tests/source-text.test.ts tests/intake.test.ts tests/inbox-service.test.ts
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  12 passed | 1 skipped (13)
+      Tests  368 passed | 16 skipped (384)
+   Start at  13:00:29
+   Duration  179.25s (tests 100%)
+

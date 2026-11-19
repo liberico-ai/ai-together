@@ -1,0 +1,202 @@
+$ npx vitest run tests/z4-pointer-guard.test.ts tests/z4-schema.test.ts tests/migrations-rollback.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/z4-pointer-guard.test.ts (27 tests | 7 failed | 4 skipped) 10806ms
+   ❯ migration 022: the pointer-only guard (27)
+     × G7 34d without a transaction context nothing is stored and nothing is told: an IBS_HI project and any other project get the same answer, the one row-level security gives 467ms
+     × G9 a role bound by row-level security cannot tell an IBS_HI project outside its declared scope from any other: the same SQLSTATE and the same message; inside the declared scope the guard answers LTZ01 462ms
+     × G12 running 022 again changes nothing: the exact triggers of the three tables, three functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role 480ms
+     × G19 the declared-scope guard answers for every row the insert policy would refuse, with the policy's own words, whether or not the project is IBS_HI 458ms
+     × G20 the role cannot switch the scope guard off, and cannot call or change the functions of 022 458ms
+     × G26 whatever the statement, a row outside the declared scope gets one answer for an IBS_HI project and for any other: MERGE, a multi-row insert in both orders, the statement of submitDraft on a stored key, a setting that is not a uuid 465ms
+     × G21 the guard takes a shared lock on the project before it reads the mapping, a mapping insert takes the same lock exclusively, and both are gone when the transaction ends 458ms
+ ❯ tests/migrations-rollback.test.ts (9 tests | 2 failed) 4344ms
+   × rollback 022 refuses while a later migration is applied, drops the three triggers and three functions of 022, and leaves drafts, decisions, mappings and 021 as they were 464ms
+   × 022 over a database that carries only the pointer-only trigger and its function gives the three triggers and three functions; the rollback from that shape leaves nothing of 022 469ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 022 refuses while a later migration is applied, drops the three triggers and three functions of 022, and leaves drafts, decisions, mappings and 021 as they were
+AssertionError: expected [ { …(2) } ] to have a length of 3 but got 1
+
+- Expected
++ Received
+
+- 3
++ 1
+
+ ❯ tests/migrations-rollback.test.ts:432:26
+    430|     for(const f of [...later].reverse()) await h.exec(await readFile(d…
+    431|     const full=await guard();
+    432|     expect(full.trigger).toHaveLength(3);expect(full.functions).toHave…
+       |                          ^
+    433|     const kept=await upstream();
+    434|     // the three of 021 and project_domain_mappings_immutable of 013
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  tests/migrations-rollback.test.ts > 022 over a database that carries only the pointer-only trigger and its function gives the three triggers and three functions; the rollback from that shape leaves nothing of 022
+AssertionError: expected [ { …(3) } ] to have a length of 3 but got 1
+
+- Expected
++ Received
+
+- 3
++ 1
+
+ ❯ tests/migrations-rollback.test.ts:505:27
+    503|     for(const f of [...later].reverse()) await h.exec(await readFile(d…
+    504|     const full=await shape();
+    505|     expect(full.triggers).toHaveLength(3);expect(full.functions).toHav…
+       |                           ^
+    506|     await toOldShape();
+    507|     const old=await shape();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G7 34d without a transaction context nothing is stored and nothing is told: an IBS_HI project and any other project get the same answer, the one row-level security gives
+AssertionError: expected 'LTZ01' to be '42501' // Object.is equality
+
+Expected: "42501"
+Received: "LTZ01"
+
+ ❯ tests/z4-pointer-guard.test.ts:126:23
+    124|     for(const e of answers){
+    125|       expect(e).not.toBeNull();
+    126|       expect(e!.code).toBe('42501');
+       |                       ^
+    127|       expect(e!.message).toBe(RLS);
+    128|       expect(e!.code).not.toBe(LTZ);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G9 a role bound by row-level security cannot tell an IBS_HI project outside its declared scope from any other: the same SQLSTATE and the same message; inside the declared scope the guard answers LTZ01
+AssertionError: expected { code: 'LTZ01', …(1) } to deeply equal { code: '42501', …(1) }
+
+- Expected
++ Received
+
+  {
+-   "code": "42501",
+-   "message": "new row violates row-level security policy for table \"ai_drafts\"",
++   "code": "LTZ01",
++   "message": "An AI draft is not stored for a pointer-only project",
+  }
+
+ ❯ tests/z4-pointer-guard.test.ts:152:25
+    150|     expect(ibs).not.toBeNull();
+    151|     expect(other).not.toBeNull();
+    152|     expect(answer(ibs)).toEqual(answer(other));
+       |                         ^
+    153|     expect(ibs!.code).toBe('42501');
+    154|     expect(ibs!.code).not.toBe(LTZ);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of the three tables, three functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role
+AssertionError: expected [ Array(1) ] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+  [
+-   "intelligence.ai_drafts_declared_scope_guard",
+    "intelligence.ai_drafts_pointer_only_guard",
+-   "intelligence.project_domain_mappings_draft_lock",
+  ]
+
+ ❯ tests/z4-pointer-guard.test.ts:200:36
+    198|     // the whole body of each function, not fragments: the text of the…
+    199|     const fileFns=[...sql.matchAll(/CREATE OR REPLACE FUNCTION (intell…
+    200|     expect(fileFns.map(f=>f.name)).toEqual(FN.map(n=>'intelligence.'+n…
+       |                                    ^
+    201|     const bodyOf=async(name:string)=>(await rows<{p:string}>('SELECT p…
+    202|     const sameBodies=async()=>{for(const f of fileFns) expect(await bo…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G19 the declared-scope guard answers for every row the insert policy would refuse, with the policy's own words, whether or not the project is IBS_HI
+AssertionError: (a) a project that is not in the declared list 11000000-0000-4000-8000-000000000002: expected 'LTZ01' to be '42501' // Object.is equality
+
+Expected: "42501"
+Received: "LTZ01"
+
+ ❯ tests/z4-pointer-guard.test.ts:392:41
+    390|       const e=await run(project);
+    391|       expect(e,label+' '+project).not.toBeNull();
+    392|       expect(e!.code,label+' '+project).toBe('42501');
+       |                                         ^
+    393|       expect(e!.message,label+' '+project).toBe(RLS);
+    394|       expect(e!.code,label+' '+project).not.toBe(LTZ);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G20 the role cannot switch the scope guard off, and cannot call or change the functions of 022
+AssertionError: expected 'function intelligence.ai_drafts_decla…' to match /permission denied/
+
+- Expected:
+/permission denied/
+
++ Received:
+"function intelligence.ai_drafts_declared_scope_guard() does not exist"
+
+ ❯ tests/z4-pointer-guard.test.ts:421:114
+    419|       expect((await refusal(asAi(tx=>tx.query('ALTER TABLE intelligenc…
+    420|     }
+    421|     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.ai_dr…
+       |                                                                                                                  ^
+    422|     expect((await refusal(asAi(tx=>tx.query('SELECT intelligence.proje…
+    423|     const PINS:Record<string,{prosecdef:boolean;proconfig:string[]}>={
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G26 whatever the statement, a row outside the declared scope gets one answer for an IBS_HI project and for any other: MERGE, a multi-row insert in both orders, the statement of submitDraft on a stored key, a setting that is not a uuid
+AssertionError: MERGE: expected { code: 'LTZ01', …(1) } to deeply equal { code: '42501', …(1) }
+
+- Expected
++ Received
+
+  {
+-   "code": "42501",
+-   "message": "new row violates row-level security policy for table \"ai_drafts\"",
++   "code": "LTZ01",
++   "message": "An AI draft is not stored for a pointer-only project",
+  }
+
+ ❯ tests/z4-pointer-guard.test.ts:485:31
+    483|       expect(a,label).not.toBeNull();
+    484|       expect(b,label).not.toBeNull();
+    485|       expect(answer(a),label).toEqual(answer(b));
+       |                               ^
+    486|       expect(a!.code,label).toBe(code);
+    487|       expect(a!.code,label).not.toBe(LTZ);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G21 the guard takes a shared lock on the project before it reads the mapping, a mapping insert takes the same lock exclusively, and both are gone when the transaction ends
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/z4-pointer-guard.test.ts:508:17
+    506|       await insertDraft(tx,{project_id:ids.sales});
+    507|       const l=await locks(tx);
+    508|       expect(l).toHaveLength(1);
+       |                 ^
+    509|       expect(l[0].mode).toBe('ShareLock');
+    510|       expect(l[0].s).toBe(2);
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  2 failed | 1 passed (3)
+      Tests  9 failed | 46 passed | 6 skipped (61)
+   Start at  12:54:17
+   Duration  26.30s (tests 99%)
+
