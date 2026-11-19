@@ -20,8 +20,14 @@ const latch=()=>{let open!:()=>void;const promise=new Promise<void>(r=>{open=r;}
 
 describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',()=>{
   let h:Harness;
-  beforeEach(async()=>{h=await openHarness();await h.reset();await seedSlice1(h);});
-  afterEach(async()=>{await h.reset();await h.close();});
+  // N19b switches the guard of 022 off with a COMMITTED statement (the other connections have to see it off). A case that dies between that statement and the one that puts it back must
+  // not leave the shared native database in that state for the next run: both hooks put it back, idempotently (review R-S-9).
+  const restoreGuards=async()=>{
+    const r=await h.operator.query<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='draft_decisions_pointer_only_guard' AND tgrelid='public.draft_decisions'::regclass AND NOT tgisinternal");
+    if(r.rows[0]&&r.rows[0].tgenabled!=='O') await h.exec('ALTER TABLE public.draft_decisions ENABLE TRIGGER draft_decisions_pointer_only_guard');
+  };
+  beforeEach(async()=>{h=await openHarness();await restoreGuards();await h.reset();await seedSlice1(h);});
+  afterEach(async()=>{try {await restoreGuards();} finally {await h.reset();await h.close();}});
 
   const svc=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,bridgeConfig.intake!);
   const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
@@ -539,5 +545,45 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
       expect(foreign,'the counter row of the other project is free').toBeUndefined();
     }
     expect(await count('draft_decisions')).toBe(2);
+  });
+
+  // ---- After the second look at the fix round (task 2c) ----
+
+  // R-DB-11: the service reads the revision table (the text of the messages) and then writes the decision. The rollback file took the decision table first and the revision table later,
+  // the other way round: a confirmation that had read and had not yet written, and the rollback, waited for each other (40P01). The file now takes the revision table first.
+  test('N18b a confirmation that has read the revision table and has not written yet, and the rollback: no deadlock, the confirmation is stored and the rollback refuses',async()=>{
+    const {thread}=await root();
+    const draft=await draftOf(await candidateOf(thread));
+    const read=await head(thread);
+    const rollback=await rollbackSql();
+    let rolling!:Promise<unknown>,wrote:unknown='not written';
+    await asRuntime([ids.sales],async tx=>{
+      // ACCESS SHARE on the revision table, held to the end of the transaction
+      await tx.query('SELECT count(*) FROM source_event_revisions');
+      // the rollback comes now and waits for that read, holding nothing that the confirmation needs: the revision table first, the decision table second
+      rolling=settle(h.exec(rollback));
+      await inFlight(rolling);
+      wrote=await settle(insertDecision(tx,draft,{subject_thread_seq:read}));
+    });
+    // the decision was stored (with the decision table taken first, the two waited for each other and one of them got 40P01) ...
+    expect(codeOf(wrote),'the confirmation was expected to be stored').toBeUndefined();
+    // ... and then the rollback saw its position and refused, with the fixed sentence; nothing was dropped
+    const refused=await rolling as Error|undefined;
+    expect(refused,'the rollback was expected to refuse').toBeInstanceOf(Error);
+    expect(refused!.message).toMatch(/carries the position of its thread/);
+    expect(await q("SELECT 1 FROM pg_attribute WHERE attrelid='public.draft_decisions'::regclass AND attname='subject_thread_seq' AND NOT attisdropped")).toHaveLength(1);
+    expect(await q("SELECT 1 FROM schema_migrations WHERE version='023'")).toHaveLength(1);
+    expect(await storedPosition(draft)).toBe(read);
+  });
+
+  // R-S-9: the hooks that put the guard of 022 back. H3 switches it off with a committed statement and ends without putting it back; H4 runs after it, on the same database (cases of a
+  // file run in order), and finds it on. Without the hooks H4 is red.
+  test('H3 a case that switches the guard of 022 off with a committed statement and ends without putting it back',async()=>{
+    await h.exec('ALTER TABLE public.draft_decisions DISABLE TRIGGER draft_decisions_pointer_only_guard');
+    expect(await q("SELECT tgenabled FROM pg_trigger WHERE tgname='draft_decisions_pointer_only_guard' AND NOT tgisinternal")).toEqual([{tgenabled:'D'}]);
+  });
+
+  test('H4 the case that follows finds it on: the hooks put it back',async()=>{
+    expect(await q("SELECT tgenabled FROM pg_trigger WHERE tgname='draft_decisions_pointer_only_guard' AND NOT tgisinternal")).toEqual([{tgenabled:'O'}]);
   });
 });

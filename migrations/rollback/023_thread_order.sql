@@ -8,8 +8,9 @@
 --    candidate draft is no longer compared with the thread it read. The code of the PR that added 023 does not run on a database that has been rolled back.
 -- 2. After the first confirmation of a candidate draft this file REFUSES, and the row that stops it cannot be removed (draft_decisions is append-only: a delete or an
 --    update is stopped by its trigger, whoever asks): from then on 023 only goes forward. The plan to undo a deployment (R-05) is a forward fix, not "run this file".
---    Before that first confirmation the file runs. A confirmation that is in flight when the file runs is waited for (the file takes the decision table first), then
---    seen. The refusal needs the rows to be visible: it runs with row_security = off, so a role that row-level security binds gets an error here and never a silent "no rows".
+--    Before that first confirmation the file runs. A confirmation that is in flight when the file runs is waited for (the file takes the revision table and then the decision
+--    table, the order of a confirmation: see the comment at the locks), then seen. The refusal needs the rows to be visible: it runs with row_security = off, so a role that
+--    row-level security binds gets an error here and never a silent "no rows".
 -- 3. Roll back only when the AI write path is closed and every pipeline run that was in flight has been dropped: after the next application of 023 every
 --    context built before is stale (OQ-53 condition N10).
 -- 4. After a rollback and a new application the numbers of the revisions that already exist are given again, in the order of created_at, revision_no and id,
@@ -22,9 +23,17 @@ DO $$ DECLARE carrying boolean; BEGIN
     RAISE EXCEPTION 'Roll back the later migrations before 023.';
   END IF;
   -- dynamic and guarded, so the file can run again after the trigger, the function, the column or a table is gone
-  -- The decision table is taken before it is looked at (review R-S-1): a confirmation that is in flight is waited for, so that the check below sees its row. Without the lock the
-  -- check could run while that row was not yet committed, the file would then wait for the confirmation at the next statement, go on after it, and drop the column with the
-  -- position that had just been written. The wait ends at lock_timeout with 55P03 and nothing changes.
+  -- The two tables are taken before anything is looked at, the revision table first and the decision table second. Why they are taken (review R-S-1): a confirmation that is in flight
+  -- is waited for, so that the check below sees its row. Without the lock the check could run while that row was not yet committed, the file would then wait for the confirmation at
+  -- the next statement, go on after it, and drop the column with the position that had just been written. Why in this order (review R-DB-11): the service reads the revision table
+  -- (the text of the messages) and then writes the decision, so a confirmation that has read and not yet written holds the revision table and wants the decision table; a file that
+  -- took the decision table first would wait for that confirmation, which would wait for the file, and one of them would be chosen as the victim of a deadlock (40P01). In this
+  -- order the file waits for the confirmation at the first table and holds nothing the confirmation needs; the confirmation is stored, and the file then refuses because of its
+  -- position. The waits end at lock_timeout with 55P03 and nothing changes; the only other error a statement of this file can get is 40P01 from a transaction of another kind
+  -- that takes the same two tables in the other order (raw SQL: the service does not).
+  IF pg_catalog.to_regclass('public.source_event_revisions') IS NOT NULL THEN
+    EXECUTE 'LOCK TABLE public.source_event_revisions IN ACCESS EXCLUSIVE MODE';
+  END IF;
   IF pg_catalog.to_regclass('public.draft_decisions') IS NOT NULL THEN
     EXECUTE 'LOCK TABLE public.draft_decisions IN ACCESS EXCLUSIVE MODE';
   END IF;

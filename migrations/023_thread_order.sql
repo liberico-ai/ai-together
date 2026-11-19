@@ -37,19 +37,27 @@
 -- under those two locks: a revision that is being taken in when the file begins is waited for (the wait ends at lock_timeout with 55P03 and nothing changes), and nothing
 -- new commits into either table until this transaction does. What pg_locks shows after step 9 (measured): SHARE ROW EXCLUSIVE on the two tables from step 1; SHARE ROW
 -- EXCLUSIVE on public.projects from step 2 on (the foreign keys of the new tables; an INSERT, UPDATE or DELETE of a project row waits for it, the row locks of the foreign keys
--- and of 022 do not); ACCESS EXCLUSIVE on public.draft_decisions from step 10 on. A second run asks for the same locks and for no stronger one: the trigger of step 9 is replaced
--- in place (CREATE OR REPLACE TRIGGER), not dropped and created. Ordering the first version got wrong: it checked the logins at step 1, before the first wait, and asked for the lock of
--- the revision table at step 8, after steps 2 and 3 had already waited for it; a login that connected during the wait was not seen.
+-- and of 022 do not); ACCESS EXCLUSIVE on public.draft_decisions from step 10 on. A second run asks for the same locks on the revision table and the draft table and for no
+-- stronger one there (the trigger of step 9 is replaced in place, CREATE OR REPLACE TRIGGER, not dropped and created). It also asks for ACCESS EXCLUSIVE on the two new tables,
+-- from steps 2 and 3, which drop and create their triggers and policies again: a reader of those two tables waits for the length of a second run (A12; review R-DB-12; the choice
+-- was to say so, not to guard steps 2 to 6 with a catalog check, for a window in which there is nothing to number). Ordering the first version got wrong: it checked the logins at
+-- step 1, before the first wait, and asked for the lock of the revision table at step 8, after steps 2 and 3 had already waited for it; a login that connected during the wait was
+-- not seen. The order of the two locks, revision table and then draft table, is deliberate: no path of the service writes both, so no order of the two can deadlock with the
+-- service (a raw transaction that takes them the other way round can: the file is then the victim and changes nothing). The price is on the intake path, which waits for the first
+-- lock: while an AI draft is being written at the moment the file is applied, an intake can wait behind the file, up to lock_timeout (5 s), for that draft (review R-S-10).
 -- Four refusals, each with a fixed message and nothing created or changed (the whole file is one transaction):
 -- 1. The migration login is not a superuser (P2): the function is owned by it, runs with row_security = off and must not be bound by the FORCE
 --    row-level security of the tables it writes; with an owner that is bound, every intake statement would fail. Checked before any lock.
--- 2. A session of a login that is not a superuser and can act as libetech_ai is connected (P6 (ii)), checked under the locks: a pipeline run that is still open may have
+-- 2. A session of a login that is not a superuser and can act as libetech_ai is connected (P6 (ii)), checked twice, both times under the two locks: right after them (step 1),
+--    and again right before the record of the migration (step 12), after every step that can wait (the step that adds the column waits for the readers of the decision table: a
+--    login that connects while the file waits there is seen by the second check, test A14; review R-S-8). A pipeline run that is still open may have
 --    read a context before the old rows were numbered. pg_stat_activity shows the login, not a role taken with SET ROLE or SET SESSION AUTHORIZATION (measured
 --    on PostgreSQL 16, measurements 9b and 9c), so this check sees a login that is a member of the AI role and nothing else; and it must leave
 --    superusers out, because pg_has_role is true for every role when asked about a superuser (9a). No such login exists today (9e), so the check lets the file through
---    until one does. What it does not see, and the plan states as condition N10: a run that read its context and then disconnected; a login that connects after this
---    transaction has committed reads the numbered state, which is the one every later revision follows. The branch that refuses is a behaviour case with the name of the
---    AI role replaced by the name of a role that a login of the test harness is a member of (tests A10, A11); under the true name it has none until a login of that role exists (N14).
+--    until one does. What it does not see, and the plan states as condition N10: a run that read its context and then disconnected; and a login that connects after the
+--    second check, in the time of the two statements that remain (a login that connects after this transaction has committed reads the numbered state, which is the one every
+--    later revision follows). The branch that refuses is a behaviour case with the name of the AI role replaced by the name of a role that a login of the test harness is a
+--    member of (tests A10, A11, A14); under the true name it has none until a login of that role exists (N14).
 -- 3. public.source_event_revisions holds more revisions without a number than libetech.thread_order_max_rows (a setting of the session, empty = 250 000; P12). Revisions that
 --    already have a number do not count: the second run of this file, which puts the trigger back (W9, L7, N12), is not stopped by the size of the table. The numbering of
 --    step 8 runs under the lock above, about 11 microseconds a revision (Database review of the plan: 0.52 s for 60 000 revisions). The review of the code timed the
@@ -281,6 +289,16 @@ DROP TRIGGER IF EXISTS draft_decisions_subject_order_guard ON public.draft_decis
 CREATE TRIGGER draft_decisions_subject_order_guard AFTER INSERT ON public.draft_decisions
   FOR EACH ROW EXECUTE FUNCTION public.draft_decisions_subject_order_guard();
 
--- Step 12: the record of the migration.
+-- Step 12: refusal 2 once more, under the same two locks, now that every step that can wait has been passed (review R-S-8): a login that connected while the file waited at a
+-- later step is seen here. PostgreSQL keeps the first reading of pg_stat_activity for the rest of the transaction, so the cached reading of the first check is thrown away
+-- first (without that the second check sees what the first saw: found by test A14). Then the record of the migration.
+DO $$ BEGIN
+  PERFORM pg_catalog.pg_stat_clear_snapshot();
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_stat_activity a JOIN pg_catalog.pg_roles r ON r.oid = a.usesysid
+              WHERE a.pid <> pg_catalog.pg_backend_pid() AND a.datname = pg_catalog.current_database() AND NOT r.rolsuper
+                AND pg_catalog.pg_has_role(r.oid, 'libetech_ai', 'MEMBER')) THEN
+    RAISE EXCEPTION 'Migration 023 refuses to run while a login that can act as libetech_ai is connected: close the AI pipeline connections and apply again.';
+  END IF;
+END $$;
 INSERT INTO schema_migrations(version) VALUES('023') ON CONFLICT(version) DO NOTHING;
 COMMIT;

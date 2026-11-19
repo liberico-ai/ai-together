@@ -1,0 +1,34 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order-concurrency.test.ts (20 tests | 1 failed) 17571ms
+   ❯ thread numbers under concurrency (native PostgreSQL) (20)
+     × N18b a confirmation that has read the revision table and has not written yet, and the rollback: no deadlock, the confirmation is stored and the rollback refuses 1335ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N18b a confirmation that has read the revision table and has not written yet, and the rollback: no deadlock, the confirmation is stored and the rollback refuses
+AssertionError: expected 'deadlock detected' to match /carries the position of its thread/
+
+- Expected:
+/carries the position of its thread/
+
++ Received:
+"deadlock detected"
+
+ ❯ tests/thread-order-concurrency.test.ts:573:30
+    571|     const refused=await rolling as Error|undefined;
+    572|     expect(refused,'the rollback was expected to refuse').toBeInstance…
+    573|     expect(refused!.message).toMatch(/carries the position of its thre…
+       |                              ^
+    574|     expect(await q("SELECT 1 FROM pg_attribute WHERE attrelid='public.…
+    575|     expect(await q("SELECT 1 FROM schema_migrations WHERE version='023…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+   Start at  13:43:15
+   Duration  17.69s (tests 100%)
+

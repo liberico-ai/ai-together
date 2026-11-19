@@ -24,12 +24,25 @@ const OTHER_ROLES=['libetech_intake','libetech_ai','libetech_identity','libetech
 
 let h:Harness;
 let needsForward=false;
-beforeEach(async()=>{needsForward=false;h=await openHarness();await h.reset();await seedSlice1(h);});
+// The triggers that a case of this file or of thread-order-concurrency.test.ts switches off with a COMMITTED statement (A7b here, N19b there: another connection has to see them off).
+// A case that dies between the two statements must not leave the shared native database in that state for the next run, so both hooks put them back, idempotently (review R-S-9).
+const SWITCHED_OFF=[['draft_decisions','draft_decisions_pointer_only_guard'],['source_event_revisions','source_event_revisions_thread_position']] as const;
+async function restoreGuards(db:Harness){
+  for(const [table,trigger] of SWITCHED_OFF){
+    const r=await db.operator.query<{tgenabled:string}>('SELECT tgenabled FROM pg_trigger WHERE tgname=$1 AND tgrelid=$2::regclass AND NOT tgisinternal',[trigger,'public.'+table]);
+    if(r.rows[0]&&r.rows[0].tgenabled!=='O') await db.exec(`ALTER TABLE public.${table} ENABLE TRIGGER ${trigger}`);
+  }
+}
+beforeEach(async()=>{needsForward=false;h=await openHarness();await restoreGuards(h);await h.reset();await seedSlice1(h);});
 afterEach(async()=>{
   await h.exec('ROLLBACK').catch(()=>{});
-  // a case that rolled 023 back puts it back before the harness truncates: the database may be a shared native one
-  if(needsForward) await h.exec(await forwardSql());
-  await h.reset();await h.close();
+  try {
+    // a case that rolled 023 back puts it back before the harness truncates: the database may be a shared native one
+    if(needsForward) await h.exec(await forwardSql());
+  } finally {
+    await restoreGuards(h);
+    await h.reset();await h.close();
+  }
 });
 
 const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
@@ -395,6 +408,14 @@ test('A8 (iii) the file carries the check that refuses while a login that can ac
   expect(at('ANALYZE public.source_revision_positions')).toBeLessThan(at('ALTER TABLE public.draft_decisions ADD COLUMN'));
   expect(code).toContain('CREATE OR REPLACE TRIGGER source_event_revisions_thread_position');
   expect(code).not.toContain('DROP TRIGGER IF EXISTS source_event_revisions_thread_position');
+  // the check of the logins is made twice, both times under the two locks (review R-S-8): right after them, and again right before the record of the migration, after every step
+  // that can wait (the step that adds the column waits for the readers of the decision table: A14)
+  const checks=[...code.matchAll(/pg_catalog\.pg_stat_activity/g)].map(m=>m.index!);
+  expect(checks).toHaveLength(2);
+  expect(code.split("pg_catalog.pg_has_role(r.oid, 'libetech_ai', 'MEMBER')").length-1).toBe(2);
+  expect(checks[0]).toBeGreaterThan(at('LOCK TABLE intelligence.ai_drafts IN SHARE ROW EXCLUSIVE MODE'));
+  expect(checks[1]).toBeGreaterThan(at('CREATE TRIGGER draft_decisions_subject_order_guard'));
+  expect(checks[1]).toBeLessThan(at('INSERT INTO schema_migrations'));
   // the default of the cap is 250 000 (what the cap counts is A8 (i))
   expect(code).toContain("'250000'");
 });
@@ -780,8 +801,9 @@ const AI_PREDICATE="pg_catalog.pg_has_role(r.oid, 'libetech_ai', 'MEMBER')";
 const REFUSES=/refuses to run while a login that can act as libetech_ai is connected/;
 const withRuntimeAsAi=async()=>{
   const sql=await forwardSql();
-  expect(sql.split(AI_PREDICATE).length-1,'the predicate that names the AI role is in the file once').toBe(1);
-  return sql.replace(AI_PREDICATE,AI_PREDICATE.replace('libetech_ai','libetech_runtime'));
+  // every place that asks about the AI role (A8 (iii) counts them: two checks)
+  expect(sql.split(AI_PREDICATE).length-1,'the predicate that names the AI role is in the file').toBeGreaterThanOrEqual(1);
+  return sql.split(AI_PREDICATE).join(AI_PREDICATE.replace('libetech_ai','libetech_runtime'));
 };
 const nothingOf023=async()=>{
   for(const t of TABLES) expect(await regclass('public.'+t),t).toBeNull();
@@ -856,7 +878,14 @@ test.skipIf(!native)('A12 applying 023 again takes no lock that a reader of the 
     return refusal(h.exec(forward)) as Promise<Told|null>;
   });
   expect(waited?.code).toBe('55P03');
-},30000);
+  // and the two new tables (review R-DB-12): steps 2 and 3 drop and create their triggers and policies again, which takes ACCESS EXCLUSIVE on them to the end of the transaction,
+  // so a reader of them waits as well. The header of the file says so; this is the case that keeps the header true.
+  const waitedNew=await h.operator.transaction(async reader=>{
+    await reader.query('SELECT count(*) FROM intake_thread_heads');
+    return refusal(h.exec(forward)) as Promise<Told|null>;
+  });
+  expect(waitedNew?.code).toBe('55P03');
+},40000);
 
 test('B8 the same chat and thread key in two projects and in two tenants, each with its own counter row: a confirmation is judged against the counter row of its own scope',async()=>{
   const key='m:9700';
@@ -939,4 +968,48 @@ test.skipIf(!native)('A13 the file waits for an AI draft that is being written a
     // the draft is an undecided one, which would stop the file again when the case puts it back (and the next case could not open): the rows go first
     await h.reset();
   }
+});
+
+// ---- After the second look at the fix round (task 2c) ----
+
+// R-S-8: the second check of the logins. A login of the role that connects after the first check, while the file waits at a later step, is found by the check at the end.
+test.skipIf(!native)('A14 a login of the role that connects after the first check and before the commit stops the file: the check is made again right before the record of the migration',async()=>{
+  needsForward=true;
+  const rollback=await rollbackSql(),probe=await withRuntimeAsAi();
+  await h.exec(rollback);
+  const web=latch(),opened=latch();
+  let applying!:Promise<Told|null>,webDone:Promise<unknown>=Promise.resolve();
+  try {
+    await h.operator.transaction(async reader=>{
+      // a reader of the decision table holds ACCESS SHARE on it: the step that adds the column (ACCESS EXCLUSIVE) waits for it, after the first check and before the second
+      await reader.query('SELECT count(*) FROM draft_decisions');
+      applying=refusal(h.exec(probe)) as Promise<Told|null>;
+      await inFlight(applying);
+      // no login of the role was connected when the file began or when it passed the first check. One connects now.
+      webDone=h.db.transaction(async w=>{await w.query('SELECT 1');opened.open();await web.promise;});
+      await Promise.race([opened.promise,webDone]);
+    });
+    // the reader ends; the file goes on, reaches the second check, finds the login and stops
+    const e=await applying;
+    expect(e,'the file was expected to stop').not.toBeNull();
+    expect(e!.message).toMatch(REFUSES);
+  } finally {
+    web.open();
+    await webDone;
+  }
+  await nothingOf023();
+});
+
+// R-S-9: the hooks that put the switched-off triggers back (restoreGuards, run before and after every case). H1 switches the guard of 022 and the numbering trigger off with committed
+// statements and ends without putting them back; H2 runs after it, on the same native database (cases of a file run in order), and finds both on. Without the hooks H2 is red.
+test.skipIf(!native)('H1 a case that switches the guard of 022 and the numbering trigger off with committed statements and ends without putting them back',async()=>{
+  await h.exec('ALTER TABLE public.draft_decisions DISABLE TRIGGER draft_decisions_pointer_only_guard');
+  await h.exec('ALTER TABLE public.source_event_revisions DISABLE TRIGGER source_event_revisions_thread_position');
+  expect(await q("SELECT tgname,tgenabled FROM pg_trigger WHERE tgname IN ('draft_decisions_pointer_only_guard','source_event_revisions_thread_position') AND NOT tgisinternal ORDER BY 1"))
+    .toEqual([{tgname:'draft_decisions_pointer_only_guard',tgenabled:'D'},{tgname:'source_event_revisions_thread_position',tgenabled:'D'}]);
+});
+
+test.skipIf(!native)('H2 the case that follows finds both on: the hooks put them back',async()=>{
+  expect(await q("SELECT tgname,tgenabled FROM pg_trigger WHERE tgname IN ('draft_decisions_pointer_only_guard','source_event_revisions_thread_position') AND NOT tgisinternal ORDER BY 1"))
+    .toEqual([{tgname:'draft_decisions_pointer_only_guard',tgenabled:'O'},{tgname:'source_event_revisions_thread_position',tgenabled:'O'}]);
 });
