@@ -1,10 +1,10 @@
 # Nháp AI: ai đọc nội dung, che lúc đọc, từ chối nháp IBS HI lúc ghi, giữ nháp đã cũ (OQ-45, OQ-46) · 18/11/2026
 
-PR riêng vào `libetech-ai-os`, viết mã cho bốn quyết định của Chairman ngày 18/11/2026 về OQ-45 và OQ-46. Nhánh `feat/oq-45-46-ai-drafts`, gốc `4f12a3c` (đầu `origin/libetech-ai-os` sau PR #21). Đầu nhánh lúc chạy lượt cuối của cổng: `b29b929`; mã `src/` đổi lần cuối ở `d9b0974`, `migrations/` ở `05a6da0`, `tests/` ở `9b0f83f` (tên một ca); mọi commit sau đó — kể cả commit mang biên nhận này — chỉ thêm hồ sơ. PR: [liberico-ai/ai-together#22](https://github.com/liberico-ai/ai-together/pull/22), vào `libetech-ai-os`, mở ngày 18/11/2026; chưa merge. Kế hoạch: `docs/plans/oq-45-46-ai-drafts.md` bản 0.9. Review và bằng chứng: `docs/reviews/oq-45-46-evidence-20261118/`.
+PR riêng vào `libetech-ai-os`, viết mã cho bốn quyết định của Chairman ngày 18/11/2026 về OQ-45 và OQ-46. Nhánh `feat/oq-45-46-ai-drafts`, gốc `4f12a3c` (đầu `origin/libetech-ai-os` sau PR #21). Đầu nhánh lúc chạy lượt cuối của cổng: `b29b929`; mã `src/` đổi lần cuối ở `d9b0974`, `migrations/` ở `05a6da0`, `tests/` ở `9b0f83f` (tên một ca); mọi commit sau đó — kể cả commit mang biên nhận này — chỉ thêm hồ sơ. PR: [liberico-ai/ai-together#22](https://github.com/liberico-ai/ai-together/pull/22), vào `libetech-ai-os`, mở ngày 18/11/2026; merge vào `libetech-ai-os` ngày 19/11/2026 (`80c1ad8`) sau khi Chairman duyệt: «Merge PR #22». Kế hoạch: `docs/plans/oq-45-46-ai-drafts.md` bản 0.9. Review và bằng chứng: `docs/reviews/oq-45-46-evidence-20261118/`.
 
 Biên nhận này tả nhánh **sau hai vòng sửa của cổng Codex**: vòng sửa 1 (Task F1, F2, F3, F1b, F1c và F5) và vòng sửa 2 (Task G1 và Task G2). Brief của phiên cho tối đa hai vòng sửa ở cổng: cả hai đã dùng, và vòng 3 là lượt chạy cuối của cổng. Chỗ nào còn chờ một lượt chạy, một lượt soát hay một commit thì mang một nhãn giữ chỗ trong ngoặc kép góc, do phiên chính điền; biên nhận không ước con số nào.
 
-**Cập nhật 19/11/2026 (chỉ hồ sơ; mã không đổi).** Chairman đã quyết OQ-53, OQ-54, OQ-55 và OQ-56; lời chép nguyên, hộp chọn và phần ánh xạ của phiên điều phối ở `docs/OPEN-QUESTIONS.md:944`. Mã của PR không đổi vì các quyết định đó, và không lượt test, review hay cổng nào được chạy lại cho commit hồ sơ này. Những câu của biên nhận từng ghi bốn mục đó «chờ Chairman» đã được sửa tại chỗ và mang nhãn «19/11/2026». PR riêng của OQ-53 và thiết kế login AI chưa bắt đầu.
+**Cập nhật 19/11/2026 (chỉ hồ sơ; mã không đổi).** Chairman đã quyết OQ-53, OQ-54, OQ-55 và OQ-56; lời chép nguyên, hộp chọn và phần ánh xạ của phiên điều phối ở `docs/OPEN-QUESTIONS.md:944`. Mã của PR không đổi vì các quyết định đó, và không lượt test, review hay cổng nào được chạy lại cho commit hồ sơ này. Những câu của biên nhận từng ghi bốn mục đó «chờ Chairman» đã được sửa tại chỗ và mang nhãn «19/11/2026». PR riêng của OQ-53 chưa bắt đầu lúc đó (nay đã merge: PR #24, `b978163`); thiết kế login AI chưa bắt đầu.
 
 **Z4 chưa bật và không được bật bởi PR này.** Không tuyến HTTP nào đọc nháp; không login, không khoá cho role `libetech_ai`; không mô hình nào được gọi. Dữ liệu thử là dữ liệu tổng hợp.
 
@@ -12,7 +12,7 @@ Biên nhận này tả nhánh **sau hai vòng sửa của cổng Codex**: vòng 
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | **Đạt mức «đã có mã».** Test, typecheck và build xanh ở đầu nhánh trên PGlite và trên PostgreSQL 16 thật; lượt cuối của mọi ghế review tầng 1 là «READY FOR GATE»; cổng Codex vòng 3 `VERDICT: PASS`, không finding; `liberico-reality-checker` `VERDICT: READY` sau khi bảy chỗ sửa chữ của nó được áp. Chưa merge: việc merge chờ Chairman | Bảng «Bằng chứng kiểm» và mục «Review hai tầng» bên dưới; chỉ ghi «đã có mã» khi các cổng nói vậy |
+| **Đã có mã** | **Đạt mức «đã có mã».** Test, typecheck và build xanh ở đầu nhánh trên PGlite và trên PostgreSQL 16 thật; lượt cuối của mọi ghế review tầng 1 là «READY FOR GATE»; cổng Codex vòng 3 `VERDICT: PASS`, không finding; `liberico-reality-checker` `VERDICT: READY` sau khi bảy chỗ sửa chữ của nó được áp. Đã merge vào `libetech-ai-os` ngày 19/11/2026 (`80c1ad8`) sau khi Chairman duyệt: «Merge PR #22» | Bảng «Bằng chứng kiểm» và mục «Review hai tầng» bên dưới; chỉ ghi «đã có mã» khi các cổng nói vậy |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1. Migration 022 chưa áp ở đâu ngoài CSDL thử riêng của PR | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Chưa có dòng nháp nào ngoài CSDL thử; không ai gọi `SuggestionService` ngoài test | — |
 | Đã nghiệm thu | **Chưa.** | — |
@@ -446,11 +446,11 @@ Tám điều kiện của vòng sửa, nêu đủ:
 
 ## Điểm dừng — không làm, chờ Chairman
 
-Merge PR (phiên điều phối kiểm lại độc lập; chỉ merge khi Chairman nói) · triển khai d1-ai1 · áp 019–022 lên dữ liệu thật · tạo login hay khoá cho `libetech_ai` · nối mô hình · thêm tuyến đọc nháp · bật Z4 · sửa `AGENTS.md`.
+(Merge PR: đã làm ngày 19/11/2026, `80c1ad8`, sau «Merge PR #22»; phiên điều phối đã kiểm lại độc lập trước đó.) Còn lại: triển khai d1-ai1 · áp 019–022 lên dữ liệu thật · tạo login hay khoá cho `libetech_ai` · nối mô hình · thêm tuyến đọc nháp · bật Z4 · sửa `AGENTS.md`.
 
 ## Cần Chairman quyết hoặc xác nhận
 
-**Cập nhật 19/11/2026:** mục 1–4 đã có quyết định (`docs/OPEN-QUESTIONS.md:944`). Chúng nằm lại ở đây, mang nhãn «đã quyết», để số thứ tự các mục không đổi. Còn chờ Chairman: mục 5, mục 6 và việc merge.
+**Cập nhật 19/11/2026:** mục 1–4 đã có quyết định (`docs/OPEN-QUESTIONS.md:944`). Chúng nằm lại ở đây, mang nhãn «đã quyết», để số thứ tự các mục không đổi. Còn chờ Chairman: mục 5 và mục 6; việc merge đã làm ngày 19/11/2026 (`80c1ad8`).
 
 1. **OQ-53 — đã quyết 19/11/2026:** điểm 1 (b), điểm 2 (a), điểm 3 (b), làm thành một PR riêng (chưa bắt đầu; theo phiên điều phối, đợi PR này merge). Cho tới khi PR riêng đó merge, `SUBJECT_EDIT_UNVERIFIED` và `SUBJECT_ORDER_UNVERIFIED` ở lại: đường xác nhận nháp ứng viên của lát 3 vẫn đóng.
 2. **OQ-54 — đã quyết 19/11/2026:** (b), làm cùng thiết kế login AI (chưa bắt đầu). PR này không có mã cho mục này.
