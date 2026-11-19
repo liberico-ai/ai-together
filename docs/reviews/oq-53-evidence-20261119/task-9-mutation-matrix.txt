@@ -1,0 +1,40 @@
+# Task 9 mutation matrix: cross-check of the plan's db1-db11 (plan section 13, Task 9) against the builders' existing logs in logs/.
+# No mutant was run by the Task 9 scout. "has log" = a builder log shows that exact mutant and the cases it made red.
+# Mapping of the plan's labels to the builder logs:
+
+db1  BEFORE INSERT instead of AFTER INSERT on the position trigger
+     status: NO BUILDER LOG (corrected after the reality check). The m-before of logs/task-2*-mutants.txt is the trigger of the DECISION table (B1-B6), not the numbering trigger. The reality-check seat ran db1 on a copy outside the repo: 19 cases red (A1-A7b, A9, A9b, B1-B9).
+
+db2  (a) FOR NO KEY UPDATE dropped from the decision trigger; (b) replaced by FOR KEY SHARE
+     status: HAS LOG, both forms. logs/task-2b-mutants.txt (db2-nolock, db2-keyshare): red N7, N8, N11, N17, N19, N19b, N20 (native);
+             logs/task-2-mutants.txt (db2-nolock, db2-keyshare): red N7, N8, N11, N17 (native)
+
+db3  decision trigger compares with >= instead of <>
+     status: HAS LOG. logs/task-2b-mutants.txt (db3-ge): red B1, B6, B8, B9; logs/task-2-mutants.txt (db3-ge): red B1, B6 (pglite)
+
+db4  threadFreshness without rule 2
+     status: HAS LOG. logs/task-5-mutants.txt (m1 "remove rule 2"): red T17, T7' (2 failed of 39)
+
+db5  threadFreshness without rule 4
+     status: HAS LOG. logs/task-5-mutants.txt (m3 "remove rule 4"): red T16 (1 failed of 39)
+
+db6  decide writes NULL instead of the position
+     status: HAS LOG. logs/task-7-mutants.txt (m1 "no position is passed: the decision row carries NULL"): 14 failed of 116 (pglite suggestions)
+
+db7  LATEST_REVISION_ORDER replaced by revision_no DESC in rule 2
+     status: HAS LOG. logs/task-5-mutants.txt (m5): red T17, T7' (2 failed of 39); also logs/task-9a-mutants.txt (s2): red T17, T7' (2 failed of 41)
+
+db8  path messageRevisions.*.id removed from the skills table (plan: "SKILL_IDS")
+     status: HAS LOG under the name used in the code (skill-contracts table, not a constant called SKILL_IDS). logs/task-4-mutants.txt (m-a-notable and m-a-path): red R-c, D2, D3 (3 failed of 41, skill-contracts)
+
+db9  extra FOR UPDATE on the COUNTER row at the start of the numbering trigger (plan: N16 must go red)
+     status: NOT MATCHED. logs/task-1-mutants-and-numbering-time.txt has mutant "g" = superfluous FOR UPDATE on the PROJECT row (red N2, N3, N4), and the builder wrote that a stray FOR UPDATE in the trigger does NOT turn N16 red (an AFTER INSERT row trigger is not called for a row skipped by ON CONFLICT DO NOTHING). The exact plan variant (counter row) has no log. Plan expectation (N16 red) is not supported by the existing evidence.
+
+db10 last call of decide without the known parameter (plan: K4 must go red)
+     status: HAS LOG (equivalent form). logs/task-7-mutants.txt (m6 "present is not given what the confirmation checked: it scans the message tables after the write"): red K4 (1 failed of 116, pglite suggestions). The builder's m8/m9 (known carries no thread/project result) are additional.
+
+db11 no drop-if-exists of a trigger in 023 (plan: A6 must go red)
+     status: HAS LOG. logs/task-2-mutants.txt and logs/task-2b-mutants.txt (db11-nodrop): red A6, A7, A8 (i), A8 (ii) (and A7b, B5 in 2b); logs/task-1-mutants-and-numbering-time.txt (a, drop-if-exists of the position trigger): red A6, A7, A8, A9 (pglite)
+
+# Summary (corrected after the reality check): 11 plan labels. Builder logs with red cases: db2, db3, db4, db5, db6, db7, db8, db10, db11 (9). No builder log: db1 (run by the reality-check seat: 19 cases red), db9 (cannot be red: an AFTER INSERT trigger is not called for a row that ON CONFLICT DO NOTHING skips).
+# Logs are the builders' runs at their commits; the Task 9 scout did not re-run any mutant (report only, as instructed).
