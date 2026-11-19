@@ -5,7 +5,7 @@ Như vòng 1 (`docs/reviews/oq-53-evidence-20261119/codex-context-round-1.md`): 
 
 ## Ghim
 - Base: `libetech-ai-os` @ `80c1ad8` (merge PR #22).
-- Head: `ed714cf033258026532e0126695801d8a389eec6` (mã `src/`, `migrations/`, `skills/`, `tests/` giống `affe28a`; commit sau đó chỉ thêm hồ sơ).
+- Head: `3c82680dd0b84b3b2e6edf3dc13218dd40038422` (mã `src/`, `migrations/`, `skills/`, `tests/` giống `affe28a`; commit sau đó chỉ thêm hồ sơ).
 - Diff bên dưới là `git diff 80c1ad8 <head>` cho `src/`, `migrations/`, `skills/` và `tests/`. `docs/` đọc thẳng trong thư mục làm việc.
 
 ## Việc đã làm cho finding của vòng 1
