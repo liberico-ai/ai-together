@@ -527,14 +527,28 @@ describe('OQ-39, OQ-40, OQ-41 indicators and who sees what in list',()=>{
   expect(JSON.stringify(l)).not.toContain('MARKER-THEIRS-');
   expect(l.reviewers.find(x=>x.delegateId===reviewer.id)).toMatchObject({basis:null,grantedBy:null});
  });
+ /** Operational login: one designation by pm for the type 'plan' with the creation time given (the service cannot choose it: the column takes the database's now()). */
+ const writtenAt=async(delegateId:string,createdAt:string,id:string=randomUUID())=>{
+  await h.operator.query(`INSERT INTO review_delegations(id,tenant_id,project_id,delegate_id,doc_types,granted_by,basis,created_at)
+   VALUES($1,$2,$3,$4,ARRAY['plan'],$5,$6,$7::timestamptz)`,[id,ids.tenant,ids.sales,delegateId,pm.id,BASIS,createdAt]);
+ };
  test('F-5 a reader receives other people\'s rows ordered by delegate id, not by creation; a coordinator keeps newest first',async()=>{
   const people=[reviewer,approver,business2,technical2,pm2];
-  for(const p of people) await grant(pm,G({delegateId:p.id,docTypes:['plan']}));          // created in this order
+  // Created in this order, one minute apart. The time is written here and never read from the clock: two designations made one after the other can fall in the same tick
+  // (the clock of PGlite counts whole milliseconds and a designation takes about one), and rows of one instant come by row id, which is random — the case below.
+  for(const [i,p] of people.entries()) await writtenAt(p.id,`2026-11-01T00:0${i}:00Z`);
   const l=await svc().list(member,{projectId:ids.sales});
   const got=l.reviewers.map(x=>x.delegateId);
-  expect(got).toEqual([...got].sort());
+  expect(got).toEqual(people.map(p=>p.id).sort());                                      // all five, by delegate id
   const c=await svc().list(pm,{projectId:ids.sales});
   expect(c.reviewers.map(x=>x.delegateId)).toEqual([...people].reverse().map(p=>p.id));
+ });
+ test('F-5 rows of one instant reach a coordinator by row id, whatever the order they were written in',async()=>{
+  const at='2026-11-01T00:00:00Z',row=(n:string)=>`f5000000-0000-4000-8000-00000000000${n}`;
+  for(const [p,n] of [[reviewer,'c'],[approver,'a'],[business2,'b']] as const) await writtenAt(p.id,at,row(n));   // written c, a, b
+  const c=await svc().list(pm,{projectId:ids.sales});
+  expect(c.reviewers.map(x=>x.createdAt)).toEqual([at,at,at].map(t=>new Date(t).toISOString()));
+  expect(c.reviewers.map(x=>x.id)).toEqual([row('a'),row('b'),row('c')]);
  });
 
 });

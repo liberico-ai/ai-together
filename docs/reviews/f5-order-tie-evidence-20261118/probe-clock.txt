@@ -1,0 +1,6 @@
+# Probe of the PGlite clock, tree at 4f12a3c (before the change). Command: npx tsx docs/reviews/f5-order-tie-evidence-20261118/probes/clock.mts
+(a) clock_timestamp(), 300 readings: with a non-zero digit below the millisecond = 0
+(b) now() of 300 separate transactions in 18 ms: equal to the one before = 280
+(c) clock running, two transactions 30 ms apart: 10:38:31.012000 10:38:31.043000 equal = false
+(c) Date.now() held, two transactions 30 ms apart: 10:38:31.043000 10:38:31.043000 equal = true
+EXIT=0
