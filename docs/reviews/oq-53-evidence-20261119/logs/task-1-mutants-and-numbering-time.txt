@@ -1,0 +1,19 @@
+Task 1 (OQ-53, migration 023, intake half): checks that the new cases are sensitive, and one measurement of the real numbering statement.
+Each mutant is a one-line edit of migrations/023_thread_order.sql, applied to a copy of the file in place, run, and put back (the file was compared with the saved original afterwards).
+
+Mutant -> files run -> cases that went red (every other case of the file stayed green unless listed)
+a  remove DROP TRIGGER IF EXISTS before the position trigger (DB-1)      thread-order (pglite): A6, A7, A8 (i), A8 (ii) (the second application fails with 42710); A9 as everywhere
+c  GRANT SELECT also to libetech_intake                                   thread-order (pglite): A3
+d  no row lock: number = max(thread_seq)+1, counter row written once      thread-order-concurrency (native): N1, N2, N4, N5, N6, N16 red; N3 stays green (another thread never waited)
+f  drop the lock_timeout of the function                                  thread-order-concurrency (native): N4 (the wait ends in 57014 at the 10 s of the pool, not in 55P03 at 5 s)
+g  a superfluous FOR UPDATE on the project row in the function            thread-order-concurrency (native): N2, N3, N4
+h  numbering ignores the counter row (coalesce(last_seq,0) -> 0)          thread-order (pglite): A7b
+i  order of numbering revision_no before created_at                       thread-order (pglite): A7, A7b
+Not reachable by any case, and said so in the report: a stray FOR UPDATE in the trigger does not turn N16 red, because an AFTER INSERT row trigger is not called for a row that ON CONFLICT DO NOTHING skips.
+
+Numbering time, the real statement of step 8 (PostgreSQL 16.15, isolated container, psql \timing, not a test): 60 000 revisions in 4 000 threads, 15 per thread,
+no row of intake_thread_heads before. The numbering statement: 585 ms (the next longest statement of the file: 37 ms). Result: 60 000 numbers, 4 000 counter rows, last_seq 15 in each.
+A second application of the file on the same data: every statement together 94 ms, no number added.
+The cap of the Database review (0.52 s for 60 000 rows) is the same order. The data was removed afterwards (TRUNCATE of the harness list), 023 rolled back; the harness applies it again on the next run.
+
+npx tsc --noEmit: exit 0, no output.

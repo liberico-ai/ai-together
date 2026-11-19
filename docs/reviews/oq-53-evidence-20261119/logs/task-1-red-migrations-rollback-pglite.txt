@@ -1,0 +1,21 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/migrations-rollback.test.ts (10 tests | 1 failed) 4944ms
+   × rollback 023 refuses while a later migration is applied, drops the two tables, the function and the trigger of 023, and leaves source events, revisions, drafts and decisions as they were; applying 023 again restores the numbers 460ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 023 refuses while a later migration is applied, drops the two tables, the function and the trigger of 023, and leaves source events, revisions, drafts and decisions as they were; applying 023 again restores the numbers
+Error: ENOENT: no such file or directory, open '<repo>/migrations/023_thread_order.sql'
+ ❯ tests/migrations-rollback.test.ts:561:17
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  11:05:10
+   Duration  5.10s (tests 98%, transform 1%, import 1%)
+

@@ -1,0 +1,135 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order.test.ts (12 tests | 11 failed | 1 skipped) 5318ms
+   × A1 every stored revision gets the next number of its thread, and the head row says the same 660ms
+   × A2 a replayed revision takes no number and leaves the head row untouched 481ms
+   × A3 34a–34e for the two new tables 472ms
+   × A4 no libetech role locks a head row by itself or calls the function 477ms
+   × A5 the intake role scoped to one project cannot write a revision into a thread of another, and is answered by row-level security 469ms
+   × A6 the catalog of 023: tables, policies, triggers, functions; a second run changes nothing 472ms
+   × A7 numbering rows that were there before 023, and the refusal while a draft of a candidate is undecided 461ms
+   × A8 (i) 023 stops above the cap on the number of revisions, with its own words, and creates nothing; without the setting it runs 456ms
+   × A8 (ii) 023 stops when it is applied by a role that is not a superuser, and creates nothing 459ms
+   × A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser 454ms
+   × A9 the refusal of the position trigger for a revision whose source event it cannot see names no id and no number 456ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order.test.ts > A1 every stored revision gets the next number of its thread, and the head row says the same
+ FAIL  tests/thread-order.test.ts > A2 a replayed revision takes no number and leaves the head row untouched
+ FAIL  tests/thread-order.test.ts > A5 the intake role scoped to one project cannot write a revision into a thread of another, and is answered by row-level security
+ FAIL  tests/thread-order.test.ts > A9 the refusal of the position trigger for a revision whose source event it cannot see names no id and no number
+error: relation "source_revision_positions" does not exist
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/14]⎯
+
+ FAIL  tests/thread-order.test.ts > A3 34a–34e for the two new tables
+error: relation "intake_thread_heads" does not exist
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/14]⎯
+
+ FAIL  tests/thread-order.test.ts > A4 no libetech role locks a head row by itself or calls the function
+AssertionError: libetech_ai FOR KEY SHARE: expected '42P01' to be '42501' // Object.is equality
+
+Expected: "42501"
+Received: "42P01"
+
+ ❯ tests/thread-order.test.ts:172:37
+    170|       const e=await refusal(as(role,[ids.sales],tx=>tx.query(`SELECT 1…
+    171|       expect(e,role+' '+mode).not.toBeNull();
+    172|       expect(e!.code,role+' '+mode).toBe('42501');
+       |                                     ^
+    173|     }
+    174|     const f=await refusal(as(role,[ids.sales],tx=>tx.query('SELECT pub…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/14]⎯
+
+ FAIL  tests/thread-order.test.ts > A6 the catalog of 023: tables, policies, triggers, functions; a second run changes nothing
+error: relation "public.intake_thread_heads" does not exist
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/14]⎯
+
+ FAIL  tests/thread-order.test.ts > A7 numbering rows that were there before 023, and the refusal while a draft of a candidate is undecided
+Error: ENOENT: no such file or directory, open '<repo>/migrations/rollback/023_thread_order.sql'
+ ❯ tests/thread-order.test.ts:260:18
+    258| test('A7 numbering rows that were there before 023, and the refusal wh…
+    259|   needsForward=true;
+    260|   const rollback=await rollbackSql(),forward=await forwardSql();
+       |                  ^
+    261|   await h.exec(rollback);
+    262|   expect(await regclass('public.source_revision_positions')).toBeNull(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/14]⎯
+
+ FAIL  tests/thread-order.test.ts > A7 numbering rows that were there before 023, and the refusal while a draft of a candidate is undecided
+ FAIL  tests/thread-order.test.ts > A8 (i) 023 stops above the cap on the number of revisions, with its own words, and creates nothing; without the setting it runs
+ FAIL  tests/thread-order.test.ts > A8 (ii) 023 stops when it is applied by a role that is not a superuser, and creates nothing
+Error: ENOENT: no such file or directory, open '<repo>/migrations/023_thread_order.sql'
+ ❯ tests/thread-order.test.ts:27:33
+     25|   await h.exec('ROLLBACK').catch(()=>{});
+     26|   // a case that rolled 023 back puts it back before the harness trunc…
+     27|   if(needsForward) await h.exec(await forwardSql());
+       |                                 ^
+     28|   await h.reset();await h.close();
+     29| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/14]⎯
+
+ FAIL  tests/thread-order.test.ts > A8 (i) 023 stops above the cap on the number of revisions, with its own words, and creates nothing; without the setting it runs
+Error: ENOENT: no such file or directory, open '<repo>/migrations/rollback/023_thread_order.sql'
+ ❯ tests/thread-order.test.ts:292:18
+    290| test('A8 (i) 023 stops above the cap on the number of revisions, with …
+    291|   needsForward=true;
+    292|   const rollback=await rollbackSql(),forward=await forwardSql();
+       |                  ^
+    293|   await h.exec(rollback);
+    294|   await fourOldRevisions();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/14]⎯
+
+ FAIL  tests/thread-order.test.ts > A8 (ii) 023 stops when it is applied by a role that is not a superuser, and creates nothing
+Error: ENOENT: no such file or directory, open '<repo>/migrations/rollback/023_thread_order.sql'
+ ❯ tests/thread-order.test.ts:310:18
+    308| test('A8 (ii) 023 stops when it is applied by a role that is not a sup…
+    309|   needsForward=true;
+    310|   const rollback=await rollbackSql(),forward=await forwardSql();
+       |                  ^
+    311|   await h.exec(rollback);
+    312|   await expect(h.exec('SET ROLE libetech_runtime;\n'+forward)).rejects…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/14]⎯
+
+ FAIL  tests/thread-order.test.ts > A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser
+Error: ENOENT: no such file or directory, open '<repo>/migrations/023_thread_order.sql'
+ ❯ tests/thread-order.test.ts:326:15
+    324|
+    325| test('A8 (iii) the file carries the check that refuses while a login t…
+    326|   const code=(await forwardSql()).replace(/--.*$/gm,'').replace(/\s+/g…
+       |               ^
+    327|   for(const part of ['pg_catalog.pg_stat_activity','pg_catalog.pg_role…
+    328|     'a.datname = pg_catalog.current_database()','login that can act as…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/14]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  11 failed | 1 skipped (12)
+   Start at  11:00:41
+   Duration  5.51s (tests 98%, import 1%, transform 1%)
+

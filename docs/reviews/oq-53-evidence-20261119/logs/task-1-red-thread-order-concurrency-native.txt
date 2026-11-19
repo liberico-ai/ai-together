@@ -1,0 +1,130 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order-concurrency.test.ts (7 tests | 7 failed) 12274ms
+   ❯ thread numbers under concurrency (native PostgreSQL) (7)
+     × N1 two intake transactions of one thread take turns: the second waits for the first to commit and gets the next number 5423ms
+     × N2 a thread that has no head row yet is safe with two writers 339ms
+     × N3 another thread of the same project does not wait 309ms
+     × N4 an intake that waits past the cap fails with 55P03 and stores nothing; the same event is stored once the thread is free 301ms
+     × N5 the intake role scoped to another project is answered at once while the thread is held 294ms
+     × N6 a REPEATABLE READ writer that raced is refused with 40001 5336ms
+     × N16 a replayed revision returns at once while its thread is held, and takes no lock 270ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N1 two intake transactions of one thread take turns: the second waits for the first to commit and gets the next number
+Error: Timed out waiting for 1 blocked session(s); saw 0.
+ ❯ waitForBlocked tests/slice1-db.ts:63:35
+     61|     const n=(await h.operator.query<{n:number}>("SELECT count(*)::int …
+     62|     if(n>=count) return;
+     63|     if(Date.now()>deadline) throw new Error(`Timed out waiting for ${c…
+       |                                   ^
+     64|     await new Promise(r=>setTimeout(r,50));
+     65|   }
+ ❯ tests/thread-order-concurrency.test.ts:52:7
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/thread-order-concurrency.test.ts:48:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N2 a thread that has no head row yet is safe with two writers
+error: relation "source_revision_positions" does not exist
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ Object.query src/server/db.ts:40:91
+     38|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+     39|   return {
+     40|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+       |                                                                                           ^
+     41|     async transaction(fn) {
+     42|       await check();
+ ❯ q tests/thread-order-concurrency.test.ts:21:72
+ ❯ tests/thread-order-concurrency.test.ts:73:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N3 another thread of the same project does not wait
+error: relation "source_revision_positions" does not exist
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ Object.query src/server/db.ts:40:91
+     38|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+     39|   return {
+     40|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+       |                                                                                           ^
+     41|     async transaction(fn) {
+     42|       await check();
+ ❯ q tests/thread-order-concurrency.test.ts:21:72
+ ❯ tests/thread-order-concurrency.test.ts:87:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N4 an intake that waits past the cap fails with 55P03 and stores nothing; the same event is stored once the thread is free
+error: relation "source_revision_positions" does not exist
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ Object.query src/server/db.ts:40:91
+     38|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+     39|   return {
+     40|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+       |                                                                                           ^
+     41|     async transaction(fn) {
+     42|       await check();
+ ❯ q tests/thread-order-concurrency.test.ts:21:72
+ ❯ count tests/thread-order-concurrency.test.ts:22:33
+ ❯ tests/thread-order-concurrency.test.ts:94:78
+ ❯ tests/thread-order-concurrency.test.ts:94:37
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N5 the intake role scoped to another project is answered at once while the thread is held
+error: relation "source_revision_positions" does not exist
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ Object.query src/server/db.ts:40:91
+     38|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+     39|   return {
+     40|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+       |                                                                                           ^
+     41|     async transaction(fn) {
+     42|       await check();
+ ❯ q tests/thread-order-concurrency.test.ts:21:72
+ ❯ count tests/thread-order-concurrency.test.ts:22:33
+ ❯ tests/thread-order-concurrency.test.ts:148:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N6 a REPEATABLE READ writer that raced is refused with 40001
+Error: Timed out waiting for 1 blocked session(s); saw 0.
+ ❯ waitForBlocked tests/slice1-db.ts:63:35
+     61|     const n=(await h.operator.query<{n:number}>("SELECT count(*)::int …
+     62|     if(n>=count) return;
+     63|     if(Date.now()>deadline) throw new Error(`Timed out waiting for ${c…
+       |                                   ^
+     64|     await new Promise(r=>setTimeout(r,50));
+     65|   }
+ ❯ tests/thread-order-concurrency.test.ts:185:9
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ race tests/thread-order-concurrency.test.ts:177:7
+ ❯ tests/thread-order-concurrency.test.ts:189:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N16 a replayed revision returns at once while its thread is held, and takes no lock
+error: relation "source_revision_positions" does not exist
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ Object.query src/server/db.ts:40:91
+     38|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+     39|   return {
+     40|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+       |                                                                                           ^
+     41|     async transaction(fn) {
+     42|       await check();
+ ❯ q tests/thread-order-concurrency.test.ts:21:72
+ ❯ tests/thread-order-concurrency.test.ts:208:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed (7)
+   Start at  11:04:48
+   Duration  12.38s (tests 100%)
+

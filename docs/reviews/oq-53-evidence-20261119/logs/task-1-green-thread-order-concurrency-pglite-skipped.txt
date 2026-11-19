@@ -1,0 +1,9 @@
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 skipped (1)
+      Tests  7 skipped (7)
+   Start at  11:19:54
+   Duration  99ms (import 74%, transform 23%, worker 3%)
+
