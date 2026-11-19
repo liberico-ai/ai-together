@@ -82,8 +82,8 @@ describe('skill contracts', () => {
       const { revisionNo, ...without } = m as typeof m & { revisionNo: number };
       expect(revisionNo, `${m.id} fixture`).toBeGreaterThanOrEqual(1);
       expect(contextSchema.safeParse(ctx({ sources: [without as never] })).success, `${m.id} without it`).toBe(false);
-      // and it is a whole number, not a string, a fraction, null or a boolean
-      for (const bad of ['1', 1.5, null, true, undefined, [1]])
+      // and it is a whole number from 1 (the table holds revision_no > 0): not a string, a fraction, null or a boolean, and not 0 or a negative number
+      for (const bad of ['1', 1.5, null, true, undefined, [1], 0, -1, -2147483648])
         expect(contextSchema.safeParse(ctx({ sources: [{ ...m, revisionNo: bad } as never] })).success, `${m.id} revisionNo ${JSON.stringify(bad)}`).toBe(false);
     }
     // a context with one message source lacking the number among well-formed ones is refused as a whole

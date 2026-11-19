@@ -21,6 +21,9 @@ afterEach(async()=>{await h.reset();await h.close();});
 
 const chats=bridgeConfig.intake!.chats;
 const both=[chatSales,chatTransport];
+// L4: the most blocks of the shared buffers the statement of the librarian may touch on a document of 600 revisions. Measured (PostgreSQL 16 and PGlite): 38 for the statement as it is;
+// 10 802 for the first form, a subquery that named the document row. The bound sits between the two, away from both.
+const BLOCKS_LIMIT=1000;
 const chatTwo='-1000000000007'; // a second group of the same project, used only to make two threads share a thread_key
 const rows=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
 const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
@@ -507,5 +510,32 @@ describe('skill context',()=>{
   for(const s of ['source_event_revisions','text_excerpt','content_hash','project_domain_mappings','IBS_HI','DUPLICATE_HINT_SQL']) expect(src,s).not.toContain(s);
   const contracts=await readFile(path.join(process.cwd(),'src/server/skill-contracts.ts'),'utf8');
   expect(contracts).not.toMatch(/skill-context|from '\.\/db'/);
+ });
+
+ /**
+  * SV-DB-2: the statement of the revisions of the release librarian takes the newest revision of the document with one subquery that uses only the parameters; the first form was a subquery that
+  * named the document row and so ran once for every revision of the document. The work is counted in blocks of the shared buffers that the statement touched (in the cache or not), not in time.
+  */
+ test('L4 the statement of the revisions of the release librarian does not run a probe for each revision of the document: the blocks it touches stay far below the product',async()=>{
+  const named=await registerDoc(h,pm,{projectId:ids.sales,title:'L4-NAMED'});
+  await h.operator.transaction(async tx=>{
+   await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[ids.tenant,ids.sales]);
+   await tx.query(`INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by)
+    SELECT $1,$2,$3,g,'https://docs.google.com/cap/l4','drive',$4 FROM generate_series(2,600) g`,[ids.tenant,ids.sales,named.record.id,pm.id]);
+  });
+  const sent:{sql:string;params:unknown[]}[]=[];
+  await scoped(h.db,{...pm,projectIds:[ids.sales]},async tx=>{
+   const spy:Queryable={query:async<T=Record<string,unknown>>(sql:string,p?:unknown[])=>{sent.push({sql,params:p??[]});return tx.query<T>(sql,p);}};
+   const c=await buildSkillContextIn(spy,pm,{skill:'release_librarian',projectId:ids.sales,documentId:named.record.id},both);
+   // the answer is the same as ever: nothing is approved, so the one revision is the newest of the 600, a pointer
+   expect(kinds(c,'document_revision')).toHaveLength(1);
+   expect(kinds(c,'document_revision')[0]).toMatchObject({revisionNo:600,summary:null,sourceHash:null,hashVerification:'self_declared'});
+   const statement=sent.filter(x=>/FROM document_records d\s+JOIN document_revisions v/.test(x.sql));
+   expect(statement,'the statement of the revisions was sent once').toHaveLength(1);
+   const raw=(await tx.query<{'QUERY PLAN':unknown}>(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement[0].sql}`,statement[0].params)).rows[0]['QUERY PLAN'];
+   const plan=(typeof raw==='string'?JSON.parse(raw):raw) as {Plan:Record<string,number>}[];
+   const blocks=plan[0].Plan['Shared Hit Blocks']+plan[0].Plan['Shared Read Blocks'];
+   expect(blocks,'blocks touched: '+blocks).toBeLessThan(BLOCKS_LIMIT);
+  });
  });
 });

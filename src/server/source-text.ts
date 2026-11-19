@@ -122,7 +122,8 @@ const MAX_REVISION_NO=2147483647;
  * OQ-53 (1 (b), 2 (a), 3 (b)). For the thread of one candidate of project $1 (same chat_id and thread_key, as visibleThreadMessages), the ids a draft names (`namedIds`) and the
  * pairs (message id, revision number) it states in `messageRevisions` (`revisions`), in one statement and so one snapshot:
  * 1. hasBaseline is false when no named message belongs to the thread, or a named message of the thread has no pair, or the candidate is not visible: no later rule is looked at.
- * 2. changed when a pair names a revision that is not the latest of its message by LATEST_REVISION_ORDER (a number the message does not have is not the latest either);
+ * 2. changed when a pair names a revision that is not the latest of its message by LATEST_REVISION_ORDER (a number the message does not have is not the latest either, nor is a message that has no revision);
+ *    one probe of the index of the revisions of the message for each pair, not one pass over the thread for each pair (IS DISTINCT FROM: a message with no revision gives NULL, and that is a change);
  * 3. changed when the number of the last revision of the thread differs from the baseline, the largest number among the pairs of the thread, or the thread has no counter, or no pair has a number;
  * 4. changed when any revision of any message of the thread has no number (a revision stored while the numbering was off), whether or not the draft names it.
  * position is that last number as text, to be written down by the confirmation; it is not a number the caller may trust beyond the rule that produced it.
@@ -145,14 +146,12 @@ export async function threadFreshness(tx:Queryable,projectId:string,candidateId:
     SELECT e.id FROM intake_candidates c
     JOIN source_events e ON e.project_id=c.project_id AND e.chat_id=c.chat_id AND e.thread_key=c.thread_key
     WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid),
-   latest AS (
-    SELECT t.id AS event_id, l.revision_no FROM thread t
-    JOIN LATERAL (SELECT r.revision_no FROM source_event_revisions r WHERE r.source_event_id=t.id AND r.project_id=$1::uuid ORDER BY ${LATEST_REVISION_ORDER} LIMIT 1) l ON true),
    stated AS (SELECT p.id AS event_id, p.no FROM unnest($4::uuid[],$5::int[]) AS p(id,no) JOIN thread t ON t.id=p.id)
    SELECT
     (EXISTS(SELECT 1 FROM thread t WHERE t.id = ANY($3::uuid[]))
       AND NOT EXISTS(SELECT 1 FROM thread t WHERE t.id = ANY($3::uuid[]) AND NOT EXISTS(SELECT 1 FROM stated s WHERE s.event_id=t.id))) AS has_baseline,
-    EXISTS(SELECT 1 FROM stated s WHERE NOT EXISTS(SELECT 1 FROM latest l WHERE l.event_id=s.event_id AND l.revision_no=s.no)) AS not_latest,
+    EXISTS(SELECT 1 FROM stated s WHERE s.no IS DISTINCT FROM
+             (SELECT r.revision_no FROM source_event_revisions r WHERE r.source_event_id=s.event_id AND r.project_id=$1::uuid ORDER BY ${LATEST_REVISION_ORDER} LIMIT 1)) AS not_latest,
     EXISTS(SELECT 1 FROM thread t JOIN source_event_revisions r ON r.source_event_id=t.id AND r.project_id=$1::uuid
            WHERE NOT EXISTS(SELECT 1 FROM source_revision_positions q WHERE q.revision_id=r.id AND q.project_id=$1::uuid)) AS unnumbered,
     (SELECT max(q.thread_seq)::text FROM stated s

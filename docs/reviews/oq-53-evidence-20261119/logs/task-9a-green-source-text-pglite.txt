@@ -1,0 +1,11 @@
+# green after the changes of Task 9a (pglite, tests/source-text.test.ts, exit=0)
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  41 passed (41)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  41 passed (41)
+   Start at  16:38:39
+   Duration  20.85s (tests 100%)
+

@@ -311,6 +311,9 @@ describe('threadFreshness',()=>{
  // OQ-53 (1 (b), 2 (a), 3 (b)): the draft states the pairs (message, revision number) it read; the check compares them with the numbers the database gave to the revisions of the thread.
  // hasBaseline:false is the whole answer for a draft with no baseline: `changed` and `position` then mean nothing and are false and null.
  const none={hasBaseline:false,changed:false,position:null};
+ // T21: the most blocks of the shared buffers the statement may touch on a thread of 600 messages with 100 pairs. Measured (PostgreSQL 16 and PGlite): about 28 000 for the statement as it is;
+ // about 930 000 to 970 000 for the statement that ran one pass over the thread for each pair. The bound sits between the two, away from both.
+ const BLOCKS_LIMIT=100000;
  type Pair={id:string;revisionNo:number};
  const pair=(id:string,revisionNo=1):Pair=>({id,revisionNo});
  const ask=(projectId:string,candidateId:string,named:readonly string[],pairs:readonly Pair[],scope:Parameters<typeof scoped>[1]=salesScope)=>
@@ -571,5 +574,76 @@ describe('threadFreshness',()=>{
   expect(await ask(ids.sales,r.id,[m],[pair(m,1)])).toEqual({hasBaseline:true,changed:false,position:'1'});
   // a list that is not a list names nothing
   expect(await ask(ids.sales,r.id,[m],undefined as unknown as Pair[])).toEqual(none);
+ });
+
+ test('T20 a message of the thread that has no revision at all is not one a pair can name: the pair is a change, whatever number it carries',async()=>{
+  const r=await root('T20-ROOT');
+  const key=(await rows<{thread_key:string}>('SELECT thread_key FROM intake_candidates WHERE id=$1',[r.id]))[0].thread_key;
+  // a message row with no revision row, as only a raw insert makes it: the intake stores the two together
+  const bare=(await h.operator.query<{id:string}>(
+   `INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
+    VALUES($1,$2,'synthetic:7500001','telegram_gateway',50,$3,'7500001',$4,'synthetic-actor',now(),false,true,$5,$6) RETURNING id`,[ids.tenant,ids.sales,chatSales,key,randomUUID(),randomUUID()])).rows[0].id;
+  expect(await rows('SELECT 1 FROM source_event_revisions WHERE source_event_id=$1',[bare])).toHaveLength(0);
+  // control: the message and its revision alone are fresh; the bare message has no revision to be unnumbered
+  expect(await ask(ids.sales,r.id,[r.sourceEventId],[pair(r.sourceEventId)])).toEqual({hasBaseline:true,changed:false,position:'1'});
+  // the draft names the bare message with a number: no revision carries it, and the counter stands where the draft read it, so only the rule of the latest revision can say so
+  expect(await ask(ids.sales,r.id,[r.sourceEventId,bare],[pair(r.sourceEventId),pair(bare)])).toEqual({hasBaseline:true,changed:true,position:'1'});
+ });
+
+ /**
+  * A thread of `count` messages in two statements by the operational login (the numbering trigger is on): the root is the message the service stores; every fifth message has a second revision, the
+  * latest by edit time, inserted after all the first ones, so the revisions with the highest numbers are the second revisions. Returns the candidate, and the pairs (message, latest revision)
+  * of the `size` revisions with the highest numbers, newest first, with the number of each.
+  */
+ const bulkThread=async(count:number,size:number)=>{
+  const r=await root('BULK-ROOT');
+  const key=(await rows<{thread_key:string}>('SELECT thread_key FROM intake_candidates WHERE id=$1',[r.id]))[0].thread_key;
+  await h.operator.transaction(async tx=>{
+   await tx.query(
+    `INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
+     SELECT $1,$2,'synthetic:'||(7600000+g),'telegram_gateway',50,$3,(7600000+g)::text,$4,'synthetic-actor',now(),false,true,gen_random_uuid(),gen_random_uuid() FROM generate_series(1,$5::int) g`,
+    [ids.tenant,ids.sales,chatSales,key,count-1]);
+   await tx.query(
+    `INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,content_mode,text_excerpt,text_truncated)
+     SELECT $1,$2,e.id,1,encode(sha256(convert_to('k1'||e.id::text,'UTF8')),'hex'),NULL,encode(sha256(convert_to('h1'||e.id::text,'UTF8')),'hex'),'pointer_only',NULL,false
+       FROM source_events e WHERE e.thread_key=$3 AND e.id<>$4`,[ids.tenant,ids.sales,key,r.sourceEventId]);
+   await tx.query(
+    `INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,content_mode,text_excerpt,text_truncated)
+     SELECT $1,$2,e.id,2,encode(sha256(convert_to('k2'||e.id::text,'UTF8')),'hex'),now()+interval '1 minute',encode(sha256(convert_to('h2'||e.id::text,'UTF8')),'hex'),'pointer_only',NULL,false
+       FROM source_events e WHERE e.thread_key=$3 AND substr(e.message_id,7,1) IN ('0','5')`,[ids.tenant,ids.sales,key]);
+  });
+  const latest=await rows<{event_id:string;revision_no:number;seq:string}>(
+   `SELECT e.id event_id,l.revision_no,q.thread_seq::text seq FROM source_events e
+    JOIN LATERAL (SELECT x.id,x.revision_no FROM source_event_revisions x WHERE x.source_event_id=e.id ORDER BY x.edited_at DESC NULLS LAST,x.revision_no DESC LIMIT 1) l ON true
+    JOIN source_revision_positions q ON q.revision_id=l.id WHERE e.thread_key=$1 ORDER BY q.thread_seq DESC LIMIT $2`,[key,size]);
+  return {r,latest};
+ };
+ /** The work of the statement that `threadFreshness` sends, as the database counts it: the blocks of the shared buffers that it touched, in the cache or not. Not a time. */
+ const blocksOf=async(tx:Queryable,sql:string,params:unknown[])=>{
+  const raw=(await tx.query<{'QUERY PLAN':unknown}>(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`,params)).rows[0]['QUERY PLAN'];
+  const plan=(typeof raw==='string'?JSON.parse(raw):raw) as {Plan:Record<string,number>}[];
+  return plan[0].Plan['Shared Hit Blocks']+plan[0].Plan['Shared Read Blocks'];
+ };
+
+ test('T21 many pairs on a long thread: the answer is right (one older revision among a hundred pairs is a change; a hundred latest revisions are not), and the work does not grow with the product of pairs and messages',async()=>{
+  const {r,latest}=await bulkThread(600,100);
+  expect(latest).toHaveLength(100);
+  // every revision among the hundred is a second revision; the first of the list holds the highest number, which is the head of the thread
+  expect(latest.every(x=>x.revision_no===2)).toBe(true);
+  const head=await headOf(r.id);
+  expect(latest[0].seq).toBe(head);
+  const named=latest.map(x=>x.event_id),pairs=latest.map(x=>pair(x.event_id,x.revision_no));
+  const sent:{sql:string;params:unknown[]}[]=[];
+  await scoped(h.db,salesScope,async tx=>{
+   const spy:Queryable={query:async<T=Record<string,unknown>>(sql:string,p?:unknown[])=>{sent.push({sql,params:p??[]});return tx.query<T>(sql,p);}};
+   // all of them are the latest revision of their message, and the one with the highest number is the head: nothing changed
+   expect(await threadFreshness(spy,ids.sales,r.id,named,pairs)).toEqual({hasBaseline:true,changed:false,position:head});
+   // the work: far above what one probe of the index for each pair and one pass over the thread cost, and far below the product of the two
+   const blocks=await blocksOf(tx,sent[0].sql,sent[0].params);
+   expect(blocks,'blocks touched: '+blocks).toBeLessThan(BLOCKS_LIMIT);
+   // one of them names the first revision of its message instead (not the one of the head): changed, by the rule of the latest revision alone, the baseline still being the head
+   const old=pairs.map((x,i)=>i===1?pair(x.id,1):x);
+   expect(await threadFreshness(tx,ids.sales,r.id,named,old)).toEqual({hasBaseline:true,changed:true,position:head});
+  });
  });
 });

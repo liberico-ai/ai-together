@@ -1,0 +1,11 @@
+# pin against the sources of 26ba304: the new case describes behaviour that is already there, so it is green before any change (native, tests/thread-order-concurrency.test.ts, exit=0)
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  25 passed (25)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  25 passed (25)
+   Start at  16:38:02
+   Duration  23.68s (tests 100%)
+

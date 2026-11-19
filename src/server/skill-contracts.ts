@@ -19,7 +19,7 @@ const docTypes = ['project_index', 'change_brief', 'requirements', 'design', 'pl
 export const contextSchema: z.ZodType<SkillContext> = z.strictObject({
   skill: skillEnum, projectId: z.string(), pointerOnly: z.boolean(),
   sources: z.array(z.discriminatedUnion('kind', [
-    z.strictObject({ id: z.string(), kind: z.literal('source_event'), ref: z.string(), mode: z.enum(['excerpt', 'hidden', 'pointer_only']), text: z.string().nullable(), hash: z.string().nullable(), observedAt: z.string(), forwarded: z.boolean(), revisionNo: z.number().int() }),
+    z.strictObject({ id: z.string(), kind: z.literal('source_event'), ref: z.string(), mode: z.enum(['excerpt', 'hidden', 'pointer_only']), text: z.string().nullable(), hash: z.string().nullable(), observedAt: z.string(), forwarded: z.boolean(), revisionNo: z.number().int().min(1) }),
     z.strictObject({ id: z.string(), kind: z.literal('document'), refCode: z.string(), docType: z.enum(docTypes), title: z.string().nullable(), latestRevisionId: z.string().nullable(), approvedRevisionId: z.string().nullable() }),
     z.strictObject({ id: z.string(), kind: z.literal('document_revision'), documentId: z.string(), revisionNo: z.number().int(), summary: z.string().nullable(), present: z.array(z.string()), missing: z.array(z.string()), sourceHash: z.string().nullable(), hashVerification: z.enum(['self_declared', 'verified']) }),
   ])),

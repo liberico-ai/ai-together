@@ -89,7 +89,7 @@ export async function buildSkillContextIn(tx:Queryable,p:Principal,input:SkillCo
       ($3::boolean OR ($4::boolean AND v.id IS DISTINCT FROM d.approved_revision_id)) AS hide) m
     WHERE d.project_id=$1::uuid AND d.id=$2::uuid
      AND (NOT $4::boolean OR v.id=d.approved_revision_id
-      OR v.id=(SELECT n.id FROM document_revisions n WHERE n.project_id=d.project_id AND n.document_id=d.id ORDER BY n.revision_no DESC, n.id LIMIT 1))
+      OR v.revision_no=(SELECT max(n.revision_no) FROM document_revisions n WHERE n.project_id=$1::uuid AND n.document_id=$2::uuid))
     ORDER BY v.revision_no DESC, v.id LIMIT $5::int`,[projectId,documentId,pointerOnly,librarian,MAX_REVISIONS])).rows;
   for(const r of revs) sources.push({id:r.id,kind:'document_revision',documentId,revisionNo:r.revision_no,summary:r.summary,present:strings(r.present),missing:strings(r.missing),sourceHash:r.source_hash,hashVerification:r.hash_verification});
  }

@@ -1,0 +1,11 @@
+# green after the changes of Task 9a (native, tests/skill-contracts.test.ts, exit=0)
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  42 passed (42)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  42 passed (42)
+   Start at  16:39:33
+   Duration  131ms (tests 66%, import 28%, transform 4%, worker 2%)
+

@@ -1,0 +1,36 @@
+# red against the sources of 26ba304 (threadFreshness with the CTE latest, the librarian statement with the correlated subquery, contextSchema with revisionNo as any integer) (pglite, tests/skill-contracts.test.ts, exit=1)
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 1; Tests  1 failed | 41 passed (42)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-contracts.test.ts (42 tests | 1 failed) 58ms
+   ❯ skill contracts (39)
+     × C2 the context schema refuses a message source without a revision number 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > C2 the context schema refuses a message source without a revision number
+AssertionError: e1 revisionNo 0: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/skill-contracts.test.ts:87:150
+     85|       // and it is a whole number from 1 (the table holds revision_no …
+     86|       for (const bad of ['1', 1.5, null, true, undefined, [1], 0, -1, …
+     87|         expect(contextSchema.safeParse(ctx({ sources: [{ ...m, revisio…
+       |                                                                                                                                                      ^
+     88|     }
+     89|     // a context with one message source lacking the number among well…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 41 passed (42)
+   Start at  16:35:44
+   Duration  164ms (tests 51%, transform 27%, import 20%, worker 1%)
+

@@ -3,7 +3,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
-import {pm,seedSlice1} from './slice1-fixtures';
+import {member,pm,seedSlice1} from './slice1-fixtures';
 import {scoped,type Database,type Queryable} from '../src/server/db';
 import {AppError} from '../src/server/errors';
 import {ids} from '../src/server/identities';
@@ -560,7 +560,7 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
     expect(e.message!).not.toMatch(/LTZ03|thread|[0-9a-f]{8}-/);
     expect(e.message!.slice(e.message!.indexOf(': ')+2).replace(/\.$/,'').split(', ')).toEqual([...codes].sort());
   };
-  const sug=(db:Database=h.db)=>new SuggestionService(db,h.operator,[chatSales,chatTransport]);
+  const sug=(db:Database=h.db,excerptChats:readonly string[]=[chatSales,chatTransport])=>new SuggestionService(db,h.operator,excerptChats);
   const ai={id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales,ids.transport]};
   /** An intake that stores the text of the group (the draft can then name the message and the confirmation shows it). */
   const textIntake=(db:Database=h.operator)=>new IntakeService(db,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:[chatSales,chatTransport]});
@@ -703,6 +703,34 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
     // the same command, once the thread is free
     expect((await confirm(draft,key)).decision?.result).toBe('confirmed');
     expect(await storedPosition(draft.draftId)).toBe(1);
+  },20000);
+
+  // SV-S-4 (review of the service layer): a confirmation of a person for whom the draft is masked, or who has no authority to decide, never reaches the decision row, so it never asks for the counter
+  // row of the thread. The reads that it makes are plain reads: they take no lock on that row. This case pins the order inside `decide` (every reason to hold is raised before the insert);
+  // an insert placed before the check would make the masked confirmation wait for a message that is in flight, which tells a reader without the right to see the text that one is.
+  test('N21 a confirmation of a person for whom the draft is masked, or who may not decide, does not wait for the counter row of the thread: it is answered while an edit holds the row, and stores nothing',async()=>{
+    await seedMembers(h);
+    const {ack,thread,candidate,pair}=await textRoot();
+    const draft=await draftNaming(candidate,[pair]),commands=await count('document_commands');
+    const answers:unknown[]=[];
+    let waiting=-1;
+    await h.operator.transaction(async tx=>{
+      // the edit of the message, revision 2, has its number (2) and has not committed: it holds the counter row of the thread (as in N13, where a confirmation that may decide waits for it)
+      await tx.query(`INSERT INTO source_event_revisions(${COLS}) VALUES($1,$2,$3,2,$4,$5,'pointer_only')`,[ids.tenant,ids.sales,ack.sourceEventId,hex('e'),hex('d')]);
+      // (a) the manager, with a service that shows no text of the group: the draft is masked for this person
+      answers.push(await settle(confirm(draft,keyOf('n21a'),sug(h.db,[]))));
+      // (b) a member who may not decide a draft of a candidate
+      answers.push(await settle(sug().decide(member,draft.draftId,{result:'confirmed',valueHash:draft.valueHash},keyOf('n21b'),randomUUID())));
+      // nobody waited for a lock while the answers were given
+      waiting=(await q<{n:number}>("SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'"))[0].n;
+    });
+    // answered by the holds and the refusal, never by the cap of a wait (55P03) that would have ended a wait for the row
+    hold('PROJECT_TEXT_HIDDEN','TEXT_NOT_VISIBLE','THREAD_TEXT_HIDDEN')(answers[0]);
+    expect(answers[1]).toMatchObject({code:'MANAGER_REQUIRED',status:403});
+    expect(waiting).toBe(0);
+    expect(await count('draft_decisions')).toBe(0);
+    expect(await count('document_commands')).toBe(commands);
+    expect(await head(thread)).toBe(2);
   },20000);
 
   // ---- After the second look at the fix round (task 2c) ----

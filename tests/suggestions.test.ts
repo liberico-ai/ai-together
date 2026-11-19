@@ -1960,6 +1960,30 @@ describe('Z4 drafts: a release librarian draft is confirmed against the newest r
   await expect(confirm(d,await store(d,librarian(d,[r[1],r3],r[1])),key),'the held command left its key free').resolves.toMatchObject(confirmed);
  });
 
+ test('SV-S-2 a librarian draft that names the pointer of a revision that is no longer the newest is masked and held as SOURCE_OUT_OF_CONTEXT, not as SUBJECT_CHANGED: its content is not shown, it can still be rejected, and a draft that names the new pointer is confirmed',async()=>{
+  const {d,r}=await revisions(2);
+  await approveRev(d.record.id,r[0]);      // revision 1 is approved; revision 2 is the newest and is not: the context carries it as a pointer
+  const old=await store(d,librarian(d,[r[0],r[1]],r[0]));
+  const read=async()=>(await svc().list(pm,{projectId:ids.sales,entityType:'document',entityId:d.record.id})).items.find(i=>i.id===old.draftId)!;
+  // control: while revision 2 is the newest the draft is shown
+  expect(await read()).toMatchObject({maskReasons:[],value:expect.anything()});
+  const d3=await proposeRev(h,pm,await fresh(d.record.id));
+  const r3=(await revisionIds(d3))[2];
+  // revision 3 is now the pointer: the pointer of revision 2 has left the context, so the draft names something outside it. The read masks it and shows nothing of it
+  const masked=await read();
+  expect(masked.maskReasons).toEqual(['SOURCE_OUT_OF_CONTEXT']);
+  expect(masked.value).toBeNull();
+  expect(masked.sources).toEqual([]);
+  // the confirmation is held for that mask reason alone: the code of the change (SUBJECT_CHANGED) is not among them, because a draft that is masked names what a read names
+  const e=await heldOnly(confirm(d,old),'SOURCE_OUT_OF_CONTEXT');
+  expect(e.message).not.toContain('SUBJECT_CHANGED');
+  await zeroDecisions();
+  // a masked draft is not compared with a hash and can be rejected
+  expect((await decide(svc(),pm,old.draftId,{result:'rejected',valueHash:'a'.repeat(64),reason:'Con trỏ đã cũ rồi'})).decision?.result).toBe('rejected');
+  // control: a draft that names the new pointer next to the approved revision is confirmed
+  await expect(confirm(d,await store(d,librarian(d,[r[0],r3],r[0])))).resolves.toMatchObject(confirmed);
+ });
+
  test('NOT_APPROVED_REVISION holds as before: a draft that indexes the unapproved pointer, or states it as the approved revision, is held for that alone; naming it in sources holds nothing',async()=>{
   const {d,r}=await revisions(2);
   await approveRev(d.record.id,r[0]);      // revision 1 is approved, revision 2 (the newest) is not: the context holds it as a pointer
