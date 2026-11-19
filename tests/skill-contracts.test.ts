@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ID_FIELDS, MAX_OUTPUT_BYTES, MINIMUM_DOSSIER, SKILLS, checkSkillOutput, contextSchema, namedIds, outputFits, outputSchemas } from '../src/server/skill-contracts';
+import { ID_FIELDS, MAX_OUTPUT_BYTES, MINIMUM_DOSSIER, SKILLS, checkSkillOutput, contextSchema, namedIds, namedRevisions, outputFits, outputSchemas } from '../src/server/skill-contracts';
 import type { SkillContext, SkillName } from '../src/server/skill-contracts';
 
 // Synthetic fixtures only. Ids are short labels, not real identifiers.
@@ -19,9 +19,14 @@ const ctx = (over: Partial<SkillContext> = {}): SkillContext => ({
 const HASH = 'manifest-hash-1';
 const manifest = (name: SkillName, toolAllowlist: readonly string[] = []) => ({ name, hash: HASH, toolAllowlist });
 
+// OQ-53 Task 4: the three skills that receive messages state the revision number of every message whose text they were shown (e1 is the one shown message of the fixture context);
+// the other three have no such field.
+const MESSAGE_SKILLS: readonly SkillName[] = ['intake_analyst', 'ba_elicitation', 'pm_planning'];
+const OTHER_SKILLS: readonly SkillName[] = SKILLS.filter(s => !MESSAGE_SKILLS.includes(s));
 const base = (skill: SkillName, result: unknown) => ({
   skill, manifestHash: HASH, sources: [{ id: 'e1' }, { id: 'r1' }], claims: [{ field: 'f', value: 'v', basis: ['e1'] }],
   questions: [{ field: 'f', question: 'q?' }], conflicts: [{ field: 'f', sourceIds: ['e1', 'r1'], note: 'n' }], confidence: 80, toolRequests: [] as { tool: string }[], result,
+  ...(MESSAGE_SKILLS.includes(skill) ? { messageRevisions: [{ id: 'e1', revisionNo: 1 }] } : {}),
 });
 // Every array holds an element and every nullable string is filled, so each string leaf can be probed.
 const results: Record<SkillName, unknown> = {
@@ -328,7 +333,8 @@ describe('skill contracts', () => {
     expect(check('intake_analyst', onlyConflict, [], c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
     const ba = { ...clean('ba_elicitation'), claims: [], conflicts: [] };
     expect(check('ba_elicitation', ba, [], ctx({ skill: 'ba_elicitation', pointerOnly: true })).reasons).toEqual(['TEXT_NOT_VISIBLE']);
-    const empty = { ...clean('ba_elicitation'), claims: [], conflicts: [], result: { userStories: [], rules: [], acceptance: [], unknowns: [] } };
+    // a pointer-only context shows no message text, so a draft that read nothing lists no message revision either
+    const empty = { ...clean('ba_elicitation'), claims: [], conflicts: [], messageRevisions: [], result: { userStories: [], rules: [], acceptance: [], unknowns: [] } };
     expect(check('ba_elicitation', empty, [], ctx({ skill: 'ba_elicitation', pointerOnly: true }))).toMatchObject({ verdict: 'accept', reasons: [] });
   });
 
@@ -392,7 +398,8 @@ describe('skill contracts', () => {
     const msg = (id: string, mode: 'hidden' | 'pointer_only') => ({ id, kind: 'source_event' as const, ref: `ref-${id}`, mode, text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 1 });
     for (const pointerOnly of [true, false]) for (const s of SKILLS) {
       const c: SkillContext = { skill: s, projectId: 'p1', pointerOnly, sources: [msg('h1', 'hidden'), msg('h2', 'pointer_only')] };
-      const questionsOnly = { ...clean(s), sources: [], claims: [], conflicts: [], questions: [{ field: 'f', question: 'Cần văn bản hoặc tài liệu để phân tích?' }], result: emptyOf[s] };
+      const questionsOnly = { ...clean(s), sources: [], claims: [], conflicts: [], questions: [{ field: 'f', question: 'Cần văn bản hoặc tài liệu để phân tích?' }], result: emptyOf[s],
+        ...(MESSAGE_SKILLS.includes(s) ? { messageRevisions: [] } : {}) };   // no message text is shown here, so none is listed
       const tag = `${s} pointerOnly=${pointerOnly}`;
       if (s === 'doc_reviewer') {
         // its required candidateRevisionId can never name a revision here
@@ -473,6 +480,7 @@ describe('skill contracts', () => {
     const sorted = (a: string[]) => [...a].sort();
     // common paths: sources, claims basis, conflicts sourceIds; a repeated id comes back once
     const common = { ...base('intake_analyst', { classification: 'incident', duplicateOf: null, missingFields: [] }),
+      messageRevisions: [],   // the fixture's own entry (e1) is not what this case is about; the ids of that list are D3 of the OQ-53 group below
       sources: [{ id: 'a1' }, { id: 'a2' }, { id: 'a1' }], claims: [{ field: 'f', value: 'v', basis: ['b1', 'a2'] }], conflicts: [{ field: 'f', sourceIds: ['c1', 'b1'], note: 'n' }] };
     expect(namedIds('intake_analyst', common)).toEqual(['a1', 'a2', 'b1', 'c1']);
     expect(sorted(namedIds('intake_analyst', { ...common, result: { classification: 'incident', duplicateOf: 'z9', missingFields: [] } }))).toEqual(['a1', 'a2', 'b1', 'c1', 'z9']);
@@ -483,5 +491,112 @@ describe('skill contracts', () => {
     expect(namedIds('intake_analyst', null)).toEqual([]);
     expect(namedIds('intake_analyst', 'x')).toEqual([]);
     expect(namedIds('intake_analyst', { sources: 'nope' })).toEqual([]);
+  });
+});
+
+// OQ-53 point 1 (b), Task 4. The pair (message, revision number) is read by the confirmation as «the draft read that revision» (plan section 8); the output gate only holds the shape and the ids.
+describe('skill contracts: messageRevisions (OQ-53 point 1 (b), Task 4)', () => {
+  const pair = (id: string, revisionNo: unknown) => ({ id, revisionNo });
+  const withRevs = (s: SkillName, messageRevisions: unknown) => ({ ...clean(s), messageRevisions });
+  const SCHEMA = { verdict: 'hold', reasons: ['SCHEMA_INVALID'], output: null };
+  const NOT_VISIBLE = { verdict: 'hold', reasons: ['TEXT_NOT_VISIBLE'], output: null };
+  // a result with every leaf empty, for each skill that receives messages (an output that states nothing but the revisions it read)
+  const quietResult: Record<string, unknown> = {
+    intake_analyst: { classification: null, duplicateOf: null, missingFields: [] },
+    ba_elicitation: { userStories: [], rules: [], acceptance: [], unknowns: [] },
+    pm_planning: { milestones: [], actions: [], decisionsNeeded: [] },
+  };
+  const quiet = (s: SkillName) => ({ ...clean(s), sources: [{ id: 'r1' }], claims: [], conflicts: [], result: quietResult[s] });
+
+  it('D1 the three message skills must state messageRevisions; the other three must not', () => {
+    expect(OTHER_SKILLS).toEqual(['technical_writer', 'doc_reviewer', 'release_librarian']);
+    for (const s of MESSAGE_SKILLS) {
+      // positive control: the clean output, with the field, is accepted and the gate hands the list back as it came
+      const ok = check(s, clean(s));
+      expect(ok.verdict, `${s} control`).toBe('accept');
+      expect(ok.output?.messageRevisions, `${s} handed back`).toEqual([{ id: 'e1', revisionNo: 1 }]);
+      // the field is required, also as an empty list; a list that states nothing is a statement of its own (a context with no shown message has nothing to list)
+      const { messageRevisions: _dropped, ...without } = clean(s);
+      expect(check(s, without), `${s} without the field`).toEqual(SCHEMA);
+      expect(outputSchemas[s].safeParse(without).success, `${s} schema without the field`).toBe(false);
+      expect(check(s, withRevs(s, [])).verdict, `${s} empty list`).toBe('accept');
+      // the number is a whole number from 1 to 2147483647, the same range as the column it will be compared with
+      for (const n of [1, 2, 2147483647]) expect(check(s, withRevs(s, [pair('e1', n)])).verdict, `${s} ${n}`).toBe('accept');
+      for (const n of [0, -1, 1.5, '1', null, true, 2147483648, Number.NaN, Infinity, undefined, [1], { n: 1 }])
+        expect(check(s, withRevs(s, [pair('e1', n)])), `${s} revisionNo ${String(n)}`).toEqual(SCHEMA);
+      // the shape: a list of strict {id, revisionNo}
+      for (const bad of [null, 'e1', { id: 'e1', revisionNo: 1 }, [null], ['e1'], [{ id: 'e1' }], [{ revisionNo: 1 }], [{ id: 1, revisionNo: 1 }], [{ id: null, revisionNo: 1 }], [{ id: 'e1', revisionNo: 1, hash: 'x' }], [[ 'e1', 1 ]]])
+        expect(check(s, withRevs(s, bad)), `${s} ${JSON.stringify(bad)}`).toEqual(SCHEMA);
+      // at most 100 entries
+      const many = (n: number) => Array.from({ length: n }, () => pair('e1', 1));
+      expect(check(s, withRevs(s, many(100))).verdict, `${s} 100`).toBe('accept');
+      expect(check(s, withRevs(s, many(101))), `${s} 101`).toEqual(SCHEMA);
+    }
+    for (const s of OTHER_SKILLS) {
+      // a skill that receives no message has no such field: its strict contract refuses it, empty or not
+      expect(check(s, clean(s)).verdict, `${s} control`).toBe('accept');
+      for (const list of [[], [pair('e1', 1)]]) {
+        expect(check(s, withRevs(s, list)), `${s} ${JSON.stringify(list)}`).toEqual(SCHEMA);
+        expect(outputSchemas[s].safeParse(withRevs(s, list)).success, `${s} schema`).toBe(false);
+      }
+    }
+  });
+
+  it('D2 an id under messageRevisions is held to the rules of every id field', () => {
+    const only = (s: SkillName, id: string) => withRevs(s, [pair(id, 1)]);   // `sources` stay [e1, r1]: the entry is the only id that can be held
+    for (const s of MESSAGE_SKILLS) {
+      // the table lists the path once, as an id of a message that backs no statement
+      expect(ID_FIELDS[s].filter(f => f.path === 'messageRevisions.*.id'), `${s} table`).toEqual([{ path: 'messageRevisions.*.id', supports: false, kind: 'source_event' }]);
+      // not a message of the context: a foreign id, a document, a revision of a document
+      for (const id of ['zzz', 'd1', 'r1', 'r2'])
+        expect(check(s, only(s, id)), `${s} ${id}`).toEqual({ verdict: 'hold', reasons: ['SOURCE_OUT_OF_CONTEXT'], output: null });
+      // a message whose text was not shown: hidden, pointer-only, an excerpt without text
+      const c = ctx({ skill: s });
+      c.sources.push({ id: 'e4', kind: 'source_event', ref: 'ref-4', mode: 'excerpt', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 1 });
+      for (const id of ['e2', 'e3', 'e4']) expect(check(s, only(s, id), [], c), `${s} ${id}`).toEqual(NOT_VISIBLE);
+      // an entry is not a statement: a shown message need not be cited, and need not be listed in `sources`
+      expect(check(s, quiet(s)).verdict, `${s} an entry for a message nothing cites`).toBe('accept');
+      // a pointer-only context: the builder emits its messages with no text, so any entry is held, whichever message it names; an empty list is accepted
+      const pc = ctx({ skill: s, pointerOnly: true });
+      pc.sources = pc.sources.map(x => x.kind === 'source_event' ? { ...x, text: null, hash: null } : x);
+      for (const id of ['e1', 'e2', 'e3']) expect(check(s, { ...quiet(s), messageRevisions: [pair(id, 1)] }, [], pc), `${s} pointer-only ${id}`).toEqual(NOT_VISIBLE);
+      expect(check(s, { ...quiet(s), messageRevisions: [] }, [], pc).verdict, `${s} pointer-only, empty list`).toBe('accept');
+    }
+    // the other three skills have no such path in their table
+    for (const s of OTHER_SKILLS) expect(ID_FIELDS[s].some(f => f.path.startsWith('messageRevisions')), s).toBe(false);
+  });
+
+  it('D3 namedIds includes the ids of messageRevisions; namedRevisions returns the pairs and nothing else', () => {
+    for (const s of MESSAGE_SKILLS) {
+      const o = { ...quiet(s), sources: [{ id: 'a1' }], messageRevisions: [pair('m1', 2), pair('a1', 1), pair('m1', 2), pair('m2', 3)] };
+      // the ids of messageRevisions are named, once each, in order of first appearance across the table (`sources` come first)
+      expect(namedIds(s, o), `${s} namedIds`).toEqual(['a1', 'm1', 'm2']);
+      expect(namedIds(s, { ...o, sources: [], messageRevisions: [pair('m1', 1)] }), `${s} only here`).toEqual(['m1']);
+      // the pairs, in order of first appearance; a pair repeated word for word comes back once
+      expect(namedRevisions(s, o), `${s} pairs`).toEqual([pair('m1', 2), pair('a1', 1), pair('m2', 3)]);
+      // the same message with two numbers: both come back, for the confirmation to read as «a number that is not the latest»
+      expect(namedRevisions(s, { ...o, messageRevisions: [pair('m1', 1), pair('m1', 2)] }), `${s} two numbers`).toEqual([pair('m1', 1), pair('m1', 2)]);
+      // range of the number
+      expect(namedRevisions(s, { messageRevisions: [pair('m', 1), pair('m', 2147483647)] }), `${s} range`).toEqual([pair('m', 1), pair('m', 2147483647)]);
+      // a pair with the wrong type comes back as nothing, among good ones too
+      const wrong = [pair('m', 0), pair('m', -1), pair('m', 1.5), pair('m', '1'), pair('m', null), pair('m', true), pair('m', 2147483648), pair('m', Number.NaN), pair('m', Infinity), pair('m', undefined),
+        pair('m', [1]), pair(1 as unknown as string, 1), pair(null as unknown as string, 1), pair(undefined as unknown as string, 1), { id: 'm' }, { revisionNo: 1 }, {}, null, 'm', 1, [], ['m', 1], [pair('m', 1)]];
+      expect(namedRevisions(s, { messageRevisions: wrong }), `${s} wrong types`).toEqual([]);
+      expect(namedRevisions(s, { messageRevisions: [...wrong, pair('ok', 5)] }), `${s} wrong types beside a good pair`).toEqual([pair('ok', 5)]);
+      // a pair carries its two fields and no others; what comes back is a copy, not the caller's object
+      const given = { id: 'm', revisionNo: 4, hash: 'x' };
+      const back = namedRevisions(s, { messageRevisions: [given] });
+      expect(back, `${s} copy`).toEqual([pair('m', 4)]);
+      expect(back[0], `${s} not the same object`).not.toBe(given);
+      // a value that is not an output, or has no such list, names no pair
+      for (const v of [null, undefined, 'x', 7, true, [], {}, { messageRevisions: 'nope' }, { messageRevisions: null }, { messageRevisions: { id: 'm', revisionNo: 1 } }, { result: { messageRevisions: [pair('m', 1)] } }])
+        expect(namedRevisions(s, v), `${s} ${JSON.stringify(v)}`).toEqual([]);
+    }
+    // a skill that receives no message has no such list: nothing comes back and no id of it is named
+    for (const s of OTHER_SKILLS) {
+      const o = withRevs(s, [pair('m1', 1)]);
+      expect(namedRevisions(s, o), s).toEqual([]);
+      expect(namedIds(s, o), s).not.toContain('m1');
+    }
   });
 });

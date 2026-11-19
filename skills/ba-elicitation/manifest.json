@@ -10,10 +10,10 @@
   ],
   "prompt": {
     "path": "skills/ba-elicitation/prompt.md",
-    "sha256": "6152ec1a544336cd660c45392eab411303f574fce6d6c9ac65981b3333b14a42"
+    "sha256": "27698ef7d506647e50ba6771ae0e9069e77ede2ad231c707c27c1cb1fbf8bee1"
   },
   "inputContract": "SkillContext/v2",
-  "outputContract": "SkillOutput/ba_elicitation/v1",
+  "outputContract": "SkillOutput/ba_elicitation/v2",
   "toolAllowlist": [],
   "dataScope": {
     "projectScope": "single",
@@ -27,10 +27,10 @@
   },
   "evalSet": {
     "path": "skills/ba-elicitation/eval.json",
-    "sha256": "3fe7c7461aa4aa6ff61ce86e00d5eccb9f8b84d4a07da624ba8eee5d9dff36a1",
+    "sha256": "3a28b11ad072fa89bf3c44231f80b6efbb6ade3b82862524a27de9613716fc33",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "0970030d0d2e4aaae84a5dc2b76b5c03417243f388fb35fd7c751895c4da7a13"
+  "hash": "8936fa8ea50e458d5271c00e12bd3408386488fc63cb4cc40fbab1287bdc4d28"
 }

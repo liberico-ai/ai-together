@@ -56,8 +56,13 @@ const RESULTS:Record<string,unknown>={
  technical_writer:{sections:[],terms:[]},
  ba_elicitation:{userStories:[],rules:[],acceptance:[],unknowns:[]},
 };
+// OQ-53 Task 4: the skills that receive messages state the revision number of each message they read (`messageRevisions`); the others have no such field.
+// `out` states none by default: a test that needs the pairs passes them in `over`, or builds the draft with `revs`, `candDraft` or `draftNaming`.
+const MESSAGE_SKILLS:readonly SkillName[]=['intake_analyst','ba_elicitation','pm_planning'];
 const out=(skill:SkillName,sources:string[],over:R={}):R=>({skill,manifestHash:skillManifests[skill].hash,sources:sources.map(id=>({id})),claims:[],questions:[],conflicts:[],
- confidence:70,toolRequests:[],result:RESULTS[skill],...over});
+ confidence:70,toolRequests:[],result:RESULTS[skill],...(MESSAGE_SKILLS.includes(skill)?{messageRevisions:[]}:{}),...over});
+/** The pairs (message, revision number) a draft states for these messages; revision 1 unless given. */
+const revs=(ids:readonly string[],revisionNo=1)=>ids.map(id=>({id,revisionNo}));
 const env=(entityType:'intake_candidate'|'document',entityId:string,skill:SkillName,output:R,over:R={}):R=>({skill,projectId:ids.sales,entityType,entityId,output,
  inputHash:'c'.repeat(64),modelVersion:'synthetic-model-1',dedupeKey:'dk-'+randomUUID(),traceId:randomUUID(),...over});
 
@@ -83,9 +88,10 @@ async function docDraft(o:{project?:string;sources?:string[];d?:DocumentDetail;o
  const r=await svc().submitDraft(ai,env('document',d.record.id,'technical_writer',output,{projectId:o.project??ids.sales}));
  return {d,output,draftId:r.draftId,valueHash:sha(output)};
 }
-async function candDraft(o:{claim?:boolean}={}){
+async function candDraft(o:{claim?:boolean;revisions?:{id:string;revisionNo:number}[]}={}){
  const c=await candidate();
- const output=out('intake_analyst',[c.sourceEventId],o.claim?{claims:[{field:'classification',value:'incident',basis:[c.sourceEventId]}]}:{});
+ // the draft names its message and states revision 1 of it, the revision a fresh candidate has
+ const output=out('intake_analyst',[c.sourceEventId],{messageRevisions:o.revisions??revs([c.sourceEventId]),...(o.claim?{claims:[{field:'classification',value:'incident',basis:[c.sourceEventId]}]}:{})});
  const r=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',output));
  return {...c,output,draftId:r.draftId,valueHash:sha(output)};
 }
@@ -1590,8 +1596,9 @@ const reply=async(c:{event:ReturnType<typeof messageEvent>},text:string)=>
  (await intakeSvc().ingest(messageEvent({text,context:{chatId:chatSales,replyToMessageId:c.event.context.messageId}}))).sourceEventId;
 const edit=(e:ReturnType<typeof messageEvent>,text:string)=>intakeSvc().ingest({...e,text,contentHash:createHash('sha256').update(text).digest('hex'),
  editedAt:new Date(Date.parse(e.observedAt)+60000).toISOString(),traceId:randomUUID()});
-const draftNaming=async(c:{candidateId:string},names:string[])=>{
- const output=out('intake_analyst',names);
+const draftNaming=async(c:{candidateId:string},names:string[],revisions?:{id:string;revisionNo:number}[])=>{
+ // by default it states revision 1 of each message it names
+ const output=out('intake_analyst',names,{messageRevisions:revisions??revs(names)});
  const r=await svc().submitDraft(ai,env('intake_candidate',c.candidateId,'intake_analyst',output));
  return {draftId:r.draftId,valueHash:sha(output)};
 };

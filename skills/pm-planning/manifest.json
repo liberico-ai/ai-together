@@ -10,10 +10,10 @@
   ],
   "prompt": {
     "path": "skills/pm-planning/prompt.md",
-    "sha256": "ef8571ad3d3eaad7f1b17382948e164f36ac027020e8328718ff078d556f5942"
+    "sha256": "7cee7bbab31ce3322bc7110738bb543807138ced9bcee2b76bf04b781886f680"
   },
   "inputContract": "SkillContext/v2",
-  "outputContract": "SkillOutput/pm_planning/v1",
+  "outputContract": "SkillOutput/pm_planning/v2",
   "toolAllowlist": [],
   "dataScope": {
     "projectScope": "single",
@@ -27,10 +27,10 @@
   },
   "evalSet": {
     "path": "skills/pm-planning/eval.json",
-    "sha256": "e1baa44c05a3418f43523f99e75e96c7a3590ade8f4f19b882273da5a911089b",
+    "sha256": "b7e6443be268e17591018d37e678bcfece17cf728ea2b60c0dcaa57e57faadcc",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "0e607510121bed430c568269c9739748df568fb9155e4fd7b3651bf7c688c6ec"
+  "hash": "5d2457b450170f8dc33d1a45a41ad812ceb8d7912aab7c056d84ea0f5e83936c"
 }

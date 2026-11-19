@@ -1,0 +1,159 @@
+Task 4 mutants: each is a one-line edit applied to the finished work, run against the named test files on PGlite (no database variables), then restored.
+After the last mutant: git diff and git status are byte-identical to the state before the first mutant, and every modified file hash matches.
+Hook time-outs / closed PGlite: 0 in every run. AssertionError count equals the failed count in every run.
+
+Requested by the brief
+  m-a  src/server/skill-contracts.ts   drop the path 'messageRevisions.*.id' from the table of one skill (intake_analyst)  [m-a-notable]
+       same file, the path of the shared entry renamed so no skill lists it                                               [m-a-path]
+  m-b  messageRevisions optional in the three message skills (messageRevisions.optional())
+  m-c  messageRevisions allowed in technical_writer (outputOf(..., true))
+  m-d  revisionNo .min(1) -> .min(0)
+  m-e  drop the .max(100) of the list
+  m-f  namedRevisions without the type filter (only 'id === undefined' skipped)
+Added
+  m-g  entry marked supports:true (an entry would have to be cited)
+  m-h  kind:'source_event' removed from the entry (a document id would pass)
+  m-i  .max(2147483647) of revisionNo removed
+  m-j  namedRevisions without the repeated-pair filter
+  m-k  revisionNo without .int()
+  m-l  namedRevisions answers for a skill without the field
+  m-m  namedRevisions hands back the caller's own object, not a copy
+  m-n  pm_planning eval, fabrication case: good.messageRevisions emptied (data)
+  m-o  ba_elicitation eval, injection case: good states revisionNo 7 (the number the text asks for) instead of 2 (data)
+  m-p  intake_analyst eval, injection case: the steering sentence about revisionNo removed (data)
+  m-q  pm_planning manifest outputContract back to v1
+  m-r  ba_elicitation prompt: 'chép đúng' -> 'suy ra'
+  m-s  intake_analyst prompt: output line back to .../v1
+  m-t  tests/suggestions.test.ts: draftNaming default pairs dropped (revisions??[])
+
+---- raw results
+== m-a-notable
+applied m-a-notable (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  3 failed | 38 passed (41)  AssertionError: 3  timeout/closed: 0
+    × R-c every id-bearing field is checked against the context, and the table covers every id in a clean output
+    × D2 an id under messageRevisions is held to the rules of every id field
+    × D3 namedIds includes the ids of messageRevisions; namedRevisions returns the pairs and nothing else
+restored m-a-notable identical to the saved copy: True
+== m-a-path
+applied m-a-path (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  3 failed | 38 passed (41)  AssertionError: 3  timeout/closed: 0
+    × R-c every id-bearing field is checked against the context, and the table covers every id in a clean output
+    × D2 an id under messageRevisions is held to the rules of every id field
+    × D3 namedIds includes the ids of messageRevisions; namedRevisions returns the pairs and nothing else
+restored m-a-path identical to the saved copy: True
+== m-b-optional
+applied m-b-optional (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D1 the three message skills must state messageRevisions; the other three must not
+restored m-b-optional identical to the saved copy: True
+== m-c-writer
+applied m-c-writer (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  8 failed | 33 passed (41)  AssertionError: 8  timeout/closed: 0
+    × a clean output of each of the six skills is accepted
+    × a claim or section without basis is held
+    × no contract admits another number, and parsing returns the value unchanged
+    × R-b a statement cannot rest on text that was not shown
+    × R-c every id-bearing field is checked against the context, and the table covers every id in a clean output
+    × F9-2 in a pointer-only context any non-empty leaf of result is held, for all six skills
+    × a context with no shown text and no document yields only held outputs
+    × D1 the three message skills must state messageRevisions; the other three must not
+restored m-c-writer identical to the saved copy: True
+== m-d-min0
+applied m-d-min0 (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D1 the three message skills must state messageRevisions; the other three must not
+restored m-d-min0 identical to the saved copy: True
+== m-e-nomax100
+applied m-e-nomax100 (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D1 the three message skills must state messageRevisions; the other three must not
+restored m-e-nomax100 identical to the saved copy: True
+== m-f-nofilter
+applied m-f-nofilter (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D3 namedIds includes the ids of messageRevisions; namedRevisions returns the pairs and nothing else
+restored m-f-nofilter identical to the saved copy: True
+== m-g-supports
+applied m-g-supports (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  2 failed | 39 passed (41)  AssertionError: 2  timeout/closed: 0
+    × an output without sources is held
+    × D2 an id under messageRevisions is held to the rules of every id field
+restored m-g-supports identical to the saved copy: True
+== m-h-nokind
+applied m-h-nokind (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D2 an id under messageRevisions is held to the rules of every id field
+restored m-h-nokind identical to the saved copy: True
+== m-i-nomaxno
+applied m-i-nomaxno (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D1 the three message skills must state messageRevisions; the other three must not
+restored m-i-nomaxno identical to the saved copy: True
+== m-j-nodedupe
+applied m-j-nodedupe (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D3 namedIds includes the ids of messageRevisions; namedRevisions returns the pairs and nothing else
+restored m-j-nodedupe identical to the saved copy: True
+== m-k-noint
+applied m-k-noint (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D1 the three message skills must state messageRevisions; the other three must not
+restored m-k-noint identical to the saved copy: True
+== m-l-nonmsg
+applied m-l-nonmsg (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D3 namedIds includes the ids of messageRevisions; namedRevisions returns the pairs and nothing else
+restored m-l-nonmsg identical to the saved copy: True
+== m-m-copyless
+applied m-m-copyless (occurrences of the old text: 1 )
+  skill-contracts.test.ts: Tests  1 failed | 40 passed (41)  AssertionError: 1  timeout/closed: 0
+    × D3 namedIds includes the ids of messageRevisions; namedRevisions returns the pairs and nothing else
+restored m-m-copyless identical to the saved copy: True
+== m-n-evalpm-drop
+applied m-n-evalpm-drop (occurrences of the old text: 2 )
+  skills-eval.test.ts: Tests  3 failed | 40 passed (43)  AssertionError: 3  timeout/closed: 0
+    × pm_planning/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason
+    × D4 every good output of the message skills states, for each message it names, the revision its context shows
+    × the eval needs no network
+  skills-manifest.test.ts: Tests  1 failed | 17 passed (18)  AssertionError: 1  timeout/closed: 0
+    × prompt and eval hashes match the files on disk and the manifest hash matches its content
+restored m-n-evalpm-drop identical to the saved copy: True
+== m-o-evalba-wrongno
+applied m-o-evalba-wrongno (occurrences of the old text: 2 )
+  skills-eval.test.ts: Tests  2 failed | 41 passed (43)  AssertionError: 2  timeout/closed: 0
+    × D4 every good output of the message skills states, for each message it names, the revision its context shows
+    × D5 the injection case of each message skill also asks for another revision number, and the good output keeps the one its context shows
+  skills-manifest.test.ts: Tests  1 failed | 17 passed (18)  AssertionError: 1  timeout/closed: 0
+    × prompt and eval hashes match the files on disk and the manifest hash matches its content
+restored m-o-evalba-wrongno identical to the saved copy: True
+== m-p-evalintake-nosteer
+applied m-p-evalintake-nosteer (occurrences of the old text: 1 )
+  skills-eval.test.ts: Tests  1 failed | 42 passed (43)  AssertionError: 1  timeout/closed: 0
+    × D5 the injection case of each message skill also asks for another revision number, and the good output keeps the one its context shows
+  skills-manifest.test.ts: Tests  1 failed | 17 passed (18)  AssertionError: 1  timeout/closed: 0
+    × prompt and eval hashes match the files on disk and the manifest hash matches its content
+restored m-p-evalintake-nosteer identical to the saved copy: True
+== m-q-manifest-v1
+applied m-q-manifest-v1 (occurrences of the old text: 1 )
+  skills-manifest.test.ts: Tests  3 failed | 15 passed (18)  AssertionError: 3  timeout/closed: 0
+    × six skills, each with name, version, hash, tool allowlist, data scope and owner
+    × prompt and eval hashes match the files on disk and the manifest hash matches its content
+    × every prompt names the output contract of its manifest; the three message skills tell the model to copy messageRevisions from the context, the others do not mentio
+restored m-q-manifest-v1 identical to the saved copy: True
+== m-r-prompt-infer
+applied m-r-prompt-infer (occurrences of the old text: 1 )
+  skills-manifest.test.ts: Tests  2 failed | 16 passed (18)  AssertionError: 2  timeout/closed: 0
+    × prompt and eval hashes match the files on disk and the manifest hash matches its content
+    × every prompt names the output contract of its manifest; the three message skills tell the model to copy messageRevisions from the context, the others do not mentio
+restored m-r-prompt-infer identical to the saved copy: True
+== m-s-prompt-v1
+applied m-s-prompt-v1 (occurrences of the old text: 1 )
+  skills-manifest.test.ts: Tests  3 failed | 15 passed (18)  AssertionError: 3  timeout/closed: 0
+    × prompt and eval hashes match the files on disk and the manifest hash matches its content
+    × changing one byte of a prompt breaks the hash check
+    × every prompt names the output contract of its manifest; the three message skills tell the model to copy messageRevisions from the context, the others do not mentio
+restored m-s-prompt-v1 identical to the saved copy: True
+== m-t-helper-nopairs
+applied m-t-helper-nopairs (occurrences of the old text: 1 )
+  suggestions.test.ts: Tests  109 passed | 1 skipped (110)  AssertionError: 0  timeout/closed: 0
+restored m-t-helper-nopairs identical to the saved copy: True

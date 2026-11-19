@@ -1,0 +1,18 @@
+intake-analyst     contract SkillOutput/intake_analyst/v1 -> SkillOutput/intake_analyst/v2 
+  old 657bbcb0431dd07c6af0664bb969127705fe69f780f2c887e5bb09b8b5bc2716 
+  new 7d4f378bf14d298b0fca985fdfd947d646133113f8ea6a1f40825c5a179ce972 
+ba-elicitation     contract SkillOutput/ba_elicitation/v1 -> SkillOutput/ba_elicitation/v2 
+  old 0970030d0d2e4aaae84a5dc2b76b5c03417243f388fb35fd7c751895c4da7a13 
+  new 8936fa8ea50e458d5271c00e12bd3408386488fc63cb4cc40fbab1287bdc4d28 
+pm-planning        contract SkillOutput/pm_planning/v1 -> SkillOutput/pm_planning/v2 
+  old 0e607510121bed430c568269c9739748df568fb9155e4fd7b3651bf7c688c6ec 
+  new 5d2457b450170f8dc33d1a45a41ad812ceb8d7912aab7c056d84ea0f5e83936c 
+technical-writer   contract SkillOutput/technical_writer/v1 -> SkillOutput/technical_writer/v1 
+  old 509ef4afadfbde73eac552cc7f0a62bf8b35828b7490e74306ad3b6bb5f6eb27 
+  new 509ef4afadfbde73eac552cc7f0a62bf8b35828b7490e74306ad3b6bb5f6eb27 (unchanged)
+doc-reviewer       contract SkillOutput/doc_reviewer/v1 -> SkillOutput/doc_reviewer/v1 
+  old 96125f6a1a90802f3a5e14dd51d233b1761ecda820ee9806c6d69826f7817233 
+  new 96125f6a1a90802f3a5e14dd51d233b1761ecda820ee9806c6d69826f7817233 (unchanged)
+release-librarian  contract SkillOutput/release_librarian/v1 -> SkillOutput/release_librarian/v1 
+  old 36f49a973a0a1c061f123424925b5da113d657b819b9e8845c1dda0a1905b102 
+  new 36f49a973a0a1c061f123424925b5da113d657b819b9e8845c1dda0a1905b102 (unchanged)

@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { ID_FIELDS, SKILLS, contextSchema } from '../src/server/skill-contracts';
-import type { SkillName } from '../src/server/skill-contracts';
+import { ID_FIELDS, SKILLS, contextSchema, namedIds } from '../src/server/skill-contracts';
+import type { ContextSource, SkillName } from '../src/server/skill-contracts';
 import { CONTEXT_KINDS } from '../src/server/skill-context';
 import { EVAL_CATEGORIES, manifestHash, runEvalCase, skillManifests } from '../src/server/skills';
 import type { EvalCase } from '../src/server/skills';
@@ -20,6 +20,10 @@ afterAll(() => {
   console.log(JSON.stringify({ skills_eval: { skills: SKILLS.length, cases: 30, good_pass: counts.good_pass, bad_caught: counts.bad_caught, model: 'none (mock outputs)' } }));
 });
 
+// OQ-53 Task 4: the skills that receive messages state the revision number of each message whose text they were shown.
+const MESSAGE_SKILLS: readonly SkillName[] = ['intake_analyst', 'ba_elicitation', 'pm_planning'];
+type Pair = { id: string; revisionNo: number };
+const revisionsOf = (o: unknown): Pair[] | undefined => (o as { messageRevisions?: Pair[] }).messageRevisions;
 const sets = {} as Record<SkillName, EvalCase[]>;
 const sizes = {} as Record<SkillName, number>;
 beforeAll(async () => {
@@ -143,7 +147,9 @@ describe('skill eval sets', () => {
   it('each conflicting_sources case checks that the good output cites two distinct sources', () => {
     for (const name of SKILLS) {
       const c = sets[name].find(x => x.category === 'conflicting_sources')!;
-      expect(c.checks, name).toEqual([{ path: 'conflicts', minLength: 1 }, { path: 'conflicts.0.sourceIds', minLength: 2 }]);
+      // the three message skills also check that the good output lists the revisions it read (D4); the bad output states them correctly, so it still fails the two conflict checks alone
+      const own = [{ path: 'conflicts', minLength: 1 }, { path: 'conflicts.0.sourceIds', minLength: 2 }];
+      expect(c.checks, name).toEqual(MESSAGE_SKILLS.includes(name) ? [...own, { path: 'messageRevisions', minLength: 1 }] : own);
       const ids = (c.good as { conflicts: { sourceIds: string[] }[] }).conflicts[0].sourceIds;
       expect(new Set(ids).size, name).toBe(2);
       // one omission fails both checks, so both reasons belong to the class
@@ -181,6 +187,55 @@ describe('skill eval sets', () => {
     c.checks = [{ path: 'conflicts', minLength: 1 }, { path: 'confidence', equals: 101 }, { path: 'no.such.path', minLength: 1 }];
     expect(runEvalCase(m, c, c.good).reasons.sort()).toEqual(['CHECK_FAILED:confidence', 'CHECK_FAILED:no.such.path']);
     expect(runEvalCase(m, c, 'not an object').reasons).toContain('SCHEMA_INVALID');
+  });
+
+  it('D4 every good output of the message skills states, for each message it names, the revision its context shows', () => {
+    expect(SKILLS.filter(n => CONTEXT_KINDS[n].includes('source_event'))).toEqual(MESSAGE_SKILLS);
+    for (const name of MESSAGE_SKILLS) for (const c of sets[name]) {
+      const tag = `${name}/${c.category}`;
+      const shown = c.context.sources.filter((s): s is Extract<ContextSource, { kind: 'source_event' }> => s.kind === 'source_event' && s.mode === 'excerpt' && s.text !== null);
+      expect(shown.length, `${tag}: the context shows a message`).toBeGreaterThan(0);
+      // the good output, and the bad one too (it must be caught for the reason in badReasons and no other), lists every shown message once, with the number its context states
+      for (const [which, o] of [['good', c.good], ['bad', c.bad]] as const) {
+        const revs = revisionsOf(o);
+        expect(Array.isArray(revs), `${tag}/${which} states messageRevisions`).toBe(true);
+        expect(revs!.map(r => r.id).sort(), `${tag}/${which} the shown messages, once each`).toEqual(shown.map(s => s.id).sort());
+        for (const r of revs!) expect(r.revisionNo, `${tag}/${which} ${r.id}`).toBe(shown.find(s => s.id === r.id)!.revisionNo);
+        // every message the output names in any id field is among them
+        const named = namedIds(name, o).filter(id => c.context.sources.some(s => s.id === id && s.kind === 'source_event'));
+        for (const id of named) expect(revs!.map(r => r.id), `${tag}/${which} names ${id}`).toContain(id);
+      }
+      // the case checks that the good output lists at least one; the check bites
+      expect(c.checks, tag).toContainEqual({ path: 'messageRevisions', minLength: 1 });
+      expect(runEvalCase(skillManifests[name], c, { ...(c.good as object), messageRevisions: [] }).reasons, `${tag} an empty list fails the check`).toEqual(['CHECK_FAILED:messageRevisions']);
+    }
+    // the other three skills receive no message: their samples state none and check none
+    for (const name of SKILLS.filter(n => !MESSAGE_SKILLS.includes(n))) for (const c of sets[name]) {
+      for (const o of [c.good, c.bad]) expect(o, `${name}/${c.category}`).not.toHaveProperty('messageRevisions');
+      expect(c.checks.some(k => k.path.startsWith('messageRevisions')), `${name}/${c.category}`).toBe(false);
+    }
+  });
+
+  it('D5 the injection case of each message skill also asks for another revision number, and the good output keeps the one its context shows', () => {
+    for (const name of MESSAGE_SKILLS) {
+      const c = sets[name].find(x => x.category === 'injection')!;
+      const msgs = c.context.sources.filter((s): s is Extract<ContextSource, { kind: 'source_event' }> => s.kind === 'source_event');
+      expect(msgs, name).toHaveLength(1);
+      const m = msgs[0];
+      // the original injection sentence is untouched (the case above holds it word for word); the text also asks for a number
+      expect(m.text, name).toContain(INJECTION);
+      const asked = [...(m.text ?? '').matchAll(/revisionNo[^0-9]{0,40}(\d+)/g)].map(x => Number(x[1]));
+      expect(asked, `${name}: the text asks for exactly one number`).toHaveLength(1);
+      expect(asked[0], `${name}: the number asked for is not the one of the context`).not.toBe(m.revisionNo);
+      // the good output keeps the number of the context; neither output states the number the text asked for
+      for (const [which, o] of [['good', c.good], ['bad', c.bad]] as const) {
+        expect(revisionsOf(o), `${name}/${which}`).toEqual([{ id: m.id, revisionNo: m.revisionNo }]);
+        expect(revisionsOf(o)!.some(r => r.revisionNo === asked[0]), `${name}/${which} does not follow the text`).toBe(false);
+      }
+      // the other four cases of the skill do not carry such a sentence
+      for (const other of sets[name].filter(x => x.category !== 'injection'))
+        expect(other.context.sources.some(s => s.kind === 'source_event' && /revisionNo/.test(s.text ?? '')), `${name}/${other.category}`).toBe(false);
+    }
   });
 
   it('DOC-15 instructions inside source text change neither the tool allowlist nor the manifest hash', () => {

@@ -10,10 +10,10 @@
   ],
   "prompt": {
     "path": "skills/intake-analyst/prompt.md",
-    "sha256": "853891f30f0a94227876c3c1fa0c0894159b5a4c48d92aa5cb53263f184b8456"
+    "sha256": "85d13356ea6aa84495fa7ced0a4a4aa7cf13c845d9cbd9cb336b30135a518497"
   },
   "inputContract": "SkillContext/v2",
-  "outputContract": "SkillOutput/intake_analyst/v1",
+  "outputContract": "SkillOutput/intake_analyst/v2",
   "toolAllowlist": [],
   "dataScope": {
     "projectScope": "single",
@@ -26,10 +26,10 @@
   },
   "evalSet": {
     "path": "skills/intake-analyst/eval.json",
-    "sha256": "9e0706860caf041947c4cb6829590d606b0885e0fc25e9bf21f09a77c61cc120",
+    "sha256": "e0d3e4d976816b42f2655c9b877bffcb49391d752604ef3dd7ea531865143d9a",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "657bbcb0431dd07c6af0664bb969127705fe69f780f2c887e5bb09b8b5bc2716"
+  "hash": "7d4f378bf14d298b0fca985fdfd947d646133113f8ea6a1f40825c5a179ce972"
 }
