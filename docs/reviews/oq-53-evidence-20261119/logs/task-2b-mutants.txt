@@ -1,0 +1,72 @@
+Task 2b (OQ-53, migration 023, after the tier-1 reviews): checks that the new and changed cases are sensitive.
+Each mutant is an edit of one or two places in migrations/023_thread_order.sql (or in its rollback file, rb-*), applied in place, run, and put back; the file was compared byte for byte
+with the saved original after every mutant (cmp: identical). For a native run the isolated database was emptied (the table list of tests/slice1-db.ts) and 023 rolled back before the
+run, so that the harness applied the mutated file; after the run it was rolled back again.
+Engines: pglite = PostgreSQL 18.6 in memory, native = PostgreSQL 16.15 in the isolated container. Only the cases that went red are listed; every other case of the file stayed green.
+
+--- mutants of the reviews (R-DB-1 ... R-DB-10, R-S-1 ... R-S-7)
+mutant                                                        files run (engine)                      cases that went red
+heads-noproject    counter row looked up without the project  thread-order (pglite)                   B8
+                   of the decision (R-DB-3, R-S-2, m6)        thread-order-concurrency (native)       N20
+heads-noscope      counter row looked up without tenant and   thread-order (pglite)                   B8
+                   project                                    thread-order-concurrency (native)       N20
+heads-notenant     counter row looked up without the tenant   thread-order (pglite), concurrency      none: EQUIVALENT. A project fixes its tenant (projects.id is the key and the foreign key
+                   only (m6b)                                 (native)                                of the counter table is (project_id, tenant_id)), so with the project filter in place the
+                                                                                                      tenant filter excludes nothing. Same for cand-notenant and draft-notenant below (m23).
+cand-noproject     candidate looked up without the project    thread-order (pglite)                   B4 (the case "same chat and thread key in two projects")
+cand-notenant      candidate looked up without the tenant     thread-order (pglite)                   none: equivalent, as above
+draft-noproject    draft looked up without the project (m25) thread-order (pglite)                   B9
+draft-notenant     draft looked up without the tenant         thread-order (pglite)                   none: equivalent, as above
+src-nofilter       source event looked up without tenant and  thread-order (pglite)                   A9b
+                   project (m24)
+nofk-heads         no foreign key from the counter table to   thread-order (pglite)                   A6
+                   projects
+no-p6ii            check for a connected login switched off   thread-order (native)                   A10, A11
+p6ii-withsuper     the check counts superusers too            thread-order (native)                   A10, A11, A12, A13, A8 (iii) with other superuser sessions open, A8 (iii) text
+locks-after-check  the two locks after the check of the        thread-order (native)                   A11, A8 (iii) text
+                   logins (the order of the first version)
+no-lock-drafts     no lock on the draft table (R-S-3)         thread-order (native)                   A13, A8 (iii) text
+cap-all            the cap counts every revision, not those   thread-order (pglite)                   A8 (i) (the re-application under a cap below the number of revisions)
+                   without a number (R-DB-2)
+cap-500k           default cap 500 000                         thread-order (pglite)                   A8 (iii) text
+trg-plain-create   plain CREATE TRIGGER for the intake trigger thread-order (pglite)                  A6, A7, A7b, A8 (i), A8 (ii), A8 (iii), B5 (42710 on the second application)
+trg-drop-create    the intake trigger dropped and created      thread-order (pglite)                   A8 (iii) text
+                   (ACCESS EXCLUSIVE on a second run)         thread-order (native)                   A12, A8 (iii) text
+analyze-late       ANALYZE after the step that holds ACCESS    thread-order (pglite)                   A8 (iii) text
+                   EXCLUSIVE on the decision table
+forshare           FOR SHARE in the decision trigger           thread-order-concurrency (native)       N19b (the guard of 022 switched off; with the guard on, N19 passes: the lock on the project row
+                                                                                                      makes the confirmations take turns before either reaches the counter row)
+rb-nolock          rollback takes no lock on the decision      migrations-rollback (pglite)            RB-023 (text order of the file)
+                   table (R-S-1)                              thread-order-concurrency (native)       N18
+
+--- mutants of task 2, repeated against the fixed files
+db2-nolock         no FOR NO KEY UPDATE (db2, form 1)          thread-order-concurrency (native)       N7, N8, N11, N17, N19, N19b, N20
+db2-keyshare       FOR KEY SHARE (db2, form 2)                 thread-order-concurrency (native)       N7, N8, N11, N17, N19, N19b, N20
+db3-ge             compare with >= instead of <>               thread-order (pglite)                   B1, B6, B8, B9
+                                                               thread-order-concurrency (native)       N8, N18, N19, N19b, N20
+db11-nodrop        no drop-if-exists before the decision trigger  thread-order (pglite)               A6, A7, A7b, A8 (i), A8 (ii), B5
+m-before           BEFORE INSERT instead of AFTER INSERT       thread-order (pglite)                   B1, B2, B3, B4, B5, B6, B8
+                                                               thread-order-concurrency (native)       N8, N9, N10, N18, N19, N19b, N20
+m-noisolation      no isolation check in the decision trigger  thread-order (pglite)                   B7
+m-allentity        a confirmation of a document draft is       thread-order (pglite)                   B2
+                   judged like one of a candidate draft       z4-schema (pglite)                      5 cases (the five that use the default draft, now about a document)
+m-noconstraint     check constraint that checks nothing        thread-order (pglite)                   B2, B3
+m-grant-intake     the intake role may insert the new column   thread-order (pglite)                   B5
+m-publicexec       the decision function stays executable      thread-order (pglite)                   B5
+                   by PUBLIC
+m-nosecdef         invoker instead of definer                  thread-order (pglite)                   B1, B2, B3, B4, B5, B6, B7, B8, B9
+m-nonull           a confirmation with no position is not      thread-order (pglite)                   B1, B3
+                   refused before the lookup
+rb-nocarry         rollback does not refuse while a decision   migrations-rollback (pglite)            RB-023
+                   carries a position
+rb-keepcolumn      rollback leaves the column behind           migrations-rollback (pglite)            RB-023, "forward -> rollback -> forward leaves source tables untouched"
+rb-keeptrigger     rollback leaves the decision trigger        migrations-rollback (pglite)            RB-023 and 8 other cases of the file (they roll 023 back and meet the trigger still on the table)
+                   behind
+
+Notes
+1. FOR SHARE (R-DB-6). The case the review proposed (two confirmations of one thread, the second must wait) does not tell FOR SHARE from FOR NO KEY UPDATE while the guard of 022 is on: both
+   confirmations are of one project, and that guard makes the second wait for the row of the project before it reaches the counter row (N19 passes with either lock). So N19b switches the
+   guard of 022 off, in a finally block that puts it back, and then the second confirmation waits only because of the lock on the counter row.
+2. The old dead condition "WHERE h.last_seq < EXCLUDED.last_seq" of the numbering statement (R-DB-10) was removed. It was dead: the numbers written start after the old value of the counter row,
+   so the condition was always true. A7, A7b, A8 (i) and the cases of the rollback file stay green without it.
+3. Not killable and not claimed: the three tenant-only filters (heads-notenant, cand-notenant, draft-notenant). They are equivalent for the reason in the first note of heads-notenant.

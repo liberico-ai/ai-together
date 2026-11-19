@@ -2,7 +2,7 @@ import {afterEach,beforeEach,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
-import {native,openHarness,type Harness} from './slice1-db';
+import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
 import {pm,seedSlice1} from './slice1-fixtures';
 import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
@@ -10,9 +10,11 @@ import {IntakeService} from '../src/server/intake';
 import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,type EventOverride} from './slice2-fixtures';
 import {mapDomain} from './slice3-fixtures';
 
-// Migration 023 (OQ-53 point 3 (b)). The intake half: a number per thread for every stored revision, a counter row per thread, and the refusals of the file (A1-A9).
-// The confirming half: the column draft_decisions.subject_thread_seq and the trigger that compares it with the counter row and writes it (B1-B7).
-// The cases that need two connections are in thread-order-concurrency.test.ts (native PostgreSQL only).
+// Migration 023 (OQ-53 point 3 (b)). The intake half: a number per thread for every stored revision, a counter row per thread, and the refusals of the file (A1-A9b).
+// The confirming half: the column draft_decisions.subject_thread_seq and the trigger that compares it with the counter row and writes it (B1-B9).
+// After the tier-1 reviews: the refusals of the file as behaviour, with the locks that come first (A10, A11, A13 native), the second run (A12 native), the counter rows of
+// several scopes under one chat and thread key (B8), and the lookups of the guard when the other guards are off (A9b, B9).
+// The cases that need two connections and do not need the harness login are in thread-order-concurrency.test.ts (native PostgreSQL only).
 const file=(p:string)=>readFile(path.join(process.cwd(),p),'utf8');
 const forwardSql=()=>file('migrations/023_thread_order.sql');
 const rollbackSql=()=>file('migrations/rollback/023_thread_order.sql');
@@ -226,6 +228,22 @@ test('A6 the catalog of 023: tables, policies, triggers, functions; a second run
   expect(first.classes).toEqual([{relname:'intake_thread_heads',relrowsecurity:true,relforcerowsecurity:true,relkind:'r'},{relname:'source_revision_positions',relrowsecurity:true,relforcerowsecurity:true,relkind:'r'}]);
   const ref=(await q<{qual:string}>("SELECT qual FROM pg_policies WHERE tablename='source_event_revisions' AND policyname='runtime_select'"))[0].qual;
   expect(first.policies).toEqual(TABLES.map(t=>({tablename:t,policyname:'runtime_select',cmd:'SELECT',roles:'{libetech_runtime}',qual:ref,with_check:null})).sort((a,b)=>a.tablename.localeCompare(b.tablename)));
+  // the constraints of the two tables, by what they say (names are generated; the NOT NULL entries that PostgreSQL 18 lists are left out): the key, the unique keys, the positive
+  // numbers, the foreign key of each table to projects and the foreign key of the number table to the revision. A foreign key that is missing turns this red (review R-DB-3).
+  const defs=(await q<{t:string;c:string;d:string}>(`SELECT conrelid::regclass::text t,contype::text c,pg_get_constraintdef(oid) d FROM pg_constraint
+    WHERE conrelid IN ('public.intake_thread_heads'::regclass,'public.source_revision_positions'::regclass) AND contype IN ('p','u','c','f')`)).map(r=>`${r.t}|${r.c}|${r.d.replace(/public\./g,'')}`).sort();
+  expect(defs).toEqual([
+    'intake_thread_heads|c|CHECK ((last_seq > 0))',
+    'intake_thread_heads|f|FOREIGN KEY (project_id, tenant_id) REFERENCES projects(id, tenant_id)',
+    'intake_thread_heads|p|PRIMARY KEY (id)',
+    'intake_thread_heads|u|UNIQUE (tenant_id, project_id, chat_id, thread_key)',
+    'source_revision_positions|c|CHECK ((thread_seq > 0))',
+    'source_revision_positions|f|FOREIGN KEY (project_id, tenant_id) REFERENCES projects(id, tenant_id)',
+    'source_revision_positions|f|FOREIGN KEY (revision_id, source_event_id, tenant_id, project_id) REFERENCES source_event_revisions(id, source_event_id, tenant_id, project_id)',
+    'source_revision_positions|p|PRIMARY KEY (id)',
+    'source_revision_positions|u|UNIQUE (revision_id)',
+    'source_revision_positions|u|UNIQUE (tenant_id, project_id, chat_id, thread_key, thread_seq)',
+  ].sort());
   // the revision table: the immutability trigger of 016 and one AFTER INSERT row trigger of 023, enabled for every session role
   const rev=first.triggers.filter(t=>t.t==='source_event_revisions') as {tgname:string;tgtype:number;tgenabled:string}[];
   expect(rev.map(t=>t.tgname)).toEqual(expect.arrayContaining(['source_event_revisions_immutable','source_event_revisions_thread_position']));
@@ -315,19 +333,25 @@ test('A7b revisions stored while the trigger was off are numbered after the coun
   expect((await heads())[0].last_seq).toBe(5);
 });
 
-test('A8 (i) 023 stops above the cap on the number of revisions, with its own words, and creates nothing; without the setting it runs',async()=>{
+test('A8 (i) 023 stops above the cap on the revisions that carry no number, with its own words, and creates nothing; revisions that are numbered do not count',async()=>{
   needsForward=true;
   const rollback=await rollbackSql(),forward=await forwardSql();
   await h.exec(rollback);
   await fourOldRevisions();
   expect(await count('source_event_revisions')).toBe(4);
-  await expect(h.exec("SET LOCAL libetech.thread_order_max_rows = '3';\n"+forward)).rejects.toThrow(/more rows than libetech\.thread_order_max_rows/);
+  await expect(h.exec("SET LOCAL libetech.thread_order_max_rows = '3';\n"+forward)).rejects.toThrow(/more revisions without a thread number than libetech\.thread_order_max_rows/);
   await h.exec('ROLLBACK');
   for(const t of TABLES) expect(await regclass('public.'+t),t).toBeNull();
   expect(await q("SELECT 1 FROM schema_migrations WHERE version='023'")).toEqual([]);
   // exactly at the cap it runs; the cap is the one thing the setting changes
   await h.exec("SET LOCAL libetech.thread_order_max_rows = '4';\n"+forward);
   expect(await count('source_revision_positions')).toBe(4);
+  // the numbering costs what there is to number (review R-DB-2): all four revisions carry a number now, so a cap of three, below the number of revisions, stops nothing; the file
+  // runs again and changes no number. This is the way to put the trigger back (W9, A7b) on a table of any size.
+  const stable={positions:await numbers(),heads:await heads()};
+  await h.exec("SET LOCAL libetech.thread_order_max_rows = '3';\n"+forward);
+  expect({positions:await numbers(),heads:await heads()}).toEqual(stable);
+  expect(await q("SELECT 1 FROM schema_migrations WHERE version='023'")).toHaveLength(1);
   await h.exec(rollback);
   await h.exec(forward);
   expect(await count('source_revision_positions')).toBe(4);
@@ -350,12 +374,29 @@ test('A8 (ii) 023 stops when it is applied by a role that is not a superuser, an
   expect(await q("SELECT 1 FROM schema_migrations WHERE version='023'")).toHaveLength(1);
 });
 
-test('A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser',async()=>{
+test('A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser; the check comes after the locks',async()=>{
   const code=(await forwardSql()).replace(/--.*$/gm,'').replace(/\s+/g,' ');
   for(const part of ['pg_catalog.pg_stat_activity','pg_catalog.pg_roles','NOT r.rolsuper',"pg_catalog.pg_has_role(r.oid, 'libetech_ai', 'MEMBER')",'a.pid <> pg_catalog.pg_backend_pid()',
     'a.datname = pg_catalog.current_database()','login that can act as libetech_ai is connected']) expect(code,part).toContain(part);
-  // the branch that refuses has no behaviour case in this PR: it needs a login that is a member of the AI role, and no login of that kind is created here (N14).
+  // The branch that refuses is a behaviour case (A10, A11) for the condition of the SQL, with the name of the AI role replaced by the name of a role that a login of the harness is a
+  // member of. What is still not shown is the real name: no login that is a member of libetech_ai exists in this PR (condition N14).
   expect(await q("SELECT count(*)::int n FROM pg_roles r WHERE r.rolcanlogin AND NOT r.rolsuper AND pg_has_role(r.oid,'libetech_ai','MEMBER')")).toEqual([{n:0}]);
+  // The order of the file (reviews R-DB-1, R-S-3): the check of the superuser, the locks on the revision table and on the draft table, the check of the logins under them, and
+  // only then the first table. One lock on the revision table, the one at the top: the lock that stood at step 8 is gone.
+  const at=(t:string)=>code.indexOf(t);
+  const order=['must be applied by a superuser','LOCK TABLE public.source_event_revisions IN SHARE ROW EXCLUSIVE MODE','LOCK TABLE intelligence.ai_drafts IN SHARE ROW EXCLUSIVE MODE',
+    'pg_catalog.pg_stat_activity','CREATE TABLE IF NOT EXISTS public.intake_thread_heads'].map(at);
+  expect(order.every(i=>i>-1),'every part of the order is in the file').toBe(true);
+  expect([...order].sort((a,b)=>a-b)).toEqual(order);
+  expect(code.split('LOCK TABLE public.source_event_revisions').length-1).toBe(1);
+  // the statistics before the step that holds ACCESS EXCLUSIVE on the decision table (R-DB-7), and the trigger of the intake half replaced in place: a second run takes no
+  // ACCESS EXCLUSIVE on the revision table (A12)
+  expect(at('ANALYZE public.source_revision_positions')).toBeGreaterThan(-1);
+  expect(at('ANALYZE public.source_revision_positions')).toBeLessThan(at('ALTER TABLE public.draft_decisions ADD COLUMN'));
+  expect(code).toContain('CREATE OR REPLACE TRIGGER source_event_revisions_thread_position');
+  expect(code).not.toContain('DROP TRIGGER IF EXISTS source_event_revisions_thread_position');
+  // the default of the cap is 250 000 (what the cap counts is A8 (i))
+  expect(code).toContain("'250000'");
 });
 
 // Native only: PGlite has one connection, so a second session cannot be open while the file runs.
@@ -412,9 +453,9 @@ async function realCandidate(over:EventOverride={}){
 const position=async(thread:string)=>(await heads()).find(r=>r.thread_key===thread)!.last_seq;
 const anotherMessage=(c:{event:{context:{messageId:string}}})=>svc().ingest(messageEvent({context:{replyToMessageId:c.event.context.messageId}}));
 /** A draft written as the operational login (the AI role is not what these cases are about): one source, value hash hex('c'). */
-const draftOf=async(entityType:'intake_candidate'|'document',entityId:string,o:{project?:string;sources?:string}={})=>
+const draftOf=async(entityType:'intake_candidate'|'document',entityId:string,o:{project?:string;tenant?:string;sources?:string}={})=>
   (await q<{id:string}>(`INSERT INTO intelligence.ai_drafts(tenant_id,project_id,entity_type,entity_id,signal_type,skill_version,manifest_hash,model_version,value,value_hash,sources,confidence,input_hash,ai_principal_id,trace_id,dedupe_key)
-    VALUES($1,$2,$3,$4,'intake_analyst','1',$5,'m','{}',$5,$6::jsonb,1,$5,$4,$4,$7) RETURNING id`,[ids.tenant,o.project??ids.sales,entityType,entityId,hex('c'),o.sources??SOURCES,'thread-order-'+randomUUID()]))[0].id;
+    VALUES($1,$2,$3,$4,'intake_analyst','1',$5,'m','{}',$5,$6::jsonb,1,$5,$4,$4,$7) RETURNING id`,[o.tenant??ids.tenant,o.project??ids.sales,entityType,entityId,hex('c'),o.sources??SOURCES,'thread-order-'+randomUUID()]))[0].id;
 const decisionVals=(draft:string,over:Record<string,unknown>={}):Record<string,unknown>=>({tenant_id:ids.tenant,project_id:ids.sales,draft_id:draft,draft_value_hash:hex('c'),result:'confirmed',reason:'',
   decided_by:pm.id,command_key:'thread-order-'+randomUUID(),request_id:randomUUID(),trace_id:randomUUID(),subject_thread_seq:null,...over});
 const insertDecision=(tx:Queryable,draft:string,over:Record<string,unknown>={})=>{
@@ -683,4 +724,219 @@ test('B7 the guard of 023 refuses a confirmation outside READ COMMITTED by itsel
   expect(e?.message).not.toBe('A draft is confirmed in a READ COMMITTED transaction');
   expect(await decisionCount()).toBe(0);
   expect((await q<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='draft_decisions_pointer_only_guard' AND NOT tgisinternal"))[0].tgenabled).toBe('O');
+});
+
+// ---- After the tier-1 reviews (task 2b) ----
+const latch=()=>{let open!:()=>void;const promise=new Promise<void>(r=>{open=r;});return {promise,open};};
+/** The statement `p` (which never rejects) is in flight and waits for a lock: it has not settled while `n` sessions are blocked. */
+const inFlight=async(p:Promise<unknown>,n=1)=>{
+  const first=await Promise.race([p.then(()=>'settled' as const),waitForBlocked(h,n).then(()=>'blocked' as const)]);
+  expect(first,'the statement was expected to wait for a lock').toBe('blocked');
+};
+/** As asRuntimeAfter, for any role: the operational login prepares, then the role acts in the scope; the transaction always rolls back; the answer is the error, null when the statement went through. */
+const asRoleAfter=(role:string,before:(tx:Queryable)=>Promise<void>,fn:(tx:Queryable)=>Promise<unknown>,projects:string[]=[ids.sales])=>{
+  const done=new Error('rolled back on purpose');
+  return refusal(h.operator.transaction(async tx=>{
+    await before(tx);
+    await tx.query(`SET LOCAL ROLE ${role}`);
+    await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.intake_principal_id',$3,true),set_config('app.person_id',$3,true)",[ids.tenant,projects.join(','),pm.id]);
+    await fn(tx);
+    throw done;
+  })).then(e=>(e as unknown)===done?null:e) as Promise<Told|null>;
+};
+
+// R-DB-9, R-S-5: the NOT FOUND branch of the trigger of the intake half. The foreign key of the revision table answers first (A9); with the foreign keys off, in a transaction that rolls back,
+// the trigger answers by itself, and it looks the source event up under the tenant and the project of the revision.
+test('A9b with the foreign keys of the revision table switched off in one transaction, the trigger refuses a revision whose source event is of another project, by itself and with a sentence that names no id and no number',async()=>{
+  const theirs=messageEvent({context:{chatId:chatTransport}});
+  await svc().ingest(theirs);
+  const transport=(await q<{id:string}>('SELECT id FROM source_events WHERE chat_id=$1 AND message_id=$2',[chatTransport,theirs.context.messageId]))[0].id;
+  const before={positions:await count('source_revision_positions'),heads:await heads(),revisions:await count('source_event_revisions')};
+  const off=async(tx:Queryable)=>{
+    // every trigger of the table off (the foreign keys are triggers), then the one under test on again
+    await tx.query('ALTER TABLE source_event_revisions DISABLE TRIGGER ALL');
+    await tx.query('ALTER TABLE source_event_revisions ENABLE TRIGGER source_event_revisions_thread_position');
+  };
+  // in the scope of the role (the sales project), naming the event of the transport project
+  const e=await asRoleAfter('libetech_intake',off,tx=>tx.query(revSql,[ids.tenant,ids.sales,transport,2,hex('9'),hex('8')]));
+  expect(e).not.toBeNull();
+  expect(e!.code).toBe('23503');
+  expect(e!.message).toBe('The source event of a revision is not visible');
+  expect(e!.where).toContain('source_event_revisions_thread_position');
+  const said=[e!.message,e!.detail,e!.hint].filter(Boolean).join(' ');
+  expect(said).not.toMatch(/[0-9a-f]{8}-/);
+  expect(said).not.toMatch(/[0-9]/);
+  // the transaction rolled back: nothing stored, no trigger left off
+  expect(await count('source_event_revisions')).toBe(before.revisions);
+  expect(await count('source_revision_positions')).toBe(before.positions);
+  expect(await heads()).toEqual(before.heads);
+  expect((await q<{n:number}>("SELECT count(*)::int n FROM pg_trigger WHERE tgrelid='public.source_event_revisions'::regclass AND tgenabled<>'O'"))[0].n).toBe(0);
+});
+
+// R-DB-4, R-S-4: the refusal for a connected login of the AI role, as behaviour. No login of that role exists (condition N14), but the condition of the SQL is about roles in general: the file
+// read from disk is run with the name of the AI role replaced, in the one predicate that asks about it, by the name of the runtime role, of which the login of the web service
+// (libetech_web, not a superuser) is a member.
+const AI_PREDICATE="pg_catalog.pg_has_role(r.oid, 'libetech_ai', 'MEMBER')";
+const REFUSES=/refuses to run while a login that can act as libetech_ai is connected/;
+const withRuntimeAsAi=async()=>{
+  const sql=await forwardSql();
+  expect(sql.split(AI_PREDICATE).length-1,'the predicate that names the AI role is in the file once').toBe(1);
+  return sql.replace(AI_PREDICATE,AI_PREDICATE.replace('libetech_ai','libetech_runtime'));
+};
+const nothingOf023=async()=>{
+  for(const t of TABLES) expect(await regclass('public.'+t),t).toBeNull();
+  expect(await q("SELECT 1 FROM schema_migrations WHERE version='023'")).toEqual([]);
+  expect(await q("SELECT 1 FROM pg_proc WHERE proname IN ('source_event_revisions_thread_position','draft_decisions_subject_order_guard')")).toEqual([]);
+  expect(await q("SELECT 1 FROM pg_attribute WHERE attrelid='public.draft_decisions'::regclass AND attname='subject_thread_seq' AND NOT attisdropped")).toEqual([]);
+};
+
+// Native only: the case needs sessions of other logins while the file runs.
+test.skipIf(!native)('A10 the refusal for a connected login of the role: a session of a login that is not a superuser stops the file, a session of a superuser does not, even one acting as that role',async()=>{
+  needsForward=true;
+  const rollback=await rollbackSql(),probe=await withRuntimeAsAi();
+  await h.exec(rollback);
+  // sessions of the migration login (a superuser) are open, one of them acting as the runtime role for the length of its transaction: neither is counted, and the file runs
+  await h.operator.transaction(async tx=>{
+    await tx.query('SET LOCAL ROLE libetech_runtime');
+    await h.exec(probe);
+  });
+  expect(await q("SELECT 1 FROM schema_migrations WHERE version='023'")).toHaveLength(1);
+  await h.exec(rollback);
+  await nothingOf023();
+  // the web login (not a superuser, a member of the runtime role) has a session open, even idle in a transaction: the file stops, with its own words, and creates nothing
+  await h.db.transaction(async web=>{
+    await web.query('SELECT 1');
+    await expect(h.exec(probe)).rejects.toThrow(REFUSES);
+  });
+  await nothingOf023();
+});
+
+// R-DB-1: the file waits for a message that is in flight before it looks at the logins. Before the fix it looked first and then waited, so a login that connected during the wait was not seen.
+test.skipIf(!native)('A11 the file waits for a transaction that is taking in a message and looks at the logins only after the wait: a login that connects while it waits stops it',async()=>{
+  needsForward=true;
+  const rollback=await rollbackSql(),probe=await withRuntimeAsAi();
+  await h.exec(rollback);
+  const web=latch(),opened=latch();
+  let applying!:Promise<Told|null>,webDone:Promise<unknown>=Promise.resolve();
+  try {
+    await h.operator.transaction(async tx=>{
+      // a message in flight: its event and its revision are written, the transaction is open
+      const event=(await tx.query<{id:string}>(eventSql,[ids.tenant,ids.sales,'gw-9501',chatSales,'9501','m:9501',randomUUID()])).rows[0].id;
+      await tx.query(revSql,[ids.tenant,ids.sales,event,1,hex('6'),hex('b')]);
+      applying=refusal(h.exec(probe)) as Promise<Told|null>;
+      await inFlight(applying);
+      // the file waits for the lock of the revision table; no login of the role was connected when it began. One connects now.
+      webDone=h.db.transaction(async w=>{await w.query('SELECT 1');opened.open();await web.promise;});
+      await Promise.race([opened.promise,webDone]);
+    });
+    // the message commits; the file goes on, looks, finds the login and stops
+    const e=await applying;
+    expect(e,'the file was expected to stop').not.toBeNull();
+    expect(e!.message).toMatch(REFUSES);
+  } finally {
+    web.open();
+    await webDone;
+  }
+  await nothingOf023();
+});
+
+// R-DB-7: a second run replaces the trigger of the revision table in place.
+test.skipIf(!native)('A12 applying 023 again takes no lock that a reader of the revision table would wait for; a reader of the decision table does wait',async()=>{
+  const forward=await forwardSql();
+  await svc().ingest(messageEvent({}));
+  // a reader holds ACCESS SHARE on the revision table to the end of its transaction: the second run goes through (it takes SHARE ROW EXCLUSIVE at most)
+  const free=await h.operator.transaction(async reader=>{
+    await reader.query('SELECT count(*) FROM source_event_revisions');
+    return refusal(h.exec(forward)) as Promise<Told|null>;
+  });
+  expect(free,'a reader of the revision table made the second run wait').toBeNull();
+  // the control that gives the probe its meaning: the step that adds the column holds ACCESS EXCLUSIVE on the decision table, and a reader of that table makes the file wait out its cap
+  const waited=await h.operator.transaction(async reader=>{
+    await reader.query('SELECT count(*) FROM draft_decisions');
+    return refusal(h.exec(forward)) as Promise<Told|null>;
+  });
+  expect(waited?.code).toBe('55P03');
+},30000);
+
+test('B8 the same chat and thread key in two projects and in two tenants, each with its own counter row: a confirmation is judged against the counter row of its own scope',async()=>{
+  const key='m:9700';
+  // one thread key under one chat, three scopes: sales (one revision), transport (three), the project of the other tenant (two). Raw rows; the trigger of 023 numbers them.
+  const build=async(name:string,tenant:string,project:string,revisions:number)=>{
+    const event=(await q<{id:string}>(eventSql,[tenant,project,'gw-'+name,chatSales,name,key,randomUUID()]))[0].id;
+    for(let n=1;n<=revisions;n++) await q(`INSERT INTO source_event_revisions(${REV_COLS}) VALUES($1,$2,$3,$4,$5,$6,'pointer_only')`,[tenant,project,event,n,hex(String(n)),hex('b')]);
+    const candidate=(await q<{id:string}>('INSERT INTO intake_candidates(tenant_id,project_id,chat_id,thread_key,root_source_event_id) VALUES($1,$2,$3,$4,$5) RETURNING id',[tenant,project,chatSales,key,event]))[0].id;
+    return {name,tenant,project,seq:revisions,draft:await draftOf('intake_candidate',candidate,{tenant,project})};
+  };
+  const scopes=[await build('9701',ids.tenant,ids.sales,1),await build('9702',ids.tenant,ids.transport,3),await build('9703',ids.otherTenant,ids.otherProject,2)];
+  expect((await q<{n:number}>('SELECT last_seq::int n FROM intake_thread_heads WHERE thread_key=$1 ORDER BY 1',[key])).map(r=>r.n)).toEqual([1,2,3]);
+  const confirm=(s:{tenant:string;project:string;draft:string},seq:number)=>refusal(scoped(h.db,{...pm,tenantId:s.tenant,projectIds:[s.project]},async tx=>{
+    await tx.query("SELECT set_config('app.person_id',$1,true)",[pm.id]);
+    return insertDecision(tx,s.draft,{tenant_id:s.tenant,project_id:s.project,subject_thread_seq:seq});
+  })) as Promise<Told|null>;
+  // the numbers of the other scopes are not the number of this one: refused, for each scope and each foreign number
+  for(const s of scopes) for(const other of scopes.filter(o=>o!==s)){
+    const e=await confirm(s,other.seq);
+    expect(e,`${s.name} with the number of ${other.name}`).not.toBeNull();
+    expect(e!.code,`${s.name} with the number of ${other.name}`).toBe('LTZ03');
+  }
+  expect(await decisionCount()).toBe(0);
+  // its own number: stored
+  for(const s of scopes) expect(await confirm(s,s.seq),s.name).toBeNull();
+  expect(await decisionCount()).toBe(3);
+});
+
+test('B9 with the guard of 021, the guard of 022 and the foreign keys switched off in one transaction, the lookups of the guard of 023 refuse by themselves',async()=>{
+  const mine=await realCandidate(),theirs=await realCandidate({context:{chatId:chatTransport}});
+  const draftMine=await draftOf('intake_candidate',mine.id),draftTheirs=await draftOf('intake_candidate',theirs.id,{project:ids.transport});
+  // a draft of the sales project that names the candidate of the transport project
+  const crossed=await draftOf('intake_candidate',theirs.id);
+  const minePos=await position(mine.thread),theirPos=await position(theirs.thread);
+  const off=async(tx:Queryable)=>{
+    // every trigger of the decision table off (the guards of 021 and 022 and the foreign keys), then the one under test on again
+    await tx.query('ALTER TABLE draft_decisions DISABLE TRIGGER ALL');
+    await tx.query(`ALTER TABLE draft_decisions ENABLE TRIGGER ${GUARD}`);
+  };
+  // the control that gives the rest its meaning: a decision that is right goes through with the others off (the transaction rolls back, so nothing is stored)
+  expect(await asRuntimeAfter(off,tx=>insertDecision(tx,draftMine,{subject_thread_seq:minePos}))).toBeNull();
+  // a draft of another project, named by a row of the project in scope: the draft is looked up in the project of the row
+  const a=await asRuntimeAfter(off,tx=>insertDecision(tx,draftTheirs,{subject_thread_seq:theirPos}));
+  expect(a).not.toBeNull();
+  expect(a!.code).toBe('P0001');
+  expect(a!.message).toBe('A decision names a draft of its own project');
+  expect(a!.where).toContain(GUARD);
+  // a draft of the project in scope that names a candidate of another project: the candidate is looked up in the project of the row
+  const b=await asRuntimeAfter(off,tx=>insertDecision(tx,crossed,{subject_thread_seq:theirPos}));
+  expect(b).not.toBeNull();
+  expect(b!.code).toBe('LTZ03');
+  expect(b!.where).toContain(GUARD);
+  expect(await decisionCount()).toBe(0);
+  expect((await q<{n:number}>("SELECT count(*)::int n FROM pg_trigger WHERE tgrelid='public.draft_decisions'::regclass AND tgenabled<>'O'"))[0].n).toBe(0);
+});
+
+// R-S-3: the lock on the draft table. A draft that is being written when the file begins is waited for, and then seen by the check of refusal 4. Without the lock the check ran while
+// the draft was not yet committed, did not see it, and let the file number revisions that the draft had been written before.
+test.skipIf(!native)('A13 the file waits for an AI draft that is being written and then refuses because of it: an undecided draft of a candidate while revisions carry no number',async()=>{
+  needsForward=true;
+  const rollback=await rollbackSql(),forward=await forwardSql();
+  await h.exec(rollback);
+  await fourOldRevisions();
+  let applying!:Promise<Told|null>;
+  try {
+    await h.operator.transaction(async tx=>{
+      // the draft is written and its transaction is open
+      await tx.query(draftSql,[ids.tenant,ids.sales,randomUUID(),hex('c'),'thread-order-draft-13a']);
+      applying=refusal(h.exec(forward)) as Promise<Told|null>;
+      await inFlight(applying);
+    });
+    // the draft commits; the file goes on, sees it, and stops with its own words
+    const e=await applying;
+    expect(e,'the file was expected to stop').not.toBeNull();
+    expect(e!.message).toMatch(/no person has decided/);
+    await nothingOf023();
+    // the draft that was waited for is stored as written
+    expect(await count('intelligence.ai_drafts')).toBe(1);
+  } finally {
+    // the draft is an undecided one, which would stop the file again when the case puts it back (and the next case could not open): the rows go first
+    await h.reset();
+  }
 });

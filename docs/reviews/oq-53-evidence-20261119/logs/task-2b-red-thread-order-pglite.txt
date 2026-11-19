@@ -1,0 +1,53 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order.test.ts (26 tests | 2 failed | 4 skipped) 10476ms
+   × A8 (i) 023 stops above the cap on the revisions that carry no number, with its own words, and creates nothing; revisions that are numbered do not count 472ms
+   × A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser; the check comes after the locks 453ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order.test.ts > A8 (i) 023 stops above the cap on the revisions that carry no number, with its own words, and creates nothing; revisions that are numbered do not count
+AssertionError: expected [Function] to throw error matching /more revisions without a thread numbe…/ but got 'Migration 023 stops: public.source_ev…'
+
+- Expected:
+/more revisions without a thread number than libetech\.thread_order_max_rows/
+
++ Received:
+"Migration 023 stops: public.source_event_revisions holds more rows than libetech.thread_order_max_rows allows for one numbering pass. Ask for a plan in batches; raise the setting for one run only with an approved plan."
+
+ ❯ tests/thread-order.test.ts:340:84
+    338|   await fourOldRevisions();
+    339|   expect(await count('source_event_revisions')).toBe(4);
+    340|   await expect(h.exec("SET LOCAL libetech.thread_order_max_rows = '3';…
+       |                                                                                    ^
+    341|   await h.exec('ROLLBACK');
+    342|   for(const t of TABLES) expect(await regclass('public.'+t),t).toBeNul…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/thread-order.test.ts > A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser; the check comes after the locks
+AssertionError: every part of the order is in the file: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/thread-order.test.ts:387:73
+    385|   const order=['must be applied by a superuser','LOCK TABLE public.sou…
+    386|     'pg_catalog.pg_stat_activity','CREATE TABLE IF NOT EXISTS public.i…
+    387|   expect(order.every(i=>i>-1),'every part of the order is in the file'…
+       |                                                                         ^
+    388|   expect([...order].sort((a,b)=>a-b)).toEqual(order);
+    389|   expect(code.split('LOCK TABLE public.source_event_revisions').length…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 passed | 4 skipped (26)
+   Start at  12:49:15
+   Duration  10.63s (tests 99%, import 1%)
+

@@ -1,0 +1,23 @@
+Task 2b (OQ-53, migration 023, after the tier-1 reviews): the existing suites run again, one file at a time.
+Engine pglite = no SLICE1_* variable (PostgreSQL 18.6 in memory); native = PostgreSQL 16.15 in the isolated container. Lines are the vitest summary of each raw log.
+rls-catalog: pglite Tests 1 passed (1), native Tests 1 passed (1) (task-2b-green-rls-catalog-*.txt).
+== pglite
+intake                      Tests 49 passed (49) | hook-timeouts 0 | failed-lines 0
+intake-schema               Tests 16 passed | 1 skipped (17) | hook-timeouts 0 | failed-lines 0
+intake-scoped               Tests 1 passed (1) | hook-timeouts 0 | failed-lines 0
+intake-concurrency          Tests 2 skipped (2) | hook-timeouts 0 | failed-lines 0
+inbox-service               Tests 26 passed | 1 skipped (27) | hook-timeouts 0 | failed-lines 0
+inbox-http                  Tests 7 passed (7) | hook-timeouts 0 | failed-lines 0
+outbox                      Tests 29 passed (29) | hook-timeouts 0 | failed-lines 0
+outbox-crash                Tests 4 skipped (4) | hook-timeouts 0 | failed-lines 0
+outbox-schema               Tests 46 passed | 2 skipped (48) | hook-timeouts 0 | failed-lines 0
+== native
+intake                      Tests 49 passed (49) | hook-timeouts 0 | failed-lines 0
+intake-schema               Tests 17 passed (17) | hook-timeouts 0 | failed-lines 0
+intake-scoped               Tests 1 passed (1) | hook-timeouts 0 | failed-lines 0
+intake-concurrency          Tests 2 passed (2) | hook-timeouts 0 | failed-lines 0
+inbox-service               Tests 27 passed (27) | hook-timeouts 0 | failed-lines 0
+inbox-http                  Tests 7 passed (7) | hook-timeouts 0 | failed-lines 0
+outbox                      Tests 29 passed (29) | hook-timeouts 0 | failed-lines 0
+outbox-crash                Tests 4 passed (4) | hook-timeouts 0 | failed-lines 0
+outbox-schema               Tests 48 passed (48) | hook-timeouts 0 | failed-lines 0

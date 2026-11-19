@@ -32,19 +32,44 @@
 -- written before the numbering can be confirmed against it. Hence refusal 4 below.
 -- Exception to E-DB-12 (optimistic locking), recorded here as the Database review asked: E-DB-12 không áp: bảng chỉ được ghi bởi
 -- `source_event_revisions_thread_position()`, dưới khoá dòng giữ tới commit, bằng tăng nguyên tử; `last_seq` chính là phiên bản.
+-- Lock window, from step 1 to the commit (reviews R-DB-1, R-DB-7, R-S-3). Right after the check of the superuser the file takes SHARE ROW EXCLUSIVE on
+-- public.source_event_revisions (inserts wait, reads do not) and on intelligence.ai_drafts (no draft is written), in that order, and every check that follows is made
+-- under those two locks: a revision that is being taken in when the file begins is waited for (the wait ends at lock_timeout with 55P03 and nothing changes), and nothing
+-- new commits into either table until this transaction does. What pg_locks shows after step 9 (measured): SHARE ROW EXCLUSIVE on the two tables from step 1; SHARE ROW
+-- EXCLUSIVE on public.projects from step 2 on (the foreign keys of the new tables; an INSERT, UPDATE or DELETE of a project row waits for it, the row locks of the foreign keys
+-- and of 022 do not); ACCESS EXCLUSIVE on public.draft_decisions from step 10 on. A second run asks for the same locks and for no stronger one: the trigger of step 9 is replaced
+-- in place (CREATE OR REPLACE TRIGGER), not dropped and created. Ordering the first version got wrong: it checked the logins at step 1, before the first wait, and asked for the lock of
+-- the revision table at step 8, after steps 2 and 3 had already waited for it; a login that connected during the wait was not seen.
 -- Four refusals, each with a fixed message and nothing created or changed (the whole file is one transaction):
 -- 1. The migration login is not a superuser (P2): the function is owned by it, runs with row_security = off and must not be bound by the FORCE
---    row-level security of the tables it writes; with an owner that is bound, every intake statement would fail.
--- 2. A session of a login that is not a superuser and can act as libetech_ai is connected (P6 (ii)): a pipeline run that is still open may have read a
---    context before the old rows were numbered. pg_stat_activity shows the login, not a role taken with SET ROLE or SET SESSION AUTHORIZATION (measured
+--    row-level security of the tables it writes; with an owner that is bound, every intake statement would fail. Checked before any lock.
+-- 2. A session of a login that is not a superuser and can act as libetech_ai is connected (P6 (ii)), checked under the locks: a pipeline run that is still open may have
+--    read a context before the old rows were numbered. pg_stat_activity shows the login, not a role taken with SET ROLE or SET SESSION AUTHORIZATION (measured
 --    on PostgreSQL 16, measurements 9b and 9c), so this check sees a login that is a member of the AI role and nothing else; and it must leave
---    superusers out, because pg_has_role is true for every role when asked about a superuser (9a). No such login exists today (9e), so the check lets
---    the file through until one does; the branch that refuses has no behaviour case in this PR (condition N14).
--- 3. public.source_event_revisions holds more rows than libetech.thread_order_max_rows (a setting of the session, empty = 500 000; P12): the numbering
---    runs under SHARE ROW EXCLUSIVE on the revision table (inserts wait, reads do not), about 11 microseconds a row (Database review: 0.52 s for 60 000
---    rows, 3.3 s for 300 000). Above the cap: stop, ask for a plan in batches; raise the setting only with an approved plan, for that run only.
--- 4. Some revision carries no number yet and some AI draft of an intake candidate has no decision of a person (P6 (i)): a draft written before the
---    numbering cannot be judged against a number that was not there.
+--    superusers out, because pg_has_role is true for every role when asked about a superuser (9a). No such login exists today (9e), so the check lets the file through
+--    until one does. What it does not see, and the plan states as condition N10: a run that read its context and then disconnected; a login that connects after this
+--    transaction has committed reads the numbered state, which is the one every later revision follows. The branch that refuses is a behaviour case with the name of the
+--    AI role replaced by the name of a role that a login of the test harness is a member of (tests A10, A11); under the true name it has none until a login of that role exists (N14).
+-- 3. public.source_event_revisions holds more revisions without a number than libetech.thread_order_max_rows (a setting of the session, empty = 250 000; P12). Revisions that
+--    already have a number do not count: the second run of this file, which puts the trigger back (W9, L7, N12), is not stopped by the size of the table. The numbering of
+--    step 8 runs under the lock above, about 11 microseconds a revision (Database review of the plan: 0.52 s for 60 000 revisions). The review of the code timed the
+--    actual statement on PostgreSQL 16 under load: 6.65 s for 500 000 revisions in 70 000 threads and 10.16 s for 500 000 threads of one revision each (the worst shape), the
+--    second at the 10 s statement_timeout of the pool; hence 250 000, and N3: time it on a copy of the production data before applying. Above the cap: stop, ask for a plan
+--    in batches; raise the setting only with an approved plan, for that run only.
+-- 4. Some revision carries no number yet and some AI draft of an intake candidate has no decision of a person (P6 (i)), checked under the same locks: a draft written
+--    before the numbering cannot be judged against a number that was not there.
+-- Also to know (reviews R-DB-10, R-S-6, R-S-7):
+-- a. The old revisions are numbered per thread in the order of created_at, revision_no, id: not the order of commit, and it can give revision 2 of a message a smaller number
+--    than revision 1. Nothing in the service reads the order of two numbers of old rows (it uses the largest number of a thread and the revision numbers of a message);
+--    that is safe because of refusal 4.
+-- b. Each rollback followed by a new application leaves one dropped column in public.draft_decisions (its privileges are gone: the rollback revokes them first).
+-- c. LTZ03 has one fixed sentence for every cause. The CONTEXT line that PostgreSQL adds (function name and line of the RAISE) differs by cause and reaches only a caller that
+--    reads raw errors; the HTTP layer does not pass database text on.
+-- d. libetech_runtime holds SELECT on the two new tables, as on every table it reads, so it can keep LOCK TABLE ... IN ACCESS SHARE MODE in an open transaction: that blocks
+--    the next ALTER or DROP of them (the rollback file, a later migration) until its lock_timeout, and nothing else. Look at pg_locks before applying or rolling back;
+--    idle_in_transaction_session_timeout of the web login (condition N1) bounds it.
+-- e. The two definer functions are owned by the migration login, a superuser, as in 022. That is safe because every name in them is schema-qualified and search_path is
+--    pinned; a later edit that drops one prefix would run code with the rights of a superuser.
 -- Apply as the migration login (a superuser), like 019-022. Nothing here switches anything on: no login, no password, no key, no membership, no grant
 -- beyond SELECT of the runtime role on the two new tables and INSERT of the runtime role on the new column, no model. No data rows except the numbers of the
 -- revisions that exist and schema_migrations.
@@ -53,11 +78,15 @@
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 
--- Step 1: refusals 1 and 2.
+-- Step 1: refusal 1, before any lock; then the two locks that open the lock window; then refusal 2, under them.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles r WHERE r.rolname = current_user AND r.rolsuper) THEN
     RAISE EXCEPTION 'Migration 023 must be applied by a superuser: its trigger function is owned by the migration login, which row-level security must not bind.';
   END IF;
+END $$;
+LOCK TABLE public.source_event_revisions IN SHARE ROW EXCLUSIVE MODE;
+LOCK TABLE intelligence.ai_drafts IN SHARE ROW EXCLUSIVE MODE;
+DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_catalog.pg_stat_activity a JOIN pg_catalog.pg_roles r ON r.oid = a.usesysid
               WHERE a.pid <> pg_catalog.pg_backend_pid() AND a.datname = pg_catalog.current_database() AND NOT r.rolsuper
                 AND pg_catalog.pg_has_role(r.oid, 'libetech_ai', 'MEMBER')) THEN
@@ -149,14 +178,14 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.source_event_revisions_thread_position() FROM PUBLIC;
 
--- Step 8: number the revisions that exist. The lock keeps an intake out of the revision table from here to commit (SHARE ROW EXCLUSIVE: inserts wait, reads
--- do not); the trigger of step 9 is created under it, so an insert that waited is numbered by the trigger after this transaction commits.
-LOCK TABLE public.source_event_revisions IN SHARE ROW EXCLUSIVE MODE;
+-- Step 8: number the revisions that exist. The lock of step 1 keeps an intake out of the revision table up to the commit (SHARE ROW EXCLUSIVE: inserts wait, reads do not);
+-- the trigger of step 9 is created under it, so an insert that waited is numbered by the trigger after this transaction commits. The cap counts the revisions that have no
+-- number: those are the ones the numbering below writes a row for.
 DO $$ DECLARE cap bigint; total bigint; BEGIN
-  cap := coalesce(nullif(pg_catalog.current_setting('libetech.thread_order_max_rows', true), ''), '500000')::bigint;
-  SELECT count(*) INTO total FROM public.source_event_revisions;
+  cap := coalesce(nullif(pg_catalog.current_setting('libetech.thread_order_max_rows', true), ''), '250000')::bigint;
+  SELECT count(*) INTO total FROM public.source_event_revisions r WHERE NOT EXISTS (SELECT 1 FROM public.source_revision_positions p WHERE p.revision_id = r.id);
   IF total > cap THEN
-    RAISE EXCEPTION 'Migration 023 stops: public.source_event_revisions holds more rows than libetech.thread_order_max_rows allows for one numbering pass. Ask for a plan in batches; raise the setting for one run only with an approved plan.';
+    RAISE EXCEPTION 'Migration 023 stops: public.source_event_revisions holds more revisions without a thread number than libetech.thread_order_max_rows allows for one numbering pass. Ask for a plan in batches; raise the setting for one run only with an approved plan.';
   END IF;
   IF EXISTS (SELECT 1 FROM public.source_event_revisions r WHERE NOT EXISTS (SELECT 1 FROM public.source_revision_positions p WHERE p.revision_id = r.id))
      AND EXISTS (SELECT 1 FROM intelligence.ai_drafts d WHERE d.entity_type = 'intake_candidate'
@@ -165,7 +194,7 @@ DO $$ DECLARE cap bigint; total bigint; BEGIN
   END IF;
 END $$;
 -- Only revisions without a number are numbered: a second run finds none. A thread whose counter row exists (a revision stored while the trigger was off) goes on
--- from it. One statement, one snapshot; the counter rows are raised to the highest number written and never lowered.
+-- from it. One statement, one snapshot; the counter row of a thread is raised to the highest number written (always above its old value: the numbers written start after it).
 WITH numbered AS (
   SELECT r.tenant_id, r.project_id, r.source_event_id, r.id AS revision_id, e.chat_id, e.thread_key,
          row_number() OVER (PARTITION BY r.tenant_id, r.project_id, e.chat_id, e.thread_key ORDER BY r.created_at, r.revision_no, r.id) AS rn
@@ -183,14 +212,16 @@ WITH numbered AS (
 INSERT INTO public.intake_thread_heads AS h(tenant_id, project_id, chat_id, thread_key, last_seq)
 SELECT w.tenant_id, w.project_id, w.chat_id, w.thread_key, max(w.thread_seq) FROM written w GROUP BY w.tenant_id, w.project_id, w.chat_id, w.thread_key
 ON CONFLICT (tenant_id, project_id, chat_id, thread_key)
-  DO UPDATE SET last_seq = EXCLUDED.last_seq, updated_at = pg_catalog.clock_timestamp() WHERE h.last_seq < EXCLUDED.last_seq;
+  DO UPDATE SET last_seq = EXCLUDED.last_seq, updated_at = pg_catalog.clock_timestamp();
 
--- Step 9: from here every stored revision is numbered by the database.
-DROP TRIGGER IF EXISTS source_event_revisions_thread_position ON public.source_event_revisions;
-CREATE TRIGGER source_event_revisions_thread_position AFTER INSERT ON public.source_event_revisions
+-- Step 9: from here every stored revision is numbered by the database. Replaced in place (a drop would take ACCESS EXCLUSIVE on the revision table; the replacement takes
+-- SHARE ROW EXCLUSIVE, which this transaction already holds), and replaced enabled: a second run turns a trigger that was switched off back on (A7b).
+CREATE OR REPLACE TRIGGER source_event_revisions_thread_position AFTER INSERT ON public.source_event_revisions
   FOR EACH ROW EXECUTE FUNCTION public.source_event_revisions_thread_position();
+-- Statistics for the new tables, which have none until autovacuum runs: before the step that holds ACCESS EXCLUSIVE on the decision table, not under it.
+ANALYZE public.source_revision_positions, public.intake_thread_heads;
 
--- Step 10: the position a confirmation carries. Last in the file but for the statistics: this statement holds ACCESS EXCLUSIVE on public.draft_decisions to the end of
+-- Step 10: the position a confirmation carries. Last in the file but for the record of the migration: this statement holds ACCESS EXCLUSIVE on public.draft_decisions to the end of
 -- the transaction (it blocks reads there too, 507 ms measured by the Database review), so nothing that can wait is done before it. No default: no table rewrite.
 ALTER TABLE public.draft_decisions ADD COLUMN IF NOT EXISTS subject_thread_seq bigint;
 COMMENT ON COLUMN public.draft_decisions.subject_thread_seq IS
@@ -250,7 +281,6 @@ DROP TRIGGER IF EXISTS draft_decisions_subject_order_guard ON public.draft_decis
 CREATE TRIGGER draft_decisions_subject_order_guard AFTER INSERT ON public.draft_decisions
   FOR EACH ROW EXECUTE FUNCTION public.draft_decisions_subject_order_guard();
 
--- Step 12: statistics for the new tables, which have none until autovacuum runs.
-ANALYZE public.source_revision_positions, public.intake_thread_heads;
+-- Step 12: the record of the migration.
 INSERT INTO schema_migrations(version) VALUES('023') ON CONFLICT(version) DO NOTHING;
 COMMIT;

@@ -561,6 +561,11 @@ test('rollback 023 refuses while a later migration is recorded or a decision car
   const forward=await readFile(dir('migrations/023_thread_order.sql'),'utf8');
   const rollback=await readFile(dir('migrations/rollback/023_thread_order.sql'),'utf8');
   expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+ROLE|DROP\s+SCHEMA/i);
+  // the file takes the decision table before it looks for a position (review R-S-1): a confirmation in flight is waited for, not missed. The case with two connections is N18.
+  const rollbackCode=rollback.replace(/--.*$/gm,'').replace(/\s+/g,' ');
+  const lock='LOCK TABLE public.draft_decisions IN ACCESS EXCLUSIVE MODE';
+  expect(rollbackCode).toContain(lock);
+  expect(rollbackCode.indexOf(lock)).toBeLessThan(rollbackCode.indexOf('subject_thread_seq IS NOT NULL'));
   const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
   const OWN="('source_event_revisions_thread_position','intake_thread_heads_no_delete','source_revision_positions_immutable','draft_decisions_subject_order_guard')";
   // 023 leaves two tables (with their own immutability triggers), two functions and two triggers (one on the revision table, one on the decision table),

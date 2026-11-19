@@ -1,5 +1,7 @@
 import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import path from 'node:path';
 import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
 import {pm,seedSlice1} from './slice1-fixtures';
 import {scoped,type Queryable} from '../src/server/db';
@@ -7,10 +9,11 @@ import {ids} from '../src/server/identities';
 import {IntakeService,type IntakeAck} from '../src/server/intake';
 import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent} from './slice2-fixtures';
 
-// Migration 023, the intake half (N1-N6, N16): the numbers of one thread follow the order of commit. The confirming half (N7-N11, N17): a confirmation of a candidate draft
-// carries the position it read, and the database compares it with the counter row of the thread under a lock. Every case here needs two connections, so it runs on native PostgreSQL only
-// (PGlite has one connection and shows no lock wait). The order of each case is set by the case itself: a raw transaction holds the counter row of a thread
-// until the case lets it go; nothing is timed except the caps that the migration sets (5 seconds) and the answers that must not wait.
+// Migration 023, the intake half (N1-N6, N16): the numbers of one thread follow the order of commit. The confirming half (N7-N11, N17, N19, N20): a confirmation of a candidate draft
+// carries the position it read, and the database compares it with the counter row of the thread under a lock. The rollback file (N18) waits for a confirmation in flight. Every case here
+// needs two connections, so it runs on native PostgreSQL only (PGlite has one connection and shows no lock wait). The order of each case is set by the case itself: a raw transaction
+// holds the counter row of a thread until the case lets it go. Nothing is read from a clock: a statement that waits is shown by `inFlight` (it has not settled while a session is blocked),
+// a statement that must not wait by its answer (the code of the error, 42501 or P0001, is not 55P03) and by the absence of any blocked session.
 const hex=(c:string)=>c.repeat(64);
 // a promise that is settled from outside: the way a case holds a transaction open on one connection while another connection acts
 const latch=()=>{let open!:()=>void;const promise=new Promise<void>(r=>{open=r;});return {promise,open};};
@@ -95,7 +98,7 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
     const reply=messageEvent({context:{replyToMessageId:e.context.messageId}});
     const tables=['source_events','source_event_revisions','intake_attachments','intake_candidates','intake_events','intake_thread_heads','source_revision_positions'];
     const before=Object.fromEntries(await Promise.all(tables.map(async t=>[t,await count(t)])));
-    let err:unknown=null,elapsed=0,sessionTimeout:{before:string;after:string}|null=null;
+    let err:unknown=null,sessionTimeout:{before:string;after:string}|null=null;
     await h.operator.transaction(async tx=>{
       await writeIn(tx,chatSales,thread,'9103');
       // the session setting of a connection that waited and failed is what it was: the function sets its own cap and puts the session value back
@@ -105,22 +108,17 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
         await other.query('SAVEPOINT s');
         await other.query(`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
           VALUES($1,$2,'gw-9104','telegram_gateway',80,$3,'9104',$4,'actor-1',now(),false,false,$5,$5)`,[ids.tenant,ids.sales,chatSales,thread,randomUUID()]);
-        const t0=Date.now();
         let sawCode:string|undefined;
+        // the holder has not committed (this callback runs inside its transaction): the only way out of the wait is the cap of the function, 55P03, not a refusal at once
         try {await other.query(`INSERT INTO source_event_revisions(${COLS}) SELECT $1,$2,id,1,$3,$4,'pointer_only' FROM source_events WHERE message_id='9104'`,[ids.tenant,ids.sales,hex('5'),hex('b')]);}
         catch(x){sawCode=(x as {code?:string}).code;}
         expect(sawCode).toBe('55P03');
-        expect(Date.now()-t0).toBeGreaterThanOrEqual(4000);
         await other.query('ROLLBACK TO SAVEPOINT s');
         sessionTimeout={before:was,after:await read()};
       });
-      const t0=Date.now();
       err=await svc().ingest(reply).then(()=>null,x=>x);
-      elapsed=Date.now()-t0;
     });
     expect((err as {code?:string}|null)?.code).toBe('55P03');
-    expect(elapsed).toBeGreaterThanOrEqual(4000);
-    expect(elapsed).toBeLessThan(9000);
     expect(sessionTimeout).not.toBeNull();
     expect(sessionTimeout!.after).toBe(sessionTimeout!.before);
     // the failed intake stored nothing, in any of the seven tables; the holder stored one event, one revision and one number
@@ -147,26 +145,30 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
       ['two rows, VALUES',`${REV} VALUES($1,$2,$3,2,$4,$5,'pointer_only'),($1,$6,$7,2,$8,$5,'pointer_only')`,[ids.tenant,ids.sales,sales,hex('7'),hex('8'),ids.transport,transport,hex('6')]],
       ['two rows, INSERT … SELECT',`${REV} SELECT $1::uuid,v.p,v.e,2,v.k,$2::text,'pointer_only' FROM (VALUES($3::uuid,$4::uuid,$5::text),($6::uuid,$7::uuid,$8::text)) v(p,e,k)`,[ids.tenant,hex('8'),ids.sales,sales,hex('7'),ids.transport,transport,hex('6')]],
     ];
-    const answers:{name:string;message:string;ms:number}[]=[];
+    const answers:{name:string;message:string;code?:string}[]=[];
     const positionsBefore=await count('source_revision_positions');
-    // the thread of the other project and the thread in scope are both held by writers that have not committed
+    let waiting=-1;
+    // the thread of the other project and the thread in scope are both held by writers that have not committed (these callbacks run inside their transactions)
     await h.operator.transaction(async holderA=>{
       await writeIn(holderA,chatTransport,theirThread,'9111',ids.transport);
       await h.operator.transaction(async holderB=>{
         await writeIn(holderB,chatSales,mine.thread,'9112');
         for(const [name,sql,params] of forms){
           await asIntake([ids.sales],async tx=>{
-            const t0=Date.now();
-            const e=await tx.query(sql,params).then(()=>null,x=>x as Error);
-            answers.push({name,message:e?.message??'stored',ms:Date.now()-t0});
+            const e=await tx.query(sql,params).then(()=>null,x=>x as Error&{code?:string});
+            answers.push({name,message:e?.message??'stored',code:e?.code});
           });
         }
+        // nobody waited for a lock while the answers were given
+        waiting=(await q<{n:number}>("SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'"))[0].n;
       });
     });
+    // answered by row-level security, not by the cap of a wait (55P03) that would have ended a wait for a thread this role may not write
     for(const a of answers){
       expect(a.message,a.name).toMatch(/row-level security/);
-      expect(a.ms,a.name).toBeLessThan(100);
+      expect(a.code,a.name).toBe('42501');
     }
+    expect(waiting).toBe(0);
     expect(answers).toHaveLength(3);
     // the two holders each stored one number; the refused statements stored none
     expect(await count('source_revision_positions')).toBe(positionsBefore+2);
@@ -335,8 +337,9 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
     const theirThread='m:'+theirs.context.messageId;
     const draftMine=await draftOf(await candidateOf(mine.thread)),draftTheirs=await draftOf(await candidateOf(theirThread,chatTransport),ids.transport);
     const minePos=await head(mine.thread),theirPos=await head(theirThread);
-    const answers:{name:string;code:string|undefined;ms:number}[]=[];
-    // both threads are held by writers that have not committed
+    const answers:{name:string;code:string|undefined}[]=[];
+    let waiting=-1;
+    // both threads are held by writers that have not committed (these callbacks run inside their transactions)
     await h.operator.transaction(async holderA=>{
       await writeIn(holderA,chatTransport,theirThread,'9211',ids.transport);
       await h.operator.transaction(async holderB=>{
@@ -347,14 +350,16 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
           ['a draft in scope, decided_by another person',draftMine,{decided_by:randomUUID(),subject_thread_seq:minePos}],
         ];
         for(const [name,draft,over] of forms){
-          const t0=Date.now();
           const x=await settle(asRuntime([ids.sales],tx=>insertDecision(tx,draft,over)));
-          answers.push({name,code:codeOf(x),ms:Date.now()-t0});
+          answers.push({name,code:codeOf(x)});
         }
+        // nobody waited for a lock while the answers were given
+        waiting=(await q<{n:number}>("SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'"))[0].n;
       });
     });
+    // answered by the guards that run before the lock (P0001) or by row-level security (42501), never by the cap of a wait (55P03)
     expect(answers.map(a=>a.code)).toEqual(['P0001','P0001','42501']);
-    for(const a of answers) expect(a.ms,a.name).toBeLessThan(100);
+    expect(waiting).toBe(0);
     expect(await count('draft_decisions')).toBe(0);
     // the two holders each stored one number; the refused rows stored none and moved no counter
     expect(await head(mine.thread)).toBe(minePos+1);expect(await head(theirThread)).toBe(theirPos+1);
@@ -414,4 +419,125 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
     expect((await numbers(thread)).map(r=>r.seq)).toEqual([1,2]);
     expect(await head(thread)).toBe(read+1);
   },20000);
+
+  // ---- After the tier-1 reviews (task 2b) ----
+  const HEAD_LOCK=(project:string)=>`SELECT 1 FROM intake_thread_heads WHERE project_id='${project}' AND chat_id=$1 AND thread_key=$2 FOR NO KEY UPDATE NOWAIT`;
+  /** The code a second connection gets when it asks for the counter row of (project, chat, thread) without waiting: 55P03 when somebody holds it, undefined when it is free. */
+  const lockCodeOfHead=async(project:string,chat:string,thread:string)=>{
+    let code:string|undefined;
+    await h.operator.transaction(async other=>{
+      await other.query('SAVEPOINT s');
+      try {await other.query(HEAD_LOCK(project),[chat,thread]);} catch(x){code=(x as {code?:string}).code;}
+      await other.query('ROLLBACK TO SAVEPOINT s');
+    });
+    return code;
+  };
+  const rollbackSql=()=>readFile(path.join(process.cwd(),'migrations/rollback/023_thread_order.sql'),'utf8');
+
+  test('N18 the rollback waits for a confirmation in flight and then refuses: the position that was written is not lost',async()=>{
+    const {thread}=await root();
+    const draft=await draftOf(await candidateOf(thread));
+    const read=await head(thread);
+    const rollback=await rollbackSql();
+    const held=latch(),opened=latch();
+    // the confirmation has written its row, with its position, and has not committed
+    const holder=settle(asRuntime([ids.sales],async tx=>{await insertDecision(tx,draft,{subject_thread_seq:read});opened.open();await held.promise;}));
+    let rolling!:Promise<unknown>;
+    try {
+      expect(await Promise.race([opened.promise.then(()=>null),holder]),'the confirmation was stored').toBeNull();
+      // the file takes the table before it looks for a position: it waits for the confirmation, as any ALTER of that table would
+      rolling=settle(h.exec(rollback));
+      await inFlight(rolling);
+    } finally {
+      held.open();
+    }
+    expect(codeOf(await holder)).toBeUndefined();
+    const refused=await rolling as Error|undefined;
+    expect(refused,'the rollback was expected to refuse').toBeInstanceOf(Error);
+    expect(refused!.message).toMatch(/carries the position of its thread/);
+    // nothing was dropped: the column, the trigger, the record of 023, and the position of the decision that committed meanwhile
+    expect(await q("SELECT 1 FROM pg_attribute WHERE attrelid='public.draft_decisions'::regclass AND attname='subject_thread_seq' AND NOT attisdropped")).toHaveLength(1);
+    expect(await q("SELECT 1 FROM pg_trigger WHERE tgname='draft_decisions_subject_order_guard' AND NOT tgisinternal")).toHaveLength(1);
+    expect(await q("SELECT 1 FROM schema_migrations WHERE version='023'")).toHaveLength(1);
+    expect(await storedPosition(draft)).toBe(read);
+  });
+
+  // Two confirmations of one thread belong to one project, and the guard of 022 makes them take turns on the row of the project before either reaches the counter row. So the strength of
+  // the lock on the counter row (FOR NO KEY UPDATE, which a second confirmation conflicts with; FOR SHARE, which it does not) shows only when that guard is out of the way: the trigger
+  // of 023 must not depend on the guard of another migration (plan, section 3, the row on FOR SHARE; review R-DB-6).
+  const turns=async(guardOff:boolean)=>{
+    const guard='draft_decisions_pointer_only_guard';
+    if(guardOff) await h.exec(`ALTER TABLE draft_decisions DISABLE TRIGGER ${guard}`);
+    try {
+      const {e,thread}=await root();
+      const candidate=await candidateOf(thread);
+      const first=await draftOf(candidate),second=await draftOf(candidate);
+      const read=await head(thread);
+      const held=latch(),opened=latch();
+      const holder=settle(asRuntime([ids.sales],async tx=>{await insertDecision(tx,first,{subject_thread_seq:read});opened.open();await held.promise;}));
+      let intake!:Promise<unknown>,other!:Promise<unknown>;
+      try {
+        expect(await Promise.race([opened.promise.then(()=>null),holder]),'the confirmation was stored').toBeNull();
+        intake=settle(svc().ingest(messageEvent({context:{replyToMessageId:e.context.messageId}})));
+        await inFlight(intake);
+        // a second confirmation of the same thread, with the position that is still the current one, does not go past the first: a lock that confirmations share would let it
+        // through (and would starve the intake that is already waiting)
+        other=settle(asRuntime([ids.sales],t=>insertDecision(t,second,{subject_thread_seq:read})));
+        await inFlight(other,2);
+        expect(await count('draft_decisions')).toBe(0);
+      } finally {
+        held.open();
+      }
+      expect(codeOf(await holder)).toBeUndefined();
+      expect((await intake as IntakeAck).replayed).toBe(false);
+      // The intake was there first. If it takes its number before the second confirmation asks for the counter row, that confirmation reads a thread that has moved on and is refused;
+      // if the confirmation gets there first, it is stored with a position that was current when it locked the row, and the intake waits for it. Either way no stored decision is stale.
+      const refused=codeOf(await other)==='LTZ03';
+      expect(await count('draft_decisions')).toBe(refused?1:2);
+      expect(await storedPosition(first)).toBe(read);
+      if(!refused) expect(await storedPosition(second)).toBe(read);
+      expect(await head(thread)).toBe(read+1);
+      expect((await numbers(thread)).map(r=>r.seq)).toEqual([1,2]);
+      return refused;
+    } finally {
+      if(guardOff) await h.exec(`ALTER TABLE draft_decisions ENABLE TRIGGER ${guard}`);
+    }
+  };
+
+  test('N19 two confirmations of one thread take turns: while one holds the counter row the other waits, and so does an intake',async()=>{
+    await turns(false);
+  });
+
+  test('N19b the same with the guard of 022 switched off, so that the lock on the project row does not do the work: the counter row alone makes them take turns',async()=>{
+    // the guard is put back in a finally block; the second confirmation is refused (the intake queued first)
+    expect(await turns(true),'the second confirmation was expected to wait for the intake and be refused').toBe(true);
+    expect(await q("SELECT tgenabled FROM pg_trigger WHERE tgname='draft_decisions_pointer_only_guard' AND NOT tgisinternal")).toEqual([{tgenabled:'O'}]);
+  });
+
+  test('N20 the guard of a project locks the counter row of its own thread and none of another project that has the same chat and thread key',async()=>{
+    const key='m:9801';
+    // the same chat and thread key in both projects, each with its own counter row: the sales project holds one revision, the transport project three
+    const rootOf=async(project:string,message:string)=>h.operator.transaction(tx=>writeIn(tx,chatSales,key,message,project));
+    const salesRoot=await rootOf(ids.sales,'9801');
+    const transportRoot=await rootOf(ids.transport,'9802');
+    await rootOf(ids.transport,'9803');await rootOf(ids.transport,'9804');
+    const candidateIn=async(project:string,rootEvent:string)=>(await q<{id:string}>(
+      'INSERT INTO intake_candidates(tenant_id,project_id,chat_id,thread_key,root_source_event_id) VALUES($1,$2,$3,$4,$5) RETURNING id',[ids.tenant,project,chatSales,key,rootEvent]))[0].id;
+    const sales={project:ids.sales,seq:1,draft:await draftOf(await candidateIn(ids.sales,salesRoot))};
+    const transport={project:ids.transport,seq:3,draft:await draftOf(await candidateIn(ids.transport,transportRoot),ids.transport)};
+    const heads=await q<{project_id:string;last_seq:number}>('SELECT project_id,last_seq::int last_seq FROM intake_thread_heads WHERE thread_key=$1 ORDER BY 1',[key]);
+    expect(heads.map(r=>r.last_seq).sort()).toEqual([1,3]);
+    for(const [mine,theirs] of [[sales,transport],[transport,sales]] as const){
+      let own:string|undefined,foreign:string|undefined;
+      await asRuntime([mine.project],async tx=>{
+        // the guard has run in this open transaction, with the right position
+        await insertDecision(tx,mine.draft,{project_id:mine.project,subject_thread_seq:mine.seq});
+        own=await lockCodeOfHead(mine.project,chatSales,key);
+        foreign=await lockCodeOfHead(theirs.project,chatSales,key);
+      });
+      expect(own,'the counter row of its own thread is held').toBe('55P03');
+      expect(foreign,'the counter row of the other project is free').toBeUndefined();
+    }
+    expect(await count('draft_decisions')).toBe(2);
+  });
 });
