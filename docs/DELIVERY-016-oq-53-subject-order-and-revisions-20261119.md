@@ -1,8 +1,8 @@
 # OQ-53: mốc của nháp ứng viên theo số bản của tin và số thứ tự theo luồng; ngữ cảnh `release_librarian` (OQ-57) · 19/11/2026
 
-PR riêng vào `libetech-ai-os` (không vào `main`), làm ba điểm Chairman đã quyết ngày 19/11/2026 cho OQ-53 và sửa ngữ cảnh `release_librarian` (OQ-57), rồi gỡ hai giữ chỗ fail-closed của PR #22. Nhánh `feat/oq-53-subject-verification`, gốc `80c1ad8` (đầu `libetech-ai-os` sau PR #22). Kế hoạch: `docs/plans/oq-53-subject-verification.md` bản 0.3. Review và bằng chứng: `docs/reviews/oq-53-evidence-20261119/`. PR: «CHỜ: số PR».
+PR riêng vào `libetech-ai-os` (không vào `main`), làm ba điểm Chairman đã quyết ngày 19/11/2026 cho OQ-53 và sửa ngữ cảnh `release_librarian` (OQ-57), rồi gỡ hai giữ chỗ fail-closed của PR #22. Nhánh `feat/oq-53-subject-verification`, gốc `80c1ad8` (đầu `libetech-ai-os` sau PR #22). Kế hoạch: `docs/plans/oq-53-subject-verification.md` bản 0.3. Review và bằng chứng: `docs/reviews/oq-53-evidence-20261119/`. PR: [liberico-ai/ai-together#24](https://github.com/liberico-ai/ai-together/pull/24), vào `libetech-ai-os`, mở ngày 19/11/2026; chưa merge.
 
-Mã đã đo ở `affe28a` (đầu của lượt kiểm toàn bộ thứ hai, sau hai vòng sửa của cổng Codex và đợt quét theo lớp); lượt đầu ở `4df2db3` ghi để đối chiếu; commit sau `affe28a` chỉ thêm hồ sơ. Chỗ nào còn chờ một lượt chạy, một cổng hay một số PR thì mang nhãn «CHỜ: …» do phiên chính điền; biên nhận không ước con số nào.
+Mã đã đo ở `affe28a` (đầu của lượt kiểm toàn bộ thứ hai, sau hai vòng sửa của cổng Codex và đợt quét theo lớp); lượt đầu ở `4df2db3` ghi để đối chiếu; commit sau `affe28a` chỉ thêm hồ sơ. Mọi ô chờ đã được điền (số PR, kết quả cổng Codex và reality-check); biên nhận không ước con số nào.
 
 **Z4 chưa bật và không được bật bởi PR này.** Không tuyến HTTP nào đọc hay xác nhận nháp (ca «no route imports the suggestion service, and nothing in src builds it with an AI handle» không bị sửa, thân ca giống từng byte với `80c1ad8`); không login hay khoá cho role `libetech_ai`; không mô hình nào được gọi; migration 023 chưa áp ở đâu ngoài các CSDL thử của phiên (đã xoá hoặc chỉ nghe loopback). Dữ liệu thử là dữ liệu tổng hợp.
 
