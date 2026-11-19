@@ -1,0 +1,12 @@
+# pglite, tests/migrations-rollback.test.ts, exit=0
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  10 passed (10)
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  15:25:23
+   Duration  5.10s (tests 99%, import 1%)
+

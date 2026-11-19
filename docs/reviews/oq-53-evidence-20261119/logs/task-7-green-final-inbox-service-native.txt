@@ -1,0 +1,12 @@
+# native, tests/inbox-service.test.ts, exit=0
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  27 passed (27)
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  27 passed (27)
+   Start at  15:25:14
+   Duration  8.70s (tests 99%, import 1%)
+

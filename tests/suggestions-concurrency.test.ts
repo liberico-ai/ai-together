@@ -18,7 +18,7 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
   test('two confirmations of one draft in parallel leave one decision and one revision',async()=>{
     const svc=new SuggestionService(h.db,h.operator,[]);
     const d=await proposeRev(h,pm,await registerDoc(h,pm));
-    // the latest revision is named because of the OQ-53 (2) placeholder; revisit when OQ-53 is decided
+    // a draft that names no revision of its own document has no baseline (OQ-53 point 2 (a), decided): the latest revision is named
     const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id},{id:d.record.latest_revision_id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
     const {draftId}=await svc.submitDraft({id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales]},{skill:'technical_writer',projectId:ids.sales,entityType:'document',entityId:d.record.id,output,
       inputHash:'c'.repeat(64),modelVersion:'synthetic-model',dedupeKey:'dk-'+randomUUID(),traceId:randomUUID()});
@@ -45,7 +45,7 @@ describe.skipIf(!native)('draft decision concurrency (native PostgreSQL)',()=>{
   async function setup(){
     const svc=new SuggestionService(h.db,h.operator,[]);
     const d=await proposeRev(h,pm,await registerDoc(h,pm));
-    // the latest revision is named because of the OQ-53 (2) placeholder; revisit when OQ-53 is decided
+    // a draft that names no revision of its own document has no baseline (OQ-53 point 2 (a), decided): the latest revision is named
     const output={skill:'technical_writer',manifestHash:skillManifests.technical_writer.hash,sources:[{id:d.record.id},{id:d.record.latest_revision_id}],claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],result:{sections:[],terms:[]}};
     const {draftId}=await svc.submitDraft({id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales]},{skill:'technical_writer',projectId:ids.sales,entityType:'document',entityId:d.record.id,output,
       inputHash:'c'.repeat(64),modelVersion:'synthetic-model',dedupeKey:'dk-'+randomUUID(),traceId:randomUUID()});

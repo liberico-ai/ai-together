@@ -1,19 +1,24 @@
 import {afterEach,beforeEach,describe,expect,test} from 'vitest';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
 import {pm,seedSlice1} from './slice1-fixtures';
-import {scoped,type Queryable} from '../src/server/db';
+import {scoped,type Database,type Queryable} from '../src/server/db';
+import {AppError} from '../src/server/errors';
 import {ids} from '../src/server/identities';
 import {IntakeService,type IntakeAck} from '../src/server/intake';
+import {canonicalJson,skillManifests} from '../src/server/skills';
+import {SuggestionService} from '../src/server/suggestions';
 import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent} from './slice2-fixtures';
+import {aiPrincipal,seedMembers} from './slice3-fixtures';
 
 // Migration 023, the intake half (N1-N6, N16): the numbers of one thread follow the order of commit. The confirming half (N7-N11, N17, N19, N20): a confirmation of a candidate draft
 // carries the position it read, and the database compares it with the counter row of the thread under a lock. The rollback file (N18) waits for a confirmation in flight. Every case here
 // needs two connections, so it runs on native PostgreSQL only (PGlite has one connection and shows no lock wait). The order of each case is set by the case itself: a raw transaction
 // holds the counter row of a thread until the case lets it go. Nothing is read from a clock: a statement that waits is shown by `inFlight` (it has not settled while a session is blocked),
 // a statement that must not wait by its answer (the code of the error, 42501 or P0001, is not 55P03) and by the absence of any blocked session.
+// N12-N15 go through the services (IntakeService, SuggestionService) instead of raw statements.
 const hex=(c:string)=>c.repeat(64);
 // a promise that is settled from outside: the way a case holds a transaction open on one connection while another connection acts
 const latch=()=>{let open!:()=>void;const promise=new Promise<void>(r=>{open=r;});return {promise,open};};
@@ -546,6 +551,159 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
     }
     expect(await count('draft_decisions')).toBe(2);
   });
+
+  // ---- The services: a confirmation of a candidate draft through SuggestionService.decide, an intake through IntakeService.ingest (N12-N15) ----
+  const hold=(...codes:string[])=>(x:unknown)=>{
+    const e=x as {code?:string;status?:number;message?:string};
+    expect(e,'expected a hold').toMatchObject({code:'DRAFT_HELD',status:422});
+    // the hold names codes only: no id, no number, no word of the database
+    expect(e.message!).not.toMatch(/LTZ03|thread|[0-9a-f]{8}-/);
+    expect(e.message!.slice(e.message!.indexOf(': ')+2).replace(/\.$/,'').split(', ')).toEqual([...codes].sort());
+  };
+  const sug=(db:Database=h.db)=>new SuggestionService(db,h.operator,[chatSales,chatTransport]);
+  const ai={id:aiPrincipal.id,tenantId:ids.tenant,projectIds:[ids.sales,ids.transport]};
+  /** An intake that stores the text of the group (the draft can then name the message and the confirmation shows it). */
+  const textIntake=(db:Database=h.operator)=>new IntakeService(db,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:[chatSales,chatTransport]});
+  const sha=(v:unknown)=>createHash('sha256').update(canonicalJson(v)).digest('hex');
+  type Pair={id:string;revisionNo:number};
+  /** A draft of the intake analyst about the candidate that names these messages and states the revision of each. */
+  const draftNaming=async(candidate:string,pairs:Pair[]):Promise<{draftId:string;valueHash:string}>=>{
+    const output={skill:'intake_analyst',manifestHash:skillManifests.intake_analyst.hash,sources:pairs.map(x=>({id:x.id})),claims:[],questions:[],conflicts:[],confidence:70,toolRequests:[],
+      result:{classification:'incident',duplicateOf:null,missingFields:[]},messageRevisions:pairs};
+    const r=await sug().submitDraft(ai,{skill:'intake_analyst',projectId:ids.sales,entityType:'intake_candidate',entityId:candidate,output,inputHash:hex('c'),modelVersion:'synthetic-model',
+      dedupeKey:'dk-'+randomUUID(),traceId:randomUUID()});
+    return {draftId:r.draftId,valueHash:sha(output)};
+  };
+  const confirm=(draft:{draftId:string;valueHash:string},key:string,service:SuggestionService=sug())=>service.decide(pm,draft.draftId,{result:'confirmed',valueHash:draft.valueHash},key,randomUUID());
+  const keyOf=(label:string)=>`thread-order-${label}-${randomUUID()}`;
+  /** A message with its first revision stored as text, and the candidate of its thread. */
+  const textRoot=async()=>{
+    const e=messageEvent({});
+    const ack=await textIntake().ingest(e);
+    const thread='m:'+e.context.messageId;
+    return {e,ack,thread,candidate:await candidateOf(thread),pair:{id:ack.sourceEventId,revisionNo:1}};
+  };
+
+  test('N12 the reverse-commit gap is closed: a message whose intake transaction began before the draft\'s message and committed after the context was read holds the draft',async()=>{
+    await seedMembers(h);
+    const a=messageEvent({context:{mediaGroupId:'albumN12'}}),b=messageEvent({context:{mediaGroupId:'albumN12'}});
+    const begun=latch(),gate=latch();
+    // the intake of M_A begins first: its transaction takes its start time, and it stops right there
+    const early:Database={...h.operator,transaction:fn=>h.operator.transaction(async tx=>{await tx.query('SELECT now()');begun.open();await gate.promise;return fn(tx);})};
+    const slow=settle(textIntake(early).ingest(a));
+    let ackB!:IntakeAck,draft!:{draftId:string;valueHash:string};
+    try {
+      expect(await Promise.race([begun.promise.then(()=>null),slow]),'the intake of M_A began').toBeNull();
+      // M_B is received and committed while the transaction of M_A is open: it takes number 1
+      ackB=await textIntake().ingest(b);
+      expect(ackB.replayed).toBe(false);
+      draft=await draftNaming(await candidateOf('g:albumN12'),[{id:ackB.sourceEventId,revisionNo:1}]);
+    } finally {
+      gate.open();
+    }
+    const ackA=await slow as IntakeAck;
+    expect(ackA.replayed,'M_A was stored').toBe(false);
+    // M_A was begun before M_B and committed after it: the earlier creation time carries the later number
+    const order=(await q<{a_earlier:boolean;a_seq:number;b_seq:number}>(
+      `SELECT ra.created_at < rb.created_at AS a_earlier,pa.thread_seq::int a_seq,pb.thread_seq::int b_seq
+       FROM source_event_revisions ra JOIN source_revision_positions pa ON pa.revision_id=ra.id,
+            source_event_revisions rb JOIN source_revision_positions pb ON pb.revision_id=rb.id
+       WHERE ra.source_event_id=$1 AND rb.source_event_id=$2`,[ackA.sourceEventId,ackB.sourceEventId]))[0];
+    expect(order).toEqual({a_earlier:true,a_seq:2,b_seq:1});
+    // the draft named M_B; M_A is later in the thread whatever its creation time says
+    hold('SUBJECT_CHANGED')(await settle(confirm(draft,keyOf('n12'))));
+    expect(await count('draft_decisions')).toBe(0);
+    // control: a draft that names both, each at its latest revision, is confirmed with the number of the thread
+    const both=await draftNaming(await candidateOf('g:albumN12'),[{id:ackA.sourceEventId,revisionNo:1},{id:ackB.sourceEventId,revisionNo:1}]);
+    expect((await confirm(both,keyOf('n12b'))).decision?.result).toBe('confirmed');
+    expect(await storedPosition(both.draftId)).toBe(2);
+  },20000);
+
+  test('N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stays free',async()=>{
+    await seedMembers(h);
+    const {ack,thread,candidate,pair}=await textRoot();
+    const draft=await draftNaming(candidate,[pair]),key=keyOf('n13'),commands=await count('document_commands');
+    let decision!:Promise<unknown>;
+    await h.operator.transaction(async tx=>{
+      // the edit of the message, revision 2, has its number (2) and has not committed: it holds the counter row of the thread
+      await tx.query(`INSERT INTO source_event_revisions(${COLS}) VALUES($1,$2,$3,2,$4,$5,'pointer_only')`,[ids.tenant,ids.sales,ack.sourceEventId,hex('e'),hex('d')]);
+      decision=settle(confirm(draft,key));
+      await inFlight(decision);
+      // nothing is stored while the confirmation waits
+      expect(await count('draft_decisions')).toBe(0);
+    });
+    hold('SUBJECT_CHANGED')(await decision);
+    expect(await count('draft_decisions')).toBe(0);
+    expect(await count('document_commands')).toBe(commands);
+    expect(await head(thread)).toBe(2);
+    // the key stays free: a rejection with it is stored, and it carries no position
+    expect((await sug().decide(pm,draft.draftId,{result:'rejected',valueHash:draft.valueHash,reason:'Lý do đủ dài'},key,randomUUID())).decision?.result).toBe('rejected');
+    expect(await storedPosition(draft.draftId)).toBeNull();
+  },20000);
+
+  test('N14 a confirmation in flight makes an intake of the thread wait; both commit; a second draft that names the old message is then held',async()=>{
+    await seedMembers(h);
+    const {e,thread,candidate,pair}=await textRoot();
+    const first=await draftNaming(candidate,[pair]),second=await draftNaming(candidate,[pair]);
+    const written=latch(),held=latch();
+    // the command is kept open right after its decision row is written: the row carries the number it read, and the counter row of the thread is held
+    const parked:Database={...h.db,transaction:fn=>h.db.transaction(tx=>fn({query:async<T=Record<string,unknown>>(sql:string,params?:unknown[])=>{
+      const r=await tx.query<T>(sql,params);
+      if(/INSERT INTO draft_decisions/.test(sql)){written.open();await held.promise;}
+      return r;
+    }}))};
+    const command=settle(confirm(first,keyOf('n14'),sug(parked)));
+    let intake!:Promise<unknown>;
+    try {
+      expect(await Promise.race([written.promise.then(()=>null),command]),'the decision row was written').toBeNull();
+      intake=settle(textIntake().ingest(messageEvent({context:{replyToMessageId:e.context.messageId}})));
+      await inFlight(intake);
+      // the thread has not moved while the intake waits
+      expect(await head(thread)).toBe(1);
+    } finally {
+      held.open();
+    }
+    expect(((await command) as {decision?:{result:string}}).decision?.result).toBe('confirmed');
+    expect(((await intake) as IntakeAck).replayed).toBe(false);
+    expect(await storedPosition(first.draftId)).toBe(1);
+    expect(await head(thread)).toBe(2);
+    expect((await numbers(thread)).map(r=>r.seq)).toEqual([1,2]);
+    // the second draft names the old message only: the thread has moved on since it was written
+    hold('SUBJECT_CHANGED')(await settle(confirm(second,keyOf('n14b'))));
+    expect(await count('draft_decisions')).toBe(1);
+  },20000);
+
+  // The pool of the service ends a statement after 10 s (statement_timeout of pooledDatabase): a missing cap shows as 57014 in the assertion on the code, inside the 20 s of this case.
+  // Nothing here reads a clock: the case ends when the cap of the guard (5 s) ends the wait.
+  test('N15 a confirmation that waits past the cap fails with the database error 55P03 and writes nothing; the same command succeeds once the thread is free',async()=>{
+    await seedMembers(h);
+    const {thread,candidate,pair}=await textRoot();
+    const draft=await draftNaming(candidate,[pair]),key=keyOf('n15');
+    const before={decisions:await count('draft_decisions'),commands:await count('document_commands')};
+    const opened=latch(),held=latch();
+    // the operational login holds the counter row of the thread without changing the thread
+    const holder=h.operator.transaction(async tx=>{
+      await tx.query('SELECT 1 FROM intake_thread_heads WHERE thread_key=$1 FOR NO KEY UPDATE',[thread]);
+      opened.open();
+      await held.promise;
+    });
+    let failure:unknown=null;
+    try {
+      await Promise.race([opened.promise,holder]);
+      failure=await settle(confirm(draft,key));
+    } finally {
+      held.open();
+      await holder;
+    }
+    expect(codeOf(failure)).toBe('55P03');
+    expect(failure instanceof AppError).toBe(false);
+    expect(await count('draft_decisions')).toBe(before.decisions);
+    expect(await count('document_commands')).toBe(before.commands);
+    expect(await head(thread)).toBe(1);
+    // the same command, once the thread is free
+    expect((await confirm(draft,key)).decision?.result).toBe('confirmed');
+    expect(await storedPosition(draft.draftId)).toBe(1);
+  },20000);
 
   // ---- After the second look at the fix round (task 2c) ----
 

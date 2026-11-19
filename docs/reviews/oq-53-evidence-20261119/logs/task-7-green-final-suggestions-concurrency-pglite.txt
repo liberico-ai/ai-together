@@ -1,0 +1,12 @@
+# pglite, tests/suggestions-concurrency.test.ts, exit=0
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  9 skipped (9)
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 skipped (1)
+      Tests  9 skipped (9)
+   Start at  15:22:05
+   Duration  113ms (import 68%, transform 30%, worker 2%)
+

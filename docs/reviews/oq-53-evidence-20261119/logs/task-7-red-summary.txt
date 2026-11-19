@@ -1,0 +1,57 @@
+# Task 7 red evidence (before any change to src/server/suggestions.ts): the cases of the task written first, run against the code of e8c54c5.
+# One file at a time; raw logs: task-7-red-<file>-<engine>.txt. "hook timeouts" counts the lines matching timed out|PGlite is closed (all zero).
+# Reasons for red: an AssertionError (the hold still names SUBJECT_ORDER_UNVERIFIED next to the code the case expects, or no wait for a lock, or no 55P03), or the error thrown out of decide
+# (DRAFT_HELD with SUBJECT_ORDER_UNVERIFIED) in a case that expects the confirmation to succeed; vitest prints identical errors once, above the list of the cases that raised it.
+
+tests/suggestions.test.ts, PGlite: counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 10; Tests  20 failed | 95 passed | 1 skipped (116)
+    red: the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidd
+    red: R12-i an entity not in the project, or a pair the builder refuses, is held as ENTITY_NOT_FOUND with codes only
+    red: R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results
+    red: F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are confirmed
+    red: replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content
+    red: (e) a rejection and a candidate confirmation now claim their key: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT
+    red: L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided
+    red: H8 when a mask reason holds a draft, the hold of a confirmation names only the mask reasons
+    red: dừng tại OQ-55: a replayed confirmation of a candidate draft answers with the recorded decision and no content once the group's flag is gone
+    red: a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draf
+    red: a message the draft does not name, recorded before the newest one it names, does not hold it
+    red: J1 an edit that arrives after the draft holds it as SUBJECT_CHANGED; an edit the draft read does not hold it; naming the older revision of an edited m
+    red: J2 a draft that names a message of its thread without its revision has no baseline
+    red: J3 the retired edit-hold code and the retired order-hold code are no longer in src
+    red: a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING
+    red: a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives
+    red: K1 a candidate draft that names the newest revision of every message it cites is confirmed: one decision that carries the position of the thread, no r
+    red: K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+    red: K4 after the decision row is written a confirmation reads no message table: its answer is built from what it already checked
+    red: every other check still runs: when no mask reason holds the draft each names its code, and when one does the hold names the mask reasons
+
+tests/suggestions.test.ts, native: counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 10; Tests  20 failed | 96 passed (116)
+    red: the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidd
+    red: R12-i an entity not in the project, or a pair the builder refuses, is held as ENTITY_NOT_FOUND with codes only
+    red: R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results
+    red: F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are confirmed
+    red: replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content
+    red: (e) a rejection and a candidate confirmation now claim their key: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT
+    red: L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided
+    red: H8 when a mask reason holds a draft, the hold of a confirmation names only the mask reasons
+    red: dừng tại OQ-55: a replayed confirmation of a candidate draft answers with the recorded decision and no content once the group's flag is gone
+    red: a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draf
+    red: a message the draft does not name, recorded before the newest one it names, does not hold it
+    red: J1 an edit that arrives after the draft holds it as SUBJECT_CHANGED; an edit the draft read does not hold it; naming the older revision of an edited m
+    red: J2 a draft that names a message of its thread without its revision has no baseline
+    red: J3 the retired edit-hold code and the retired order-hold code are no longer in src
+    red: a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING
+    red: a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives
+    red: K1 a candidate draft that names the newest revision of every message it cites is confirmed: one decision that carries the position of the thread, no r
+    red: K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+    red: K4 after the decision row is written a confirmation reads no message table: its answer is built from what it already checked
+    red: every other check still runs: when no mask reason holds the draft each names its code, and when one does the hold names the mask reasons
+
+tests/thread-order-concurrency.test.ts, native: counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 4; Tests  4 failed | 20 passed (24)
+    red: N12 the reverse-commit gap is closed: a message whose intake transaction began before the draft's message and committed after the context was read hol
+    red: N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stays free
+    red: N14 a confirmation in flight makes an intake of the thread wait; both commit; a second draft that names the old message is then held
+    red: N15 a confirmation that waits past the cap fails with the database error 55P03 and writes nothing; the same command succeeds once the thread is free
+
+Cases of the task that were NOT red before the change: K2 (a rejection and a document confirmation write no thread position; it passes while no position is written at all, and is the case that goes red when a rejection carries one: mutant m2).
+Counts: PGlite suggestions 20 failed | 95 passed | 1 skipped (116), 10 AssertionError + 10 DRAFT_HELD thrown; native suggestions 20 failed | 96 passed (116); native thread-order-concurrency 4 failed | 20 passed (24), 4 AssertionError (N12-N15).
