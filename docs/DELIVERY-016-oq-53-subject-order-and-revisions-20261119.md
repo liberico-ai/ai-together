@@ -1,6 +1,6 @@
 # OQ-53: mốc của nháp ứng viên theo số bản của tin và số thứ tự theo luồng; ngữ cảnh `release_librarian` (OQ-57) · 19/11/2026
 
-PR riêng vào `libetech-ai-os` (không vào `main`), làm ba điểm Chairman đã quyết ngày 19/11/2026 cho OQ-53 và sửa ngữ cảnh `release_librarian` (OQ-57), rồi gỡ hai giữ chỗ fail-closed của PR #22. Nhánh `feat/oq-53-subject-verification`, gốc `80c1ad8` (đầu `libetech-ai-os` sau PR #22). Kế hoạch: `docs/plans/oq-53-subject-verification.md` bản 0.3. Review và bằng chứng: `docs/reviews/oq-53-evidence-20261119/`. PR: [liberico-ai/ai-together#24](https://github.com/liberico-ai/ai-together/pull/24), vào `libetech-ai-os`, mở ngày 19/11/2026; chưa merge.
+PR riêng vào `libetech-ai-os` (không vào `main`), làm ba điểm Chairman đã quyết ngày 19/11/2026 cho OQ-53 và sửa ngữ cảnh `release_librarian` (OQ-57), rồi gỡ hai giữ chỗ fail-closed của PR #22. Nhánh `feat/oq-53-subject-verification`, gốc `80c1ad8` (đầu `libetech-ai-os` sau PR #22). Kế hoạch: `docs/plans/oq-53-subject-verification.md` bản 0.3. Review và bằng chứng: `docs/reviews/oq-53-evidence-20261119/`. PR: [liberico-ai/ai-together#24](https://github.com/liberico-ai/ai-together/pull/24), vào `libetech-ai-os`, mở ngày 19/11/2026; merge vào `libetech-ai-os` ngày 19/11/2026 (`b978163`) sau khi Chairman duyệt: «Merge PR #24».
 
 Mã đã đo ở `affe28a` (đầu của lượt kiểm toàn bộ thứ hai, sau hai vòng sửa của cổng Codex và đợt quét theo lớp); lượt đầu ở `4df2db3` ghi để đối chiếu; commit sau `affe28a` chỉ thêm hồ sơ. Mọi ô chờ đã được điền (số PR, kết quả cổng Codex và reality-check); biên nhận không ước con số nào.
 
@@ -10,7 +10,7 @@ Mã đã đo ở `affe28a` (đầu của lượt kiểm toàn bộ thứ hai, sa
 
 | Mức | Trạng thái | Căn cứ |
 |---|---|---|
-| **Đã có mã** | **Đạt mức «đã có mã».** Cổng Codex vòng 2 `VERDICT: PASS`, không finding (vòng 1 `CHANGES_REQUIRED`, một P1, đã sửa); `liberico-reality-checker` `READY WITH TEXT FIXES` (0 P0/P1; ba P2 và tám P3 là chữ biên nhận, đã áp). Số đo ở `affe28a`: typecheck 0; build 0; PGlite 1 287 ca đạt / 118 bỏ qua; PostgreSQL 16.15 1 405 đạt / 0 bỏ qua; mọi ghế review tầng 1 `READY_FOR_GATE` ở `26ba304` (đợt sửa 3 ở `4df2db3` chưa có ghế xem lại: xem mục «Review») | Bảng «Bằng chứng kiểm» và mục «Review»; chưa merge — chờ Chairman |
+| **Đã có mã** | **Đạt mức «đã có mã».** Cổng Codex vòng 2 `VERDICT: PASS`, không finding (vòng 1 `CHANGES_REQUIRED`, một P1, đã sửa); `liberico-reality-checker` `READY WITH TEXT FIXES` (0 P0/P1; ba P2 và tám P3 là chữ biên nhận, đã áp). Số đo ở `affe28a`: typecheck 0; build 0; PGlite 1 287 ca đạt / 118 bỏ qua; PostgreSQL 16.15 1 405 đạt / 0 bỏ qua; mọi ghế review tầng 1 `READY_FOR_GATE` ở `26ba304` (đợt sửa 3 ở `4df2db3` chưa có ghế xem lại: xem mục «Review») | Bảng «Bằng chứng kiểm» và mục «Review»; đã merge ngày 19/11/2026 (`b978163`) sau «Merge PR #24». Trước khi merge, phiên điều phối kiểm lại độc lập trên bản merge với đầu `711faf1` (typecheck, build, pytest đạt; PGlite 1 288 đạt / 118 bỏ qua; PostgreSQL 16 1 406 đạt / 0 bỏ qua — mỗi số hơn số trên một ca, là ca của PR #23; coverage 96,40 · 91,85 · 98,07 · 97,64); cây merge thật trùng cây đã kiểm |
 | Đã triển khai | **Chưa.** Không triển khai d1-ai1; 023 chưa áp lên dữ liệu thật; không khởi động lại gateway | Điểm dừng Chairman |
 | Đã dùng thật | **Chưa.** Không dòng nháp nào ngoài CSDL thử; không pipeline nào ghi `messageRevisions`; không ai gọi `SuggestionService` ngoài test | — |
 | Đã nghiệm thu | **Chưa.** | — |
@@ -202,11 +202,11 @@ Thời gian giữ khoá của lệnh xác nhận (từ lệnh ghi quyết địn
 
 ## Điểm dừng — không làm, chờ Chairman
 
-Merge PR · áp 023 lên dữ liệu thật · triển khai d1-ai1 · khởi động lại gateway chung · gửi tin vào nhóm thật · tuyến đọc/xác nhận nháp · login hay khoá cho role AI · bật Z4 · quyết N6 (và pipeline) · OQ-54, OQ-55 (b), OQ-56.
+(Merge PR: đã làm ngày 19/11/2026, `b978163`.) Còn lại: áp 023 lên dữ liệu thật · triển khai d1-ai1 · khởi động lại gateway chung · gửi tin vào nhóm thật · tuyến đọc/xác nhận nháp · login hay khoá cho role AI · bật Z4 · quyết N6 (và pipeline) · OQ-54, OQ-55 (b), OQ-56.
 
 ## Cần Chairman quyết hoặc xác nhận
 
-1. Merge PR; áp 023 (sau N1–N5).
+1. Merge PR: đã làm ngày 19/11/2026 (`b978163`). Còn lại: áp 023 (sau N1–N5).
 2. Xác nhận cách hiểu C1–C8, C10 và C11; đặc biệt C1 (số bản, không hash), C5 (đổi đường nhận tin ở tầng CSDL, `intake.ts` không đổi) và C7 (giữ oan được chấp nhận).
 3. N6: pipeline phải ghi `messageRevisions` từ ngữ cảnh — điều kiện chặn trước khi bật Z4.
 4. Quy trình sửa luồng bị giữ mãi (N15) và chỉnh quy trình phục hồi dữ liệu (N4).
@@ -214,7 +214,7 @@ Merge PR · áp 023 lên dữ liệu thật · triển khai d1-ai1 · khởi đ�
 
 ## Ngoài phạm vi (có từ trước hoặc không thuộc PR; không sửa)
 
-Ca F-5 của `tests/review-delegations.test.ts` thỉnh thoảng đỏ trên PGlite (đã có PR #23); `src/server/document-dependencies.ts` dòng 51 làm coverage nhánh dao động; repo không có CI nên mọi kiểm ở trạng thái `manual`; «xanh trên PostgreSQL 16» là số của lượt chạy trong phiên, chưa có CI nào chạy lại.
+Ca F-5 của `tests/review-delegations.test.ts` thỉnh thoảng đỏ trên PGlite (đã sửa ở PR #23, merge `711faf1` ngày 19/11/2026); `src/server/document-dependencies.ts` dòng 51 làm coverage nhánh dao động; repo không có CI nên mọi kiểm ở trạng thái `manual`; «xanh trên PostgreSQL 16» là số của lượt chạy trong phiên, chưa có CI nào chạy lại.
 
 ## Sự cố và môi trường của phiên
 
