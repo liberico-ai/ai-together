@@ -1,0 +1,1 @@
+npx tsc --noEmit (after the class sweep fix 1b changes): exit 0, no output.

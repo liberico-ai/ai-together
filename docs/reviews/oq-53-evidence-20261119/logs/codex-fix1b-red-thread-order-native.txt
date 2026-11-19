@@ -1,0 +1,288 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order.test.ts (34 tests | 8 failed) 21889ms
+   × A6 the catalog of 023: tables, policies, triggers, functions; a second run changes nothing 295ms
+   × A7b revisions stored while the trigger was off are numbered after the counter of their thread, and applying 023 again turns the trigger back on 297ms
+   × A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser; the check comes after the locks 275ms
+   × B5 the catalog of the confirming half: the trigger is AFTER INSERT, the function is definer with the three settings, runtime may insert the new column and nothing else changed; a second run changes nothing 285ms
+   × B10 a revision written by a restore is numbered, so the position that was read is stale; a revision left without a number refuses a confirmation whatever position it carries, in its own thread only 293ms
+   × B11 a confirmation is refused while the numbering trigger is switched off or gone, though the thread has not changed; enabled, for the origin role (O) or for every role (A), it is stored 305ms
+   × A15 a confirmation that is written while the file is applied again does not deadlock with it: it waits for the file and is then stored 1396ms
+   × A8 (iv) the header says what is closed, the rule for a maintenance session, and the boundary that remains 289ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order.test.ts > A6 the catalog of 023: tables, policies, triggers, functions; a second run changes nothing
+AssertionError: expected { t: 'source_event_revisions', …(4) } to match object { tgtype: 5, tgenabled: 'A' }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "tgenabled": "A",
++   "tgenabled": "O",
+    "tgtype": 5,
+  }
+
+ ❯ tests/thread-order.test.ts:269:76
+    267|   expect(rev.map(t=>t.tgname)).toEqual(expect.arrayContaining(['source…
+    268|   // the numbering trigger fires for every session role: tgenabled A (…
+    269|   expect(rev.find(t=>t.tgname==='source_event_revisions_thread_positio…
+       |                                                                            ^
+    270|   expect(first.triggers.filter(t=>t.t!=='source_event_revisions').map(…
+    271|     .toEqual(['intake_thread_heads_no_delete:O','source_revision_posit…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  tests/thread-order.test.ts > A7b revisions stored while the trigger was off are numbered after the counter of their thread, and applying 023 again turns the trigger back on
+AssertionError: expected 'O' to be 'A' // Object.is equality
+
+Expected: "A"
+Received: "O"
+
+ ❯ tests/thread-order.test.ts:354:165
+    352|   expect((await heads())[0].last_seq).toBe(4);
+    353|   // the second application replaced the trigger: it is enabled again,…
+    354|   expect((await q<{tgenabled:string}>("SELECT tgenabled FROM pg_trigge…
+       |                                                                                                                                                                     ^
+    355|   await s.ingest(messageEvent({context:{replyToMessageId:root.context.…
+    356|   expect((await heads())[0].last_seq).toBe(5);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  tests/thread-order.test.ts > A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser; the check comes after the locks
+AssertionError: every part of the order is in the file: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/thread-order.test.ts:412:73
+    410|   const order=['must be applied by a superuser','LOCK TABLE public.sou…
+    411|     'LOCK TABLE public.draft_decisions IN SHARE ROW EXCLUSIVE MODE','p…
+    412|   expect(order.every(i=>i>-1),'every part of the order is in the file'…
+       |                                                                         ^
+    413|   expect([...order].sort((a,b)=>a-b)).toEqual(order);
+    414|   expect(code.split('LOCK TABLE public.source_event_revisions').length…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  tests/thread-order.test.ts > B5 the catalog of the confirming half: the trigger is AFTER INSERT, the function is definer with the three settings, runtime may insert the new column and nothing else changed; a second run changes nothing
+AssertionError: expected [ 'lock_timeout=5s', …(2) ] to deeply equal [ 'lock_timeout=5s', …(3) ]
+
+- Expected
++ Received
+
+  [
+    "lock_timeout=5s",
+-   "plan_cache_mode=force_custom_plan",
+    "row_security=off",
+    "search_path=pg_catalog, pg_temp",
+  ]
+
+ ❯ tests/thread-order.test.ts:677:36
+    675|   // four settings: the three of the numbering function and plan_cache…
+    676|   // scan for revisions without a number 20 to 25 per cent slower, whi…
+    677|   expect([...fn.proconfig].sort()).toEqual(['lock_timeout=5s','plan_ca…
+       |                                    ^
+    678|   expect((await q<{ok:boolean}>('SELECT (r.rolsuper OR r.rolbypassrls)…
+    679|   expect(await q(`SELECT coalesce(r.rolname,'PUBLIC') grantee FROM pg_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  tests/thread-order.test.ts > B10 a revision written by a restore is numbered, so the position that was read is stale; a revision left without a number refuses a confirmation whatever position it carries, in its own thread only
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/thread-order.test.ts:1064:35
+    1062|   // and the counter row moves on, so the position that the service re…
+    1063|   await writeAsRestore(ids.sales,root,2);
+    1064|   expect(await unnumberedCount()).toBe(0);
+       |                                   ^
+    1065|   const posNow=await position(a.thread);
+    1066|   expect(posNow).toBe(posA+1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  tests/thread-order.test.ts > B11 a confirmation is refused while the numbering trigger is switched off or gone, though the thread has not changed; enabled, for the origin role (O) or for every role (A), it is stored
+AssertionError: expected null not to be null
+ ❯ tests/thread-order.test.ts:1118:19
+    1116|   await h.exec(`ALTER TABLE ${table} DISABLE TRIGGER ${trigger}`);
+    1117|   const off=await decide(d1,{subject_thread_seq:pos});
+    1118|   expect(off).not.toBeNull();
+       |                   ^
+    1119|   expect(off!.code).toBe('LTZ03');
+    1120|   expect(off!.message).toBe('The thread of the candidate moved on');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  tests/thread-order.test.ts > A15 a confirmation that is written while the file is applied again does not deadlock with it: it waits for the file and is then stored
+AssertionError: the confirmation was expected to be stored, not 40P01: expected error: deadlock detected { …(15) } to be null
+
+- Expected:
+null
+
++ Received:
+error {
+  "message": "deadlock detected",
+  "length": 639,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "40P01",
+  "detail": "Process 35985 waits for RowShareLock on relation 67797391 of database 56038638; blocked by process 35984.
+Process 35984 waits for AccessExclusiveLock on relation 66881946 of database 56038638; blocked by process 35985.",
+  "hint": "See server log for query details.",
+  "position": undefined,
+  "internalPosition": "33",
+  "internalQuery": "SELECT h.last_seq          FROM public.intake_thread_heads h
+   WHERE h.tenant_id = NEW.tenant_id AND h.project_id = NEW.project_id AND h.chat_id = c.chat_id AND h.thread_key = c.thread_key
+   FOR NO KEY UPDATE",
+  "where": "PL/pgSQL function public.draft_decisions_subject_order_guard() line 31 at SQL statement",
+  "schema": undefined,
+  "table": undefined,
+  "column": undefined,
+  "dataType": undefined,
+  "constraint": undefined,
+  "file": "deadlock.c",
+  "line": "1130",
+  "routine": "DeadLockReport",
+}
+
+ ❯ tests/thread-order.test.ts:1163:84
+    1161|   });
+    1162|   expect(await applying,'the file was expected to apply').toBeNull();
+    1163|   expect(await confirming,'the confirmation was expected to be stored,…
+       |                                                                                    ^
+    1164|   expect(await decisionCount(draft)).toBe(1);
+    1165|   expect(await storedPosition(draft)).toBe(pos);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  tests/thread-order.test.ts > A8 (iv) the header says what is closed, the rule for a maintenance session, and the boundary that remains
+AssertionError: ENABLE ALWAYS: expected '-- OQ-53 point 3 (b), decided by the …' to contain 'ENABLE ALWAYS'
+
+- Expected
++ Received
+
+- ENABLE ALWAYS
++ -- OQ-53 point 3 (b), decided by the Chairman on 19/11/2026: a number per thread, given by the database when a revision of a message is stored and
++ -- readable after commit, and a confirmation of a draft that is compared with that number at the moment it is written. Two tables, two triggers, one column:
++ -- 1. public.intake_thread_heads: one counter row per thread (tenant, project, chat_id, thread_key); last_seq is the number of the last revision stored in it.
++ -- 2. public.source_revision_positions: one row per stored revision (UNIQUE(revision_id)), the number thread_seq of that revision in its thread.
++ -- 3. source_event_revisions_thread_position on public.source_event_revisions: AFTER INSERT ... FOR EACH ROW (SECURITY DEFINER, owned by the migration
++ --    login). It raises the counter of the thread of the new revision (INSERT ... ON CONFLICT ... DO UPDATE SET last_seq = last_seq + 1) and stores that
++ --    number. The row lock on the counter row is held to the end of the transaction that stores the revision, so the numbers of one thread follow the
++ --    order of commit and a snapshot that sees the revision numbered n sees every revision numbered less than n. AFTER, not BEFORE: a row that
++ --    ON CONFLICT DO NOTHING skips (a replayed revision) fires no trigger, so a replay takes no lock and burns no number; and row-level security answers
++ --    (WITH CHECK of intake_insert, 016) before the trigger runs, so a role outside the scope it declared never waits for the lock of a thread it may
++ --    not write. Neither table has a column or a policy that a writing role could use: no role writes them, only the function does.
++ -- 4. public.draft_decisions.subject_thread_seq (step 10): the number of the last revision of the thread of a candidate, as the service read it, which a person's
++ --    confirmation of a candidate draft carries. The check constraint draft_decisions_thread_seq_only_confirmed lets only a confirmation carry one, and a positive one.
++ --    The runtime role may insert the column (column-level INSERT, like the other columns of 021); no other role holds anything on it.
++ -- 5. draft_decisions_subject_order_guard on public.draft_decisions (step 11): AFTER INSERT ... FOR EACH ROW, SECURITY DEFINER with the settings of function 3. For a
++ --    confirmation of a candidate draft it locks the counter row of the thread of the candidate FOR NO KEY UPDATE, reads last_seq again and refuses (LTZ03) when it
++ --    differs from the position the row carries, or when the row carries none. A message that is being taken in when the confirmation is written holds that row until
++ --    it commits: the confirmation waits for it, reads the new number and is refused. A confirmation that holds the row first makes the intake wait for it. A
++ --    decision that is not a confirmation of a candidate draft carries no position (LTZ03 when it does). One code and one fixed sentence for every cause (the thread
++ --    moved on, no position, no such candidate, a position where none belongs): the answer names no id and no number and tells a caller nothing about a candidate it
++ --    cannot see. FOR NO KEY UPDATE, the strength of the counter update: FOR KEY SHARE does not conflict with it and closes neither direction; FOR SHARE lets
++ --    confirmations that overlap starve the intake (measurements 4 and 7). The trigger fires after the BEFORE triggers of 021 (draft_decisions_guard) and 022
++ --    (draft_decisions_pointer_only_guard) and after the WITH CHECK of runtime_insert (021): a decision about a draft outside the scope of the caller, or in the name
++ --    of another person, is refused before any lock on a thread is asked for. Lock order of a confirmation: project row (022), then the thread (here).
++ --    It also keeps one invariant of the database (Codex gate, round 1, P1): no revision of the thread of the candidate lacks a row in source_revision_positions. last_seq counts what
++ --    the numbering trigger counted; a revision that a session stored without firing that trigger (a restore, session_replication_role = replica, the trigger switched off and on again
++ --    in one transaction, the trigger absent: W9, L7) does not move it, so the comparison alone passes a position that is stale. The check is made after the lock and the comparison,
++ --    in the thread of the candidate (tenant, project, chat_id, thread_key, as the counter row), over three existing indexes and no new one: about 4 ms on a thread of 3 000 messages,
++ --    which a confirmation holds the counter row for on top of the rest (measured: codex-fix1-explain.txt). It gives LTZ03 and the same sentence. It is that invariant only: the rules
++ --    about what the draft read (the revision of each message, the mark) stay in the service. The invariant clears when this file numbers the revision again (a re-application).
++ --    What it does not close, the limit of the check (test N22): a revision without a number that commits AFTER the check and BEFORE the commit of the decision. Its writer takes no lock
++ --    that the confirmation holds, because the numbering trigger, which would take the counter row, is the one that did not fire; a lock that would make it wait (SHARE ROW EXCLUSIVE on
++ --    the revision table, held by every confirmation) would make every intake wait for every confirmation, and is not taken. The path exists only for a session that bypasses the
++ --    numbering trigger (a superuser, a restore); the window is the time from the check to the commit of the decision. It is stated, not closed (L7).
++ -- What the column proves, and what it does not (S-6; the same sentence is the comment of the column):
++ -- subject_thread_seq IS NOT NULL chỉ chứng minh rằng không bản nào được nhận vào luồng giữa lúc số được đọc và lúc quyết định được ghi; nó không chứng minh nháp đã qua phép kiểm nào của dịch vụ.
++ -- (A raw session of the runtime role can read last_seq and hand it back: the column is the number the service handed, not a proof that its rules ran. Nothing that reads the column may conclude more.)
++ -- Steps 10 and 11 come last in the file, after the numbering: ALTER TABLE ... ADD COLUMN holds ACCESS EXCLUSIVE on public.draft_decisions to the end of the
++ -- transaction, which blocks even SELECT there; nothing before it should wait on that lock, and it is held for the least time.
++ -- The revisions that exist when this file is applied are numbered here (step 8): per thread, in the order of created_at, revision_no, id. That
++ -- order is deterministic and is not the order of commit, which the database no longer knows for old rows; it is safe only while no draft that was
++ -- written before the numbering can be confirmed against it. Hence refusal 4 below.
++ -- Exception to E-DB-12 (optimistic locking), recorded here as the Database review asked: E-DB-12 không áp: bảng chỉ được ghi bởi
++ -- `source_event_revisions_thread_position()`, dưới khoá dòng giữ tới commit, bằng tăng nguyên tử; `last_seq` chính là phiên bản.
++ -- Lock window, from step 1 to the commit (reviews R-DB-1, R-DB-7, R-S-3). Right after the check of the superuser the file takes SHARE ROW EXCLUSIVE on
++ -- public.source_event_revisions (inserts wait, reads do not) and on intelligence.ai_drafts (no draft is written), in that order, and every check that follows is made
++ -- under those two locks: a revision that is being taken in when the file begins is waited for (the wait ends at lock_timeout with 55P03 and nothing changes), and nothing
++ -- new commits into either table until this transaction does. What pg_locks shows after step 9 (measured): SHARE ROW EXCLUSIVE on the two tables from step 1; SHARE ROW
++ -- EXCLUSIVE on public.projects from step 2 on (the foreign keys of the new tables; an INSERT, UPDATE or DELETE of a project row waits for it, the row locks of the foreign keys
++ -- and of 022 do not); ACCESS EXCLUSIVE on public.draft_decisions from step 10 on. A second run asks for the same locks on the revision table and the draft table and for no
++ -- stronger one there (the trigger of step 9 is replaced in place, CREATE OR REPLACE TRIGGER, not dropped and created). It also asks for ACCESS EXCLUSIVE on the two new tables,
++ -- from steps 2 and 3, which drop and create their triggers and policies again: a reader of those two tables waits for the length of a second run (A12; review R-DB-12; the choice
++ -- was to say so, not to guard steps 2 to 6 with a catalog check, for a window in which there is nothing to number). Ordering the first version got wrong: it checked the logins at
++ -- step 1, before the first wait, and asked for the lock of the revision table at step 8, after steps 2 and 3 had already waited for it; a login that connected during the wait was
++ -- not seen. The order of the two locks, revision table and then draft table, is deliberate: no path of the service writes both, so no order of the two can deadlock with the
++ -- service (a raw transaction that takes them the other way round can: the file is then the victim and changes nothing). The price is on the intake path, which waits for the first
++ -- lock: while an AI draft is being written at the moment the file is applied, an intake can wait behind the file, up to lock_timeout (5 s), for that draft (review R-S-10).
++ -- Four refusals, each with a fixed message and nothing created or changed (the whole file is one transaction):
++ -- 1. The migration login is not a superuser (P2): the function is owned by it, runs with row_security = off and must not be bound by the FORCE
++ --    row-level security of the tables it writes; with an owner that is bound, every intake statement would fail. Checked before any lock.
++ -- 2. A session of a login that is not a superuser and can act as libetech_ai is connected (P6 (ii)), checked twice, both times under the two locks: right after them (step 1),
++ --    and again right before the record of the migration (step 12), after every step that can wait (the step that adds the column waits for the readers of the decision table: a
++ --    login that connects while the file waits there is seen by the second check, test A14; review R-S-8). A pipeline run that is still open may have
++ --    read a context before the old rows were numbered. pg_stat_activity shows the login, not a role taken with SET ROLE or SET SESSION AUTHORIZATION (measured
++ --    on PostgreSQL 16, measurements 9b and 9c), so this check sees a login that is a member of the AI role and nothing else; and it must leave
++ --    superusers out, because pg_has_role is true for every role when asked about a superuser (9a). No such login exists today (9e), so the check lets the file through
++ --    until one does. What it does not see, and the plan states as condition N10: a run that read its context and then disconnected; and a login that connects after the
++ --    second check, in the time of the two statements that remain (a login that connects after this transaction has committed reads the numbered state, which is the one every
++ --    later revision follows). The branch that refuses is a behaviour case with the name of the AI role replaced by the name of a role that a login of the test harness is a
++ --    member of (tests A10, A11, A14); under the true name it has none until a login of that role exists (N14).
++ -- 3. public.source_event_revisions holds more revisions without a number than libetech.thread_order_max_rows (a setting of the session, empty = 250 000; P12). Revisions that
++ --    already have a number do not count: the second run of this file, which puts the trigger back (W9, L7, N12), is not stopped by the size of the table. The numbering of
++ --    step 8 runs under the lock above, 13 to 20 microseconds a revision at 500 000 revisions (the two timings below; the Database review of the plan measured 0.52 s for 60 000). The review of the code timed the
++ --    actual statement on PostgreSQL 16 under load: 6.65 s for 500 000 revisions in 70 000 threads and 10.16 s for 500 000 threads of one revision each (the worst shape), the
++ --    second at the 10 s statement_timeout of the pool; hence 250 000, and N3: time it on a copy of the production data before applying. Above the cap: stop, ask for a plan
++ --    in batches; raise the setting only with an approved plan, for that run only.
++ -- 4. Some revision carries no number yet and some AI draft of an intake candidate has no decision of a person (P6 (i)), checked under the same locks: a draft written
++ --    before the numbering cannot be judged against a number that was not there.
++ -- Also to know (reviews R-DB-10, R-S-6, R-S-7):
++ -- a. The old revisions are numbered per thread in the order of created_at, revision_no, id: not the order of commit, and it can give revision 2 of a message a smaller number
++ --    than revision 1. Nothing in the service reads the order of two numbers of old rows (it uses the largest number of a thread and the revision numbers of a message);
++ --    that is safe because of refusal 4.
++ -- b. Each rollback followed by a new application leaves one dropped column in public.draft_decisions (its privileges are gone: the rollback revokes them first).
++ -- c. LTZ03 has one fixed sentence for every cause. The CONTEXT line that PostgreSQL adds (function name and line of the RAISE) differs by cause and reaches only a caller that
++ --    reads raw errors; the HTTP layer does not pass database text on.
++ -- d. libetech_runtime holds SELECT on the two new tables, as on every table it reads, so it can keep LOCK TABLE ... IN ACCESS SHARE MODE in an open transaction: that blocks
++ --    the next ALTER or DROP of them (the rollback file, a later migration) until its lock_timeout, and nothing else. Look at pg_locks before applying or rolling back;
++ --    idle_in_transaction_session_timeout of the web login (condition N1) bounds it.
++ -- e. The two definer functions are owned by the migration login, a superuser, as in 022. That is safe because every name in them is schema-qualified and search_path is
++ --    pinned; a later edit that drops one prefix would run code with the rights of a superuser.
++ -- Apply as the migration login (a superuser), like 019-022. Nothing here switches anything on: no login, no password, no key, no membership, no grant
++ -- beyond SELECT of the runtime role on the two new tables and INSERT of the runtime role on the new column, no model. No data rows except the numbers of the
++ -- revisions that exist and schema_migrations.
++ -- Rollback: migrations/rollback/023_thread_order.sql (refuses while a later migration is recorded, and while a decision row carries a thread position: from the first
++ -- confirmation of a candidate draft on, this file only goes forward).
+
+ ❯ tests/thread-order.test.ts:1173:169
+    1171| test('A8 (iv) the header says what is closed, the rule for a maintenan…
+    1172|   const head=(await forwardSql()).split('\nBEGIN;')[0];
+    1173|   for(const part of ['ENABLE ALWAYS','session_replication_role','FOR U…
+       |                                                                                                                                                                         ^
+    1174|   // the earlier wording of the limit (the replica path is not an open…
+    1175|   expect(head).not.toContain('The path exists only for a session that …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  8 failed | 26 passed (34)
+   Start at  19:02:13
+   Duration  22.00s (tests 100%)
+

@@ -1,0 +1,66 @@
+Codex fix 1b (class sweep): apply, roll back, apply again, 023 on the isolated database (PostgreSQL 16.15), the files as they are after the fix. psql, ON_ERROR_STOP. Triggers column: name:tgenabled (O origin, A always, D off); has_state_check = the decision function reads tgenabled; settings = proconfig of the decision function.
+
+-- start (023 not applied)
+   -[ RECORD 1 ]---+-------------------------------------
+   recorded        | 0
+   heads           | f
+   positions       | f
+   guard_fn        | f
+   col             | 0
+   has_state_check | f
+   settings        | 
+   has_new_check   | f
+   triggers        | draft_decisions_pointer_only_guard:O
+   
+-- apply 023
+COMMIT
+   -[ RECORD 1 ]---+--------------------------------------------------------------------------------------------------------------------
+   recorded        | 1
+   heads           | t
+   positions       | t
+   guard_fn        | t
+   col             | 1
+   has_state_check | t
+   settings        | search_path=pg_catalog, pg_temp,row_security=off,lock_timeout=5s,plan_cache_mode=force_custom_plan
+   has_new_check   | t
+   triggers        | draft_decisions_pointer_only_guard:O,draft_decisions_subject_order_guard:O,source_event_revisions_thread_position:A
+   
+-- roll back 023
+COMMIT
+   -[ RECORD 1 ]---+-------------------------------------
+   recorded        | 0
+   heads           | f
+   positions       | f
+   guard_fn        | f
+   col             | 0
+   has_state_check | f
+   settings        | 
+   has_new_check   | f
+   triggers        | draft_decisions_pointer_only_guard:O
+   
+-- apply 023 again
+COMMIT
+   -[ RECORD 1 ]---+--------------------------------------------------------------------------------------------------------------------
+   recorded        | 1
+   heads           | t
+   positions       | t
+   guard_fn        | t
+   col             | 1
+   has_state_check | t
+   settings        | search_path=pg_catalog, pg_temp,row_security=off,lock_timeout=5s,plan_cache_mode=force_custom_plan
+   has_new_check   | t
+   triggers        | draft_decisions_pointer_only_guard:O,draft_decisions_subject_order_guard:O,source_event_revisions_thread_position:A
+   
+-- apply a third time (idempotent)
+COMMIT
+   -[ RECORD 1 ]---+--------------------------------------------------------------------------------------------------------------------
+   recorded        | 1
+   heads           | t
+   positions       | t
+   guard_fn        | t
+   col             | 1
+   has_state_check | t
+   settings        | search_path=pg_catalog, pg_temp,row_security=off,lock_timeout=5s,plan_cache_mode=force_custom_plan
+   has_new_check   | t
+   triggers        | draft_decisions_pointer_only_guard:O,draft_decisions_subject_order_guard:O,source_event_revisions_thread_position:A
+   

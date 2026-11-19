@@ -26,10 +26,15 @@ const latch=()=>{let open!:()=>void;const promise=new Promise<void>(r=>{open=r;}
 describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',()=>{
   let h:Harness;
   // N19b switches the guard of 022 off with a COMMITTED statement (the other connections have to see it off). A case that dies between that statement and the one that puts it back must
-  // not leave the shared native database in that state for the next run: both hooks put it back, idempotently (review R-S-9).
+  // not leave the shared native database in that state for the next run: both hooks put it back, idempotently (review R-S-9). Each trigger goes back to the state the file leaves it in:
+  // the guard of 022 enabled (O), the numbering trigger enabled for every session role (A). Only a trigger that is switched OFF (D) is put back, so the hook never hides what the file
+  // itself leaves; the cases that depend on the state of the file apply it first (N25).
+  const SWITCHED_OFF=[['draft_decisions','draft_decisions_pointer_only_guard','O'],['source_event_revisions','source_event_revisions_thread_position','A']] as const;
   const restoreGuards=async()=>{
-    const r=await h.operator.query<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='draft_decisions_pointer_only_guard' AND tgrelid='public.draft_decisions'::regclass AND NOT tgisinternal");
-    if(r.rows[0]&&r.rows[0].tgenabled!=='O') await h.exec('ALTER TABLE public.draft_decisions ENABLE TRIGGER draft_decisions_pointer_only_guard');
+    for(const [table,trigger,state] of SWITCHED_OFF){
+      const r=await h.operator.query<{tgenabled:string}>('SELECT tgenabled FROM pg_trigger WHERE tgname=$1 AND tgrelid=$2::regclass AND NOT tgisinternal',[trigger,'public.'+table]);
+      if(r.rows[0]&&r.rows[0].tgenabled==='D') await h.exec(`ALTER TABLE public.${table} ENABLE ${state==='A'?'ALWAYS ':''}TRIGGER ${trigger}`);
+    }
   };
   beforeEach(async()=>{h=await openHarness();await restoreGuards();await h.reset();await seedSlice1(h);});
   afterEach(async()=>{try {await restoreGuards();} finally {await h.reset();await h.close();}});
@@ -762,29 +767,50 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
     expect(await storedPosition(draft)).toBe(read);
   });
 
-  // R-S-9: the hooks that put the guard of 022 back. H3 switches it off with a committed statement and ends without putting it back; H4 runs after it, on the same database (cases of a
-  // file run in order), and finds it on. Without the hooks H4 is red.
-  test('H3 a case that switches the guard of 022 off with a committed statement and ends without putting it back',async()=>{
+  // R-S-9: the hooks that put the guard of 022 and the numbering trigger back. H3 switches both off with committed statements and ends without putting them back; H4 runs after it, on the
+  // same database (cases of a file run in order), and finds each as the file leaves it (O for the guard, A for the numbering trigger). Without the hooks H4 is red.
+  test('H3 a case that switches the guard of 022 and the numbering trigger off with committed statements and ends without putting them back',async()=>{
     await h.exec('ALTER TABLE public.draft_decisions DISABLE TRIGGER draft_decisions_pointer_only_guard');
-    expect(await q("SELECT tgenabled FROM pg_trigger WHERE tgname='draft_decisions_pointer_only_guard' AND NOT tgisinternal")).toEqual([{tgenabled:'D'}]);
+    await h.exec('ALTER TABLE public.source_event_revisions DISABLE TRIGGER source_event_revisions_thread_position');
+    expect(await q("SELECT tgname,tgenabled FROM pg_trigger WHERE tgname IN ('draft_decisions_pointer_only_guard','source_event_revisions_thread_position') AND NOT tgisinternal ORDER BY 1"))
+      .toEqual([{tgname:'draft_decisions_pointer_only_guard',tgenabled:'D'},{tgname:'source_event_revisions_thread_position',tgenabled:'D'}]);
   });
 
-  test('H4 the case that follows finds it on: the hooks put it back',async()=>{
-    expect(await q("SELECT tgenabled FROM pg_trigger WHERE tgname='draft_decisions_pointer_only_guard' AND NOT tgisinternal")).toEqual([{tgenabled:'O'}]);
+  test('H4 the case that follows finds both on, each as the file leaves it: the hooks put them back',async()=>{
+    expect(await q("SELECT tgname,tgenabled FROM pg_trigger WHERE tgname IN ('draft_decisions_pointer_only_guard','source_event_revisions_thread_position') AND NOT tgisinternal ORDER BY 1"))
+      .toEqual([{tgname:'draft_decisions_pointer_only_guard',tgenabled:'O'},{tgname:'source_event_revisions_thread_position',tgenabled:'A'}]);
   });
 
-  // ---- Codex gate, round 1 (P1): a revision that no number was given to ----
+  // ---- Codex gate, round 1 (P1), and the class sweep before round 2: a revision that no number was given to ----
   const rootEventOf=async(e:{context:{messageId:string}})=>(await q<{id:string}>('SELECT id FROM source_events WHERE chat_id=$1 AND message_id=$2',[chatSales,e.context.messageId]))[0].id;
-  /** A revision written by a session that does not fire the numbering trigger (session_replication_role = replica, as a restore does), and committed. */
+  const REV=(event:string,no:number)=>[ids.tenant,ids.sales,event,no,hex(String(no)),hex('b')];
+  const REV_SQL=`INSERT INTO source_event_revisions(${COLS}) VALUES($1,$2,$3,$4,$5,$6,'pointer_only')`;
+  /** A revision written WITHOUT a number, committed: the table owner switches the numbering trigger off by name, writes, and switches it on again for every role, in one transaction. It takes no lock on the counter row. */
   const writeWithoutNumber=(event:string,no:number)=>h.operator.transaction(async w=>{
+    await w.query('ALTER TABLE public.source_event_revisions DISABLE TRIGGER source_event_revisions_thread_position');
+    await w.query(REV_SQL,REV(event,no));
+    await w.query('ALTER TABLE public.source_event_revisions ENABLE ALWAYS TRIGGER source_event_revisions_thread_position');
+  });
+  /** The same, by a session that follows the rule for a maintenance session (condition N15): it takes the counter row of the thread FOR UPDATE first and keeps it to the commit. */
+  const writeWithoutNumberUnderTheRule=(event:string,thread:string,no:number,whenHolding?:()=>Promise<void>)=>h.operator.transaction(async w=>{
+    await w.query('SELECT 1 FROM intake_thread_heads WHERE project_id=$1 AND chat_id=$2 AND thread_key=$3 FOR UPDATE',[ids.sales,chatSales,thread]);
+    if(whenHolding) await whenHolding();
+    await w.query('ALTER TABLE public.source_event_revisions DISABLE TRIGGER source_event_revisions_thread_position');
+    await w.query(REV_SQL,REV(event,no));
+    await w.query('ALTER TABLE public.source_event_revisions ENABLE ALWAYS TRIGGER source_event_revisions_thread_position');
+  });
+  /** A revision written by a session with session_replication_role = replica (a restore), committed. */
+  const writeAsRestore=(event:string,no:number)=>h.operator.transaction(async w=>{
     await w.query('SET LOCAL session_replication_role = replica');
-    await w.query(`INSERT INTO source_event_revisions(${COLS}) VALUES($1,$2,$3,$4,$5,$6,'pointer_only')`,[ids.tenant,ids.sales,event,no,hex(String(no)),hex('b')]);
+    await w.query(REV_SQL,REV(event,no));
   });
   const unnumbered=async()=>(await q<{n:number}>('SELECT count(*)::int n FROM source_event_revisions r WHERE NOT EXISTS (SELECT 1 FROM source_revision_positions p WHERE p.revision_id=r.id)'))[0].n;
+  const forwardSql=()=>readFile(path.join(process.cwd(),'migrations/023_thread_order.sql'),'utf8');
 
   // The check for revisions without a number is made after the wait for the counter row. A confirmation that waits there (here behind another confirmation of the same thread; the guard
   // of 022 is switched off, as in N19b, so that the lock on the project row does not queue them first) must look at the thread after the wait: a revision without a number that commits
-  // while it waits does not move the counter row, and only the check can see it.
+  // while it waits does not move the counter row, and only the check can see it. The revision is written the way that is still possible: the owner switches the numbering trigger off by
+  // name, writes, and switches it on again, in one transaction (a restore with session_replication_role = replica now fires the trigger and waits: N25).
   test('N23 the check for a revision without a number is made after the wait for the counter row: one that commits while the confirmation waits is seen',async()=>{
     const guard='draft_decisions_pointer_only_guard';
     await h.exec(`ALTER TABLE draft_decisions DISABLE TRIGGER ${guard}`);
@@ -817,11 +843,13 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
     }
   });
 
-  // What is NOT closed (header of 023, the limit of the check): a revision without a number that commits AFTER the check of the trigger and BEFORE the commit of the decision. The writer takes
-  // no lock that the confirmation holds (the numbering trigger, which would take the counter row, is the one that did not fire), so nothing makes it wait; a lock that would (SHARE ROW EXCLUSIVE
-  // on the revision table, held by every confirmation) would make every intake wait for every confirmation. The path exists only for a session that bypasses the numbering trigger
-  // (a superuser, a restore). This case pins the limit as it is: if it ever turns red, the limit has been closed and the header of 023 has to change with it.
-  test('N22 a limit, not a guarantee: a revision without a number that commits after the check of the trigger and before the commit of the decision is not caught',async()=>{
+  // What is NOT closed (header of 023, the boundary that remains): a revision without a number that commits AFTER the check of the trigger and BEFORE the commit of the decision, written by
+  // the owner of the table who switches the numbering trigger off by name, writes, and switches it on again in ONE transaction without taking the counter row. Nothing makes that writer
+  // wait: the numbering trigger, which would take the counter row, is the one it switched off, and a lock that would make it wait (SHARE ROW EXCLUSIVE on the revision table, held by every
+  // confirmation) would make every intake wait for every confirmation. The same hand can switch off the guards of the decision table: the trust boundary of R19 and R37 of PR #22
+  // (a superuser or the owner of the table). The replica path and a trigger that is off or gone are closed (N25, B11); the rule that closes this one for a session that writes on purpose is N24.
+  // This case pins the boundary as it is: if it ever turns red, it has been closed and the header of 023 has to change with it.
+  test('N22 the boundary that remains: the owner who switches the numbering trigger off, writes and switches it on again in one transaction, without the counter row, after the check and before the commit, is not caught',async()=>{
     const {e,thread}=await root();
     const candidate=await candidateOf(thread),rootEvent=await rootEventOf(e);
     const draft=await draftOf(candidate);
@@ -834,6 +862,80 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
     });
     expect(await count('draft_decisions')).toBe(1);
     expect(await storedPosition(draft)).toBe(read);
+    expect(await unnumbered()).toBe(1);
+    expect(await head(thread)).toBe(read);
+  });
+
+  // The replica path is closed (class sweep CS-DB-1): the numbering trigger is enabled for every session role, so a session with session_replication_role = replica, the very case of the
+  // Codex gate, takes the counter row like any other writer of a revision. While a confirmation holds the row (its check has passed) the session waits, and its revision is numbered
+  // after the decision: no window is left for it. (The file is applied first: the state of the trigger on a shared database is whatever the last case left.)
+  test('N25 a restore (session_replication_role = replica) that writes a revision of the thread while a confirmation is in flight waits for it and is numbered after it',async()=>{
+    await h.exec(await forwardSql());
+    const {e,thread}=await root();
+    const candidate=await candidateOf(thread),rootEvent=await rootEventOf(e);
+    const draft=await draftOf(candidate);
+    const read=await head(thread);
+    const held=latch(),opened=latch();
+    const holder=settle(asRuntime([ids.sales],async tx=>{await insertDecision(tx,draft,{subject_thread_seq:read});opened.open();await held.promise;}));
+    let restore!:Promise<unknown>;
+    try {
+      expect(await Promise.race([opened.promise.then(()=>null),holder]),'the confirmation was stored').toBeNull();
+      restore=settle(writeAsRestore(rootEvent,2));
+      // it waits for the counter row held by the confirmation
+      await inFlight(restore);
+      expect(await unnumbered()).toBe(0);
+    } finally {
+      held.open();
+    }
+    expect(codeOf(await holder)).toBeUndefined();
+    expect(codeOf(await restore)).toBeUndefined();
+    // the decision came first, with the position it read; the revision was numbered after it and the counter row moved on
+    expect(await count('draft_decisions')).toBe(1);
+    expect(await storedPosition(draft)).toBe(read);
+    expect(await unnumbered()).toBe(0);
+    expect(await head(thread)).toBe(read+1);
+  });
+
+  // The rule for a maintenance session that writes a revision without a number ON PURPOSE (a restore that switches the numbering trigger off, a correction of data), condition N15:
+  // take the counter row of the thread FOR UPDATE first and keep it to the commit. Both orders are closed: a session that holds the row waits for a confirmation in flight and writes
+  // after it (N24); a confirmation that arrives while the session holds the row waits and then sees the revision (N24b).
+  test('N24 a maintenance session that takes the counter row FOR UPDATE before it writes a revision without a number waits for a confirmation in flight and writes after it',async()=>{
+    const {e,thread}=await root();
+    const candidate=await candidateOf(thread),rootEvent=await rootEventOf(e);
+    const draft=await draftOf(candidate);
+    const read=await head(thread);
+    const held=latch(),opened=latch();
+    const holder=settle(asRuntime([ids.sales],async tx=>{await insertDecision(tx,draft,{subject_thread_seq:read});opened.open();await held.promise;}));
+    let maintenance!:Promise<unknown>;
+    try {
+      expect(await Promise.race([opened.promise.then(()=>null),holder]),'the confirmation was stored').toBeNull();
+      maintenance=settle(writeWithoutNumberUnderTheRule(rootEvent,thread,2));
+      await inFlight(maintenance);
+      expect(await unnumbered()).toBe(0);
+    } finally {
+      held.open();
+    }
+    expect(codeOf(await holder)).toBeUndefined();
+    expect(codeOf(await maintenance)).toBeUndefined();
+    // the decision is stored with the position it read, and the revision without a number was written after it
+    expect(await count('draft_decisions')).toBe(1);
+    expect(await storedPosition(draft)).toBe(read);
+    expect(await unnumbered()).toBe(1);
+  });
+
+  test('N24b a confirmation that arrives while a maintenance session holds the counter row waits, and refuses once the session has written its revision without a number',async()=>{
+    const {e,thread}=await root();
+    const candidate=await candidateOf(thread),rootEvent=await rootEventOf(e);
+    const draft=await draftOf(candidate);
+    const read=await head(thread);
+    let confirmation!:Promise<unknown>;
+    await writeWithoutNumberUnderTheRule(rootEvent,thread,2,async()=>{
+      // the session holds the counter row; the confirmation, with the position it read, waits for it
+      confirmation=settle(asRuntime([ids.sales],t=>insertDecision(t,draft,{subject_thread_seq:read})));
+      await inFlight(confirmation);
+    });
+    expect(codeOf(await confirmation),'the confirmation was expected to see the revision without a number').toBe('LTZ03');
+    expect(await count('draft_decisions')).toBe(0);
     expect(await unnumbered()).toBe(1);
   });
 });

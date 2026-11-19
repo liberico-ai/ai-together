@@ -1738,18 +1738,19 @@ const beforeStatementTx=(db:Database,pattern:RegExp,hook:(tx:Queryable)=>Promise
  }})),close:()=>db.close()};
 };
 let arrivals=0;
-/** One more message in the thread of the candidate, stored by raw SQL the way the intake stores one (the trigger of migration 023 numbers it). With `unnumbered` the session does not fire
- * the numbering trigger (session_replication_role = replica, as a restore does): the message is stored and has no number. */
+/** One more message in the thread of the candidate, stored by raw SQL the way the intake stores one (the trigger of migration 023 numbers it). With `unnumbered` the table owner switches the
+ * numbering trigger off by name for this one write and on again for every role (the state the migration gives it), inside the transaction: the message is stored and has no number. (A
+ * session with session_replication_role = replica no longer does that: the numbering trigger is enabled for every role and numbers the message.) */
 async function arrive(tx:Queryable,c:{candidateId:string},unnumbered=false):Promise<void> {
  arrivals+=1;
  const message=String(7000000+arrivals);
- if(unnumbered) await tx.query('SET LOCAL session_replication_role = replica');
+ if(unnumbered) await tx.query('ALTER TABLE public.source_event_revisions DISABLE TRIGGER source_event_revisions_thread_position');
  const t=(await tx.query<{chat_id:string;thread_key:string}>('SELECT chat_id,thread_key FROM intake_candidates WHERE id=$1',[c.candidateId])).rows[0];
  const e=(await tx.query<{id:string}>(`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
   VALUES($1,$2,$3,'telegram_gateway',80,$4,$5,$6,'actor-1',now(),false,false,$7,$7) RETURNING id`,[ids.tenant,ids.sales,'gw-'+message,t.chat_id,message,t.thread_key,randomUUID()])).rows[0].id;
  await tx.query(`INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,content_mode) VALUES($1,$2,$3,1,$4,$5,'pointer_only')`,
   [ids.tenant,ids.sales,e,'7'.repeat(64),'b'.repeat(64)]);
- if(unnumbered) await tx.query('RESET session_replication_role');
+ if(unnumbered) await tx.query('ALTER TABLE public.source_event_revisions ENABLE ALWAYS TRIGGER source_event_revisions_thread_position');
 }
 
 describe('Z4 drafts: a candidate draft is confirmed only against the thread it read (OQ-53)',()=>{

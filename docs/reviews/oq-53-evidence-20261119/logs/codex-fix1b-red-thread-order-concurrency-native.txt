@@ -1,0 +1,32 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order-concurrency.test.ts (30 tests | 1 failed) 24952ms
+   ❯ thread numbers under concurrency (native PostgreSQL) (30)
+     × N25 a restore (session_replication_role = replica) that writes a revision of the thread while a confirmation is in flight waits for it and is numbered after it 299ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N25 a restore (session_replication_role = replica) that writes a revision of the thread while a confirmation is in flight waits for it and is numbered after it
+AssertionError: the statement was expected to wait for a lock: expected 'settled' to be 'blocked' // Object.is equality
+
+Expected: "blocked"
+Received: "settled"
+
+ ❯ inFlight tests/thread-order-concurrency.test.ts:273:67
+    271|   const inFlight=async(p:Promise<unknown>,n=1)=>{
+    272|     const first=await Promise.race([p.then(()=>'settled' as const),wai…
+    273|     expect(first,'the statement was expected to wait for a lock').toBe…
+       |                                                                   ^
+    274|   };
+    275|   /** Waits until a session is blocked by the backend `pid` (told apar…
+ ❯ tests/thread-order-concurrency.test.ts:885:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 29 passed (30)
+   Start at  19:02:36
+   Duration  25.10s (tests 100%)
+

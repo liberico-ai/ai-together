@@ -26,11 +26,14 @@ let h:Harness;
 let needsForward=false;
 // The triggers that a case of this file or of thread-order-concurrency.test.ts switches off with a COMMITTED statement (A7b here, N19b there: another connection has to see them off).
 // A case that dies between the two statements must not leave the shared native database in that state for the next run, so both hooks put them back, idempotently (review R-S-9).
-const SWITCHED_OFF=[['draft_decisions','draft_decisions_pointer_only_guard'],['source_event_revisions','source_event_revisions_thread_position']] as const;
+// Each trigger goes back to the state the file leaves it in: the guard of 022 enabled (O), the numbering trigger enabled for every session role (A, ENABLE ALWAYS: a session with
+// session_replication_role = replica fires it too). Only a trigger that is switched OFF (D) is put back: a trigger that stands at another state is not changed here, so the hook never
+// hides what the file itself leaves; the cases that depend on the state of the file apply it first (A6, B10, N25).
+const SWITCHED_OFF=[['draft_decisions','draft_decisions_pointer_only_guard','O'],['source_event_revisions','source_event_revisions_thread_position','A']] as const;
 async function restoreGuards(db:Harness){
-  for(const [table,trigger] of SWITCHED_OFF){
+  for(const [table,trigger,state] of SWITCHED_OFF){
     const r=await db.operator.query<{tgenabled:string}>('SELECT tgenabled FROM pg_trigger WHERE tgname=$1 AND tgrelid=$2::regclass AND NOT tgisinternal',[trigger,'public.'+table]);
-    if(r.rows[0]&&r.rows[0].tgenabled!=='O') await db.exec(`ALTER TABLE public.${table} ENABLE TRIGGER ${trigger}`);
+    if(r.rows[0]&&r.rows[0].tgenabled==='D') await db.exec(`ALTER TABLE public.${table} ENABLE ${state==='A'?'ALWAYS ':''}TRIGGER ${trigger}`);
   }
 }
 beforeEach(async()=>{needsForward=false;h=await openHarness();await restoreGuards(h);await h.reset();await seedSlice1(h);});
@@ -236,6 +239,8 @@ test('A6 the catalog of 023: tables, policies, triggers, functions; a second run
   });
   const s=svc();
   await s.ingest(messageEvent({}));
+  // the state that the file leaves, whatever an earlier case or file left on a shared database (the numbering trigger is replaced by the file, and ENABLE ALWAYS comes after it)
+  await h.exec(await forwardSql());
   const first=await shape();
   // both tables: ENABLE and FORCE, and exactly one policy each: the SELECT of the runtime role, with the condition of 016
   expect(first.classes).toEqual([{relname:'intake_thread_heads',relrowsecurity:true,relforcerowsecurity:true,relkind:'r'},{relname:'source_revision_positions',relrowsecurity:true,relforcerowsecurity:true,relkind:'r'}]);
@@ -260,7 +265,8 @@ test('A6 the catalog of 023: tables, policies, triggers, functions; a second run
   // the revision table: the immutability trigger of 016 and one AFTER INSERT row trigger of 023, enabled for every session role
   const rev=first.triggers.filter(t=>t.t==='source_event_revisions') as {tgname:string;tgtype:number;tgenabled:string}[];
   expect(rev.map(t=>t.tgname)).toEqual(expect.arrayContaining(['source_event_revisions_immutable','source_event_revisions_thread_position']));
-  expect(rev.find(t=>t.tgname==='source_event_revisions_thread_position')).toMatchObject({tgtype:5,tgenabled:'O'});
+  // the numbering trigger fires for every session role: tgenabled A (ENABLE ALWAYS). With O a session that sets session_replication_role = replica stores a revision that is not numbered.
+  expect(rev.find(t=>t.tgname==='source_event_revisions_thread_position')).toMatchObject({tgtype:5,tgenabled:'A'});
   expect(first.triggers.filter(t=>t.t!=='source_event_revisions').map(t=>(t as {tgname:string;tgenabled:string}).tgname+':'+(t as {tgenabled:string}).tgenabled).sort())
     .toEqual(['intake_thread_heads_no_delete:O','source_revision_positions_immutable:O']);
   // the function: definer, the three settings, owned by a role that row-level security does not bind, executable by nobody
@@ -286,6 +292,10 @@ test('A6 the catalog of 023: tables, policies, triggers, functions; a second run
   expect(await shape()).toEqual(first);
   expect({positions:await numbers(),heads:await heads()}).toEqual(rowsBefore);
   expect(await q("SELECT 1 FROM schema_migrations WHERE version='023'")).toHaveLength(1);
+  // and a third: the step that enables the trigger for every role runs after every replacement, so the state is the same each time
+  await h.exec(await forwardSql());
+  expect(await shape()).toEqual(first);
+  expect((await q<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='source_event_revisions_thread_position' AND NOT tgisinternal"))[0].tgenabled).toBe('A');
 });
 
 test('A7 numbering rows that were there before 023, and the refusal while a draft of a candidate is undecided',async()=>{
@@ -340,8 +350,8 @@ test('A7b revisions stored while the trigger was off are numbered after the coun
   expect(after.filter(r=>before.some(b=>b.message_id===r.message_id&&b.revision_no===r.revision_no&&b.seq===r.seq))).toEqual(before);
   expect(after.filter(r=>r.thread_key===thread).map(r=>[r.seq,r.revision_no])).toEqual([[1,1],[2,1],[3,3],[4,2]]);
   expect((await heads())[0].last_seq).toBe(4);
-  // the second application replaced the trigger: it is enabled again and numbers the next revision
-  expect((await q<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='source_event_revisions_thread_position' AND NOT tgisinternal"))[0].tgenabled).toBe('O');
+  // the second application replaced the trigger: it is enabled again, for every session role (ENABLE ALWAYS comes after the replacement, which sets the state back to O), and numbers the next revision
+  expect((await q<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='source_event_revisions_thread_position' AND NOT tgisinternal"))[0].tgenabled).toBe('A');
   await s.ingest(messageEvent({context:{replyToMessageId:root.context.messageId}}));
   expect((await heads())[0].last_seq).toBe(5);
 });
@@ -398,7 +408,7 @@ test('A8 (iii) the file carries the check that refuses while a login that can ac
   // only then the first table. One lock on the revision table, the one at the top: the lock that stood at step 8 is gone.
   const at=(t:string)=>code.indexOf(t);
   const order=['must be applied by a superuser','LOCK TABLE public.source_event_revisions IN SHARE ROW EXCLUSIVE MODE','LOCK TABLE intelligence.ai_drafts IN SHARE ROW EXCLUSIVE MODE',
-    'pg_catalog.pg_stat_activity','CREATE TABLE IF NOT EXISTS public.intake_thread_heads'].map(at);
+    'LOCK TABLE public.draft_decisions IN SHARE ROW EXCLUSIVE MODE','pg_catalog.pg_stat_activity','CREATE TABLE IF NOT EXISTS public.intake_thread_heads'].map(at);
   expect(order.every(i=>i>-1),'every part of the order is in the file').toBe(true);
   expect([...order].sort((a,b)=>a-b)).toEqual(order);
   expect(code.split('LOCK TABLE public.source_event_revisions').length-1).toBe(1);
@@ -408,6 +418,12 @@ test('A8 (iii) the file carries the check that refuses while a login that can ac
   expect(at('ANALYZE public.source_revision_positions')).toBeLessThan(at('ALTER TABLE public.draft_decisions ADD COLUMN'));
   expect(code).toContain('CREATE OR REPLACE TRIGGER source_event_revisions_thread_position');
   expect(code).not.toContain('DROP TRIGGER IF EXISTS source_event_revisions_thread_position');
+  // the numbering trigger is enabled for every session role AFTER the replacement (the replacement sets the state back to O), so that a session with session_replication_role = replica
+  // fires it too and takes the counter row (class sweep CS-DB-1)
+  const always='ALTER TABLE public.source_event_revisions ENABLE ALWAYS TRIGGER source_event_revisions_thread_position';
+  expect(code.split(always).length-1).toBe(1);
+  expect(at(always)).toBeGreaterThan(at('CREATE OR REPLACE TRIGGER source_event_revisions_thread_position'));
+  expect(at(always)).toBeLessThan(at('ALTER TABLE public.draft_decisions ADD COLUMN'));
   // the check of the logins is made twice, both times under the two locks (review R-S-8): right after them, and again right before the record of the migration, after every step
   // that can wait (the step that adds the column waits for the readers of the decision table: A14)
   const checks=[...code.matchAll(/pg_catalog\.pg_stat_activity/g)].map(m=>m.index!);
@@ -656,7 +672,9 @@ test('B5 the catalog of the confirming half: the trigger is AFTER INSERT, the fu
   expect(first.functions).toHaveLength(1);
   const fn=first.functions[0] as {prosecdef:boolean;proconfig:string[];owner:string;d:string};
   expect(fn.prosecdef).toBe(true);
-  expect([...fn.proconfig].sort()).toEqual(['lock_timeout=5s','row_security=off','search_path=pg_catalog, pg_temp']);
+  // four settings: the three of the numbering function and plan_cache_mode = force_custom_plan (class sweep CS-DB-4: from the sixth execution in a backend a generic plan makes the
+  // scan for revisions without a number 20 to 25 per cent slower, which is time spent holding the counter row)
+  expect([...fn.proconfig].sort()).toEqual(['lock_timeout=5s','plan_cache_mode=force_custom_plan','row_security=off','search_path=pg_catalog, pg_temp']);
   expect((await q<{ok:boolean}>('SELECT (r.rolsuper OR r.rolbypassrls) ok FROM pg_roles r WHERE r.rolname=$1',[fn.owner]))[0].ok).toBe(true);
   expect(await q(`SELECT coalesce(r.rolname,'PUBLIC') grantee FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a LEFT JOIN pg_roles r ON r.oid=a.grantee
     WHERE p.proname='${GUARD}' AND a.privilege_type='EXECUTE' AND a.grantee<>p.proowner`)).toEqual([]);
@@ -791,7 +809,9 @@ test('A9b with the foreign keys of the revision table switched off in one transa
   expect(await count('source_event_revisions')).toBe(before.revisions);
   expect(await count('source_revision_positions')).toBe(before.positions);
   expect(await heads()).toEqual(before.heads);
-  expect((await q<{n:number}>("SELECT count(*)::int n FROM pg_trigger WHERE tgrelid='public.source_event_revisions'::regclass AND tgenabled<>'O'"))[0].n).toBe(0);
+  // no trigger left off: every trigger of the table is on (O), and the numbering trigger is on for every session role (A)
+  expect((await q<{n:number}>("SELECT count(*)::int n FROM pg_trigger WHERE tgrelid='public.source_event_revisions'::regclass AND tgenabled NOT IN ('O','A')"))[0].n).toBe(0);
+  expect((await q<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='source_event_revisions_thread_position' AND NOT tgisinternal"))[0].tgenabled).toBe('A');
 });
 
 // R-DB-4, R-S-4: the refusal for a connected login of the AI role, as behaviour. No login of that role exists (condition N14), but the condition of the SQL is about roles in general: the file
@@ -1009,34 +1029,43 @@ test.skipIf(!native)('H1 a case that switches the guard of 022 and the numbering
     .toEqual([{tgname:'draft_decisions_pointer_only_guard',tgenabled:'D'},{tgname:'source_event_revisions_thread_position',tgenabled:'D'}]);
 });
 
-test.skipIf(!native)('H2 the case that follows finds both on: the hooks put them back',async()=>{
+test.skipIf(!native)('H2 the case that follows finds both on, each as the file leaves it (O for the guard, A for the numbering trigger): the hooks put them back',async()=>{
   expect(await q("SELECT tgname,tgenabled FROM pg_trigger WHERE tgname IN ('draft_decisions_pointer_only_guard','source_event_revisions_thread_position') AND NOT tgisinternal ORDER BY 1"))
-    .toEqual([{tgname:'draft_decisions_pointer_only_guard',tgenabled:'O'},{tgname:'source_event_revisions_thread_position',tgenabled:'O'}]);
+    .toEqual([{tgname:'draft_decisions_pointer_only_guard',tgenabled:'O'},{tgname:'source_event_revisions_thread_position',tgenabled:'A'}]);
 });
 
-// ---- Codex gate, round 1 (P1): a revision that no number was given to ----
-// The comparison of last_seq sees only revisions that the numbering trigger saw: a revision that a session wrote without firing it (a restore, session_replication_role = replica, the trigger
-// switched off and on again in one transaction) does not move the counter row, so the position that the service read still equals it. The trigger of the decision table also checks that
-// every revision of the thread of the candidate has a number (the invariant of rule 4 of the service, at the database, for the one case where the counter cannot say it).
-/** A revision that stays without a number, committed. `how`: replica = session_replication_role (a restore); trigger = the numbering trigger switched off and on again in one transaction (T16). */
-const leaveUnnumbered=(how:'replica'|'trigger',project:string,event:string,no:number)=>h.operator.transaction(async tx=>{
-  if(how==='replica') await tx.query('SET LOCAL session_replication_role = replica');
-  else await tx.query('ALTER TABLE public.source_event_revisions DISABLE TRIGGER source_event_revisions_thread_position');
+// ---- Codex gate, round 1 (P1), and the class sweep before round 2: a revision that no number was given to ----
+// The comparison of last_seq sees only revisions that the numbering trigger saw. Two things now hold. (1) The numbering trigger is enabled for every session role (ENABLE ALWAYS), so a
+// session with session_replication_role = replica (a restore) fires it, takes the counter row and numbers its revision: the counter row moves, and a confirmation that read the old
+// position is stale. (2) The trigger of the decision table refuses while the numbering trigger is not enabled, and while any revision of the thread has no number (the rule of the service
+// at the database): what is left is the owner of the table switching the numbering trigger off by name, writing, and switching it on again in one transaction.
+/** A revision that stays without a number, committed: the table owner switches the numbering trigger off by name, writes, and switches it on again for every role (the state the file gives it), in one transaction (T16). */
+const leaveUnnumbered=(project:string,event:string,no:number)=>h.operator.transaction(async tx=>{
+  await tx.query('ALTER TABLE public.source_event_revisions DISABLE TRIGGER source_event_revisions_thread_position');
   await tx.query(revSql,[ids.tenant,project,event,no,hex(String(no)),hex('b')]);
-  if(how==='trigger') await tx.query('ALTER TABLE public.source_event_revisions ENABLE TRIGGER source_event_revisions_thread_position');
+  await tx.query('ALTER TABLE public.source_event_revisions ENABLE ALWAYS TRIGGER source_event_revisions_thread_position');
+});
+/** A revision written by a session with session_replication_role = replica, as a restore does, committed. */
+const writeAsRestore=(project:string,event:string,no:number)=>h.operator.transaction(async tx=>{
+  await tx.query('SET LOCAL session_replication_role = replica');
+  await tx.query(revSql,[ids.tenant,project,event,no,hex(String(no)),hex('b')]);
 });
 const unnumberedCount=async()=>(await q<{n:number}>('SELECT count(*)::int n FROM source_event_revisions r WHERE NOT EXISTS (SELECT 1 FROM source_revision_positions p WHERE p.revision_id=r.id)'))[0].n;
 const eventOf=async(chat:string,message:string)=>(await q<{id:string}>('SELECT id FROM source_events WHERE chat_id=$1 AND message_id=$2',[chat,message]))[0].id;
 
-test('B10 a confirmation is refused while any revision of the thread of the candidate has no number, whatever position it carries; the check is about that thread only',async()=>{
+test('B10 a revision written by a restore is numbered, so the position that was read is stale; a revision left without a number refuses a confirmation whatever position it carries, in its own thread only',async()=>{
+  // the state that the file leaves, whatever an earlier case or file left on a shared database
+  await h.exec(await forwardSql());
   const a=await realCandidate();await anotherMessage(a);
   const posA=await position(a.thread),root=await eventOf(chatSales,a.event.context.messageId);
   const draftA=await draftOf('intake_candidate',a.id);
   expect(await unnumberedCount()).toBe(0);
-  // the service read the position of the thread; then a session that does not fire the numbering trigger commits one more revision of it: the counter row does not move
-  await leaveUnnumbered('replica',ids.sales,root,2);
-  expect(await unnumberedCount()).toBe(1);
-  expect(await position(a.thread)).toBe(posA);
+  // (1) a restore: a session with session_replication_role = replica writes one more revision of the thread. The numbering trigger fires for it (ENABLE ALWAYS): the revision has a number
+  // and the counter row moves on, so the position that the service read is stale
+  await writeAsRestore(ids.sales,root,2);
+  expect(await unnumberedCount()).toBe(0);
+  const posNow=await position(a.thread);
+  expect(posNow).toBe(posA+1);
   const headsBefore=await heads();
   const e=await decide(draftA,{subject_thread_seq:posA});
   expect(e).not.toBeNull();
@@ -1047,30 +1076,104 @@ test('B10 a confirmation is refused while any revision of the thread of the cand
   expect(said).not.toMatch(/[0-9]/);
   expect(await decisionCount()).toBe(0);
   expect(await heads()).toEqual(headsBefore);
-  // the other way to leave a revision without a number: the trigger off and on again in one transaction (T16)
-  await leaveUnnumbered('trigger',ids.sales,root,3);
-  expect(await unnumberedCount()).toBe(2);
-  expect((await decide(draftA,{subject_thread_seq:posA}))?.code).toBe('LTZ03');
+  // (2) the owner switches the numbering trigger off by name, writes a revision and switches it on again in one transaction (T16): the revision has no number and the counter row does not move
+  await leaveUnnumbered(ids.sales,root,3);
+  expect(await unnumberedCount()).toBe(1);
+  expect(await position(a.thread)).toBe(posNow);
+  expect((await decide(draftA,{subject_thread_seq:posNow}))?.code).toBe('LTZ03');
   expect(await decisionCount()).toBe(0);
-  // the check is about the thread of the candidate: two revisions without a number in the thread of A do not stop a confirmation of another thread of the same project ...
+  // the check is about the thread of the candidate: a revision without a number in the thread of A does not stop a confirmation of another thread of the same project ...
   const b=await realCandidate(),draftB=await draftOf('intake_candidate',b.id);
   expect(await decide(draftB,{subject_thread_seq:await position(b.thread)})).toBeNull();
   // ... nor one of a thread whose chat and thread key another project has too, with a revision without a number of its own there
   const d=await realCandidate(),draftD=await draftOf('intake_candidate',d.id);
   const foreign=await rawEvent(chatSales,'9951',d.thread,ids.transport);
-  await leaveUnnumbered('replica',ids.transport,foreign,1);
-  expect(await unnumberedCount()).toBe(3);
+  await leaveUnnumbered(ids.transport,foreign,1);
+  expect(await unnumberedCount()).toBe(2);
   expect(await decide(draftD,{subject_thread_seq:await position(d.thread)})).toBeNull();
   expect(await decisionCount()).toBe(2);
-  // the invariant clears when the revisions are numbered again: the file numbers them (a person decides the undecided draft first, refusal 4 of the file), and the position of the
-  // thread moves on by the two revisions that were numbered, so the position that was read is stale and the new one is stored
+  // the invariant clears when the revision is numbered again: the file numbers it (a person decides the undecided draft first, refusal 4 of the file), and the position of the thread
+  // moves on by that revision, so the position that was read is stale and the new one is stored
   expect(await decide(draftA,{result:'rejected',reason:'Lý do đủ dài'})).toBeNull();
   await h.exec(await forwardSql());
   expect(await unnumberedCount()).toBe(0);
   const posA2=await position(a.thread);
-  expect(posA2).toBe(posA+2);
+  expect(posA2).toBe(posNow+1);
   const draftA2=await draftOf('intake_candidate',a.id);
-  expect((await decide(draftA2,{subject_thread_seq:posA}))?.code).toBe('LTZ03');
+  expect((await decide(draftA2,{subject_thread_seq:posNow}))?.code).toBe('LTZ03');
   expect(await decide(draftA2,{subject_thread_seq:posA2})).toBeNull();
   expect(await storedPosition(draftA2)).toBe(posA2);
+});
+
+// Class sweep CS-DB-1: a numbering trigger that is not enabled leaves no revision a number, and a revision written while it is off would be invisible to the comparison for the whole time.
+// While it is not enabled (D off, or gone) no confirmation of a candidate draft goes through, whatever the thread says; O and A both pass.
+test('B11 a confirmation is refused while the numbering trigger is switched off or gone, though the thread has not changed; enabled, for the origin role (O) or for every role (A), it is stored',async()=>{
+  await h.exec(await forwardSql());
+  const c=await realCandidate();await anotherMessage(c);
+  const pos=await position(c.thread);
+  const [d1,d2,d3,d4,d5]=[await draftOf('intake_candidate',c.id),await draftOf('intake_candidate',c.id),await draftOf('intake_candidate',c.id),await draftOf('intake_candidate',c.id),await draftOf('intake_candidate',c.id)];
+  const table='public.source_event_revisions',trigger='source_event_revisions_thread_position';
+  const headsBefore=await heads();
+  // switched off with a committed statement (the state that a restore with the triggers disabled leaves): no confirmation goes through
+  await h.exec(`ALTER TABLE ${table} DISABLE TRIGGER ${trigger}`);
+  const off=await decide(d1,{subject_thread_seq:pos});
+  expect(off).not.toBeNull();
+  expect(off!.code).toBe('LTZ03');
+  expect(off!.message).toBe('The thread of the candidate moved on');
+  expect(await decisionCount()).toBe(0);
+  expect(await unnumberedCount()).toBe(0);
+  expect(await heads()).toEqual(headsBefore);
+  // enabled for every session role: stored
+  await h.exec(`ALTER TABLE ${table} ENABLE ALWAYS TRIGGER ${trigger}`);
+  expect(await decide(d1,{subject_thread_seq:pos}),'enabled for every role (A)').toBeNull();
+  // enabled for the origin role (the plain ENABLE): stored as well
+  await h.exec(`ALTER TABLE ${table} ENABLE TRIGGER ${trigger}`);
+  expect(await decide(d2,{subject_thread_seq:pos}),'enabled for the origin role (O)').toBeNull();
+  expect(await decisionCount()).toBe(2);
+  // in one transaction, which rolls back: switched off by name, switched off with every trigger of the table (DISABLE TRIGGER ALL), and dropped: refused in that transaction
+  const inTx=(before:string,draft:string)=>asRuntimeAfter(async tx=>{await tx.query(before);},tx=>insertDecision(tx,draft,{subject_thread_seq:pos}));
+  for(const [label,before,draft] of [['off by name',`ALTER TABLE ${table} DISABLE TRIGGER ${trigger}`,d3],['every trigger off',`ALTER TABLE ${table} DISABLE TRIGGER ALL`,d4],['dropped',`DROP TRIGGER ${trigger} ON ${table}`,d5]] as const){
+    const e=await inTx(before,draft);
+    expect(e,label).not.toBeNull();
+    expect(e!.code,label).toBe('LTZ03');
+  }
+  expect(await decisionCount()).toBe(2);
+  // the transactions rolled back: the trigger is there, on
+  expect((await q<{tgenabled:string}>(`SELECT tgenabled FROM pg_trigger WHERE tgname='${trigger}' AND NOT tgisinternal`))[0].tgenabled).toBe('O');
+  // the state of the file again (the hooks also put it back)
+  await h.exec(`ALTER TABLE ${table} ENABLE ALWAYS TRIGGER ${trigger}`);
+});
+
+// Class sweep CS-DB-3: the order of the locks of a second run. The file holds the counter table from step 2 on (it drops and creates the triggers and policies again) and asks for the decision
+// table at step 10; a confirmation that had written its row (a lock on the decision table) and then asked for the counter row in its trigger waited for the file, which waited for it: 40P01.
+// The file now takes the decision table at step 1 (SHARE ROW EXCLUSIVE: inserts wait), so such a confirmation waits at its INSERT, holding nothing, and goes through after the file.
+test.skipIf(!native)('A15 a confirmation that is written while the file is applied again does not deadlock with it: it waits for the file and is then stored',async()=>{
+  const forward=await forwardSql();
+  const c=await realCandidate();await anotherMessage(c);
+  const pos=await position(c.thread),draft=await draftOf('intake_candidate',c.id);
+  let applying!:Promise<Told|null>,confirming!:Promise<Told|null>;
+  await h.operator.transaction(async reader=>{
+    // a reader of the counter table holds ACCESS SHARE on it: the second run waits for it at step 2, holding the locks of step 1
+    await reader.query('SELECT count(*) FROM intake_thread_heads');
+    applying=refusal(h.exec(forward)) as Promise<Told|null>;
+    await inFlight(applying);
+    // a confirmation that has read nothing of the thread yet: it writes its row and reads the counter row in the trigger
+    confirming=decide(draft,{subject_thread_seq:pos});
+    await inFlight(confirming,2);
+  });
+  expect(await applying,'the file was expected to apply').toBeNull();
+  expect(await confirming,'the confirmation was expected to be stored, not 40P01').toBeNull();
+  expect(await decisionCount(draft)).toBe(1);
+  expect(await storedPosition(draft)).toBe(pos);
+});
+
+// The header says what is closed and what is not (class sweep CS-DB-1): the replica path and a numbering trigger that is off or gone are closed; what remains is the table owner switching the
+// trigger off by name, writing and switching it on again in one transaction without the counter row, the trust boundary of R19 and R37 of PR #22; and the rule for a maintenance session that
+// writes a revision without a number on purpose (take the counter row FOR UPDATE first), which is condition N15.
+test('A8 (iv) the header says what is closed, the rule for a maintenance session, and the boundary that remains',async()=>{
+  const head=(await forwardSql()).split('\nBEGIN;')[0];
+  for(const part of ['ENABLE ALWAYS','session_replication_role','FOR UPDATE','N15','R19','R37','DISABLE TRIGGER','one transaction','trust boundary']) expect(head,part).toContain(part);
+  // the earlier wording of the limit (the replica path is not an open window any more)
+  expect(head).not.toContain('The path exists only for a session that bypasses the numbering trigger');
+  expect(head).not.toContain('It is stated, not closed (L7)');
 });

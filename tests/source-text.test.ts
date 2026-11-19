@@ -349,7 +349,8 @@ describe('threadFreshness',()=>{
    await tx.query(
     `INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,edited_at,content_hash,content_mode,text_excerpt,text_truncated,created_at)
      VALUES($1,$2,$3,1,$4,NULL,$5,'pointer_only',NULL,false,${when})`,[ids.tenant,ids.sales,id,sha('raw-key-'+messageId),sha('raw-text-'+messageId)]);
-   if(o.unnumbered) await tx.query('ALTER TABLE source_event_revisions ENABLE TRIGGER source_event_revisions_thread_position');
+   // migration 023 keeps the numbering trigger ENABLE ALWAYS (state A): this committed toggle must put it back in that state, not in O
+   if(o.unnumbered) await tx.query('ALTER TABLE source_event_revisions ENABLE ALWAYS TRIGGER source_event_revisions_thread_position');
    return id;
   });
  };
@@ -506,7 +507,7 @@ describe('threadFreshness',()=>{
   const un=await rawMessage(r,{unnumbered:true});
   expect(await numberOf(un,1)).toBeNull();
   expect(await headOf(r.id)).toBe('1');
-  expect((await rows<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='source_event_revisions_thread_position' AND NOT tgisinternal"))[0].tgenabled).toBe('O');
+  expect((await rows<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='source_event_revisions_thread_position' AND NOT tgisinternal"))[0].tgenabled).toBe('A'); // ENABLE ALWAYS since migration 023 (the replica role runs it too)
   expect(await ask(ids.sales,r.id,named,pairs)).toEqual({hasBaseline:true,changed:true,position:'1'});
   // also when the draft names the unnumbered message itself: its pair has no number, the other pair does
   expect(await ask(ids.sales,r.id,[...named,un],[...pairs,pair(un)])).toEqual({hasBaseline:true,changed:true,position:'1'});
