@@ -1,0 +1,17 @@
+Task 2b: the locks that migration 023 holds, read from pg_locks inside the transaction of the file (psql, PostgreSQL 16.15, isolated database; the transaction is rolled back after the query).
+Only ShareRowExclusiveLock and AccessExclusiveLock are listed, on the tables the file names. The file is the one after the fixes of the tier-1 reviews.
+
+First application (023 not applied), after step 9 (before the step that adds the column):
+  ai_drafts                 ShareRowExclusiveLock    (step 1, explicit)
+  source_event_revisions    ShareRowExclusiveLock    (step 1, explicit)
+  projects                  ShareRowExclusiveLock    (step 2 on: the foreign keys of the new tables)
+  intake_thread_heads       AccessExclusiveLock + ShareRowExclusiveLock   (the new table, taken by this transaction only)
+  source_revision_positions AccessExclusiveLock + ShareRowExclusiveLock   (the new table, taken by this transaction only)
+First application, at the end (before the record of the migration): the same, and
+  draft_decisions           AccessExclusiveLock (step 10, the column) + ShareRowExclusiveLock (step 11, the trigger)
+
+Second application (023 already applied), after step 9:
+  ai_drafts                 ShareRowExclusiveLock
+  source_event_revisions    ShareRowExclusiveLock    (no AccessExclusiveLock: the trigger is replaced in place; the first version dropped and created it)
+  intake_thread_heads, source_revision_positions: AccessExclusiveLock + ShareRowExclusiveLock (their own triggers and settings are re-applied)
+  projects                  not locked (CREATE TABLE IF NOT EXISTS of existing tables takes no lock on projects)

@@ -1,0 +1,27 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order-concurrency.test.ts (16 tests | 1 failed) 15330ms
+   ❯ thread numbers under concurrency (native PostgreSQL) (16)
+     × N18 the rollback waits for a confirmation in flight and then refuses: the position that was written is not lost 290ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N18 the rollback waits for a confirmation in flight and then refuses: the position that was written is not lost
+AssertionError: the rollback was expected to refuse: expected undefined to be an instance of Error
+ ❯ tests/thread-order-concurrency.test.ts:455:59
+    453|     expect(codeOf(await holder)).toBeUndefined();
+    454|     const refused=await rolling as Error|undefined;
+    455|     expect(refused,'the rollback was expected to refuse').toBeInstance…
+       |                                                           ^
+    456|     expect(refused!.message).toMatch(/carries the position of its thre…
+    457|     // nothing was dropped: the column, the trigger, the record of 023…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 15 passed (16)
+   Start at  12:49:55
+   Duration  15.44s (tests 100%)
+

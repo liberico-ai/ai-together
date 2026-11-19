@@ -1,0 +1,46 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order.test.ts (30 tests | 2 failed) 19843ms
+   × A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser; the check comes after the locks 313ms
+   × A14 a login of the role that connects after the first check and before the commit stops the file: the check is made again right before the record of the migration 351ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order.test.ts > A8 (iii) the file carries the check that refuses while a login that can act as libetech_ai is connected, and only for a login that is not a superuser; the check comes after the locks
+AssertionError: expected [ 499 ] to have a length of 2 but got 1
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ tests/thread-order.test.ts:414:18
+    412|   // that can wait (the step that adds the column waits for the reader…
+    413|   const checks=[...code.matchAll(/pg_catalog\.pg_stat_activity/g)].map…
+    414|   expect(checks).toHaveLength(2);
+       |                  ^
+    415|   expect(code.split("pg_catalog.pg_has_role(r.oid, 'libetech_ai', 'MEM…
+    416|   expect(checks[0]).toBeGreaterThan(at('LOCK TABLE intelligence.ai_dra…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/thread-order.test.ts > A14 a login of the role that connects after the first check and before the commit stops the file: the check is made again right before the record of the migration
+AssertionError: the file was expected to stop: expected null not to be null
+ ❯ tests/thread-order.test.ts:994:51
+    992|     // the reader ends; the file goes on, reaches the second check, fi…
+    993|     const e=await applying;
+    994|     expect(e,'the file was expected to stop').not.toBeNull();
+       |                                                   ^
+    995|     expect(e!.message).toMatch(REFUSES);
+    996|   } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 28 passed (30)
+   Start at  13:42:55
+   Duration  19.95s (tests 100%)
+

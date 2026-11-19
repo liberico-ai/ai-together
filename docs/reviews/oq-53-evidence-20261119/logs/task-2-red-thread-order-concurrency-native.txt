@@ -1,0 +1,165 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order-concurrency.test.ts (13 tests | 6 failed) 14424ms
+   ❯ thread numbers under concurrency (native PostgreSQL) (13)
+     × N7 a confirmation that carries the position it read waits for an intake of the thread in flight and is refused once that intake commits 313ms
+     × N8 an intake waits for a confirmation in flight; the confirmation commits first 296ms
+     × N9 a rejection does not wait for an intake of the thread 296ms
+     × N10 scoped to another project, the runtime role is answered at once while the thread is held 313ms
+     × N11 intake, a mapping insert and a confirmation of one project never deadlock: the confirmation waits for the mapping, then for the intake, and is refused 355ms
+     × N17 an open triage of the candidate, an intake of its thread and a confirmation do not deadlock 366ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N7 a confirmation that carries the position it read waits for an intake of the thread in flight and is refused once that intake commits
+AssertionError: the statement was expected to wait for a lock: expected 'settled' to be 'blocked' // Object.is equality
+
+Expected: "blocked"
+Received: "settled"
+
+ ❯ inFlight tests/thread-order-concurrency.test.ts:255:67
+    253|   const inFlight=async(p:Promise<unknown>,n=1)=>{
+    254|     const first=await Promise.race([p.then(()=>'settled' as const),wai…
+    255|     expect(first,'the statement was expected to wait for a lock').toBe…
+       |                                                                   ^
+    256|   };
+    257|   /** Waits until a session is blocked by the backend `pid` (told apar…
+ ❯ tests/thread-order-concurrency.test.ts:281:7
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/thread-order-concurrency.test.ts:277:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N8 an intake waits for a confirmation in flight; the confirmation commits first
+AssertionError: the confirmation was stored: expected error: column "subject_thread_seq" of rel… { …(15) } to be null
+
+- Expected:
+null
+
++ Received:
+error {
+  "message": "column \"subject_thread_seq\" of relation \"draft_decisions\" does not exist",
+  "length": 147,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42703",
+  "detail": undefined,
+  "hint": undefined,
+  "position": "133",
+  "internalPosition": undefined,
+  "internalQuery": undefined,
+  "where": undefined,
+  "schema": undefined,
+  "table": undefined,
+  "column": undefined,
+  "dataType": undefined,
+  "constraint": undefined,
+  "file": "parse_target.c",
+  "line": "1066",
+  "routine": "checkInsertTargets",
+}
+
+ ❯ tests/thread-order-concurrency.test.ts:297:102
+    295|     // the confirmation has written its row (the position is current) …
+    296|     const holder=settle(asRuntime([ids.sales],async tx=>{await insertD…
+    297|     expect(await Promise.race([opened.promise.then(()=>null),holder]),…
+       |                                                                                                      ^
+    298|     const intake=settle(svc().ingest(messageEvent({context:{replyToMes…
+    299|     await inFlight(intake);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N9 a rejection does not wait for an intake of the thread
+AssertionError: expected '42703' to be undefined
+
+- Expected:
+undefined
+
++ Received:
+"42703"
+
+ ❯ tests/thread-order-concurrency.test.ts:321:28
+    319|       answer=await settle(asRuntime([ids.sales],t=>insertDecision(t,dr…
+    320|     });
+    321|     expect(codeOf(answer)).toBeUndefined();
+       |                            ^
+    322|     expect(await count('draft_decisions')).toBe(1);
+    323|     expect(await storedPosition(draft)).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N10 scoped to another project, the runtime role is answered at once while the thread is held
+AssertionError: expected [ '42703', '42703', '42703' ] to deeply equal [ 'P0001', 'P0001', '42501' ]
+
+- Expected
++ Received
+
+  [
+-   "P0001",
+-   "P0001",
+-   "42501",
++   "42703",
++   "42703",
++   "42703",
+  ]
+
+ ❯ tests/thread-order-concurrency.test.ts:351:36
+    349|       });
+    350|     });
+    351|     expect(answers.map(a=>a.code)).toEqual(['P0001','P0001','42501']);
+       |                                    ^
+    352|     for(const a of answers) expect(a.ms,a.name).toBeLessThan(100);
+    353|     expect(await count('draft_decisions')).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N11 intake, a mapping insert and a confirmation of one project never deadlock: the confirmation waits for the mapping, then for the intake, and is refused
+AssertionError: the statement was expected to wait for the lock of the other transaction: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ waitBlockedBy tests/thread-order-concurrency.test.ts:265:98
+    263|       const n=(await q<{n:number}>("SELECT count(*)::int n FROM pg_sta…
+    264|       if(n>=1) return;
+    265|       expect(settled,'the statement was expected to wait for the lock …
+       |                                                                                                  ^
+    266|       if(Date.now()>deadline) throw new Error('Gave up waiting for a s…
+    267|       await new Promise(r=>setTimeout(r,50));
+ ❯ tests/thread-order-concurrency.test.ts:377:9
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/thread-order-concurrency.test.ts:369:7
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/thread-order-concurrency.test.ts:364:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N17 an open triage of the candidate, an intake of its thread and a confirmation do not deadlock
+AssertionError: the statement was expected to wait for a lock: expected 'settled' to be 'blocked' // Object.is equality
+
+Expected: "blocked"
+Received: "settled"
+
+ ❯ inFlight tests/thread-order-concurrency.test.ts:255:67
+    253|   const inFlight=async(p:Promise<unknown>,n=1)=>{
+    254|     const first=await Promise.race([p.then(()=>'settled' as const),wai…
+    255|     expect(first,'the statement was expected to wait for a lock').toBe…
+       |                                                                   ^
+    256|   };
+    257|   /** Waits until a session is blocked by the backend `pid` (told apar…
+ ❯ tests/thread-order-concurrency.test.ts:403:7
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/thread-order-concurrency.test.ts:394:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 7 passed (13)
+   Start at  11:40:27
+   Duration  14.56s (tests 99%)
+

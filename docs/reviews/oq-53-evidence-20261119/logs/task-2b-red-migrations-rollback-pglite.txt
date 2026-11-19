@@ -1,0 +1,30 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/migrations-rollback.test.ts (10 tests | 1 failed) 4865ms
+   × rollback 023 refuses while a later migration is recorded or a decision carries a thread position; it drops what 023 made and leaves source events, revisions, drafts and decisions as they were; applying 023 again restores the numbers 468ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 023 refuses while a later migration is recorded or a decision carries a thread position; it drops what 023 made and leaves source events, revisions, drafts and decisions as they were; applying 023 again restores the numbers
+AssertionError: expected ' BEGIN; SET LOCAL lock_timeout = \'5s…' to contain 'LOCK TABLE public.draft_decisions IN …'
+
+Expected: "LOCK TABLE public.draft_decisions IN ACCESS EXCLUSIVE MODE"
+Received: " BEGIN; SET LOCAL lock_timeout = '5s'; SET LOCAL row_security = off; DO $$ DECLARE carrying boolean; BEGIN IF EXISTS (SELECT 1 FROM schema_migrations WHERE version > '023') THEN RAISE EXCEPTION 'Roll back the later migrations before 023.'; END IF; IF EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a WHERE a.attrelid = pg_catalog.to_regclass('public.draft_decisions') AND a.attname = 'subject_thread_seq' AND NOT a.attisdropped) THEN EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.draft_decisions WHERE subject_thread_seq IS NOT NULL)' INTO carrying; IF carrying THEN RAISE EXCEPTION 'Roll back stops: a decision of a person carries the position of its thread. That row cannot be removed (the table is append-only) and the position would be lost; from the first confirmation of a candidate draft 023 only goes forward. Fix forward instead.'; END IF; END IF; IF pg_catalog.to_regclass('public.draft_decisions') IS NOT NULL THEN EXECUTE 'DROP TRIGGER IF EXISTS draft_decisions_subject_order_guard ON public.draft_decisions'; END IF; IF pg_catalog.to_regprocedure('public.draft_decisions_subject_order_guard()') IS NOT NULL THEN EXECUTE 'DROP FUNCTION public.draft_decisions_subject_order_guard()'; END IF; IF EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a WHERE a.attrelid = pg_catalog.to_regclass('public.draft_decisions') AND a.attname = 'subject_thread_seq' AND NOT a.attisdropped) THEN IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'libetech_runtime') THEN EXECUTE 'REVOKE INSERT (subject_thread_seq) ON public.draft_decisions FROM libetech_runtime'; END IF; EXECUTE 'ALTER TABLE public.draft_decisions DROP CONSTRAINT IF EXISTS draft_decisions_thread_seq_only_confirmed'; EXECUTE 'ALTER TABLE public.draft_decisions DROP COLUMN IF EXISTS subject_thread_seq'; END IF; IF pg_catalog.to_regclass('public.source_event_revisions') IS NOT NULL THEN EXECUTE 'DROP TRIGGER IF EXISTS source_event_revisions_thread_position ON public.source_event_revisions'; END IF; IF pg_catalog.to_regprocedure('public.source_event_revisions_thread_position()') IS NOT NULL THEN EXECUTE 'DROP FUNCTION public.source_event_revisions_thread_position()'; END IF; IF pg_catalog.to_regclass('public.source_revision_positions') IS NOT NULL THEN EXECUTE 'DROP TABLE public.source_revision_positions'; END IF; IF pg_catalog.to_regclass('public.intake_thread_heads') IS NOT NULL THEN EXECUTE 'DROP TABLE public.intake_thread_heads'; END IF; END $$; DELETE FROM schema_migrations WHERE version = '023'; COMMIT; "
+
+ ❯ tests/migrations-rollback.test.ts:567:24
+    565|   const rollbackCode=rollback.replace(/--.*$/gm,'').replace(/\s+/g,' '…
+    566|   const lock='LOCK TABLE public.draft_decisions IN ACCESS EXCLUSIVE MO…
+    567|   expect(rollbackCode).toContain(lock);
+       |                        ^
+    568|   expect(rollbackCode.indexOf(lock)).toBeLessThan(rollbackCode.indexOf…
+    569|   const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  12:49:26
+   Duration  4.99s (tests 99%, import 1%, transform 1%)
+

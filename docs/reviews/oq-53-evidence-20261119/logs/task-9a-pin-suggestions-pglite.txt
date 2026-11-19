@@ -1,0 +1,11 @@
+# pin against the sources of 26ba304: the new case describes behaviour that is already there, so it is green before any change (pglite, tests/suggestions.test.ts, exit=0)
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  120 passed | 1 skipped (121)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  120 passed | 1 skipped (121)
+   Start at  16:36:14
+   Duration  60.69s (tests 100%)
+

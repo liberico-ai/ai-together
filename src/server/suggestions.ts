@@ -7,7 +7,7 @@ import {READ_ROLES} from './document-review';
 import {DocumentService,mayWriteDocuments,proposeSchema,READ_ONLY_MESSAGE} from './documents';
 import {AppError,invariant} from './errors';
 import {buildSkillContextIn,CONTEXT_KINDS} from './skill-context';
-import {checkSkillOutput,MAX_OUTPUT_BYTES,namedIds,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
+import {checkSkillOutput,MAX_OUTPUT_BYTES,namedIds,namedRevisions,outputFits,outputSchemas,SKILLS,type SkillContext,type SkillName,type SkillOutput} from './skill-contracts';
 import {canonicalJson,skillManifests} from './skills';
 import {projectHasHiddenText,threadFreshness,threadHasHiddenText} from './source-text';
 import {storable} from './text-safety';
@@ -23,6 +23,8 @@ const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năng 
 const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã thao tác đã được dùng với nội dung khác.',409);
 /** SQLSTATE raised by the pointer-only guard of migration 022. */
 export const POINTER_ONLY_SQLSTATE='LTZ01';
+/** SQLSTATE raised by the order guard of migration 023: the thread of the candidate moved on between the subject check and the write of the decision (a message was stored in it), or the row carries a thread position where none belongs. */
+export const SUBJECT_ORDER_SQLSTATE='LTZ03';
 const pointerOnlyRefused=()=>new AppError('POINTER_ONLY_PROJECT','Dự án này chỉ nhận con trỏ nên nháp AI không được lưu.',422);
 const alreadyDecided=()=>new AppError('DRAFT_ALREADY_DECIDED','Nháp này đã có quyết định.',409);
 /** Namespace of the two-integer advisory lock «decision of one draft» (0x44524654, "DRFT"); intake.ts takes the one-bigint form, a different key space. */
@@ -110,25 +112,28 @@ const toView=(r:DraftRow,given:MaskReason[],shown:SkillOutput|null):DraftView=>{
 const DOC_SUBJECT_SQL=`SELECT coalesce(max(v.revision_no),0)::int AS newest,
   coalesce(max(v.revision_no) FILTER (WHERE v.id = ANY($3::uuid[])),0)::int AS named
   FROM document_revisions v WHERE v.project_id=$1::uuid AND v.document_id=$2::uuid`;
+/** What the subject check found: the hold reasons, codes only, and the number of the thread as the check read it (null for a document draft, and when the draft has no baseline). The number is meaningful only when `reasons` is empty. */
+export type SubjectCheck={reasons:string[];position:string|null};
 /**
  * OQ-46 (b): the draft's own subject against the newest thing the draft itself names. Codes only.
  * Only lower-case uuids are passed to the database, so a malformed or upper-case id names nothing and never raises 22P02.
  * Call it while the document row is locked.
  */
-async function subjectReasons(tx:Queryable,projectId:string,d:DraftRow):Promise<string[]> {
+export async function subjectReasons(tx:Queryable,projectId:string,d:Pick<DraftRow,'signal_type'|'value'|'entity_type'|'entity_id'>):Promise<SubjectCheck> {
  const ids=namedIds(d.signal_type,d.value).filter(x=>UUID.test(x));
  if(d.entity_type!=='document') {
-  const f=await threadFreshness(tx,projectId,d.entity_id,ids);
-  // OQ-53 point 2 (open, fail-closed until the Chairman decides): a draft that names no message of its own thread has no baseline, so it is held
-  if(!f.hasBaseline) return ['SUBJECT_BASELINE_MISSING'];
-  // OQ-53 point 1 (open, fail-closed until the Chairman decides): an edit recorded at or after the baseline cannot be told apart from a change of the subject, so it is held
-  return [...(f.newerMessage?['SUBJECT_CHANGED']:[]),...(f.laterEdit?['SUBJECT_EDIT_UNVERIFIED']:[])];
+  // OQ-53 point 2 (a), decided 19/11/2026: a draft that names no message of its own thread, or names one without stating its revision, has no baseline, so it is held
+  // OQ-53 point 1 (b), decided 19/11/2026: the draft states the revision it read of each message; a revision that is not the latest of its message, or anything stored in the thread
+  // since the one it read last, is a change of the subject. An edit the draft read is not.
+  const f=await threadFreshness(tx,projectId,d.entity_id,ids,namedRevisions(d.signal_type,d.value));
+  if(!f.hasBaseline) return {reasons:['SUBJECT_BASELINE_MISSING'],position:null};
+  return {reasons:f.changed?['SUBJECT_CHANGED']:[],position:f.position};
  }
  const r=(await tx.query<{newest:number;named:number}>(DOC_SUBJECT_SQL,[projectId,d.entity_id,ids])).rows[0];
- if(r.newest===0) return [];
- // OQ-53 point 2 (open, fail-closed until the Chairman decides): a draft that names no revision of its own document has no baseline, so it is held
- if(r.named===0) return ['SUBJECT_BASELINE_MISSING'];
- return r.newest>r.named?['SUBJECT_CHANGED']:[];
+ if(r.newest===0) return {reasons:[],position:null};
+ // OQ-53 point 2 (a), decided 19/11/2026: a draft that names no revision of its own document has no baseline, so it is held
+ if(r.named===0) return {reasons:['SUBJECT_BASELINE_MISSING'],position:null};
+ return {reasons:r.newest>r.named?['SUBJECT_CHANGED']:[],position:null};
 }
 
 export class SuggestionService {
@@ -191,11 +196,15 @@ export class SuggestionService {
   * For a person who may, the content is re-checked against the context rebuilt under their own rights: the reasons of the output gate that are about what they may read
   * (and a pointer-only project, a missing entity, a value off the contract) mask it; so does a candidate thread that holds stored text no longer shown (THREAD_TEXT_HIDDEN).
   * The context only yields reasons; it never supplies a source id to the answer.
+  * `known` is what a confirmation has already found out in its own transaction, before it wrote the decision row: the two results of the hidden-text checks (a confirmation is
+  * only written when both are «no»). With it the answer reads no message table after the write, so the locks the write took are not held for a scan of the whole project (OQ-53, P13);
+  * the answer then describes the state the decision was based on. Without it (a rejection, a replay, a list) every check runs here.
   */
- private async present(tx:Queryable,p:Principal,projectId:string,rows:DraftRow[],contexts:Map<string,SkillContext|null>=new Map()):Promise<DraftView[]> {
+ private async present(tx:Queryable,p:Principal,projectId:string,rows:DraftRow[],contexts:Map<string,SkillContext|null>=new Map(),
+  known?:{hiddenProject:boolean;hiddenThread:ReadonlyMap<string,boolean>}):Promise<DraftView[]> {
   const views:DraftView[]=[];
-  const hiddenThread=new Map<string,boolean>();
-  let hiddenProject:boolean|undefined;
+  const hiddenThread=new Map<string,boolean>(known?.hiddenThread);
+  let hiddenProject:boolean|undefined=known?.hiddenProject;
   for(const r of rows) {
    if(!mayDecide(projectRole(p,projectId),r.entity_type)) {views.push(toView(r,['CONFIRM_AUTHORITY_REQUIRED'],null));continue;}
    const reasons=new Set<MaskReason>();
@@ -242,8 +251,11 @@ export class SuggestionService {
  /**
   * Order inside the one scoped transaction: (1) locate the draft in the person's scope, then narrow the scope to its project, lock on the draft id;
   * (2) for a confirmed document draft the document row is locked; (3) the one idempotency claim (replay = the recorded decision, other content = IDEMPOTENCY_CONFLICT);
-  * under it: (4) authority first, then already decided, then the caller's valueHash — compared only for a person to whom the content is shown; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet; a candidate confirmation is always held (OQ-53 point 3 placeholder));
-  * (6) a document draft: the person's own revision proposal, under the same claim; (7) the decision row (a confirmation is refused there by migration 022 if the project became pointer-only meanwhile: DRAFT_HELD). A failure at any point rolls back everything, claim included.
+  * under it: (4) authority first, then already decided, then the caller's valueHash — compared only for a person to whom the content is shown; (5) reason for a rejection, or the holds for a confirmation (nothing is written yet;
+  * for a candidate draft the subject check also hands back the number of the thread it read);
+  * (6) a document draft: the person's own revision proposal, under the same claim; (7) the decision row (a confirmation is refused there by migration 022 if the project became pointer-only meanwhile, and a confirmation of a candidate
+  * draft by migration 023 if its thread moved on since the check: its row carries the number the check read; both are DRAFT_HELD). A failure at any point rolls back everything, claim included.
+  * The answer of a confirmation reads no message table after the decision row: it is built from the checks of step 5.
   */
  async decide(p:Principal,draftId:string,raw:unknown,key:string,requestId:string):Promise<DraftView> {
   if(!p||p.role==='bot'||!p.id||!Array.isArray(p.projectIds)||!p.projectIds.length) throw denied();
@@ -269,6 +281,8 @@ export class SuggestionService {
    // Anything thrown below rolls the claim back with the rest, so a refusal or a hold leaves the key free.
    // the context built to hold or confirm is reused for the answer; a rejection or a replay has none and present builds its own
    const contexts=new Map<string,SkillContext|null>();
+   // set by a confirmation that passed every check: what the answer takes from the checks instead of reading the message tables again
+   let known:{hiddenProject:boolean;hiddenThread:ReadonlyMap<string,boolean>}|undefined;
    await claimDocumentCommand(tx,p,projectId,key,{op:'draft.decide',draftId:id,...input},async()=>{
     // authority first: a person who may not decide learns nothing from the draft's state or from the hash they sent (OQ-45 point 1)
     if(!mayDecide(projectRole(p,projectId),d.entity_type)) {
@@ -287,11 +301,14 @@ export class SuggestionService {
      if(reason.length<5) throw new AppError('REASON_REQUIRED','Cần nêu lý do từ chối (ít nhất 5 ký tự).',422);
     } else reason=(input.reason??'').trim();
     let revisionId:string|null=null;
+    // the number of the thread the subject check read, for a confirmation of a candidate draft: written with the decision and compared there, under the lock of the thread (migration 023)
+    let subjectPosition:string|null=null;
     if(input.result==='confirmed') {
      // a candidate draft takes no revision body: a fault of the command, answered before any hold
      if(d.entity_type!=='document'&&input.revision) throw new AppError('INVALID_INPUT','Nháp gắn ứng viên không kèm bản đề xuất tài liệu.',422);
      const manifest=skillManifests[d.signal_type];
      const reasons=new Set<string>();
+     let threadHidden:boolean|undefined;
      if(d.manifest_hash!==manifest.hash) reasons.add('MANIFEST_MISMATCH');
      let recomputed='';
      try {recomputed=sha256(d.value);} catch(e) {
@@ -307,24 +324,26 @@ export class SuggestionService {
       if(ctx.pointerOnly) reasons.add('POINTER_ONLY_PROJECT');
       for(const r of checkSkillOutput({name:manifest.name,hash:manifest.hash,toolAllowlist:manifest.toolAllowlist},ctx,d.value).reasons) reasons.add(r);
       // OQ-55 placeholder: what read masks for a hidden thread, confirm holds
-      if(d.entity_type==='intake_candidate'&&await threadHasHiddenText(tx,projectId,d.entity_id,this.excerptChats)) reasons.add('THREAD_TEXT_HIDDEN');
-      for(const r of await subjectReasons(tx,projectId,d)) reasons.add(r);
+      if(d.entity_type==='intake_candidate') {
+       threadHidden=await threadHasHiddenText(tx,projectId,d.entity_id,this.excerptChats);
+       if(threadHidden) reasons.add('THREAD_TEXT_HIDDEN');
+      }
+      const subject=await subjectReasons(tx,projectId,d);
+      for(const r of subject.reasons) reasons.add(r);
+      subjectPosition=subject.position;
      }
      // OQ-55 placeholder by project, for every draft and outside the context check, so the code stands when no context can be built (fail-closed until the Chairman decides; wider than option (e))
-     if(await projectHasHiddenText(tx,projectId,this.excerptChats)) reasons.add('PROJECT_TEXT_HIDDEN');
-     // OQ-53 point 3 placeholder, fail-closed. Source: the Chairman's scope decision of 18/11/2026 for this PR, option B (docs/OPEN-QUESTIONS.md, the block
-     // at the end). Point 3 stays open; this is not a chosen option of it. Lifting the placeholder is removing the one line below.
-     //
-     // Technical note of the plan, not the Chairman's words: the freshness check above cannot see a message whose intake transaction began earlier and
-     // commits later. Every check above still runs; when no mask reason holds the draft each names its code; a rejection is not held; nothing is masked at read time for this.
-     if(d.entity_type==='intake_candidate') reasons.add('SUBJECT_ORDER_UNVERIFIED');
+     const projectHidden=await projectHasHiddenText(tx,projectId,this.excerptChats);
+     if(projectHidden) reasons.add('PROJECT_TEXT_HIDDEN');
      if(reasons.size) {
       // OQ-45 point 2 (b): when a mask reason holds the draft, its content is not shown to this person, and the hold names what a read names — the
-      // mask reasons — and the placeholder of OQ-53 point 3, which says nothing about the content. The other codes of the gate describe the content.
+      // mask reasons. The other codes of the gate describe the content.
       const masked=[...reasons].some(r=>MASK_REASONS.has(r));
-      const named=masked?[...reasons].filter(r=>MASK_REASONS.has(r)||r==='SUBJECT_ORDER_UNVERIFIED'):[...reasons];
+      const named=masked?[...reasons].filter(r=>MASK_REASONS.has(r)):[...reasons];
       throw new AppError('DRAFT_HELD',`Nháp được giữ lại, chưa xác nhận được: ${named.sort().join(', ')}.`,422);
      }
+     // nothing holds the draft, so both hidden-text checks said no: the answer is built from these two results and does not read the message tables again after the write (P13)
+     known={hiddenProject:projectHidden,hiddenThread:new Map(threadHidden===undefined?[]:[[d.entity_id,threadHidden]])};
      // nothing holds the draft, so its content is shown to this person now: the hash is compared after all. Reached with another hash only when the
      // draft was masked for them as the command arrived and is not any more — its state changed under the command; they read it again first.
      if(input.valueHash!==d.value_hash) throw new AppError('REVISION_CONFLICT','Nháp đã đổi. Đọc bản mới trước khi quyết định.',409);
@@ -335,14 +354,21 @@ export class SuggestionService {
      }
     }
     let row:{id:string}|undefined;
+    // only the confirmation of a candidate draft carries the number of its thread; the database refuses it on any other row, and refuses a confirmation of a candidate draft that carries none
+    const threadNumber=input.result==='confirmed'&&d.entity_type==='intake_candidate'?subjectPosition:null;
     try {
-     row=(await tx.query<{id:string}>(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,document_revision_id,decided_by,command_key,request_id,trace_id)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
-     [p.tenantId,projectId,id,d.value_hash,input.result,reason,revisionId,p.id,key,requestId,randomUUID()])).rows[0];
+     row=(await tx.query<{id:string}>(`INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,document_revision_id,decided_by,command_key,request_id,trace_id,subject_thread_seq)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::bigint) ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
+     [p.tenantId,projectId,id,d.value_hash,input.result,reason,revisionId,p.id,key,requestId,randomUUID(),threadNumber])).rows[0];
     } catch(e) {
+     const code=(e as {code?:string}|null)?.code;
      // migration 022 refuses a confirmation whose project became pointer-only after the check above (a mapping committed in between): the same hold
-     if(input.result==='confirmed'&&(e as {code?:string}|null)?.code===POINTER_ONLY_SQLSTATE)
+     if(input.result==='confirmed'&&code===POINTER_ONLY_SQLSTATE)
       throw new AppError('DRAFT_HELD','Nháp được giữ lại, chưa xác nhận được: POINTER_ONLY_PROJECT.',422);
+     // migration 023 refuses a confirmation of a candidate draft whose thread moved on after the check above (a message that was in flight committed, or one arrived in between): the same hold as
+     // a change the check finds. Nothing is written and the claim goes with the transaction. The sentence carries no word of the database.
+     if(input.result==='confirmed'&&d.entity_type==='intake_candidate'&&code===SUBJECT_ORDER_SQLSTATE)
+      throw new AppError('DRAFT_HELD','Nháp được giữ lại, chưa xác nhận được: SUBJECT_CHANGED.',422);
      throw e;
     }
     if(!row) throw alreadyDecided();
@@ -351,7 +377,8 @@ export class SuggestionService {
    // the stored idempotent response holds the decision's id only; the view is always read again
    const view=(await tx.query<DraftRow>(`${DRAFT_SQL} WHERE d.id=$1::uuid`,[id])).rows[0];
    if(!view||!view.dec_result) throw denied();
-   return (await this.present(tx,p,projectId,[view],contexts))[0];
+   // a confirmation passes what it checked (P13); a rejection and a replay pass nothing and the answer runs its own checks
+   return (await this.present(tx,p,projectId,[view],contexts,known))[0];
   });
  }
 }

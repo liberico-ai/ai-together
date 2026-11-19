@@ -1,0 +1,11 @@
+# green after the changes of Task 9a (pglite, tests/z4-schema.test.ts, exit=0)
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  24 passed | 2 skipped (26)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  24 passed | 2 skipped (26)
+   Start at  16:42:17
+   Duration  12.64s (tests 99%, import 1%)
+

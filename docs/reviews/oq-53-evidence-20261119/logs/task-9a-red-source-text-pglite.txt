@@ -1,0 +1,30 @@
+# red against the sources of 26ba304 (threadFreshness with the CTE latest, the librarian statement with the correlated subquery, contextSchema with revisionNo as any integer) (pglite, tests/source-text.test.ts, exit=1)
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 1; Tests  1 failed | 40 passed (41)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/source-text.test.ts (41 tests | 1 failed) 23601ms
+   ❯ threadFreshness (18)
+     × T21 many pairs on a long thread: the answer is right (one older revision among a hundred pairs is a change; a hundred latest revisions are not), and the work does not grow with the product of pairs and messages 4881ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T21 many pairs on a long thread: the answer is right (one older revision among a hundred pairs is a change; a hundred latest revisions are not), and the work does not grow with the product of pairs and messages
+AssertionError: blocks touched: 931603: expected 931603 to be less than 100000
+ ❯ tests/source-text.test.ts:643:45
+    641|    // the work: far above what one probe of the index for each pair an…
+    642|    const blocks=await blocksOf(tx,sent[0].sql,sent[0].params);
+    643|    expect(blocks,'blocks touched: '+blocks).toBeLessThan(BLOCKS_LIMIT);
+       |                                             ^
+    644|    // one of them names the first revision of its message instead (not…
+    645|    const old=pairs.map((x,i)=>i===1?pair(x.id,1):x);
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 40 passed (41)
+   Start at  16:35:08
+   Duration  23.74s (tests 100%)
+

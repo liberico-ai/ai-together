@@ -1,0 +1,613 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-contracts.test.ts (41 tests | 28 failed) 41ms
+   ❯ skill contracts (38)
+     × a clean output of each of the six skills is accepted 7ms
+     × a manifest mismatch of skill or hash is held 1ms
+     × an output without sources is held 0ms
+     × a claim or section without basis is held 0ms
+     × a cited id outside the context is held 0ms
+     × a claim based on a hidden or pointer-only message is held 1ms
+     × DOC-15 a tool request outside the allowlist is held and the manifest object is unchanged 0ms
+     × reasons are complete and ordered 0ms
+     × confidence is an integer from 0 to 100 1ms
+     × no contract admits another number, and parsing returns the value unchanged 0ms
+     × sources are at most 100 references 0ms
+     × questions are at most 50 items and 16384 bytes 0ms
+     × R-a the context must be for the same skill as the manifest 0ms
+     × R-b a statement cannot rest on text that was not shown 0ms
+     × R-c every id-bearing field is checked against the context, and the table covers every id in a clean output 0ms
+     × R-e a pointer-only context carries no text to reason from 0ms
+     × F9-1 a conflict names at least two distinct sources 0ms
+     × F9-2 in a pointer-only context any non-empty leaf of result is held, for all six skills 0ms
+     × F9-2 the empty-leaf walk is recursive and reaches into nested objects 0ms
+     × a context with no shown text and no document yields only held outputs 0ms
+     × F9-3 an excerpt without text does not support a statement 0ms
+     × F9-4 the value that is measured is the value that is parsed and returned 0ms
+     × F9-5 whatever a statement cites is also listed in sources 0ms
+     × F9-6 an id of the wrong kind is out of context 0ms
+     × F9-8 a hidden or pointer-only message named in any id field, sources[] and duplicateOf included, is held 0ms
+   ❯ skill contracts: messageRevisions (OQ-53 point 1 (b), Task 4) (3)
+     × D1 the three message skills must state messageRevisions; the other three must not 0ms
+     × D2 an id under messageRevisions is held to the rules of every id field 0ms
+     × D3 namedIds includes the ids of messageRevisions; namedRevisions returns the pairs and nothing else 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 28 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > a clean output of each of the six skills is accepted
+AssertionError: intake_analyst: expected { verdict: 'hold', …(2) } to match object { verdict: 'accept', reasons: [] }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "reasons": [],
+-   "verdict": "accept",
++   "reasons": [
++     "SCHEMA_INVALID",
++   ],
++   "verdict": "hold",
+  }
+
+ ❯ tests/skill-contracts.test.ts:48:20
+     46|     for (const s of SKILLS) {
+     47|       const r = check(s, clean(s));
+     48|       expect(r, s).toMatchObject({ verdict: 'accept', reasons: [] });
+       |                    ^
+     49|       expect(r.output).not.toBeNull();
+     50|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > a manifest mismatch of skill or hash is held
+AssertionError: expected [ 'SCHEMA_INVALID' ] to deeply equal [ 'MANIFEST_MISMATCH' ]
+
+- Expected
++ Received
+
+  [
+-   "MANIFEST_MISMATCH",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:99:99
+     97|
+     98|   it('a manifest mismatch of skill or hash is held', () => {
+     99|     expect(check('intake_analyst', { ...clean('intake_analyst'), skill…
+       |                                                                                                   ^
+    100|     expect(check('intake_analyst', { ...clean('intake_analyst'), manif…
+    101|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > an output without sources is held
+AssertionError: expected { verdict: 'hold', …(2) } to deeply equal { verdict: 'hold', …(2) }
+
+- Expected
++ Received
+
+  {
+    "output": null,
+    "reasons": [
+-     "SOURCE_REQUIRED",
++     "SCHEMA_INVALID",
+    ],
+    "verdict": "hold",
+  }
+
+ ❯ tests/skill-contracts.test.ts:105:15
+    103|   it('an output without sources is held', () => {
+    104|     const r = check('intake_analyst', { ...clean('intake_analyst'), so…
+    105|     expect(r).toEqual({ verdict: 'hold', reasons: ['SOURCE_REQUIRED'],…
+       |               ^
+    106|   });
+    107|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > a claim or section without basis is held
+AssertionError: expected [ 'SCHEMA_INVALID' ] to deeply equal [ 'UNSOURCED_CLAIM' ]
+
+- Expected
++ Received
+
+  [
+-   "UNSOURCED_CLAIM",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:110:48
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > a cited id outside the context is held
+AssertionError: sources: expected [ 'SCHEMA_INVALID' ] to deeply equal [ 'SOURCE_OUT_OF_CONTEXT' ]
+
+- Expected
++ Received
+
+  [
+-   "SOURCE_OUT_OF_CONTEXT",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:126:56
+    124|     for (const [name, f] of where) {
+    125|       const o = clean('ba_elicitation'); f(o);
+    126|       expect(check('ba_elicitation', o).reasons, name).toEqual(['SOURC…
+       |                                                        ^
+    127|     }
+    128|     const dup = clean('intake_analyst'); (dup.result as { duplicateOf:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > a claim based on a hidden or pointer-only message is held
+AssertionError: e2: expected { verdict: 'hold', …(2) } to deeply equal { verdict: 'hold', …(2) }
+
+- Expected
++ Received
+
+  {
+    "output": null,
+    "reasons": [
+-     "TEXT_NOT_VISIBLE",
++     "SCHEMA_INVALID",
+    ],
+    "verdict": "hold",
+  }
+
+ ❯ tests/skill-contracts.test.ts:143:46
+    141|     for (const id of ['e2', 'e3']) {
+    142|       const o = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, …
+    143|       expect(check('intake_analyst', o), id).toEqual({ verdict: 'hold'…
+       |                                              ^
+    144|       const p = { ...clean('pm_planning'), sources: [{ id: 'e1' }, { i…
+    145|       expect(check('pm_planning', p).reasons, `result ${id}`).toEqual(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > DOC-15 a tool request outside the allowlist is held and the manifest object is unchanged
+AssertionError: expected { verdict: 'hold', …(2) } to deeply equal { verdict: 'hold', …(2) }
+
+- Expected
++ Received
+
+  {
+    "output": null,
+    "reasons": [
+-     "TOOL_NOT_ALLOWED",
++     "SCHEMA_INVALID",
+    ],
+    "verdict": "hold",
+  }
+
+ ❯ tests/skill-contracts.test.ts:153:15
+    151|     const o = { ...clean('intake_analyst'), toolRequests: [{ tool: 'sh…
+    152|     const r = checkSkillOutput(m, ctx(), o);
+    153|     expect(r).toEqual({ verdict: 'hold', reasons: ['TOOL_NOT_ALLOWED']…
+       |               ^
+    154|     expect(m.toolAllowlist).toEqual([]);
+    155|     expect(check('intake_analyst', o, ['shell.exec']).verdict).toBe('a…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > reasons are complete and ordered
+AssertionError: expected [ 'SCHEMA_INVALID' ] to deeply equal [ 'MANIFEST_MISMATCH', …(3) ]
+
+- Expected
++ Received
+
+  [
+-   "MANIFEST_MISMATCH",
+-   "SOURCE_REQUIRED",
+-   "UNSOURCED_CLAIM",
+-   "TOOL_NOT_ALLOWED",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:175:48
+    173|   it('reasons are complete and ordered', () => {
+    174|     const o = { ...clean('intake_analyst'), manifestHash: 'other', sou…
+    175|     expect(check('intake_analyst', o).reasons).toEqual(['MANIFEST_MISM…
+       |                                                ^
+    176|     const all = clean('release_librarian');
+    177|     all.manifestHash = 'other'; all.sources = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > confidence is an integer from 0 to 100
+AssertionError: expected 'hold' to be 'accept' // Object.is equality
+
+Expected: "accept"
+Received: "hold"
+
+ ❯ tests/skill-contracts.test.ts:231:118
+    229|   it('confidence is an integer from 0 to 100', () => {
+    230|     for (const c of [0.5, -1, 101, '80']) expect(check('intake_analyst…
+    231|     for (const c of [0, 100]) expect(check('intake_analyst', { ...clea…
+       |                                                                                                                      ^
+    232|   });
+    233|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > no contract admits another number, and parsing returns the value unchanged
+AssertionError: intake_analyst: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/skill-contracts.test.ts:240:33
+    238|       const good = clean(s);
+    239|       const parsed = outputSchemas[s].safeParse(good);
+    240|       expect(parsed.success, s).toBe(true);
+       |                                 ^
+    241|       if (parsed.success) expect(parsed.data).toEqual(good);
+    242|       const paths = leaves(good);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > sources are at most 100 references
+AssertionError: expected 'hold' to be 'accept' // Object.is equality
+
+Expected: "accept"
+Received: "hold"
+
+ ❯ tests/skill-contracts.test.ts:255:54
+    253|   it('sources are at most 100 references', () => {
+    254|     const mk = (n: number) => ({ ...clean('intake_analyst'), sources: …
+    255|     expect(check('intake_analyst', mk(100)).verdict).toBe('accept');
+       |                                                      ^
+    256|     expect(check('intake_analyst', mk(101))).toEqual({ verdict: 'hold'…
+    257|     expect(check('intake_analyst', { ...clean('intake_analyst'), sourc…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > questions are at most 50 items and 16384 bytes
+AssertionError: expected 'hold' to be 'accept' // Object.is equality
+
+Expected: "accept"
+Received: "hold"
+
+ ❯ tests/skill-contracts.test.ts:262:53
+    260|   it('questions are at most 50 items and 16384 bytes', () => {
+    261|     const mk = (n: number) => ({ ...clean('intake_analyst'), questions…
+    262|     expect(check('intake_analyst', mk(50)).verdict).toBe('accept');
+       |                                                     ^
+    263|     expect(check('intake_analyst', mk(51)).reasons).toEqual(['SCHEMA_I…
+    264|     const sized = (bytes: number) => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-a the context must be for the same skill as the manifest
+AssertionError: expected { verdict: 'hold', …(2) } to deeply equal { verdict: 'hold', …(2) }
+
+- Expected
++ Received
+
+  {
+    "output": null,
+    "reasons": [
+-     "MANIFEST_MISMATCH",
++     "SCHEMA_INVALID",
+    ],
+    "verdict": "hold",
+  }
+
+ ❯ tests/skill-contracts.test.ts:277:15
+    275|   it('R-a the context must be for the same skill as the manifest', () …
+    276|     const r = check('ba_elicitation', clean('ba_elicitation'), [], ctx…
+    277|     expect(r).toEqual({ verdict: 'hold', reasons: ['MANIFEST_MISMATCH'…
+       |               ^
+    278|   });
+    279|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-b a statement cannot rest on text that was not shown
+AssertionError: expected [ 'SCHEMA_INVALID' ] to deeply equal [ 'TEXT_NOT_VISIBLE' ]
+
+- Expected
++ Received
+
+  [
+-   "TEXT_NOT_VISIBLE",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:282:48
+    280|   it('R-b a statement cannot rest on text that was not shown', () => {
+    281|     const c = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { …
+    282|     expect(check('intake_analyst', c).reasons).toEqual(['TEXT_NOT_VISI…
+       |                                                ^
+    283|     const p = { ...clean('technical_writer'), sources: [{ id: 'e1' }, …
+    284|     expect(check('technical_writer', p).reasons).toEqual(['TEXT_NOT_VI…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-c every id-bearing field is checked against the context, and the table covers every id in a clean output
+AssertionError: intake_analyst sources.*.id: expected [ 'SCHEMA_INVALID' ] to include 'SOURCE_OUT_OF_CONTEXT'
+ ❯ tests/skill-contracts.test.ts:305:55
+    303|       for (const f of ID_FIELDS[s]) {
+    304|         const o = clean(s); expect(setAll(o, f.path.split('.'), 'zzz')…
+    305|         expect(check(s, o).reasons, `${s} ${f.path}`).toContain('SOURC…
+       |                                                       ^
+    306|       }
+    307|       // 2. every leaf of the clean output that holds a context id sit…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-e a pointer-only context carries no text to reason from
+AssertionError: expected [ 'SCHEMA_INVALID' ] to deeply equal [ 'TEXT_NOT_VISIBLE' ]
+
+- Expected
++ Received
+
+  [
+-   "TEXT_NOT_VISIBLE",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:331:77
+    329|   it('R-e a pointer-only context carries no text to reason from', () =…
+    330|     const c = ctx({ skill: 'intake_analyst', pointerOnly: true });
+    331|     expect(check('intake_analyst', clean('intake_analyst'), [], c).rea…
+       |                                                                             ^
+    332|     const onlyConflict = { ...clean('intake_analyst'), claims: [] };
+    333|     expect(check('intake_analyst', onlyConflict, [], c).reasons).toEqu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > F9-1 a conflict names at least two distinct sources
+AssertionError: []: expected { verdict: 'hold', …(2) } to deeply equal { verdict: 'hold', …(2) }
+
+- Expected
++ Received
+
+  {
+    "output": null,
+    "reasons": [
+-     "UNSOURCED_CLAIM",
++     "SCHEMA_INVALID",
+    ],
+    "verdict": "hold",
+  }
+
+ ❯ tests/skill-contracts.test.ts:344:63
+    342|     for (const ids of [[], ['e1'], ['e1', 'e1']]) {
+    343|       const o = clean('intake_analyst'); o.conflicts[0].sourceIds = id…
+    344|       expect(check('intake_analyst', o), JSON.stringify(ids)).toEqual(…
+       |                                                               ^
+    345|     }
+    346|     const two = clean('intake_analyst'); two.conflicts[0].sourceIds = …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > F9-2 in a pointer-only context any non-empty leaf of result is held, for all six skills
+AssertionError: intake_analyst.classification: expected [ 'SCHEMA_INVALID' ] to include 'TEXT_NOT_VISIBLE'
+ ❯ tests/skill-contracts.test.ts:373:44
+    371|       for (const [field, value] of Object.entries(leafOf[s])) {
+    372|         const r = check(s, wrap({ ...(emptyOf[s] as object), [field]: …
+    373|         expect(r.reasons, `${s}.${field}`).toContain('TEXT_NOT_VISIBLE…
+       |                                            ^
+    374|         expect(r.verdict, `${s}.${field}`).toBe('hold');
+    375|       }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > F9-2 the empty-leaf walk is recursive and reaches into nested objects
+AssertionError: expected 'hold' to be 'accept' // Object.is equality
+
+Expected: "accept"
+Received: "hold"
+
+ ❯ tests/skill-contracts.test.ts:392:121
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > a context with no shown text and no document yields only held outputs
+AssertionError: intake_analyst pointerOnly=true: expected { verdict: 'hold', …(2) } to deeply equal { verdict: 'hold', …(2) }
+
+- Expected
++ Received
+
+  {
+    "output": null,
+    "reasons": [
+-     "SOURCE_REQUIRED",
++     "SCHEMA_INVALID",
+    ],
+    "verdict": "hold",
+  }
+
+ ❯ tests/skill-contracts.test.ts:409:51
+    407|         continue;
+    408|       }
+    409|       expect(check(s, questionsOnly, [], c), tag).toEqual({ verdict: '…
+       |                                                   ^
+    410|       for (const id of ['h1', 'h2']) {
+    411|         const listed = { ...questionsOnly, sources: [{ id }] };
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > F9-3 an excerpt without text does not support a statement
+AssertionError: expected [ 'SCHEMA_INVALID' ] to deeply equal [ 'TEXT_NOT_VISIBLE' ]
+
+- Expected
++ Received
+
+  [
+-   "TEXT_NOT_VISIBLE",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:421:55
+    419|     c.sources.push({ id: 'e4', kind: 'source_event', ref: 'ref-4', mod…
+    420|     const o = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { …
+    421|     expect(check('intake_analyst', o, [], c).reasons).toEqual(['TEXT_N…
+       |                                                       ^
+    422|   });
+    423|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > F9-4 the value that is measured is the value that is parsed and returned
+AssertionError: expected 'hold' to be 'accept' // Object.is equality
+
+Expected: "accept"
+Received: "hold"
+
+ ❯ tests/skill-contracts.test.ts:428:23
+    426|     const wrapped = { toJSON: () => plain };
+    427|     const r = check('intake_analyst', wrapped);
+    428|     expect(r.verdict).toBe('accept');
+       |                       ^
+    429|     expect(r.output).toEqual(plain);
+    430|     expect(r.output).not.toBe(plain);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > F9-5 whatever a statement cites is also listed in sources
+AssertionError: expected [ 'SCHEMA_INVALID' ] to deeply equal [ 'UNSOURCED_CLAIM' ]
+
+- Expected
++ Received
+
+  [
+-   "UNSOURCED_CLAIM",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:437:52
+    435|   it('F9-5 whatever a statement cites is also listed in sources', () =…
+    436|     const claim = { ...clean('intake_analyst'), sources: [{ id: 'r1' }…
+    437|     expect(check('intake_analyst', claim).reasons).toEqual(['UNSOURCED…
+       |                                                    ^
+    438|     const item = { ...clean('ba_elicitation'), sources: [{ id: 'e1' },…
+    439|     expect(check('ba_elicitation', item).reasons).toEqual(['UNSOURCED_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > F9-6 an id of the wrong kind is out of context
+AssertionError: expected [ 'SCHEMA_INVALID' ] to deeply equal [ 'SOURCE_OUT_OF_CONTEXT' ]
+
+- Expected
++ Received
+
+  [
+-   "SOURCE_OUT_OF_CONTEXT",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:448:67
+    446|     expect(set('doc_reviewer', r => { r.baseRevisionId = 'e1'; })).toE…
+    447|     expect(set('doc_reviewer', r => { r.candidateRevisionId = 'd1'; })…
+    448|     expect(set('intake_analyst', r => { r.duplicateOf = 'd1'; })).toEq…
+       |                                                                   ^
+    449|     expect(set('release_librarian', r => { r.index[0].documentId = 'r1…
+    450|     expect(set('release_librarian', r => { r.staleReminders[0].documen…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > F9-8 a hidden or pointer-only message named in any id field, sources[] and duplicateOf included, is held
+AssertionError: sources e2: expected { verdict: 'hold', …(2) } to deeply equal { verdict: 'hold', …(2) }
+
+- Expected
++ Received
+
+  {
+    "output": null,
+    "reasons": [
+-     "TEXT_NOT_VISIBLE",
++     "SCHEMA_INVALID",
+    ],
+    "verdict": "hold",
+  }
+
+ ❯ tests/skill-contracts.test.ts:458:68
+    456|     for (const id of ['e2', 'e3']) {
+    457|       const onlyListed = { ...clean('intake_analyst'), sources: [{ id:…
+    458|       expect(check('intake_analyst', onlyListed), `sources ${id}`).toE…
+       |                                                                    ^
+    459|       const dup = clean('intake_analyst'); (dup.result as { duplicateO…
+    460|       expect(check('intake_analyst', dup).reasons, `duplicateOf ${id}`…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts: messageRevisions (OQ-53 point 1 (b), Task 4) > D1 the three message skills must state messageRevisions; the other three must not
+AssertionError: intake_analyst control: expected 'hold' to be 'accept' // Object.is equality
+
+Expected: "accept"
+Received: "hold"
+
+ ❯ tests/skill-contracts.test.ts:515:42
+    513|       // positive control: the clean output, with the field, is accept…
+    514|       const ok = check(s, clean(s));
+    515|       expect(ok.verdict, `${s} control`).toBe('accept');
+       |                                          ^
+    516|       expect(ok.output?.messageRevisions, `${s} handed back`).toEqual(…
+    517|       // the field is required, also as an empty list; a list that sta…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts: messageRevisions (OQ-53 point 1 (b), Task 4) > D2 an id under messageRevisions is held to the rules of every id field
+AssertionError: intake_analyst table: expected [] to deeply equal [ { …(3) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "kind": "source_event",
+-     "path": "messageRevisions.*.id",
+-     "supports": false,
+-   },
+- ]
++ []
+
+ ❯ tests/skill-contracts.test.ts:548:90
+    546|     for (const s of MESSAGE_SKILLS) {
+    547|       // the table lists the path once, as an id of a message that bac…
+    548|       expect(ID_FIELDS[s].filter(f => f.path === 'messageRevisions.*.i…
+       |                                                                                          ^
+    549|       // not a message of the context: a foreign id, a document, a rev…
+    550|       for (const id of ['zzz', 'd1', 'r1', 'r2'])
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/28]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts: messageRevisions (OQ-53 point 1 (b), Task 4) > D3 namedIds includes the ids of messageRevisions; namedRevisions returns the pairs and nothing else
+AssertionError: intake_analyst namedIds: expected [ 'a1' ] to deeply equal [ 'a1', 'm1', 'm2' ]
+
+- Expected
++ Received
+
+  [
+    "a1",
+-   "m1",
+-   "m2",
+  ]
+
+ ❯ tests/skill-contracts.test.ts:572:47
+    570|       const o = { ...quiet(s), sources: [{ id: 'a1' }], messageRevisio…
+    571|       // the ids of messageRevisions are named, once each, in order of…
+    572|       expect(namedIds(s, o), `${s} namedIds`).toEqual(['a1', 'm1', 'm2…
+       |                                               ^
+    573|       expect(namedIds(s, { ...o, sources: [], messageRevisions: [pair(…
+    574|       // the pairs, in order of first appearance; a pair repeated word…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/28]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  28 failed | 13 passed (41)
+   Start at  14:03:49
+   Duration  201ms (tests 40%, import 31%, transform 28%, worker 2%)
+
+exit=1

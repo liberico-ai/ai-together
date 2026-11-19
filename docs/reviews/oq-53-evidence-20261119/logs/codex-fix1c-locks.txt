@@ -1,0 +1,64 @@
+Migration 023, class sweep, review of the fix (CS-DB-7): the locks that the file holds, read from pg_locks inside the transaction of the file (psql, PostgreSQL 16.15, isolated database; each transaction is rolled back after the query).
+Only ShareRowExclusiveLock and AccessExclusiveLock on the tables the file names are listed. A first application takes no ShareRowExclusiveLock on public.draft_decisions at step 1 or before step 10; a second run takes it at step 1.
+
+== FIRST application (023 not applied)
+after the locks of step 1
+ ai_drafts              | ShareRowExclusiveLock
+ source_event_revisions | ShareRowExclusiveLock
+(2 rows)
+
+after step 9 (before the step that adds the column)
+ ai_drafts                 | ShareRowExclusiveLock
+ intake_thread_heads       | AccessExclusiveLock
+ intake_thread_heads       | ShareRowExclusiveLock
+ projects                  | ShareRowExclusiveLock
+ source_event_revisions    | ShareRowExclusiveLock
+ source_revision_positions | AccessExclusiveLock
+ source_revision_positions | ShareRowExclusiveLock
+(7 rows)
+
+at the end, before the record of the migration
+ ai_drafts                 | ShareRowExclusiveLock
+ draft_decisions           | AccessExclusiveLock
+ draft_decisions           | ShareRowExclusiveLock
+ intake_thread_heads       | AccessExclusiveLock
+ intake_thread_heads       | ShareRowExclusiveLock
+ projects                  | ShareRowExclusiveLock
+ source_event_revisions    | ShareRowExclusiveLock
+ source_revision_positions | AccessExclusiveLock
+ source_revision_positions | ShareRowExclusiveLock
+(9 rows)
+
+== SECOND application (023 applied)
+after the locks of step 1
+ ai_drafts              | ShareRowExclusiveLock
+ draft_decisions        | ShareRowExclusiveLock
+ source_event_revisions | ShareRowExclusiveLock
+(3 rows)
+
+after step 9 (before the step that adds the column)
+ ai_drafts                 | ShareRowExclusiveLock
+ draft_decisions           | ShareRowExclusiveLock
+ intake_thread_heads       | AccessExclusiveLock
+ intake_thread_heads       | ShareRowExclusiveLock
+ source_event_revisions    | ShareRowExclusiveLock
+ source_revision_positions | AccessExclusiveLock
+ source_revision_positions | ShareRowExclusiveLock
+(7 rows)
+
+at the end, before the record of the migration
+ ai_drafts                 | ShareRowExclusiveLock
+ draft_decisions           | AccessExclusiveLock
+ draft_decisions           | ShareRowExclusiveLock
+ intake_thread_heads       | AccessExclusiveLock
+ intake_thread_heads       | ShareRowExclusiveLock
+ source_event_revisions    | ShareRowExclusiveLock
+ source_revision_positions | AccessExclusiveLock
+ source_revision_positions | ShareRowExclusiveLock
+(8 rows)
+
+Reading
+- First application, step 1: the revision table and the draft table only. No lock on public.draft_decisions (before the fix of CS-DB-7 it held ShareRowExclusiveLock there from step 1, codex-fix1b-locks.txt).
+- First application, after step 9 (the whole numbering, steps 2 to 9): still no lock on public.draft_decisions; the new tables are ACCESS EXCLUSIVE, public.projects is SHARE ROW EXCLUSIVE (foreign keys).
+- First application, at the end: public.draft_decisions is ACCESS EXCLUSIVE (the column of step 10) and also ShareRowExclusiveLock: that is the CREATE TRIGGER of step 11, taken after the column. Both come after the numbering, so a decision is not stopped for the length of it.
+- Second application: ShareRowExclusiveLock on the decision table from step 1 (the block runs because intake_thread_heads exists), and no lock on public.projects (no foreign key is created again).

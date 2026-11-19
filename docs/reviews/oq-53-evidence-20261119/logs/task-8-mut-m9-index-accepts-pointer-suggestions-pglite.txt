@@ -1,0 +1,37 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (120 tests | 1 failed | 1 skipped) 58181ms
+   ❯ Z4 drafts: a release librarian draft is confirmed against the newest revision of its document (OQ-57) (4)
+     × NOT_APPROVED_REVISION holds as before: a draft that indexes the unapproved pointer, or states it as the approved revision, is held for that alone; naming it in sources holds nothing 487ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a release librarian draft is confirmed against the newest revision of its document (OQ-57) > NOT_APPROVED_REVISION holds as before: a draft that indexes the unapproved pointer, or states it as the approved revision, is held for that alone; naming it in sources holds nothing
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:112:10
+ ❯ heldOnly tests/suggestions.test.ts:119:10
+ ❯ tests/suggestions.test.ts:1966:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 118 passed | 1 skipped (120)
+   Start at  15:47:26
+   Duration  58.31s (tests 100%)
+

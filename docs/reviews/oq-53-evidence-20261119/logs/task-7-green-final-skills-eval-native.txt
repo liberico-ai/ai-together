@@ -1,0 +1,12 @@
+# native, tests/skills-eval.test.ts, exit=0
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  43 passed (43)
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  43 passed (43)
+   Start at  15:25:00
+   Duration  131ms (import 53%, tests 27%, transform 18%, worker 2%)
+

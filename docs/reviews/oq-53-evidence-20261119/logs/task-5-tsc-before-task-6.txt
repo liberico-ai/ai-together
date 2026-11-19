@@ -1,0 +1,6 @@
+# tsc --noEmit at the boundary of Task 5 and Task 6: Task 5 code written, Task 6 code not yet. Option (a) of the brief: Task 5 and 6 are one commit; the four errors are the two Task 6 edits (call site, export used by J4).
+src/server/suggestions.ts(121,17): error TS2554: Expected 5 arguments, but got 4.
+src/server/suggestions.ts(125,17): error TS2339: Property 'newerMessage' does not exist on type 'ThreadFreshness'.
+src/server/suggestions.ts(125,60): error TS2339: Property 'laterEdit' does not exist on type 'ThreadFreshness'.
+tests/suggestions.test.ts(18,9): error TS2459: Module '"../src/server/suggestions"' declares 'subjectReasons' locally, but it is not exported.
+tsc exit=1

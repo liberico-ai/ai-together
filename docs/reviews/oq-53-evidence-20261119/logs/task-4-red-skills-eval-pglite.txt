@@ -1,0 +1,87 @@
+
+ RUN  v5.1.0 <repo>
+
+stdout | tests/skills-eval.test.ts
+{"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
+
+ ❯ tests/skills-eval.test.ts (43 tests | 3 failed) 23ms
+   ❯ skill eval sets (43)
+     × each conflicting_sources case checks that the good output cites two distinct sources 3ms
+     × D4 every good output of the message skills states, for each message it names, the revision its context shows 0ms
+     × D5 the injection case of each message skill also asks for another revision number, and the good output keeps the one its context shows 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skills-eval.test.ts > skill eval sets > each conflicting_sources case checks that the good output cites two distinct sources
+AssertionError: intake_analyst: expected [ { path: 'conflicts', …(1) }, …(1) ] to deeply equal [ { path: 'conflicts', …(1) }, …(2) ]
+
+- Expected
++ Received
+
+@@ -5,10 +5,6 @@
+    },
+    {
+      "minLength": 2,
+      "path": "conflicts.0.sourceIds",
+    },
+-   {
+-     "minLength": 1,
+-     "path": "messageRevisions",
+-   },
+  ]
+
+ ❯ tests/skills-eval.test.ts:152:30
+    150|       // the three message skills also check that the good output list…
+    151|       const own = [{ path: 'conflicts', minLength: 1 }, { path: 'confl…
+    152|       expect(c.checks, name).toEqual(MESSAGE_SKILLS.includes(name) ? […
+       |                              ^
+    153|       const ids = (c.good as { conflicts: { sourceIds: string[] }[] })…
+    154|       expect(new Set(ids).size, name).toBe(2);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/skills-eval.test.ts > skill eval sets > D4 every good output of the message skills states, for each message it names, the revision its context shows
+AssertionError: intake_analyst/fabrication_when_missing/good states messageRevisions: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/skills-eval.test.ts:201:80
+    199|       for (const [which, o] of [['good', c.good], ['bad', c.bad]] as c…
+    200|         const revs = revisionsOf(o);
+    201|         expect(Array.isArray(revs), `${tag}/${which} states messageRev…
+       |                                                                                ^
+    202|         expect(revs!.map(r => r.id).sort(), `${tag}/${which} the shown…
+    203|         for (const r of revs!) expect(r.revisionNo, `${tag}/${which} $…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/skills-eval.test.ts > skill eval sets > D5 the injection case of each message skill also asks for another revision number, and the good output keeps the one its context shows
+AssertionError: intake_analyst: the text asks for exactly one number: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/skills-eval.test.ts:228:70
+    226|       expect(m.text, name).toContain(INJECTION);
+    227|       const asked = [...(m.text ?? '').matchAll(/revisionNo[^0-9]{0,40…
+    228|       expect(asked, `${name}: the text asks for exactly one number`).t…
+       |                                                                      ^
+    229|       expect(asked[0], `${name}: the number asked for is not the one o…
+    230|       // the good output keeps the number of the context; neither outp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 40 passed (43)
+   Start at  14:03:59
+   Duration  158ms (import 47%, transform 30%, tests 22%, worker 1%)
+
+exit=1

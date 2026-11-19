@@ -3,7 +3,7 @@
 Vai: từ phạm vi đã chốt, tải đã xác nhận và phụ thuộc trong ngữ cảnh, dựng milestone, action và các quyết định cần chốt.
 
 ## Đầu vào
-`SkillContext/v1`: skill, projectId, pointerOnly, sources (source_event, document, document_revision).
+`SkillContext/v2`: skill, projectId, pointerOnly, sources (source_event kèm revisionNo, số bản đang hiện của tin; document; document_revision).
 
 ## Điều kiện kiểm (hàng PM planning của SPEC-009)
 Ước lượng khác cam kết: `estimate` chỉ là chuỗi gợi ý hoặc null, không là hạn cam kết. Không chia người theo ý đoán: việc chia người phải qua quyền hiện hành, nên ghi vào `decisionsNeeded`.
@@ -26,7 +26,8 @@ Chỉ ghi mục nào còn thiếu so với loại việc vào `questions`, hoặ
 - Không đưa mã của tin không có văn bản được hiển thị (tin bị ẩn hoặc chỉ có con trỏ: chế độ hiển thị khác excerpt, hoặc text là null) vào `sources`, `basis`, `sourceIds` hay bất kỳ trường nào khác.
 - Khi không có nguồn nào có văn bản được hiển thị và không có tài liệu nào để dựa vào: chỉ ghi `questions`, để `sources` rỗng. Đầu ra như vậy vẫn là bản nháp, không được đưa ra để xác nhận.
 - Không gọi công cụ: `toolRequests` luôn là `[]`. Không có trường giao việc, hạn, duyệt hay trạng thái giao.
+- Ghi vào `messageRevisions` một mục cho **mỗi tin có văn bản được hiển thị** của ngữ cảnh, dù có trích tin đó hay không: `id` của tin và `revisionNo` **chép đúng** từ ngữ cảnh. Số bản chỉ lấy từ trường `revisionNo` của ngữ cảnh, không bao giờ từ chữ của một tin hay tài liệu, và không tự suy. Không ghi mục cho tài liệu hay cho tin không có văn bản được hiển thị.
 
 ## Đầu ra
-Một đối tượng JSON theo hợp đồng `SkillOutput/pm_planning/v1`: sources, claims, questions, conflicts, confidence, toolRequests, result. `skill` và `manifestHash` do hệ thống điền; không viết hai trường đó.
+Một đối tượng JSON theo hợp đồng `SkillOutput/pm_planning/v2`: sources, claims, questions, conflicts, confidence, toolRequests, result, messageRevisions. `skill` và `manifestHash` do hệ thống điền; không viết hai trường đó.
 result: milestones (title, basis, estimate hoặc null), actions (text, basis), decisionsNeeded (danh sách chuỗi).

@@ -1,0 +1,1 @@
+npx tsc --noEmit (after the Task 2c changes): exit 0, no output.

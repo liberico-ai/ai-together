@@ -1,6 +1,6 @@
 {
   "name": "release_librarian",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "owner": "BoM Tech",
   "attribution": [
     {
@@ -10,9 +10,9 @@
   ],
   "prompt": {
     "path": "skills/release-librarian/prompt.md",
-    "sha256": "0e173c04eaced0f632f0f35ff6803a9e698420b0766d7dc74b18c9b823f4fb45"
+    "sha256": "40fd6b1207bd4106eb4918bdbca5593e67dd34146dc66554d4f95959de1a9063"
   },
-  "inputContract": "SkillContext/v1",
+  "inputContract": "SkillContext/v2",
   "outputContract": "SkillOutput/release_librarian/v1",
   "toolAllowlist": [],
   "dataScope": {
@@ -26,10 +26,10 @@
   },
   "evalSet": {
     "path": "skills/release-librarian/eval.json",
-    "sha256": "bc7d4dd53861a826ecca5e368ccad54e2ef340d7a3dfc437d0df1f80d09ee300",
+    "sha256": "53cb75e07583a99b0a879bd8eb9f0a72726d37d33a85010f288105c7524d8b00",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "afb51b1c3a3968c9449b832471885818de5e8608fb683e535426ae3f0e51d86e"
+  "hash": "1b3777b0df71b07d7c438be7d016ce5a9ea9185a86de20e26e855d4ff6ae3b6d"
 }

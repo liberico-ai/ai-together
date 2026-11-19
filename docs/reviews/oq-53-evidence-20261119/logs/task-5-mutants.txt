@@ -1,0 +1,75 @@
+# Task 5 mutants: one change at a time to src/server/source-text.ts (threadFreshness), applied, tests/source-text.test.ts run on PGlite (39 cases, all green on the original), file restored and compared byte for byte with the original.
+# m1  remove rule 2                       row.not_latest!==false||            (the pair names a revision that is not the latest)
+# m2  remove rule 3                       ||head!==baseline                    (the counter of the thread against the baseline)
+# m3  remove rule 4                       ||row.unnumbered!==false             (a revision of the thread with no number)
+# m4  rule 1 only asks for some pair      has_baseline = EXISTS(stated) AND $3 IS NOT NULL
+#       (a first form of m4 dropped $3 from the statement: "could not determine data type of parameter $3", 15 cases red by an SQL error; it proves nothing and was replaced by this form)
+# m5  latest revision by revision_no DESC instead of LATEST_REVISION_ORDER
+# m6a counter row read without its project condition (h.project_id=$1)      -> red by SQL error "more than one row returned by a subquery used as an expression" (the case puts a counter of the other project in the same thread key)
+# m6b thread of the candidate read without the project conditions (c.project_id, e.project_id)
+# m7  pairs of messages that are not in the thread count in the baseline (no join to the thread)
+# m8  position not handed back (null)
+# m9  upper bound of the revision number not applied (2147483648 reaches the database)
+# Each line: label, result summary, number of '^AssertionError' lines, hook timeouts, red cases (first 110 characters).
+MUTANT m1
+  result: 2 failed | 37 passed (39)
+  hook-timeouts: 0  AssertionError lines: 2
+  red: T17 a pair that names a revision number the message does not have, a number that is not the latest by edit time, and a pair for a message of another t
+  red: T7′ (row 12, limit L1) a late edit that is older than the revision now shown holds the draft until a message arrives; naming the highest number does n
+MUTANT m2
+  result: 6 failed | 33 passed (39)
+  hook-timeouts: 0  AssertionError lines: 6
+  red: T14′ (row 13, limit L2) no cap: in a thread of more than twenty messages a late message outside any window still changes the draft, until a message th
+  red: T17 a pair that names a revision number the message does not have, a number that is not the latest by edit time, and a pair for a message of another t
+  red: T7′ (row 12, limit L1) a late edit that is older than the revision now shown holds the draft until a message arrives; naming the highest number does n
+  red: T7′ (row 8) a message the draft does not name, recorded before the newest one it names, adds no change
+  red: T7′ (row 9) a message whose rows say it was recorded before the draft read the thread, but which was committed after it, still changes the draft: the 
+  red: T7′ an edit of a message the draft does not name counts: every revision of every message of the thread has a number, and the head moves
+MUTANT m3
+  result: 1 failed | 38 passed (39)
+  hook-timeouts: 0  AssertionError lines: 1
+  red: T16 a revision of the thread that has no number counts as a change, though the head stands where the draft read it
+MUTANT m4
+  result: 1 failed | 38 passed (39)
+  hook-timeouts: 0  AssertionError lines: 1
+  red: T18 (row 6) a named message without a pair gives no baseline even when another named message has one
+MUTANT m5
+  result: 2 failed | 37 passed (39)
+  hook-timeouts: 0  AssertionError lines: 2
+  red: T17 a pair that names a revision number the message does not have, a number that is not the latest by edit time, and a pair for a message of another t
+  red: T7′ (row 12, limit L1) a late edit that is older than the revision now shown holds the draft until a message arrives; naming the highest number does n
+MUTANT m6a
+  result: 1 failed | 38 passed (39)
+  hook-timeouts: 0  AssertionError lines: 0
+  red: T12′ the statement's own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing for the oth
+MUTANT m6b
+  result: 1 failed | 38 passed (39)
+  hook-timeouts: 0  AssertionError lines: 1
+  red: T12′ the statement's own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing for the oth
+MUTANT m7
+  result: 1 failed | 38 passed (39)
+  hook-timeouts: 0  AssertionError lines: 1
+  red: T17 a pair that names a revision number the message does not have, a number that is not the latest by edit time, and a pair for a message of another t
+MUTANT m8
+  result: 14 failed | 25 passed (39)
+  hook-timeouts: 0  AssertionError lines: 14
+  red: T12′ the statement's own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing for the oth
+  red: T14′ (row 13, limit L2) no cap: in a thread of more than twenty messages a late message outside any window still changes the draft, until a message th
+  red: T16 a revision of the thread that has no number counts as a change, though the head stands where the draft read it
+  red: T17 a pair that names a revision number the message does not have, a number that is not the latest by edit time, and a pair for a message of another t
+  red: T18 (row 6) a named message without a pair gives no baseline even when another named message has one
+  red: T19 ids and numbers that are not well formed never reach the database
+  red: T6′ threadFreshness hands back five columns and no text, in one statement: no excerpt, no content hash
+  red: T7′ (row 1) the draft names the revision of the message it read and nothing was recorded since: nothing changed, and the number to write down is the h
+  red: T7′ (row 12, limit L1) a late edit that is older than the revision now shown holds the draft until a message arrives; naming the highest number does n
+  red: T7′ (row 8) a message the draft does not name, recorded before the newest one it names, adds no change
+  red: T7′ (row 9) a message whose rows say it was recorded before the draft read the thread, but which was committed after it, still changes the draft: the 
+  red: T7′ (rows 2, 3, 4) an edit the draft read does not change it; the revision before the edit does, whether the edit came before the draft or after it
+  red: T7′ an edit of a message the draft does not name counts: every revision of every message of the thread has a number, and the head moves
+  red: T8′ threadFreshness reads nothing for a caller scoped to another tenant
+MUTANT m9
+  result: 1 failed | 38 passed (39)
+  hook-timeouts: 0  AssertionError lines: 1
+  red: T19 ids and numbers that are not well formed never reach the database
+
+# all ten restored identical to the original: cmp = 0

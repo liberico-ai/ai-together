@@ -1,0 +1,46 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skills-manifest.test.ts (19 tests | 2 failed) 20ms
+   ❯ skill manifests (17)
+     × prompt and eval hashes match the files on disk and the manifest hash matches its content 5ms
+     × OQ-57 the release librarian prompt says the newest unapproved revision is a pointer: seen in sources, never in index or as the approved revision, never read for content; no other prompt says so 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skills-manifest.test.ts > skill manifests > prompt and eval hashes match the files on disk and the manifest hash matches its content
+AssertionError: release_librarian prompt: expected 'ff0397c1cec2b86512904b849ee304d3fd2e6…' to be '40fd6b1207bd4106eb4918bdbca5593e67dd3…' // Object.is equality
+
+Expected: "40fd6b1207bd4106eb4918bdbca5593e67dd34146dc66554d4f95959de1a9063"
+Received: "ff0397c1cec2b86512904b849ee304d3fd2e68897cb2926b5066d69bb644ecc0"
+
+ ❯ tests/skills-manifest.test.ts:64:85
+     62|     for (const name of SKILLS) {
+     63|       const m = skillManifests[name];
+     64|       expect(sha(await readFile(path.join(ROOT, m.prompt.path))), `${n…
+       |                                                                                     ^
+     65|       expect(sha(await readFile(path.join(ROOT, m.evalSet.path))), `${…
+     66|       const onDisk = JSON.parse(await readFile(path.join(ROOT, 'skills…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/skills-manifest.test.ts > skill manifests > OQ-57 the release librarian prompt says the newest unapproved revision is a pointer: seen in sources, never in index or as the approved revision, never read for content; no other prompt says so
+AssertionError: one rule: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/skills-manifest.test.ts:205:31
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 17 passed (19)
+   Start at  15:48:25
+   Duration  130ms (import 55%, tests 25%, transform 18%, worker 2%)
+

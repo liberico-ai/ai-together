@@ -1,0 +1,60 @@
+# Task 9a mutants: one change at a time, applied, the cases named run, the file restored and compared byte for byte with the original (cmp = 0 for all nine mutants, ten runs: c2 runs on two files). Engine as written on each block.
+# s1  rule 2: IS DISTINCT FROM -> <>                       (a message with no revision gives NULL, and a comparison with NULL is not a change)
+# s2  rule 2: LATEST_REVISION_ORDER -> revision_no DESC    (the latest by number, not by edit time)
+# s3  rule 2: the project condition of the probe is removed (r.project_id=$1)
+#       SURVIVED, and cannot be killed: it is an equivalent mutant. The probe starts from `s.event_id`, an event of the thread of this project, and the revisions of an event carry its project
+#       (composite foreign key source_event_revisions(source_event_id, tenant_id, project_id) -> source_events, migration 016:75): a revision of another project for that event cannot be stored. The condition stays as a second belt.
+# s4  the counter row is read without its project condition (h.project_id=$1)   -> red by SQL error "more than one row returned by a subquery used as an expression" (case T12' puts a counter of the other project on the same thread key)
+# s5  the thread of the candidate is read without its project conditions (c.project_id, e.project_id)
+# c1  librarian statement: max -> min                       (the oldest revision is taken for the newest)
+# c2  librarian statement: the newest-revision condition replaced by TRUE (every revision of the document comes in); run on two files
+# k1  contextSchema: .min(1) removed from the revisionNo of a message
+# n1  decide: the hold of a confirmation is skipped (`if(false&&reasons.size)`), so a masked confirmation goes on to the decision row and waits for the counter row (55P03 after the cap); native, case N21
+# Each block: label, engine and file, result summary, '^AssertionError' lines, hook timeouts, red cases (first 140 characters).
+MUTANT s1 (pglite, tests/source-text.test.ts)
+  result: 1 failed | 40 passed (41)
+  hook-timeouts: 0  AssertionError lines: 1  other error lines: 0
+  red: T20 a message of the thread that has no revision at all is not one a pair can name: the pair is a change, whatever number it carries
+MUTANT s2 (pglite, tests/source-text.test.ts)
+  result: 2 failed | 39 passed (41)
+  hook-timeouts: 0  AssertionError lines: 2  other error lines: 0
+  red: T17 a pair that names a revision number the message does not have, a number that is not the latest by edit time, and a pair for a message of
+  red: T7′ (row 12, limit L1) a late edit that is older than the revision now shown holds the draft until a message arrives; naming the highest num
+MUTANT s3 (pglite, tests/source-text.test.ts)
+  result: 41 passed (41)
+  hook-timeouts: 0  AssertionError lines: 0  other error lines: 0
+  SURVIVED (no case red)
+MUTANT s4 (pglite, tests/source-text.test.ts)
+  result: 1 failed | 40 passed (41)
+  hook-timeouts: 0  AssertionError lines: 0  other error lines: 0
+  red: T12′ the statement's own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing f
+MUTANT s5 (pglite, tests/source-text.test.ts)
+  result: 1 failed | 40 passed (41)
+  hook-timeouts: 0  AssertionError lines: 1  other error lines: 0
+  red: T12′ the statement's own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing f
+MUTANT c1 (pglite, tests/skill-context.test.ts)
+  result: 4 failed | 19 passed (23)
+  hook-timeouts: 0  AssertionError lines: 4  other error lines: 0
+  red: L4 the statement of the revisions of the release librarian does not run a probe for each revision of the document: the blocks it touches sta
+  red: R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the a
+  red: each skill receives only its kinds and the caps hold
+  red: the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a point
+MUTANT c2 (pglite, tests/skill-context.test.ts)
+  result: 4 failed | 19 passed (23)
+  hook-timeouts: 0  AssertionError lines: 4  other error lines: 0
+  red: L4 the statement of the revisions of the release librarian does not run a probe for each revision of the document: the blocks it touches sta
+  red: R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the a
+  red: each skill receives only its kinds and the caps hold
+  red: the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a point
+MUTANT c2 (pglite, tests/suggestions.test.ts -t SV-S-2)
+  result: 1 failed | 120 skipped (121)
+  hook-timeouts: 0  AssertionError lines: 1  other error lines: 0
+  red: SV-S-2 a librarian draft that names the pointer of a revision that is no longer the newest is masked and held as SOURCE_OUT_OF_CONTEXT, not 
+MUTANT k1 (pglite, tests/skill-contracts.test.ts)
+  result: 1 failed | 41 passed (42)
+  hook-timeouts: 0  AssertionError lines: 1  other error lines: 0
+  red: C2 the context schema refuses a message source without a revision number
+MUTANT n1 (native, tests/thread-order-concurrency.test.ts -t N21)
+  result: 1 failed | 24 skipped (25)
+  hook-timeouts: 0  AssertionError lines: 1  other error lines: 0
+  red: N21 a confirmation of a person for whom the draft is masked, or who may not decide, does not wait for the counter row of the thread: it is a

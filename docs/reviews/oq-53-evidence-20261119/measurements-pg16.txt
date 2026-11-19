@@ -1,0 +1,130 @@
+OQ-53 (PR "subject verification") — mechanism measurements on PostgreSQL 16, taken while planning (19/11/2026)
+==========================================================================================================
+What this is: measurements of the MECHANISM, taken by the planner before any product code or migration exists. They ran in a throwaway
+schema (oq53_probe) that rebuilds the shape of the tables involved (projects, source events, revisions, a per-thread counter, a
+position table, a decision table) inside the session's own isolated test database (127.0.0.1:55471, slice1_verify_531119). No
+application table was read or written; the schema was dropped at the end of each run ("objects left: 0"). The behaviour of the real
+SQL of migration 023 is to be proven by the native cases of the plan (docs/plans/oq-53-subject-verification.md), not by this file.
+How: two node scripts with the `pg` client, several connections; kept next to this file (probe-1.cjs, probe-2.cjs). They read the
+connection strings from the environment and print none. Run: `node <repo>/docs/reviews/oq-53-evidence-20261119/probe-1.cjs <out>`
+with SLICE1_TEST_DATABASE_URL and SLICE1_WEB_DATABASE_URL set and NODE_PATH=<repo>/node_modules.
+Lines below are the scripts' output as printed. One edit: the free-text tail of the second line of section 1 was shortened.
+Roles named libetech_* are the cluster's existing roles; none was altered. "A", "B" are sessions; ms are wall-clock.
+Section 4f of the first script is superseded by section 7 (in 4f every confirmation took the project row lock first, so confirmations
+never overlapped; section 7 measures both with and without that lock).
+
+server: 16.15 (Debian 16.15-1.pgdg13+2) | isolation default: read committed
+
+== 1. plain sequence: nextval is handed out at call time, not at commit ==
+T1 got 1 (open), T2 got 2 and committed first; a reader now sees max=2, rows=1
+after T1 commits the reader sees ["1","2"]: number 1 became visible after the reader had already seen 2. A check that reads "the highest committed number" between the two commits misses number 1 for good.
+
+== 2. per-thread counter row (variant A: AFTER INSERT trigger + side table), READ COMMITTED ==
+2a first revision of thread t1: thread_seq = 1 | head = 1
+2b same thread: session A inserted (seq 2, open). Session B's insert finished after 400 ms? false
+    A committed; B's insert returned after 407 ms with seq 3; a reader between saw head=1
+    committed positions of t1: ["1","2","3"] | head = 3
+2c 20 rounds, B always tries to commit first: order violations (seq order != commit order, or a reader saw a higher seq before a lower one committed) = 0
+2d a rolled-back insert had seq 44; the next committed insert got seq 44 (no gap; head = 44, max(pos) = 44)
+2e brand-new thread (no counter row), two sessions: A seq 1, B waited 304 ms and got seq 2
+2f other thread of the same project while t1 is held: insert took 2 ms, err=none
+2g REPEATABLE READ session whose snapshot predates A's commit: its insert ended after 204 ms with 40001
+2h holder left open: the second insert of the thread failed with 55P03 after 5005 ms; session lock_timeout afterwards = 1234ms
+
+== 3. a trigger and INSERT ... ON CONFLICT DO NOTHING (the replay of an existing revision, intake.ts:89-93) ==
+3a variant A (AFTER INSERT): first insert rows=1 head=2; replay rows=0 head=2; AFTER trigger fired 1 time(s)
+3b variant B (BEFORE INSERT): first insert seq=1; replay rows=0; next real insert seq=3; counter=3; max(seq in rows)=3; BEFORE trigger fired 3 times for 2 stored rows => the replay burned a number and took the counter lock
+3c replay while another session holds the thread: variant A returned in 0 ms (rows=0, no wait); variant B ended with 55P03 after 5008 ms (it waits for the counter)
+
+== 4. confirm side: compare-and-set in an AFTER INSERT trigger of the decision table ==
+4 FOR NO KEY UPDATE: (i) intake open with a new number, decision carrying the old position 1: decision ended after 305 ms with LTZ03; (ii) decision holds first (stored): intake insert took 305 ms (waited for the decision to commit), head seen meanwhile 2
+4 FOR SHARE: (i) intake open with a new number, decision carrying the old position 3: decision ended after 304 ms with LTZ03; (ii) decision holds first (stored): intake insert took 305 ms (waited for the decision to commit), head seen meanwhile 4
+4 FOR KEY SHARE: (i) intake open with a new number, decision carrying the old position 5: decision ended after 1 ms with STORED (gap); (ii) decision holds first (stored): intake insert took 1 ms (DID NOT WAIT => it commits inside the decision transaction), head seen meanwhile 6
+4 FOR UPDATE: (i) intake open with a new number, decision carrying the old position 7: decision ended after 302 ms with LTZ03; (ii) decision holds first (stored): intake insert took 305 ms (waited for the decision to commit), head seen meanwhile 8
+4b one locking statement that waited 203 ms returned last_seq=10 (before the wait it was 9): the locked row is re-read after the wait
+4c a rejected decision while an intake of the thread is open: stored after 1 ms
+4d intake (FK KEY SHARE on the project, then the thread lock) against a decision (project FOR NO KEY UPDATE, then the thread lock): the intake's next FK insert took 2 ms (err=none); the decision ended with LTZ03 after 205 ms; no 40P01
+4e two raw transactions that each write two threads in opposite order: A 40P01 (1003 ms), B ok (903 ms) — the service writes one revision per transaction and cannot build this
+4f three sessions keep overlapping 150 ms decisions with FOR SHARE: an intake insert of the thread (function cap 5s, statement cap 8s) ended after 21 ms with ok; 3 decision transactions ran meanwhile
+4f three sessions keep overlapping 150 ms decisions with FOR NO KEY UPDATE: an intake insert of the thread (function cap 5s, statement cap 8s) ended after 19 ms with ok; 3 decision transactions ran meanwhile
+
+== 5. who can take the thread lock ==
+5a SELECT ... FOR <mode> on the counter table under each role (KEY SHARE, SHARE, NO KEY UPDATE, UPDATE); libetech_runtime holds SELECT and a SELECT policy, the others hold nothing:
+   libetech_ai: 42501 42501 42501 42501
+   libetech_auth: 42501 42501 42501 42501
+   libetech_identity: 42501 42501 42501 42501
+   libetech_intake: 42501 42501 42501 42501
+   libetech_intake_svc: 42501 42501 42501 42501
+   libetech_outbox_audit: 42501 42501 42501 42501
+   libetech_projector: 42501 42501 42501 42501
+   libetech_runtime: 42501 42501 42501 42501
+   libetech_web: 42501 42501 42501 42501
+5b calling the trigger function directly: libetech_ai=42501 libetech_auth=42501 libetech_identity=42501 libetech_intake=42501 libetech_intake_svc=42501 libetech_outbox_audit=42501 libetech_projector=42501 libetech_runtime=42501 libetech_web=42501
+5c login libetech_web, no SET ROLE: lock the counter => 42501; insert a revision => 42501
+5d intake role scoped to project A inserts a revision into a thread of project B while B's thread is held by an open transaction:
+   AFTER trigger (variant A): 42501 after 1 ms — refused by row-level security before the trigger runs; no lock taken, no wait
+   BEFORE trigger (variant B): 55P03 after 5005 ms while held, 42501 after 1 ms when free — the trigger runs BEFORE the WITH CHECK: the out-of-scope role waits on (and would take) the lock of a thread it may not write, and learns from the wait that the thread is being written
+   after the refused AFTER-variant insert rolled back nothing holds B's counter: NOWAIT lock => taken
+5e runtime role scoped to project A writes a confirmed decision for a candidate of project B while B's thread is held: 42501 after 2 ms (AFTER INSERT trigger: row-level security answers first, no lock, no wait)
+
+== 6. migration on tables that already hold rows ==
+data: 40000 messages, 60000 revisions, 4000 threads
+6a side table (create two tables + backfill by INSERT ... SELECT, the old table locked SHARE ROW EXCLUSIVE for the whole transaction): 260 ms; positions=60000, counters=4000, counters that disagree with their thread=0; old table file node 56038847 -> 56038847, size 8478720 -> 8478720 bytes (untouched)
+6b while that lock is held: an insert into the old table => 55P03 after 801 ms (it waits for the migration); a SELECT => ok in 6 ms
+6c column on the old table: ADD COLUMN (nullable, no default) 1 ms, file node 56038847 -> 56038847 (no rewrite); a backfill UPDATE with the immutability trigger in place => P0001; with the trigger disabled inside the migration: 262 ms, table size 8478720 -> 17416192 bytes (every row written again); SET NOT NULL 5 ms (full scan under ACCESS EXCLUSIVE)
+6d rollback of the side-table variant (drop two tables): 3 ms; old table rows = 60000
+6e ADD COLUMN IF NOT EXISTS (nullable bigint) on a decision table of 20000 rows: 3 ms, file node 56038796 -> 56038796
+
+schema oq53_probe dropped; objects left in it: 0
+
+== 7. starvation of an intake insert by overlapping confirmations (three sessions, each holds 150 ms, started 50 ms apart) ==
+confirmations take the project row lock first (as 022 does): false | thread lock FOR SHARE: the intake's counter update ended after 9004 ms with 57014; confirmations that completed while it waited: 175; worker errors: {}
+confirmations take the project row lock first (as 022 does): false | thread lock FOR NO KEY UPDATE: the intake's counter update ended after 370 ms with ok; confirmations that completed while it waited: 3; worker errors: {"LTZ03":2}
+confirmations take the project row lock first (as 022 does): true | thread lock FOR SHARE: the intake's counter update ended after 67 ms with ok; confirmations that completed while it waited: 1; worker errors: {"LTZ03":2}
+confirmations take the project row lock first (as 022 does): true | thread lock FOR NO KEY UPDATE: the intake's counter update ended after 67 ms with ok; confirmations that completed while it waited: 1; worker errors: {"LTZ03":2}
+
+== 8. full lock order: mapping insert (project NKU) / confirmation (project NKU, then thread) / intake (FK KEY SHARE on project, then thread) ==
+intake took the thread in 1 ms and its FK insert took 1 ms while a mapping insert held the project row; the confirmation waited for the mapping (300 ms), then for the intake (300 ms): ended after 607 ms with LTZ03 (the intake's number committed meanwhile); no 40P01 anywhere
+
+Reading of the numbers (planner; the plan states the design)
+------------------------------------------------------------
+1    A plain sequence does not give "readable after commit": the lower number became visible after the higher one.
+2    One counter row per thread, updated inside the writing transaction and held to its commit: numbers follow commit order (0 violations
+     in 20 forced rounds), no gap after a rollback, a new thread is safe with two writers, other threads are not held up (2 ms), a
+     REPEATABLE READ writer that raced gets 40001, an abandoned writer costs the next writer of that thread 55P03 after 5 s.
+3    A BEFORE INSERT trigger runs for a row that ON CONFLICT DO NOTHING then skips: the replay burns a number and waits on the counter.
+     An AFTER INSERT trigger runs only for a stored row: a replay neither burns nor waits.
+4    Confirm side as compare-and-set in an AFTER INSERT trigger of the decision table. FOR NO KEY UPDATE, FOR SHARE and FOR UPDATE close
+     both directions; FOR KEY SHARE closes neither (it does not conflict with the counter update). One locking statement re-reads the
+     row after its wait (4b). A rejection takes no lock (4c). Intake (project FK KEY SHARE, then thread) and confirmation (project
+     NO KEY UPDATE, then thread) never wait on each other in a cycle (4d, 8). Raw transactions that write two threads in opposite
+     order do deadlock and PostgreSQL cancels one (4e).
+5    No libetech_* role can lock the counter row itself (42501 at every strength, also with SELECT granted) or call the function. With
+     AFTER INSERT triggers the caller's own row-level security answers before any lock: an out-of-scope writer gets 42501 in 1-2 ms
+     while the thread is held. With a BEFORE INSERT trigger the same writer waited 5 s on a thread it may not write (5d).
+6    Side tables: 60 000 revisions in 4 000 threads numbered in 260 ms, the old table's file untouched, its inserts blocked for the
+     length of the migration transaction and reads not. A column on the old table needs the immutability trigger disabled and writes
+     every row again (table size x2).
+7    FOR SHARE on the confirm side starves a writer of the thread when confirmations overlap (57014 after 9 s, 175 confirmations
+     meanwhile); FOR NO KEY UPDATE serves it in arrival order (370 ms). With the project row lock of migration 022 taken first,
+     confirmations of one project already run one at a time and neither strength starves.
+
+Added for plan 0.2 (19/11/2026, after the two plan gates) — nothing above this line was changed
+===============================================================================================
+One read-only probe (probe-3.cjs): no schema, no table, no role was created or altered; it only reads pg_stat_activity and pg_roles
+from two superuser sessions of the same test database. It answers one question of the security gate's S-1: can migration 023 refuse
+mechanically while a session that can act as libetech_ai is connected?
+
+== 9. the refusal "a session of a role that is a member of libetech_ai is connected" (plan 0.2, P6; security gate S-1) ==
+9a another superuser session only: check without "NOT rolsuper" counts 1 (pg_has_role is true for a superuser); with it: 0
+9b the other session does SET LOCAL ROLE libetech_ai inside a transaction (what the tests' AI handle does): check counts 0; its usename is still the login
+9c the other session does SET SESSION AUTHORIZATION libetech_ai: usename in pg_stat_activity = the operator login; check counts 0
+9d the other session is libetech_runtime (not a member): check counts 0
+9e members of libetech_ai among login roles today: 0
+
+Reading (planner)
+9    The check must exclude superusers (pg_has_role answers true for them: 9a), so it only sees a NON-superuser login that is a member
+     of libetech_ai. No such login exists today (9e): the check always passes until the AI login exists. A session that merely does
+     SET ROLE or SET SESSION AUTHORIZATION to libetech_ai keeps its login name in pg_stat_activity and is not seen (9b, 9c): the
+     refusing branch cannot be exercised by a test without a real member login, which this PR does not create.
+Numbers of the two gates that plan 0.2 quotes are theirs, not re-measured here: docs/reviews/oq-53-evidence-20261119/gates/.

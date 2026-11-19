@@ -1,0 +1,69 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-context.test.ts (22 tests | 2 failed) 10832ms
+   ❯ skill context (22)
+     × (7) a record of an IBS HI project never enters the context of a Xeca project 665ms
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash 487ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > (7) a record of an IBS HI project never enters the context of a Xeca project
+AssertionError: TRANSPORT-SUMMARY-5520: expected '{"skill":"ba_elicitation","projectId"…' not to contain 'TRANSPORT-SUMMARY-5520'
+
+Expected: "TRANSPORT-SUMMARY-5520"
+Received: "{"skill":"ba_elicitation","projectId":"11000000-0000-4000-8000-000000000002","pointerOnly":true,"sources":[{"id":"1459e60a-666a-4304-acdc-9c150fc7e4ba","kind":"source_event","ref":"telegram:-1000000000002:2","mode":"pointer_only","text":null,"hash":null,"observedAt":"2025-10-09T08:53:22.000Z","forwarded":false,"revisionNo":1},{"id":"14348bd1-a186-49a2-84b6-973643f674a7","kind":"document","refCode":"","docType":"design","title":null,"latestRevisionId":"43ad79c2-3924-45a6-81ae-6807201ca050","approvedRevisionId":null},{"id":"43ad79c2-3924-45a6-81ae-6807201ca050","kind":"document_revision","documentId":"14348bd1-a186-49a2-84b6-973643f674a7","revisionNo":1,"summary":"TRANSPORT-SUMMARY-5520 nội dung","present":["TRANSPORT-PRESENT-1"],"missing":["TRANSPORT-MISSING-2"],"sourceHash":null,"hashVerification":"self_declared"}]}"
+
+ ❯ tests/skill-context.test.ts:97:168
+     95|   const trJson=JSON.stringify(trCtx);
+     96|   expect(trCtx.pointerOnly).toBe(true);
+     97|   for(const m of ['TRANSPORT-MARK-9983','TRANSPORT-DOC-TITLE-7731','TR…
+       |                                                                                                                                                                        ^
+     98|   // pointers stay (R10-h)
+     99|   const doc=kinds(trCtx,'document')[0] as Src<'document'>;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+AssertionError: expected [ { …(9) }, { …(9) } ] to deeply equal [ { …(9) }, { …(9) } ]
+
+- Expected
++ Received
+
+@@ -13,12 +13,16 @@
+    {
+      "documentId": "4261fa4e-55c0-4afa-bd07-34c9394aeb57",
+      "hashVerification": "verified",
+      "id": "b7826f01-5356-4802-8997-e9d76009dd5a",
+      "kind": "document_revision",
+-     "missing": [],
+-     "present": [],
++     "missing": [
++       "PTR-MISSING-2-4473",
++     ],
++     "present": [
++       "PTR-PRESENT-2-4472",
++     ],
+      "revisionNo": 2,
+      "sourceHash": "e1605634bbdd51ff18c604d1ca08ff15b5687237ae1505565fc9c55dfa93c7f8",
+-     "summary": null,
++     "summary": "PTR-SUMMARY-2-4471 nội dung",
+    },
+  ]
+
+ ❯ tests/skill-context.test.ts:441:42
+    439|   const ibs=await build(pm,input,both,rec4.db);
+    440|   expect(ibs.pointerOnly).toBe(true);
+    441|   expect(kinds(ibs,'document_revision')).toEqual([pointer(r[2]),{...po…
+       |                                          ^
+    442|   for(const n of [1,2,3]) for(const m of Object.values(mark(n)).flat()…
+    443|   expect(JSON.stringify(rec4.rows())).not.toContain(hash(3));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 passed (22)
+   Start at  15:47:08
+   Duration  10.95s (tests 99%)
+

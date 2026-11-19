@@ -1,0 +1,12 @@
+# pglite, tests/skills-manifest.test.ts, exit=0
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  18 passed (18)
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  15:25:00
+   Duration  121ms (import 58%, tests 22%, transform 19%, worker 2%)
+

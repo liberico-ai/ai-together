@@ -1,0 +1,74 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-context.test.ts (22 tests | 3 failed) 10843ms
+   ❯ skill context (22)
+     × (7) a record of an IBS HI project never enters the context of a Xeca project 662ms
+     × each skill receives only its kinds and the caps hold 521ms
+     × R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one 485ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > (7) a record of an IBS HI project never enters the context of a Xeca project
+AssertionError: expected '{"skill":"ba_elicitation","projectId"…' to contain 'SALES-SUMMARY-3301'
+
+Expected: "SALES-SUMMARY-3301"
+Received: "{"skill":"ba_elicitation","projectId":"11000000-0000-4000-8000-000000000001","pointerOnly":false,"sources":[{"id":"61bd38b6-8cd1-4cda-87e9-8a815f4a0a96","kind":"source_event","ref":"telegram:-1000000000001:1","mode":"excerpt","text":"SALES-MARK-4471 tin bán hàng","hash":"c5b9351a88a1522c11db1ac87bdbf60a18ff24901a5f14dd1d5ee5e2c0be170b","observedAt":"2025-10-09T08:53:21.000Z","forwarded":false,"revisionNo":1},{"id":"eded27d3-5bda-4b89-8e09-75d95a39f935","kind":"document","refCode":"","docType":"design","title":"SALES-DOC-TITLE-1102","latestRevisionId":"4399e1a7-8188-4b44-b55c-a584161c2f12","approvedRevisionId":null},{"id":"4399e1a7-8188-4b44-b55c-a584161c2f12","kind":"document_revision","documentId":"eded27d3-5bda-4b89-8e09-75d95a39f935","revisionNo":1,"summary":null,"present":[],"missing":[],"sourceHash":null,"hashVerification":"self_declared"}]}"
+
+ ❯ tests/skill-context.test.ts:91:21
+     89|   expect(salesJson).toContain('SALES-MARK-4471');
+     90|   expect(salesJson).toContain('SALES-DOC-TITLE-1102');
+     91|   expect(salesJson).toContain('SALES-SUMMARY-3301');
+       |                     ^
+     92|   const foreign=['TRANSPORT-MARK-9983','TRANSPORT-DOC-TITLE-7731','TRA…
+     93|   for(const m of foreign) expect(salesJson,m).not.toContain(m);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > each skill receives only its kinds and the caps hold
+AssertionError: expected [ { …(9) } ] to have a length of 30 but got 1
+
+- Expected
++ Received
+
+- 30
++ 1
+
+ ❯ tests/skill-context.test.ts:299:46
+    297|     expect(kinds(c,'document_revision')[0]).toMatchObject({revisionNo:…
+    298|    }
+    299|    else expect(kinds(c,'document_revision')).toHaveLength(allowed.incl…
+       |                                              ^
+    300|   }
+    301|   const full=await build(pm,{skill:'ba_elicitation',projectId:ids.sale…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one
+AssertionError: expected [ 3, 2 ] to deeply equal [ 3, 2, 1 ]
+
+- Expected
++ Received
+
+  [
+    3,
+    2,
+-   1,
+  ]
+
+ ❯ tests/skill-context.test.ts:380:93
+    378|   expect(kinds(lib,'document')[0]).toMatchObject({approvedRevisionId:r…
+    379|   const rev=await build(pm,input('doc_reviewer'));
+    380|   expect(kinds(rev,'document_revision').map(s=>(s as Src<'document_rev…
+       |                                                                                             ^
+    381|   expect(kinds(await build(pm,input('technical_writer')),'document_rev…
+    382|   // an approved revision of ANOTHER document never enters the librari…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 19 passed (22)
+   Start at  15:46:48
+   Duration  10.96s (tests 99%)
+

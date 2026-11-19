@@ -5,9 +5,10 @@ import path from 'node:path';
 import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
 import {outsider,pm,sameBuProject,seedSlice1} from './slice1-fixtures';
 import {aiPrincipal,mapDomain,seedMembers} from './slice3-fixtures';
-import {rolledBack} from './slice2-fixtures';
+import {bridgeConfig,intakePrincipalId,messageEvent,rolledBack} from './slice2-fixtures';
 import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
+import {IntakeService} from '../src/server/intake';
 import type {Principal} from '../src/server/types';
 
 // Migration 022: a BEFORE INSERT guard on intelligence.ai_drafts refuses a draft of a project whose latest domain mapping is IBS_HI (OQ-45 point 3 (b)).
@@ -39,7 +40,9 @@ const asAi=<T>(fn:(tx:Queryable)=>Promise<T>,o:{tenant?:string;projects?:string[
   return fn(tx);
 });
 const JSONB_COLUMNS=new Set(['value','sources','questions']);
-const draftVals=(over:R={}):R=>({tenant_id:ids.tenant,project_id:ids.sales,entity_type:'intake_candidate',entity_id:randomUUID(),signal_type:'intake_analyst',
+// The default draft is about a document: migration 023 stores a confirmation of a candidate draft only when it names a real candidate and the position of its thread
+// (candidateDraft below does that); a draft about a random candidate id could never be confirmed.
+const draftVals=(over:R={}):R=>({tenant_id:ids.tenant,project_id:ids.sales,entity_type:'document',entity_id:randomUUID(),signal_type:'intake_analyst',
   skill_version:'1.0.0',manifest_hash:HASH,model_version:'synthetic-model',value:'{"summary":"mẫu"}',value_hash:HASH,sources:'[{"ref":"synthetic-source"}]',
   questions:'[]',confidence:50,input_hash:HASH,ai_principal_id:AI,trace_id:randomUUID(),dedupe_key:'draft-'+randomUUID(),...over});
 const insertDraft=(tx:Queryable,over:R={})=>{
@@ -71,6 +74,14 @@ const insertDecision=(q:Queryable,draftId:string,over:R={})=>{
   return q.query<{id:string}>(`INSERT INTO draft_decisions(${keys.join(',')}) VALUES(${keys.map((_,i)=>`$${i+1}`).join(',')}) RETURNING id`,keys.map(k=>v[k]));
 };
 const decisions=async(draftId:string)=>(await rows<{n:number}>('SELECT count(*)::int n FROM draft_decisions WHERE draft_id=$1',[draftId]))[0].n;
+/** A candidate draft about a candidate that the intake service really created, and the position of its thread: what a confirmation of it must carry (migration 023). */
+const candidateDraft=async()=>{
+  const event=messageEvent({}),thread='m:'+event.context.messageId;
+  await new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,bridgeConfig.intake!).ingest(event);
+  const candidate=(await rows<{id:string}>('SELECT id FROM intake_candidates WHERE chat_id=$1 AND thread_key=$2',[event.context.chatId,thread]))[0].id;
+  const position=(await rows<{n:number}>('SELECT last_seq::int n FROM intake_thread_heads WHERE chat_id=$1 AND thread_key=$2',[event.context.chatId,thread]))[0].n;
+  return {draft:(await insertDraft(h.operator,{entity_type:'intake_candidate',entity_id:candidate})).rows[0].id,candidate,position};
+};
 const DECISION_MESSAGE='A draft of a pointer-only project is not confirmed';
 const mappings=async(project:string)=>(await rows<{n:number}>('SELECT count(*)::int n FROM public.project_domain_mappings WHERE project_id=$1',[project]))[0].n;
 // an AI-role transaction that inserts a draft of a project and stays open until released: the shape of G24
@@ -261,7 +272,8 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await shape()).toEqual(before);
     const names=async(t:string)=>(await rows<{tgname:string}>('SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid=$1::regclass ORDER BY 1',[t])).map(r=>r.tgname);
     expect(await names('intelligence.ai_drafts')).toEqual(['ai_drafts_declared_scope_guard','ai_drafts_immutable','ai_drafts_pointer_only_guard']);
-    expect(await names('public.draft_decisions')).toEqual(['draft_decisions_guard','draft_decisions_immutable','draft_decisions_pointer_only_guard']);
+    // 023 adds one AFTER INSERT trigger to the decision table; the BEFORE INSERT triggers of 021 and 022 are the same two
+    expect(await names('public.draft_decisions')).toEqual(['draft_decisions_guard','draft_decisions_immutable','draft_decisions_pointer_only_guard','draft_decisions_subject_order_guard']);
     expect(await names('public.project_domain_mappings')).toEqual(['project_domain_mappings_draft_lock','project_domain_mappings_immutable']);
     // the order they fire in: BEFORE INSERT row triggers of one table fire by name, so the scope guard answers before the definer guard reads anything
     expect((await rows<{tgname:string}>("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid='intelligence.ai_drafts'::regclass AND tgtype=7 ORDER BY tgname")).map(r=>r.tgname))
@@ -763,6 +775,31 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(ghost!.where).toContain('draft_decisions_guard');
     expect(ghost!.where).not.toContain('draft_decisions_pointer_only_guard');
     expect(await decisions(draft)).toBe(0);
+  });
+
+  test('P6 the decision guard of 022 still binds a confirmation of a candidate draft of a real candidate that carries the right position: LTZ02 outside READ COMMITTED, LTZ01 for an IBS_HI project, stored once the label has moved on; a rejection is stored',async()=>{
+    const a=await candidateDraft(),b=await candidateDraft(),c=await candidateDraft();
+    // the guard of 022 answers before the guard of 023 (BEFORE, then AFTER): the position is right each time, so only 022 can be what refuses
+    const rr=await refusal(h.operator.transaction(async tx=>{
+      await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+      return insertDecision(tx,a.draft,{subject_thread_seq:a.position});
+    }));
+    expect(rr?.code).toBe('LTZ02');
+    expect(rr?.message).toBe('A draft is confirmed in a READ COMMITTED transaction');
+    expect(rr?.where).toContain('draft_decisions_pointer_only_guard');
+    await mapDomain(h,ids.sales,'IBS_HI',1);
+    const e=await refusal(asRuntime(pm.id,S,tx=>insertDecision(tx,a.draft,{subject_thread_seq:a.position})));
+    expect(e?.code).toBe(LTZ);
+    expect(e?.message).toBe(DECISION_MESSAGE);
+    expect(e?.where).toContain('draft_decisions_pointer_only_guard');
+    expect(await decisions(a.draft)).toBe(0);
+    // a rejection confirms nothing and is stored, and carries no position
+    expect(await refusal(asRuntime(pm.id,S,tx=>insertDecision(tx,b.draft,{result:'rejected',reason:'Lý do đủ dài'})))).toBeNull();
+    expect(await decisions(b.draft)).toBe(1);
+    // the label moves on: the confirmation is stored, with the position
+    await mapDomain(h,ids.sales,'LIBERICO_BU',2);
+    expect(await refusal(asRuntime(pm.id,S,tx=>insertDecision(tx,c.draft,{subject_thread_seq:c.position})))).toBeNull();
+    expect((await rows<{s:number}>('SELECT subject_thread_seq::int s FROM draft_decisions WHERE draft_id=$1',[c.draft]))[0].s).toBe(c.position);
   });
 
   test('P3 a decision about a draft outside the caller\'s scope is answered by draft_decisions_guard, whatever the label of the project',async()=>{

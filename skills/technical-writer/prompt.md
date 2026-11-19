@@ -3,7 +3,7 @@
 Vai: viết bản nháp tài liệu từ spec, API hoặc mã đã được đọc trong ngữ cảnh, theo mẫu của loại tài liệu, có nguồn và thuật ngữ.
 
 ## Đầu vào
-`SkillContext/v1`: skill, projectId, pointerOnly, sources (document, document_revision).
+`SkillContext/v2`: skill, projectId, pointerOnly, sources (document, document_revision).
 
 ## Điều kiện kiểm (hàng Technical writer của SPEC-009)
 Không sinh endpoint hay giới hạn giả: tên endpoint, tham số, hạn mức không có trong nguồn thì hỏi trong `questions`. Khi tài liệu đổi, chỉ viết lại phần thay đổi và giữ nguyên phần còn lại.

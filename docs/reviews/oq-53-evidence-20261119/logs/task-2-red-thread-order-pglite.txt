@@ -1,0 +1,140 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order.test.ts (20 tests | 7 failed | 1 skipped) 10256ms
+   × B1 a confirmed decision of a candidate draft is stored only with the current position of its thread 522ms
+   × B2 a rejection, and any decision of a document draft, carries no thread position 500ms
+   × B3 the answer of the guard names no id and no number 519ms
+   × B4 a decision about a draft outside the caller's scope never reaches the thread 514ms
+   × B5 the catalog of the confirming half: the trigger is AFTER INSERT, the function is definer with the three settings, runtime may insert the new column and nothing else changed; a second run changes nothing 508ms
+   × B6 each guard of 021 and 022 still fires on a candidate draft of a real candidate, and before the guard of 023 510ms
+   × B7 the guard of 023 refuses a confirmation outside READ COMMITTED by itself when the guard of 022 is switched off; the transaction rolls back 500ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order.test.ts > B1 a confirmed decision of a candidate draft is stored only with the current position of its thread
+AssertionError: the position that was read before a message arrived: expected '42703' to be 'LTZ03' // Object.is equality
+
+Expected: "LTZ03"
+Received: "42703"
+
+ ❯ tests/thread-order.test.ts:454:27
+    452|     const e=await decide(draft,{subject_thread_seq:seq});
+    453|     expect(e,label).not.toBeNull();
+    454|     expect(e!.code,label).toBe('LTZ03');
+       |                           ^
+    455|     expect(await decisionCount(draft),label).toBe(0);
+    456|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  tests/thread-order.test.ts > B2 a rejection, and any decision of a document draft, carries no thread position
+AssertionError: a rejection with a position: expected '42703' to be '23514' // Object.is equality
+
+Expected: "23514"
+Received: "42703"
+
+ ❯ tests/thread-order.test.ts:484:27
+    482|     const e=await decide(draft,over);
+    483|     expect(e,label).not.toBeNull();
+    484|     expect(e!.code,label).toBe('23514');
+       |                           ^
+    485|     expect(e!.message,label).toMatch(/draft_decisions_thread_seq_only_…
+    486|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  tests/thread-order.test.ts > B3 the answer of the guard names no id and no number
+AssertionError: a position that has become old: expected '42703' to be 'LTZ03' // Object.is equality
+
+Expected: "LTZ03"
+Received: "42703"
+
+ ❯ tests/thread-order.test.ts:517:27
+    515|   for(const [label,e] of told){
+    516|     expect(e,label).not.toBeNull();
+    517|     expect(e!.code,label).toBe('LTZ03');
+       |                           ^
+    518|     const said=[e!.message,e!.detail,e!.hint].filter(Boolean).join(' '…
+    519|     expect(said,label).not.toMatch(/[0-9a-f]{8}-/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  tests/thread-order.test.ts > B4 a decision about a draft outside the caller's scope never reaches the thread
+AssertionError: 11000000-0000-4000-8000-000000000002: expected '42703' to be 'P0001' // Object.is equality
+
+Expected: "P0001"
+Received: "42703"
+
+ ❯ tests/thread-order.test.ts:542:29
+    540|     const e=await decide(draftTheirs,{project_id:project,subject_threa…
+    541|     expect(e,project).not.toBeNull();
+    542|     expect(e!.code,project).toBe('P0001');
+       |                             ^
+    543|     expect(e!.message,project).toBe('A decision names a draft of its o…
+    544|     expect(e!.where,project).toContain('draft_decisions_guard');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  tests/thread-order.test.ts > B5 the catalog of the confirming half: the trigger is AFTER INSERT, the function is definer with the three settings, runtime may insert the new column and nothing else changed; a second run changes nothing
+AssertionError: expected [ 'draft_decisions_guard', …(2) ] to deeply equal [ 'draft_decisions_guard', …(3) ]
+
+- Expected
++ Received
+
+  [
+    "draft_decisions_guard",
+    "draft_decisions_immutable",
+    "draft_decisions_pointer_only_guard",
+-   "draft_decisions_subject_order_guard",
+  ]
+
+ ❯ tests/thread-order.test.ts:570:38
+    568|   // the triggers of the table, by timing: 021 and 022 BEFORE INSERT (…
+    569|   const byName=Object.fromEntries((first.triggers as {tgname:string;tg…
+    570|   expect(Object.keys(byName).sort()).toEqual(['draft_decisions_guard',…
+       |                                      ^
+    571|   expect(byName[GUARD]).toMatchObject({tgtype:5,tgenabled:'O'});
+    572|   expect(byName[GUARD].d).toMatch(/AFTER INSERT ON (public\.)?draft_de…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  tests/thread-order.test.ts > B6 each guard of 021 and 022 still fires on a candidate draft of a real candidate, and before the guard of 023
+AssertionError: 021 a wrong value hash: expected 'column "subject_thread_seq" of relati…' to be 'A decision carries the value hash of …' // Object.is equality
+
+Expected: "A decision carries the value hash of the draft it answers"
+Received: "column "subject_thread_seq" of relation "draft_decisions" does not exist"
+
+ ❯ first tests/thread-order.test.ts:618:30
+    616|     if(code) expect(e!.code,label).toBe(code);
+    617|     expect(e!.code,label).not.toBe('LTZ03');
+    618|     expect(e!.message,label).toBe(message);
+       |                              ^
+    619|     expect(e!.where,label).toContain(fn);
+    620|     expect(e!.where,label).not.toContain(GUARD);
+ ❯ tests/thread-order.test.ts:624:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  tests/thread-order.test.ts > B7 the guard of 023 refuses a confirmation outside READ COMMITTED by itself when the guard of 022 is switched off; the transaction rolls back
+AssertionError: expected '42703' to be 'LTZ02' // Object.is equality
+
+Expected: "LTZ02"
+Received: "42703"
+
+ ❯ tests/thread-order.test.ts:662:19
+    660|   })) as Told|null;
+    661|   expect(e).not.toBe(done);
+    662|   expect(e?.code).toBe('LTZ02');
+       |                   ^
+    663|   expect(e?.where).toContain(GUARD);
+    664|   expect(e?.message).toMatch(/READ COMMITTED/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 12 passed | 1 skipped (20)
+   Start at  11:39:41
+   Duration  10.43s (tests 99%, import 1%)
+

@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,describe,expect,test} from 'vitest';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {openHarness,type Harness} from './slice1-db';
@@ -21,6 +21,9 @@ afterEach(async()=>{await h.reset();await h.close();});
 
 const chats=bridgeConfig.intake!.chats;
 const both=[chatSales,chatTransport];
+// L4: the most blocks of the shared buffers the statement of the librarian may touch on a document of 600 revisions. Measured (PostgreSQL 16 and PGlite): 38 for the statement as it is;
+// 10 802 for the first form, a subquery that named the document row. The bound sits between the two, away from both.
+const BLOCKS_LIMIT=1000;
 const chatTwo='-1000000000007'; // a second group of the same project, used only to make two threads share a thread_key
 const rows=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
 const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
@@ -57,6 +60,22 @@ const approve=(docId:string,revisionId:string)=>h.operator.transaction(async tx=
  await tx.query('UPDATE document_records SET approved_revision_id=$1 WHERE id=$2',[revisionId,docId]);
 });
 
+let snapNo=0;
+/** Operational login: stores a revision of the document with the given content, source hash and verification (the runtime cannot store `verified`); it becomes the document's latest. */
+const storeRevision=(documentId:string,o:{summary:string;present:string[];missing:string[];hash:string;verified:boolean})=>h.operator.transaction(async tx=>{
+ await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[ids.tenant,[ids.sales,ids.transport].join(',')]);
+ const rec=(await tx.query<{project_id:string;canonical_uri:string;source_type:string;latest_revision_id:string|null}>(
+  'SELECT project_id,canonical_uri,source_type,latest_revision_id FROM document_records WHERE id=$1 FOR UPDATE',[documentId])).rows[0];
+ const no=(await tx.query<{n:number}>('SELECT coalesce(max(revision_no),0)+1 AS n FROM document_revisions WHERE document_id=$1',[documentId])).rows[0].n;
+ snapNo+=1;
+ const id=(await tx.query<{id:string}>(`INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,based_on_revision_id,source_id,source_type,source_hash,hash_verification,snapshot_ref,changes,proposed_by)
+   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12) RETURNING id`,
+  [ids.tenant,rec.project_id,documentId,no,rec.latest_revision_id,rec.canonical_uri,rec.source_type,o.hash,o.verified?'verified':'self_declared',o.verified?`synthetic://snapshot/${snapNo}`:null,
+   JSON.stringify({summary:o.summary,present:o.present,missing:o.missing}),pm.id])).rows[0].id;
+ await tx.query('UPDATE document_records SET latest_revision_id=$1,version=version+1,updated_at=now() WHERE id=$2',[id,documentId]);
+ return {id,revisionNo:no};
+});
+
 describe('skill context',()=>{
  test('(7) a record of an IBS HI project never enters the context of a Xeca project',async()=>{
   await mapDomain(h,ids.sales,'XECA',1);
@@ -85,7 +104,7 @@ describe('skill context',()=>{
   const rev=kinds(trCtx,'document_revision')[0] as Src<'document_revision'>;
   expect(rev).toMatchObject({documentId:td.record.id,summary:null,present:[],missing:[],revisionNo:1});
   const ev=kinds(trCtx,'source_event')[0] as Src<'source_event'>;
-  expect(ev).toMatchObject({id:tm.sourceEventId,text:null,hash:null,forwarded:false});
+  expect(ev).toMatchObject({id:tm.sourceEventId,text:null,hash:null,forwarded:false,revisionNo:1});
   expect(ev.ref).toBeTruthy();
   expect(ev.observedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
  });
@@ -142,7 +161,59 @@ describe('skill context',()=>{
   const marker='ZEBRA-CTX-5522 nội dung';
   const m=await msg({text:marker});
   const c=await build(pm,{skill:'intake_analyst',projectId:ids.sales,candidateId:m.candidateId});
-  expect(kinds(c,'source_event')[0]).toMatchObject({mode:'excerpt',text:marker,hash:m.hash,id:m.sourceEventId});
+  expect(kinds(c,'source_event')[0]).toMatchObject({mode:'excerpt',text:marker,hash:m.hash,id:m.sourceEventId,revisionNo:1});
+ });
+
+ test('C1 the context carries the revision number of the revision it shows, for every display mode',async()=>{
+  const LATE=1760099999000,EARLY=1760050000000;
+  /** Another revision of a message already taken in: same chat and message id, a new text, edited at `editedAt`. Returns the number the database gave it. */
+  const revise=async(m:{messageId:string},o:{text:string;editedAt:number;flags?:string[]}):Promise<number>=>{
+   const e=messageEvent({text:o.text,editedAt:new Date(o.editedAt).toISOString(),context:{chatId:chatSales,messageId:m.messageId}});
+   const ack=await new IntakeService(h.operator,ids.tenant,intakePrincipalId,{...bridgeConfig.chatScopes,[chatTwo]:[ids.sales]},{chats:[...chats,chatTwo],excerptChats:o.flags??[...both,chatTwo]}).ingest(e);
+   return ack.revisionNo;
+  };
+  // Number 1 has no edit time, number 2 the LATEST edit time, number 3 an EARLIER one: the revision a context shows is number 2 (LATEST_REVISION_ORDER), not the highest number 3.
+  const threeRevisions=async(m:{messageId:string;sourceEventId:string},tag:string,flags?:string[])=>{
+   expect(await revise(m,{text:`${tag}-V2`,editedAt:LATE,flags}),`${tag} second revision`).toBe(2);
+   expect(await revise(m,{text:`${tag}-V3`,editedAt:EARLY,flags}),`${tag} third revision`).toBe(3);
+   expect((await rows<{top:number;n:number}>('SELECT max(revision_no)::int AS top, count(*)::int AS n FROM source_event_revisions WHERE source_event_id=$1',[m.sourceEventId]))[0],`${tag} premise`).toEqual({top:3,n:3});
+  };
+  const root=await msg({text:'C1-R-V1'});                                               // text shown, three revisions
+  await threeRevisions(root,'C1-R');
+  const pointer=await msg({text:'C1-P-V1',replyTo:root.messageId,flags:[]});           // stored no text, three revisions
+  await threeRevisions(pointer,'C1-P',[]);
+  const plain=await msg({text:'C1-S-V1',replyTo:root.messageId});                      // text shown, never edited
+  const input={skill:'intake_analyst',projectId:ids.sales,candidateId:root.candidateId};
+  const order=[root.sourceEventId,pointer.sourceEventId,plain.sourceEventId];
+  const byId=(c:SkillContext)=>{
+   expect(kinds(c,'source_event').map(x=>x.id)).toEqual(order);
+   return new Map(kinds(c,'source_event').map(x=>[x.id,x as Src<'source_event'>]));
+  };
+  const v2hash=createHash('sha256').update('C1-R-V2').digest('hex');
+
+  // text shown: the number is that of the revision whose text is shown
+  const shown=byId(await build(pm,input));
+  expect(shown.get(root.sourceEventId)).toMatchObject({mode:'excerpt',revisionNo:2,text:'C1-R-V2',hash:v2hash});
+  expect(shown.get(pointer.sourceEventId)).toMatchObject({mode:'pointer_only',revisionNo:2,text:null,hash:null});
+  expect(shown.get(plain.sourceEventId)).toMatchObject({mode:'excerpt',revisionNo:1,text:'C1-S-V1'});
+
+  // text hidden (the group is no longer flagged): the number stays, text and hash stay null
+  const hidden=byId(await build(pm,input,[]));
+  expect(hidden.get(root.sourceEventId)).toMatchObject({mode:'hidden',revisionNo:2,text:null,hash:null});
+  expect(hidden.get(pointer.sourceEventId)).toMatchObject({mode:'pointer_only',revisionNo:2,text:null,hash:null});
+  expect(hidden.get(plain.sourceEventId)).toMatchObject({mode:'hidden',revisionNo:1,text:null,hash:null});
+
+  // a pointer-only context (the project is mapped to IBS_HI after the text was stored): the number stays, nothing of the text or its hash does
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  const ibsContext=await build(pm,input);
+  expect(ibsContext.pointerOnly).toBe(true);
+  const ibs=byId(ibsContext);
+  expect(ibs.get(root.sourceEventId)).toMatchObject({revisionNo:2,text:null,hash:null});
+  expect(ibs.get(pointer.sourceEventId)).toMatchObject({revisionNo:2,text:null,hash:null});
+  expect(ibs.get(plain.sourceEventId)).toMatchObject({revisionNo:1,text:null,hash:null});
+  for(const s of ibs.values()) expect(s.mode,s.id).not.toBe('excerpt');
+  expect(JSON.stringify(ibsContext)).not.toContain('C1-R-V2');
+  expect(JSON.stringify(ibsContext)).not.toContain(v2hash);
  });
 
  test('revoked access: a principal that lost the project gets the not-found answer and no source',async()=>{
@@ -223,7 +294,11 @@ describe('skill context',()=>{
    expect(kinds(c,'document')).toHaveLength(50);
    if(input.documentId) expect(kinds(c,'document').some(s=>s.id===named.record.id),'the named document is kept when the cap cuts').toBe(true);
    expect(kinds(c,'source_event')).toHaveLength(allowed.includes('source_event')?20:0);
-   if(skill==='release_librarian') expect(kinds(c,'document_revision')).toHaveLength(0);
+   if(skill==='release_librarian') {
+    // nothing is approved: the one revision of the context is the newest of the 40, a pointer without content (OQ-57)
+    expect(kinds(c,'document_revision')).toHaveLength(1);
+    expect(kinds(c,'document_revision')[0]).toMatchObject({revisionNo:40,summary:null,present:[],missing:[],sourceHash:null,hashVerification:'self_declared'});
+   }
    else expect(kinds(c,'document_revision')).toHaveLength(allowed.includes('document_revision')?30:0);
   }
   const full=await build(pm,{skill:'ba_elicitation',projectId:ids.sales,candidateId:root.candidateId,documentId:named.record.id});
@@ -280,7 +355,7 @@ describe('skill context',()=>{
   await denied(inTwo(tx=>buildSkillContextIn(tx,pm,{skill:'ba_elicitation',projectId:ids.sales,candidateId:tm.candidateId},both)));
  });
 
- test('R10-g: the release librarian gets only the approved revision; none when nothing is approved',async()=>{
+ test("R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one",async()=>{
   const d0=await registerDoc(h,pm,{projectId:ids.sales,title:'LIB-DOC'});
   const d1=await proposeRev(h,pm,d0,{changes:{summary:'Bản một của tài liệu',present:[],missing:[]}});
   const d2=await proposeRev(h,pm,d1,{changes:{summary:'Bản hai của tài liệu',present:[],missing:[]}});
@@ -289,11 +364,20 @@ describe('skill context',()=>{
   expect(revs).toHaveLength(3);
   const input=(skill:SkillName)=>({skill,projectId:ids.sales,documentId:d3.record.id});
   const none=await build(pm,input('release_librarian'));
-  expect(kinds(none,'document_revision')).toHaveLength(0);
+  // nothing is approved: one revision, the newest, as a pointer; no text of any revision
+  expect(kinds(none,'document_revision').map(s=>s.id)).toEqual([revs[2].id]);
+  expect(kinds(none,'document_revision')[0]).toMatchObject({documentId:d3.record.id,revisionNo:3,summary:null,present:[],missing:[]});
+  expect(JSON.stringify(none)).not.toContain('Bản một của tài liệu');
+  expect(JSON.stringify(none)).not.toContain('Bản ba của tài liệu');
   expect(kinds(none,'document')[0]).toMatchObject({approvedRevisionId:null});
   await approve(d3.record.id,revs[1].id);
   const lib=await build(pm,input('release_librarian'));
-  expect(kinds(lib,'document_revision').map(s=>s.id)).toEqual([revs[1].id]);
+  // revision 2 is approved: its content, and revision 3 (the newest) as a pointer; revision 1 is not in the context
+  expect(kinds(lib,'document_revision').map(s=>s.id)).toEqual([revs[2].id,revs[1].id]);
+  const [newest,approvedRev]=kinds(lib,'document_revision') as Src<'document_revision'>[];
+  expect(approvedRev).toMatchObject({revisionNo:2,summary:'Bản hai của tài liệu'});
+  expect(newest).toMatchObject({revisionNo:3,summary:null,present:[],missing:[]});
+  for(const text of ['Bản một của tài liệu','Bản ba của tài liệu']) expect(JSON.stringify(lib),text).not.toContain(text);
   expect(kinds(lib,'document')[0]).toMatchObject({approvedRevisionId:revs[1].id,latestRevisionId:revs[2].id});
   const rev=await build(pm,input('doc_reviewer'));
   expect(kinds(rev,'document_revision').map(s=>(s as Src<'document_revision'>).revisionNo)).toEqual([3,2,1]);
@@ -304,7 +388,73 @@ describe('skill context',()=>{
   const orev=(await rows<{id:string}>('SELECT id FROM document_revisions WHERE document_id=$1',[o1.record.id]))[0].id;
   await approve(o1.record.id,orev);
   const lib2=await build(pm,input('release_librarian'));
-  expect(kinds(lib2,'document_revision').map(s=>s.id)).toEqual([revs[1].id]);
+  expect(kinds(lib2,'document_revision').map(s=>s.id)).toEqual([revs[2].id,revs[1].id]);
+ });
+
+ test('the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash',async()=>{
+  const doc=await registerDoc(h,pm,{projectId:ids.sales,title:'PTR-DOC'});
+  const mark=(n:number)=>({summary:`PTR-SUMMARY-${n}-4471 nội dung`,present:[`PTR-PRESENT-${n}-4472`],missing:[`PTR-MISSING-${n}-4473`]});
+  const hash=(n:number)=>createHash('sha256').update(`ptr-source-${n}`).digest('hex');
+  // three stored revisions with content and a source hash each; the newest two are `verified` by the operational login
+  const r=[
+   await storeRevision(doc.record.id,{...mark(1),hash:hash(1),verified:false}),
+   await storeRevision(doc.record.id,{...mark(2),hash:hash(2),verified:true}),
+   await storeRevision(doc.record.id,{...mark(3),hash:hash(3),verified:true}),
+  ];
+  expect(r.map(x=>x.revisionNo)).toEqual([1,2,3]);
+  expect((await rows<{hash_verification:string}>('SELECT hash_verification FROM document_revisions WHERE id=$1',[r[2].id]))[0].hash_verification,'premise: the newest revision is stored as verified').toBe('verified');
+  const input={skill:'release_librarian',projectId:ids.sales,documentId:doc.record.id};
+  const pointer=(x:{id:string;revisionNo:number})=>({id:x.id,kind:'document_revision',documentId:doc.record.id,revisionNo:x.revisionNo,summary:null,present:[],missing:[],sourceHash:null,hashVerification:'self_declared'});
+  const content=(x:{id:string;revisionNo:number})=>({id:x.id,kind:'document_revision',documentId:doc.record.id,revisionNo:x.revisionNo,...mark(x.revisionNo),sourceHash:hash(x.revisionNo),hashVerification:x.revisionNo===1?'self_declared':'verified'});
+  const everyMark=(n:number)=>[...Object.values(mark(n)).flat(),hash(n)];
+  /** Nothing of revision `n` (text, lists, source hash) is in the context or in any row the context builder was handed. */
+  const absent=(c:SkillContext,rec:{rows():unknown[]},...ns:number[])=>{
+   for(const n of ns) for(const m of everyMark(n)) {expect(JSON.stringify(c),`context: ${m}`).not.toContain(m);expect(JSON.stringify(rec.rows()),`rows: ${m}`).not.toContain(m);}
+  };
+
+  // nothing approved: exactly one revision source, the newest one, as a pointer
+  const rec1=recordingDb(h.db);
+  const none=await build(pm,input,both,rec1.db);
+  expect(kinds(none,'document_revision')).toEqual([pointer(r[2])]);
+  expect(rec1.rows().length).toBeGreaterThan(0);
+  absent(none,rec1,1,2,3);
+  expect(kinds(none,'document')[0]).toMatchObject({approvedRevisionId:null,latestRevisionId:r[2].id});
+
+  // revision 2 is approved: its content in full, and revision 3 as a pointer, newest first; revision 1 is not in the context
+  await approve(doc.record.id,r[1].id);
+  const rec2=recordingDb(h.db);
+  const mid=await build(pm,input,both,rec2.db);
+  expect(kinds(mid,'document_revision')).toEqual([pointer(r[2]),content(r[1])]);
+  for(const m of everyMark(2)) expect(JSON.stringify(rec2.rows()),`positive control: ${m}`).toContain(m);
+  absent(mid,rec2,1,3);
+
+  // revision 3 is both the newest and the approved one: one source, with its content
+  await approve(doc.record.id,r[2].id);
+  const rec3=recordingDb(h.db);
+  const top=await build(pm,input,both,rec3.db);
+  expect(kinds(top,'document_revision')).toEqual([content(r[2])]);
+  absent(top,rec3,1,2);
+
+  // the pointer of a project mapped to IBS_HI: still a pointer, and the approved revision shows no text (its source hash is a pointer-grade fact, as in every skill)
+  await approve(doc.record.id,r[1].id);
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  const rec4=recordingDb(h.db);
+  const ibs=await build(pm,input,both,rec4.db);
+  expect(ibs.pointerOnly).toBe(true);
+  expect(kinds(ibs,'document_revision')).toEqual([pointer(r[2]),{...pointer(r[1]),sourceHash:hash(2),hashVerification:'verified'}]);
+  for(const n of [1,2,3]) for(const m of Object.values(mark(n)).flat()) expect(JSON.stringify(rec4.rows()),m).not.toContain(m);
+  expect(JSON.stringify(rec4.rows())).not.toContain(hash(3));
+  await mapDomain(h,ids.sales,'XECA',2);
+
+  // the approved revision, and the newest one, of ANOTHER document never enter this context
+  const other=await registerDoc(h,pm,{projectId:ids.sales,title:'PTR-OTHER'});
+  const o1=await storeRevision(other.record.id,{...mark(7),hash:hash(7),verified:true});
+  await storeRevision(other.record.id,{...mark(8),hash:hash(8),verified:true});
+  await approve(other.record.id,o1.id);
+  const rec5=recordingDb(h.db);
+  const again=await build(pm,input,both,rec5.db);
+  expect(kinds(again,'document_revision')).toEqual([pointer(r[2]),content(r[1])]);
+  absent(again,rec5,7,8);
  });
 
  test('R10-i: an input that cannot be honoured is a 422, not silently ignored',async()=>{
@@ -360,5 +510,32 @@ describe('skill context',()=>{
   for(const s of ['source_event_revisions','text_excerpt','content_hash','project_domain_mappings','IBS_HI','DUPLICATE_HINT_SQL']) expect(src,s).not.toContain(s);
   const contracts=await readFile(path.join(process.cwd(),'src/server/skill-contracts.ts'),'utf8');
   expect(contracts).not.toMatch(/skill-context|from '\.\/db'/);
+ });
+
+ /**
+  * SV-DB-2: the statement of the revisions of the release librarian takes the newest revision of the document with one subquery that uses only the parameters; the first form was a subquery that
+  * named the document row and so ran once for every revision of the document. The work is counted in blocks of the shared buffers that the statement touched (in the cache or not), not in time.
+  */
+ test('L4 the statement of the revisions of the release librarian does not run a probe for each revision of the document: the blocks it touches stay far below the product',async()=>{
+  const named=await registerDoc(h,pm,{projectId:ids.sales,title:'L4-NAMED'});
+  await h.operator.transaction(async tx=>{
+   await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[ids.tenant,ids.sales]);
+   await tx.query(`INSERT INTO document_revisions(tenant_id,project_id,document_id,revision_no,source_id,source_type,proposed_by)
+    SELECT $1,$2,$3,g,'https://docs.google.com/cap/l4','drive',$4 FROM generate_series(2,600) g`,[ids.tenant,ids.sales,named.record.id,pm.id]);
+  });
+  const sent:{sql:string;params:unknown[]}[]=[];
+  await scoped(h.db,{...pm,projectIds:[ids.sales]},async tx=>{
+   const spy:Queryable={query:async<T=Record<string,unknown>>(sql:string,p?:unknown[])=>{sent.push({sql,params:p??[]});return tx.query<T>(sql,p);}};
+   const c=await buildSkillContextIn(spy,pm,{skill:'release_librarian',projectId:ids.sales,documentId:named.record.id},both);
+   // the answer is the same as ever: nothing is approved, so the one revision is the newest of the 600, a pointer
+   expect(kinds(c,'document_revision')).toHaveLength(1);
+   expect(kinds(c,'document_revision')[0]).toMatchObject({revisionNo:600,summary:null,sourceHash:null,hashVerification:'self_declared'});
+   const statement=sent.filter(x=>/FROM document_records d\s+JOIN document_revisions v/.test(x.sql));
+   expect(statement,'the statement of the revisions was sent once').toHaveLength(1);
+   const raw=(await tx.query<{'QUERY PLAN':unknown}>(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement[0].sql}`,statement[0].params)).rows[0]['QUERY PLAN'];
+   const plan=(typeof raw==='string'?JSON.parse(raw):raw) as {Plan:Record<string,number>}[];
+   const blocks=plan[0].Plan['Shared Hit Blocks']+plan[0].Plan['Shared Read Blocks'];
+   expect(blocks,'blocks touched: '+blocks).toBeLessThan(BLOCKS_LIMIT);
+  });
  });
 });

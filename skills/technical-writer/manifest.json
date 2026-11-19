@@ -1,6 +1,6 @@
 {
   "name": "technical_writer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "owner": "BoM Tech",
   "attribution": [
     {
@@ -10,9 +10,9 @@
   ],
   "prompt": {
     "path": "skills/technical-writer/prompt.md",
-    "sha256": "adab6f96155caa38810687bbbbe6a8094c67ac6aa3602409a09686fc6d63797a"
+    "sha256": "998ded87231dc0bce5f7e8dbd4b7fee90ec71b752e5752542e142baa520147e7"
   },
-  "inputContract": "SkillContext/v1",
+  "inputContract": "SkillContext/v2",
   "outputContract": "SkillOutput/technical_writer/v1",
   "toolAllowlist": [],
   "dataScope": {
@@ -31,5 +31,5 @@
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "8e77d82e88c509c008cd1fd1d8219efe04dd1f7c7c2cf8212319977e514052d0"
+  "hash": "509ef4afadfbde73eac552cc7f0a62bf8b35828b7490e74306ad3b6bb5f6eb27"
 }

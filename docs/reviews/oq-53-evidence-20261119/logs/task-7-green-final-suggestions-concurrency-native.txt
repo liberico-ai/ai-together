@@ -1,0 +1,12 @@
+# native, tests/suggestions-concurrency.test.ts, exit=0
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  9 passed (9)
+
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  15:22:05
+   Duration  13.70s (tests 99%)
+

@@ -1,0 +1,251 @@
+# Task 9a, item 1 (SV-DB-1): EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) of the statement of threadFreshness before and after rule 2 was rewritten.
+# Method: native PostgreSQL 16 (the isolated test database), the operational login, ONE transaction that is rolled back at the end (no row stays). One thread of 3000 messages in one project:
+# every message has revision 1, 40 % have revision 2 (the latest by edit time), 10 % have revision 3; all 4500 revisions numbered by the trigger of 023 (head = 4500). The pairs are the latest revision of the
+# 20 or 100 messages with the highest numbers. The statement runs as the runtime role with the tenant and project settings that scoped() sets, so row-level security is on. Each statement is run three times;
+# the first two are warm-up, the third is printed. "before" is the statement of 26ba304 (CTE `latest` joined to the pairs); "after" is the statement of this change (one probe of the index of the revisions for each pair,
+# `s.no IS DISTINCT FROM (SELECT ... ORDER BY LATEST_REVISION_ORDER LIMIT 1)`). The answer of both is the same in every row. Times are of a shared machine: read the blocks (hits of the shared buffers), which do not depend on the clock.
+# Stage A is a table that was loaded a moment ago and has no statistics: the planner guesses, and for rule 4 (a revision without a number, unchanged by this task) it guesses a nested loop over the thread that costs 240 000 to
+# 1 100 000 blocks and about 3 to 4 seconds in BOTH forms; rule 4 dominates there, not rule 2. Stage B is the same tables after ANALYZE, which autovacuum does within about a minute of a bulk load and which migration 023 does for its two new tables.
+# The 698 ms that the review measured for the first form (100 pairs, 3000 messages, 7378 revisions) is not reproduced by this data with statistics (9.4 ms, 11 389 blocks): the first form costs
+# the product of pairs and messages only when the planner chooses the nested loop anti join that the review saw; the second form does not depend on that choice (749 and 1 389 blocks).
+# Cases of the suite that count the same thing, in blocks, without a clock (tests/source-text.test.ts T21 on a thread of 600 messages with 100 pairs; tests/skill-context.test.ts L4 on a document of 600 revisions):
+#   T21  first form 931 603 (PGlite) and 967 067 (PostgreSQL 16)  ->  this form 28 103 (PGlite) and 28 817 (PostgreSQL 16); bound of the case: 100 000
+#   L4   first form 10 802 (both)  ->  this form 38 (both); bound of the case: 1 000
+#
+# drafted data (rolled back at the end): events=3000 revisions=4500 head=4500 numbered=4500
+
+## A. just loaded, no statistics on the tables (the planner guesses)
+before   pairs= 20  execution  3316.841 ms  root Buffers: shared hit=442412   answer {"has_baseline":true,"not_latest":false,"unnumbered":false,"baseline":"4500","head":"4500"}
+after    pairs= 20  execution  3218.677 ms  root Buffers: shared hit=239762   answer {"has_baseline":true,"not_latest":false,"unnumbered":false,"baseline":"4500","head":"4500"}
+before   pairs=100  execution  4237.270 ms  root Buffers: shared hit=1133513   answer {"has_baseline":true,"not_latest":false,"unnumbered":false,"baseline":"4500","head":"4500"}
+after    pairs=100  execution  3548.769 ms  root Buffers: shared hit=260263   answer {"has_baseline":true,"not_latest":false,"unnumbered":false,"baseline":"4500","head":"4500"}
+
+## B. after ANALYZE of the five tables (what autovacuum does within a minute of a bulk load; migration 023 also analyzes the two new tables)
+before   pairs= 20  execution     8.843 ms  root Buffers: shared hit=11149   answer {"has_baseline":true,"not_latest":false,"unnumbered":false,"baseline":"4500","head":"4500"}
+after    pairs= 20  execution     2.455 ms  root Buffers: shared hit=749   answer {"has_baseline":true,"not_latest":false,"unnumbered":false,"baseline":"4500","head":"4500"}
+before   pairs=100  execution     9.363 ms  root Buffers: shared hit=11389   answer {"has_baseline":true,"not_latest":false,"unnumbered":false,"baseline":"4500","head":"4500"}
+
+Result (actual time=9.316..9.320 rows=1 loops=1)
+  Buffers: shared hit=11389
+  CTE thread
+    ->  Nested Loop (actual time=0.006..0.411 rows=3000 loops=1)
+          Join Filter: ((c.chat_id = e.chat_id) AND (c.thread_key = e.thread_key))
+          Buffers: shared hit=102
+          ->  Seq Scan on intake_candidates c (actual time=0.002..0.002 rows=1 loops=1)
+                Filter: ((project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (id = '3e0758ac-199a-4987-b72f-9595b7643ac5'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))
+                Buffers: shared hit=1
+          ->  Index Scan using idx_source_events_project_fk on source_events e (actual time=0.003..0.151 rows=3000 loops=1)
+                Index Cond: ((project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+                Buffers: shared hit=101
+  CTE stated
+    ->  Hash Join (actual time=0.148..0.222 rows=100 loops=1)
+          Hash Cond: (t.id = p.id)
+          ->  CTE Scan on thread t (actual time=0.000..0.085 rows=3000 loops=1)
+          ->  Hash (actual time=0.016..0.017 rows=100 loops=1)
+                Buckets: 1024  Batches: 1  Memory Usage: 14kB
+                ->  Function Scan on p (actual time=0.006..0.010 rows=100 loops=1)
+  InitPlan 3 (returns $2)
+    ->  CTE Scan on thread t_1 (actual time=0.445..0.445 rows=1 loops=1)
+          Filter: (id = ANY ('{<100 uuids>}'::uuid[]))
+          Rows Removed by Filter: 2000
+          Buffers: shared hit=69
+  InitPlan 4 (returns $3)
+    ->  Nested Loop Anti Join (actual time=0.821..0.821 rows=0 loops=1)
+          Join Filter: (s.event_id = t_2.id)
+          Rows Removed by Join Filter: 4950
+          Buffers: shared hit=33
+          ->  CTE Scan on thread t_2 (actual time=0.080..0.302 rows=100 loops=1)
+                Filter: (id = ANY ('{<100 uuids>}'::uuid[]))
+                Rows Removed by Filter: 2900
+                Buffers: shared hit=33
+          ->  CTE Scan on stated s (actual time=0.002..0.004 rows=50 loops=100)
+  InitPlan 5 (returns $5)
+    ->  Hash Right Anti Join (actual time=6.463..6.464 rows=0 loops=1)
+          Hash Cond: ((t_3.id = s_1.event_id) AND (r.revision_no = s_1.no))
+          Buffers: shared hit=10500
+          ->  Nested Loop (actual time=0.008..6.322 rows=3000 loops=1)
+                Buffers: shared hit=10500
+                ->  CTE Scan on thread t_3 (actual time=0.000..0.109 rows=3000 loops=1)
+                ->  Limit (actual time=0.002..0.002 rows=1 loops=3000)
+                      Buffers: shared hit=10500
+                      ->  Sort (actual time=0.002..0.002 rows=1 loops=3000)
+                            Sort Key: r.edited_at DESC NULLS LAST, r.revision_no DESC
+                            Sort Method: quicksort  Memory: 25kB
+                            Buffers: shared hit=10500
+                            ->  Bitmap Heap Scan on source_event_revisions r (actual time=0.001..0.001 rows=2 loops=3000)
+                                  Recheck Cond: (source_event_id = t_3.id)
+                                  Filter: ((project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))
+                                  Heap Blocks: exact=4500
+                                  Buffers: shared hit=10500
+                                  ->  Bitmap Index Scan on source_event_revisions_source_event_id_revision_no_key (actual time=0.000..0.000 rows=2 loops=3000)
+                                        Index Cond: (source_event_id = t_3.id)
+                                        Buffers: shared hit=6000
+          ->  Hash (actual time=0.008..0.008 rows=100 loops=1)
+                Buckets: 2048  Batches: 1  Memory Usage: 22kB
+                ->  CTE Scan on stated s_1 (actual time=0.000..0.004 rows=100 loops=1)
+  InitPlan 6 (returns $6)
+    ->  Hash Join (actual time=0.870..0.871 rows=0 loops=1)
+          Hash Cond: (t_4.id = r_1.source_event_id)
+          Buffers: shared hit=254
+          ->  CTE Scan on thread t_4 (actual time=0.000..0.000 rows=1 loops=1)
+          ->  Hash (actual time=0.870..0.870 rows=0 loops=1)
+                Buckets: 1024  Batches: 1  Memory Usage: 8kB
+                Buffers: shared hit=254
+                ->  Hash Anti Join (actual time=0.870..0.870 rows=0 loops=1)
+                      Hash Cond: (r_1.id = q.revision_id)
+                      Buffers: shared hit=254
+                      ->  Index Scan using idx_source_event_revisions_project_fk on source_event_revisions r_1 (actual time=0.003..0.206 rows=4500 loops=1)
+                            Index Cond: ((project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+                            Buffers: shared hit=157
+                      ->  Hash (actual time=0.438..0.438 rows=4500 loops=1)
+                            Buckets: 8192  Batches: 1  Memory Usage: 275kB
+                            Buffers: shared hit=97
+                            ->  Index Scan using idx_source_revision_positions_project_fk on source_revision_positions q (actual time=0.003..0.252 rows=4500 loops=1)
+                                  Index Cond: ((project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+                                  Buffers: shared hit=97
+  InitPlan 7 (returns $8)
+    ->  Aggregate (actual time=0.664..0.664 rows=1 loops=1)
+          Buffers: shared hit=457
+          ->  Nested Loop (actual time=0.526..0.660 rows=100 loops=1)
+                Buffers: shared hit=457
+                ->  Hash Join (actual time=0.524..0.539 rows=100 loops=1)
+                      Hash Cond: ((s_2.event_id = r_2.source_event_id) AND (s_2.no = r_2.revision_no))
+                      Buffers: shared hit=157
+                      ->  CTE Scan on stated s_2 (actual time=0.000..0.005 rows=100 loops=1)
+                      ->  Hash (actual time=0.523..0.523 rows=4500 loops=1)
+                            Buckets: 8192  Batches: 1  Memory Usage: 363kB
+                            Buffers: shared hit=157
+                            ->  Index Scan using idx_source_event_revisions_project_fk on source_event_revisions r_2 (actual time=0.003..0.273 rows=4500 loops=1)
+                                  Index Cond: ((project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+                                  Buffers: shared hit=157
+                ->  Index Scan using source_revision_positions_revision_id_key on source_revision_positions q_1 (actual time=0.001..0.001 rows=1 loops=100)
+                      Index Cond: (revision_id = r_2.id)
+                      Filter: ((project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))
+                      Buffers: shared hit=300
+  InitPlan 8 (returns $9)
+    ->  Nested Loop (actual time=0.051..0.051 rows=1 loops=1)
+          Join Filter: ((c_1.chat_id = h.chat_id) AND (c_1.thread_key = h.thread_key))
+          Buffers: shared hit=76
+          ->  Seq Scan on intake_candidates c_1 (actual time=0.003..0.004 rows=1 loops=1)
+                Filter: ((project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (id = '3e0758ac-199a-4987-b72f-9595b7643ac5'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))
+                Buffers: shared hit=1
+          ->  Index Scan using intake_thread_heads_tenant_id_project_id_chat_id_thread_key_key on intake_thread_heads h (actual time=0.047..0.047 rows=1 loops=1)
+                Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid))
+                Filter: (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[]))
+                Buffers: shared hit=75
+Planning:
+  Buffers: shared hit=24
+Planning Time: 0.543 ms
+Execution Time: 9.363 ms
+
+after    pairs=100  execution     3.079 ms  root Buffers: shared hit=1389   answer {"has_baseline":true,"not_latest":false,"unnumbered":false,"baseline":"4500","head":"4500"}
+
+Result (actual time=3.043..3.045 rows=1 loops=1)
+  Buffers: shared hit=1389
+  CTE thread
+    ->  Nested Loop (actual time=0.005..0.403 rows=3000 loops=1)
+          Join Filter: ((c.chat_id = e.chat_id) AND (c.thread_key = e.thread_key))
+          Buffers: shared hit=102
+          ->  Seq Scan on intake_candidates c (actual time=0.002..0.002 rows=1 loops=1)
+                Filter: ((project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (id = '3e0758ac-199a-4987-b72f-9595b7643ac5'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))
+                Buffers: shared hit=1
+          ->  Index Scan using idx_source_events_project_fk on source_events e (actual time=0.002..0.151 rows=3000 loops=1)
+                Index Cond: ((project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+                Buffers: shared hit=101
+  CTE stated
+    ->  Hash Join (actual time=0.136..0.207 rows=100 loops=1)
+          Hash Cond: (t.id = p.id)
+          ->  CTE Scan on thread t (actual time=0.000..0.081 rows=3000 loops=1)
+          ->  Hash (actual time=0.014..0.014 rows=100 loops=1)
+                Buckets: 1024  Batches: 1  Memory Usage: 14kB
+                ->  Function Scan on p (actual time=0.005..0.009 rows=100 loops=1)
+  InitPlan 3 (returns $2)
+    ->  CTE Scan on thread t_1 (actual time=0.427..0.427 rows=1 loops=1)
+          Filter: (id = ANY ('{<100 uuids>}'::uuid[]))
+          Rows Removed by Filter: 2000
+          Buffers: shared hit=69
+  InitPlan 4 (returns $3)
+    ->  Nested Loop Anti Join (actual time=0.777..0.777 rows=0 loops=1)
+          Join Filter: (s.event_id = t_2.id)
+          Rows Removed by Join Filter: 4950
+          Buffers: shared hit=33
+          ->  CTE Scan on thread t_2 (actual time=0.071..0.282 rows=100 loops=1)
+                Filter: (id = ANY ('{<100 uuids>}'::uuid[]))
+                Rows Removed by Filter: 2900
+                Buffers: shared hit=33
+          ->  CTE Scan on stated s (actual time=0.001..0.003 rows=50 loops=100)
+  InitPlan 6 (returns $5)
+    ->  CTE Scan on stated s_1 (actual time=0.331..0.331 rows=0 loops=1)
+          Filter: (no IS DISTINCT FROM (SubPlan 5))
+          Rows Removed by Filter: 100
+          Buffers: shared hit=500
+          SubPlan 5
+            ->  Limit (actual time=0.003..0.003 rows=1 loops=100)
+                  Buffers: shared hit=500
+                  ->  Sort (actual time=0.003..0.003 rows=1 loops=100)
+                        Sort Key: r.edited_at DESC NULLS LAST, r.revision_no DESC
+                        Sort Method: top-N heapsort  Memory: 25kB
+                        Buffers: shared hit=500
+                        ->  Bitmap Heap Scan on source_event_revisions r (actual time=0.001..0.003 rows=3 loops=100)
+                              Recheck Cond: (source_event_id = s_1.event_id)
+                              Filter: ((project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))
+                              Heap Blocks: exact=300
+                              Buffers: shared hit=500
+                              ->  Bitmap Index Scan on source_event_revisions_source_event_id_revision_no_key (actual time=0.001..0.001 rows=3 loops=100)
+                                    Index Cond: (source_event_id = s_1.event_id)
+                                    Buffers: shared hit=200
+  InitPlan 7 (returns $6)
+    ->  Hash Join (actual time=0.868..0.868 rows=0 loops=1)
+          Hash Cond: (t_3.id = r_1.source_event_id)
+          Buffers: shared hit=254
+          ->  CTE Scan on thread t_3 (actual time=0.000..0.000 rows=1 loops=1)
+          ->  Hash (actual time=0.867..0.867 rows=0 loops=1)
+                Buckets: 1024  Batches: 1  Memory Usage: 8kB
+                Buffers: shared hit=254
+                ->  Hash Anti Join (actual time=0.867..0.867 rows=0 loops=1)
+                      Hash Cond: (r_1.id = q.revision_id)
+                      Buffers: shared hit=254
+                      ->  Index Scan using idx_source_event_revisions_project_fk on source_event_revisions r_1 (actual time=0.003..0.209 rows=4500 loops=1)
+                            Index Cond: ((project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+                            Buffers: shared hit=157
+                      ->  Hash (actual time=0.434..0.434 rows=4500 loops=1)
+                            Buckets: 8192  Batches: 1  Memory Usage: 275kB
+                            Buffers: shared hit=97
+                            ->  Index Scan using idx_source_revision_positions_project_fk on source_revision_positions q (actual time=0.003..0.247 rows=4500 loops=1)
+                                  Index Cond: ((project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+                                  Buffers: shared hit=97
+  InitPlan 8 (returns $8)
+    ->  Aggregate (actual time=0.593..0.594 rows=1 loops=1)
+          Buffers: shared hit=457
+          ->  Nested Loop (actual time=0.484..0.590 rows=100 loops=1)
+                Buffers: shared hit=457
+                ->  Hash Join (actual time=0.482..0.496 rows=100 loops=1)
+                      Hash Cond: ((s_2.event_id = r_2.source_event_id) AND (s_2.no = r_2.revision_no))
+                      Buffers: shared hit=157
+                      ->  CTE Scan on stated s_2 (actual time=0.000..0.005 rows=100 loops=1)
+                      ->  Hash (actual time=0.481..0.481 rows=4500 loops=1)
+                            Buckets: 8192  Batches: 1  Memory Usage: 363kB
+                            Buffers: shared hit=157
+                            ->  Index Scan using idx_source_event_revisions_project_fk on source_event_revisions r_2 (actual time=0.003..0.267 rows=4500 loops=1)
+                                  Index Cond: ((project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+                                  Buffers: shared hit=157
+                ->  Index Scan using source_revision_positions_revision_id_key on source_revision_positions q_1 (actual time=0.001..0.001 rows=1 loops=100)
+                      Index Cond: (revision_id = r_2.id)
+                      Filter: ((project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))
+                      Buffers: shared hit=300
+  InitPlan 9 (returns $9)
+    ->  Nested Loop (actual time=0.046..0.046 rows=1 loops=1)
+          Join Filter: ((c_1.chat_id = h.chat_id) AND (c_1.thread_key = h.thread_key))
+          Buffers: shared hit=76
+          ->  Seq Scan on intake_candidates c_1 (actual time=0.001..0.001 rows=1 loops=1)
+                Filter: ((project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid) AND (id = '3e0758ac-199a-4987-b72f-9595b7643ac5'::uuid) AND (tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[])))
+                Buffers: shared hit=1
+          ->  Index Scan using intake_thread_heads_tenant_id_project_id_chat_id_thread_key_key on intake_thread_heads h (actual time=0.044..0.044 rows=1 loops=1)
+                Index Cond: ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid) AND (project_id = '221bcae8-f3d8-4764-8312-412a966ea2e4'::uuid))
+                Filter: (project_id = ANY ((string_to_array(COALESCE(current_setting('app.project_ids'::text, true), ''::text), ','::text))::uuid[]))
+                Buffers: shared hit=75
+Planning:
+  Buffers: shared hit=24
+Planning Time: 0.447 ms
+Execution Time: 3.079 ms
+

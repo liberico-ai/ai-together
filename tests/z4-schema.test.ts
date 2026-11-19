@@ -5,9 +5,10 @@ import path from 'node:path';
 import {native,openHarness,type Harness} from './slice1-db';
 import {member,pm,seedSlice1} from './slice1-fixtures';
 import {aiPrincipal,frozenRevision,registerDoc,seedMembers} from './slice3-fixtures';
-import {guardBlock,rolledBack} from './slice2-fixtures';
+import {bridgeConfig,guardBlock,intakePrincipalId,messageEvent,rolledBack} from './slice2-fixtures';
 import {assertRestrictedLogin,scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
+import {IntakeService} from '../src/server/intake';
 import type {Principal} from '../src/server/types';
 
 // Migration 021: the Z4 zone for AI drafts (schema intelligence), the Z1 table draft_decisions (a person's confirm or reject of a draft) and the role
@@ -37,7 +38,9 @@ const asAi=<T>(fn:(tx:Queryable)=>Promise<T>,o:{tenant?:string;projects?:string[
 });
 
 const JSONB_COLUMNS=new Set(['value','sources','questions']);
-const draftVals=(over:R={}):R=>({tenant_id:ids.tenant,project_id:ids.sales,entity_type:'intake_candidate',entity_id:randomUUID(),signal_type:'intake_analyst',
+// The default draft is about a document: migration 023 stores a confirmation of a candidate draft only when it names a real candidate and the position of its thread
+// (candidateDraft below does that); a draft about a random candidate id could never be confirmed.
+const draftVals=(over:R={}):R=>({tenant_id:ids.tenant,project_id:ids.sales,entity_type:'document',entity_id:randomUUID(),signal_type:'intake_analyst',
   skill_version:'1.0.0',manifest_hash:HASH,model_version:'synthetic-model',value:'{"summary":"mẫu"}',value_hash:HASH,sources:'[{"ref":"synthetic-source"}]',
   questions:'[]',confidence:50,input_hash:HASH,ai_principal_id:AI,trace_id:randomUUID(),dedupe_key:'draft-'+randomUUID(),...over});
 const insertDraft=(tx:Queryable,over:R={})=>{
@@ -52,6 +55,14 @@ const insertDecision=(tx:Queryable,draft:string,over:R={})=>{
   return tx.query<{id:string}>(`INSERT INTO draft_decisions(${keys.join(',')}) VALUES(${keys.map((_,i)=>`$${i+1}`).join(',')}) RETURNING id`,keys.map(k=>v[k]));
 };
 const decide=(draft:string,over:R={},person:string|null=pm.id)=>asRuntime(person,S,tx=>insertDecision(tx,draft,over));
+/** A candidate draft about a candidate that the intake service really created, and the position of its thread: what a confirmation of it must carry (migration 023). */
+const candidateDraft=async(over:R={})=>{
+  const event=messageEvent({}),thread='m:'+event.context.messageId;
+  await new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,bridgeConfig.intake!).ingest(event);
+  const candidate=(await rows<{id:string}>('SELECT id FROM intake_candidates WHERE chat_id=$1 AND thread_key=$2',[event.context.chatId,thread]))[0].id;
+  const position=(await rows<{n:number}>('SELECT last_seq::int n FROM intake_thread_heads WHERE chat_id=$1 AND thread_key=$2',[event.context.chatId,thread]))[0].n;
+  return {draft:await seedDraft({entity_type:'intake_candidate',entity_id:candidate,...over}),candidate,position};
+};
 
 // ---- the boundary: what the AI role holds ----
 const Z1_Z2_NAMED=['public.work_items','public.audit_events','public.document_records','public.document_revisions','public.review_decisions','public.review_comments',
@@ -230,7 +241,24 @@ test('a confirmation can only attach a revision of the very document the draft i
   expect(await rows('SELECT 1 FROM draft_decisions')).toHaveLength(0);
   // a revision of A on a draft about A, and no revision at all, are accepted
   await expect(decide(await about(docA.record.id),{document_revision_id:revA.revisionId})).resolves.toBeTruthy();
-  await expect(decide(candidate)).resolves.toBeTruthy();
+  // a candidate draft takes no revision and is confirmed with none: since 023 that needs a real candidate and the position of its thread, which `candidate` above
+  // (a draft that names a document id as its candidate) cannot have
+  const real=await candidateDraft();
+  await expect(decide(real.draft,{subject_thread_seq:real.position})).resolves.toBeTruthy();
+});
+
+test('the guards of 021 still fire on a candidate draft of a real candidate, before the guard of 023; with every guard satisfied it is stored and the column carries the position',async()=>{
+  const a=await candidateDraft(),unsourced=await candidateDraft({sources:'[]'});
+  // the decision carries the right position each time: only the guard of 021 can be what refuses it
+  await expect(decide(a.draft,{draft_value_hash:OTHER_HASH,subject_thread_seq:a.position})).rejects.toThrow(/value hash/);
+  await expect(decide(unsourced.draft,{subject_thread_seq:unsourced.position})).rejects.toThrow(/names no source/);
+  await expect(decide(a.draft,{document_revision_id:randomUUID(),subject_thread_seq:a.position})).rejects.toThrow(/attached to a draft about that very document/);
+  // and with no position at all the answer is still the one of 021, not the refusal of 023 (BEFORE triggers answer first)
+  await expect(decide(a.draft,{draft_value_hash:OTHER_HASH})).rejects.toThrow(/value hash/);
+  await expect(insertDecision(h.operator,unsourced.draft,{subject_thread_seq:unsourced.position})).rejects.toThrow(/names no source/);
+  expect(await rows('SELECT 1 FROM draft_decisions')).toHaveLength(0);
+  await expect(decide(a.draft,{subject_thread_seq:a.position})).resolves.toBeTruthy();
+  expect((await rows<{s:number}>('SELECT subject_thread_seq::int s FROM draft_decisions WHERE draft_id=$1',[a.draft]))[0].s).toBe(a.position);
 });
 
 test('sources, questions and version strings carry database backstops, in a form that never calls an array function on a non-array',async()=>{
@@ -457,7 +485,7 @@ test('running 021 again changes nothing: one trigger, one function, the same pol
   const sql=await readFile(path.join(process.cwd(),'migrations',F),'utf8');
   const shape=async()=>({
     policies:await rows('SELECT schemaname,tablename,policyname,roles::text r,cmd,qual,with_check FROM pg_policies WHERE schemaname IN (\'public\',\'intelligence\') AND tablename IN (\'ai_drafts\',\'draft_decisions\') ORDER BY 1,2,3'),
-    triggers:await rows(`SELECT tgrelid::regclass::text t,tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname NOT IN ('ai_drafts_pointer_only_guard','ai_drafts_declared_scope_guard','draft_decisions_pointer_only_guard') AND tgrelid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) ORDER BY 1,2`),
+    triggers:await rows(`SELECT tgrelid::regclass::text t,tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname NOT IN ('ai_drafts_pointer_only_guard','ai_drafts_declared_scope_guard','draft_decisions_pointer_only_guard','draft_decisions_subject_order_guard') AND tgrelid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) ORDER BY 1,2`),
     functions:await rows(`SELECT proname,prosecdef,proconfig::text c FROM pg_proc WHERE proname='draft_decisions_guard'`),
     acl:await rows(`SELECT relname,relacl::text a,relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) ORDER BY 1`),
     columns:await rows(`SELECT attrelid::regclass::text t,attname,attacl::text a FROM pg_attribute WHERE attrelid IN ('intelligence.ai_drafts'::regclass,'public.draft_decisions'::regclass) AND attnum>0 AND NOT attisdropped ORDER BY 1,2`),

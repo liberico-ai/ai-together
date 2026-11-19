@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { ID_FIELDS, SKILLS, contextSchema } from '../src/server/skill-contracts';
-import type { SkillName } from '../src/server/skill-contracts';
+import { ID_FIELDS, SKILLS, contextSchema, namedIds } from '../src/server/skill-contracts';
+import type { ContextSource, SkillName } from '../src/server/skill-contracts';
 import { CONTEXT_KINDS } from '../src/server/skill-context';
 import { EVAL_CATEGORIES, manifestHash, runEvalCase, skillManifests } from '../src/server/skills';
 import type { EvalCase } from '../src/server/skills';
@@ -20,6 +20,10 @@ afterAll(() => {
   console.log(JSON.stringify({ skills_eval: { skills: SKILLS.length, cases: 30, good_pass: counts.good_pass, bad_caught: counts.bad_caught, model: 'none (mock outputs)' } }));
 });
 
+// OQ-53 Task 4: the skills that receive messages state the revision number of each message whose text they were shown.
+const MESSAGE_SKILLS: readonly SkillName[] = ['intake_analyst', 'ba_elicitation', 'pm_planning'];
+type Pair = { id: string; revisionNo: number };
+const revisionsOf = (o: unknown): Pair[] | undefined => (o as { messageRevisions?: Pair[] }).messageRevisions;
 const sets = {} as Record<SkillName, EvalCase[]>;
 const sizes = {} as Record<SkillName, number>;
 beforeAll(async () => {
@@ -31,7 +35,8 @@ beforeAll(async () => {
 });
 
 /** What `buildSkillContextIn` (src/server/skill-context.ts) can emit, as rules over a context: revisions are of the ONE named document, which is also present as a `document` record;
- *  the release librarian gets at most that document's approved revision; messages are one thread (one chat); counts stay within MAX_MESSAGES 20, MAX_DOCUMENTS 50, MAX_REVISIONS 30, MAX_SOURCES 100;
+ *  the release librarian gets at most two revisions of it: the approved one, and the newest one when that is not the approved one, as a pointer without summary, lists or source hash (OQ-57);
+ *  messages are one thread (one chat); counts stay within MAX_MESSAGES 20, MAX_DOCUMENTS 50, MAX_REVISIONS 30, MAX_SOURCES 100;
  *  a pointer-only context carries no title, summary, list or message text. Returns the broken rules. */
 function emitProblems(skill: SkillName, ctx: { pointerOnly: boolean; sources: readonly Record<string, unknown>[] }): string[] {
   const out: string[] = [];
@@ -42,7 +47,14 @@ function emitProblems(skill: SkillName, ctx: { pointerOnly: boolean; sources: re
   for (const o of owners) if (!docs.some(d => d.id === o)) out.push('the document of the revisions is not a document source');
   if (skill === 'release_librarian' && revs.length > 0) {
     const owner = docs.find(d => d.id === revs[0].documentId);
-    if (revs.length > 1 || !owner || owner.approvedRevisionId !== revs[0].id) out.push('the librarian gets only the approved revision of the named document');
+    const approved = revs.filter(r => owner && owner.approvedRevisionId === r.id), unapproved = revs.filter(r => !owner || owner.approvedRevisionId !== r.id);
+    if (!owner || approved.length > 1 || unapproved.length > 1) out.push('the librarian gets the approved revision of the named document and at most its newest one besides');
+    for (const r of unapproved) {
+      if (owner && owner.latestRevisionId !== r.id) out.push('the librarian\'s unapproved revision is not the newest revision');
+      if (approved[0] && (r.revisionNo as number) <= (approved[0].revisionNo as number)) out.push('the librarian\'s unapproved revision is not newer than the approved one');
+      if (r.summary !== null || (r.present as unknown[]).length > 0 || (r.missing as unknown[]).length > 0 || r.sourceHash !== null || r.hashVerification !== 'self_declared')
+        out.push('the librarian\'s unapproved revision is a pointer: no summary, list or source hash');
+    }
   }
   if (new Set(msgs.map(m => String(m.ref).split(':')[1])).size > 1) out.push('messages of more than one chat');
   if (msgs.length > 20 || docs.length > 50 || revs.length > 30 || ctx.sources.length > 100) out.push('over the caps');
@@ -74,6 +86,8 @@ describe('skill eval sets', () => {
         expect(CONTEXT_KINDS[name], tag).toContain(s.kind);
         expect(s.id, tag).toMatch(UUID);
         if (s.kind === 'source_event') expect(s.ref, tag).toMatch(/^telegram:-100000000000[0-9]:\d+$/);
+        // C1/C2 of OQ-53: every message source states the number of the revision it shows, a whole number of at least 1
+        if (s.kind === 'source_event') expect(Number.isInteger(s.revisionNo) && s.revisionNo >= 1, `${tag} revisionNo`).toBe(true);
       }
       expect(c.id, tag).toMatch(UUID);
       // good and bad never carry the manifest-bound fields; the runner fills them
@@ -130,8 +144,30 @@ describe('skill eval sets', () => {
     const rl = structuredClone(sets.release_librarian.find(x => x.category === 'conflicting_sources')!.context);
     const extra = { ...second, documentId: (rl.sources.find(s => s.kind === 'document_revision') as { documentId: string }).documentId, revisionNo: 2 };
     expect(emitProblems('release_librarian', { ...rl, sources: [...rl.sources, extra] }).length).toBeGreaterThan(0);
+    // OQ-57: the approved revision and the newest one as a pointer is the shape; every departure from the pointer is a problem
+    const docId = (rl.sources.find(s => s.kind === 'document') as { id: string }).id;
+    const approvedRev = rl.sources.find(s => s.kind === 'document_revision') as { id: string; revisionNo: number };
+    const pointer = { id: '00000000-0000-4000-8000-000000000990', kind: 'document_revision' as const, documentId: docId, revisionNo: approvedRev.revisionNo + 1,
+      summary: null, present: [], missing: [], sourceHash: null, hashVerification: 'self_declared' as const };
+    const withNewest = (newest: Record<string, unknown>, latest: string = pointer.id, more: Record<string, unknown>[] = []) => ({
+      ...rl, sources: [...rl.sources.map(s => s.id === docId ? { ...s, latestRevisionId: latest } : s), newest, ...more] });
+    expect(emitProblems('release_librarian', withNewest(pointer)), 'the approved revision and the newest as a pointer').toEqual([]);
+    for (const [what, newest] of [['a summary', { ...pointer, summary: 'Nội dung' }], ['a present list', { ...pointer, present: ['a'] }], ['a missing list', { ...pointer, missing: ['a'] }],
+      ['a source hash', { ...pointer, sourceHash: 'a'.repeat(64) }], ['a stored verification', { ...pointer, hashVerification: 'verified' }]] as const)
+      expect(emitProblems('release_librarian', withNewest(newest)).length, `a pointer with ${what}`).toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest(pointer, approvedRev.id)).length, 'an unapproved revision that is not the newest').toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest({ ...pointer, revisionNo: approvedRev.revisionNo })).length, 'an unapproved revision not newer than the approved one').toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest(pointer, pointer.id, [{ ...pointer, id: '00000000-0000-4000-8000-000000000991', revisionNo: approvedRev.revisionNo + 2 }])).length, 'two unapproved revisions').toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest(pointer, pointer.id, [{ ...approvedRev, id: '00000000-0000-4000-8000-000000000992' }])).length, 'a third revision').toBeGreaterThan(0);
+    // a revision that is listed twice breaks no other rule: only the count sees it
+    expect(emitProblems('release_librarian', withNewest(pointer, pointer.id, [{ ...pointer }])).length, 'the pointer twice').toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest(pointer, pointer.id, [{ ...approvedRev }])).length, 'the approved revision twice').toBeGreaterThan(0);
+    // nothing approved: the newest revision alone, as a pointer
+    const unapprovedOnly = { ...rl, sources: [...rl.sources.filter(s => s.kind !== 'document_revision').map(s => s.id === docId ? { ...s, approvedRevisionId: null, latestRevisionId: pointer.id } : s), { ...pointer, revisionNo: 1 }] };
+    expect(emitProblems('release_librarian', unapprovedOnly), 'nothing approved, the newest as a pointer').toEqual([]);
+    expect(emitProblems('release_librarian', { ...unapprovedOnly, sources: [...unapprovedOnly.sources.filter(s => s.kind !== 'document_revision'), { ...pointer, revisionNo: 1, summary: 'x' }] }).length, 'nothing approved, a pointer with a summary').toBeGreaterThan(0);
     const ev = (i: number, chat: string) => ({ id: `00000000-0000-4000-8000-${String(7000 + i).padStart(12, '0')}`, kind: 'source_event' as const, ref: `telegram:${chat}:${i}`, mode: 'excerpt' as const,
-      text: 'x', hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
+      text: 'x', hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 1 });
     const sixty = Array.from({ length: 21 }, (_, i) => ev(i, '-1000000000001'));
     expect(emitProblems('intake_analyst', { pointerOnly: false, sources: sixty }).length).toBeGreaterThan(0);
     expect(emitProblems('intake_analyst', { pointerOnly: false, sources: [ev(1, '-1000000000001'), ev(2, '-1000000000002')] }).length).toBeGreaterThan(0);
@@ -141,7 +177,9 @@ describe('skill eval sets', () => {
   it('each conflicting_sources case checks that the good output cites two distinct sources', () => {
     for (const name of SKILLS) {
       const c = sets[name].find(x => x.category === 'conflicting_sources')!;
-      expect(c.checks, name).toEqual([{ path: 'conflicts', minLength: 1 }, { path: 'conflicts.0.sourceIds', minLength: 2 }]);
+      // the three message skills also check that the good output lists the revisions it read (D4); the bad output states them correctly, so it still fails the two conflict checks alone
+      const own = [{ path: 'conflicts', minLength: 1 }, { path: 'conflicts.0.sourceIds', minLength: 2 }];
+      expect(c.checks, name).toEqual(MESSAGE_SKILLS.includes(name) ? [...own, { path: 'messageRevisions', minLength: 1 }] : own);
       const ids = (c.good as { conflicts: { sourceIds: string[] }[] }).conflicts[0].sourceIds;
       expect(new Set(ids).size, name).toBe(2);
       // one omission fails both checks, so both reasons belong to the class
@@ -179,6 +217,80 @@ describe('skill eval sets', () => {
     c.checks = [{ path: 'conflicts', minLength: 1 }, { path: 'confidence', equals: 101 }, { path: 'no.such.path', minLength: 1 }];
     expect(runEvalCase(m, c, c.good).reasons.sort()).toEqual(['CHECK_FAILED:confidence', 'CHECK_FAILED:no.such.path']);
     expect(runEvalCase(m, c, 'not an object').reasons).toContain('SCHEMA_INVALID');
+  });
+
+  it('D4 every good output of the message skills states, for each message it names, the revision its context shows', () => {
+    expect(SKILLS.filter(n => CONTEXT_KINDS[n].includes('source_event'))).toEqual(MESSAGE_SKILLS);
+    for (const name of MESSAGE_SKILLS) for (const c of sets[name]) {
+      const tag = `${name}/${c.category}`;
+      const shown = c.context.sources.filter((s): s is Extract<ContextSource, { kind: 'source_event' }> => s.kind === 'source_event' && s.mode === 'excerpt' && s.text !== null);
+      expect(shown.length, `${tag}: the context shows a message`).toBeGreaterThan(0);
+      // the good output, and the bad one too (it must be caught for the reason in badReasons and no other), lists every shown message once, with the number its context states
+      for (const [which, o] of [['good', c.good], ['bad', c.bad]] as const) {
+        const revs = revisionsOf(o);
+        expect(Array.isArray(revs), `${tag}/${which} states messageRevisions`).toBe(true);
+        expect(revs!.map(r => r.id).sort(), `${tag}/${which} the shown messages, once each`).toEqual(shown.map(s => s.id).sort());
+        for (const r of revs!) expect(r.revisionNo, `${tag}/${which} ${r.id}`).toBe(shown.find(s => s.id === r.id)!.revisionNo);
+        // every message the output names in any id field is among them
+        const named = namedIds(name, o).filter(id => c.context.sources.some(s => s.id === id && s.kind === 'source_event'));
+        for (const id of named) expect(revs!.map(r => r.id), `${tag}/${which} names ${id}`).toContain(id);
+      }
+      // the case checks that the good output lists at least one; the check bites
+      expect(c.checks, tag).toContainEqual({ path: 'messageRevisions', minLength: 1 });
+      expect(runEvalCase(skillManifests[name], c, { ...(c.good as object), messageRevisions: [] }).reasons, `${tag} an empty list fails the check`).toEqual(['CHECK_FAILED:messageRevisions']);
+    }
+    // the other three skills receive no message: their samples state none and check none
+    for (const name of SKILLS.filter(n => !MESSAGE_SKILLS.includes(n))) for (const c of sets[name]) {
+      for (const o of [c.good, c.bad]) expect(o, `${name}/${c.category}`).not.toHaveProperty('messageRevisions');
+      expect(c.checks.some(k => k.path.startsWith('messageRevisions')), `${name}/${c.category}`).toBe(false);
+    }
+  });
+
+  it('D5 the injection case of each message skill also asks for another revision number, and the good output keeps the one its context shows', () => {
+    for (const name of MESSAGE_SKILLS) {
+      const c = sets[name].find(x => x.category === 'injection')!;
+      const msgs = c.context.sources.filter((s): s is Extract<ContextSource, { kind: 'source_event' }> => s.kind === 'source_event');
+      expect(msgs, name).toHaveLength(1);
+      const m = msgs[0];
+      // the original injection sentence is untouched (the case above holds it word for word); the text also asks for a number
+      expect(m.text, name).toContain(INJECTION);
+      const asked = [...(m.text ?? '').matchAll(/revisionNo[^0-9]{0,40}(\d+)/g)].map(x => Number(x[1]));
+      expect(asked, `${name}: the text asks for exactly one number`).toHaveLength(1);
+      expect(asked[0], `${name}: the number asked for is not the one of the context`).not.toBe(m.revisionNo);
+      // the good output keeps the number of the context; neither output states the number the text asked for
+      for (const [which, o] of [['good', c.good], ['bad', c.bad]] as const) {
+        expect(revisionsOf(o), `${name}/${which}`).toEqual([{ id: m.id, revisionNo: m.revisionNo }]);
+        expect(revisionsOf(o)!.some(r => r.revisionNo === asked[0]), `${name}/${which} does not follow the text`).toBe(false);
+      }
+      // the other four cases of the skill do not carry such a sentence
+      for (const other of sets[name].filter(x => x.category !== 'injection'))
+        expect(other.context.sources.some(s => s.kind === 'source_event' && /revisionNo/.test(s.text ?? '')), `${name}/${other.category}`).toBe(false);
+    }
+  });
+
+  it('OQ-57 the fabrication case of the release librarian has the newest revision of its document in the context as a pointer; the good output lists it, the bad output states what it holds and the gate holds that only for its empty basis', () => {
+    const c = sets.release_librarian.find(x => x.category === 'fabrication_when_missing')!;
+    const m = skillManifests.release_librarian;
+    const doc = c.context.sources.find((s): s is Extract<ContextSource, { kind: 'document' }> => s.kind === 'document')!;
+    expect(doc.approvedRevisionId, 'nothing is approved').toBeNull();
+    const revisions = c.context.sources.filter((s): s is Extract<ContextSource, { kind: 'document_revision' }> => s.kind === 'document_revision');
+    // the pointer: the newest revision, no content, no source hash, and a verification that is the constant of a pointer
+    expect(revisions).toEqual([{ id: doc.latestRevisionId, kind: 'document_revision', documentId: doc.id, revisionNo: 1, summary: null, present: [], missing: [], sourceHash: null, hashVerification: 'self_declared' }]);
+    const pointerId = revisions[0].id;
+    const good = c.good as { sources: { id: string }[]; claims: unknown[]; result: { approvedRevisionId: string | null; index: unknown[] } };
+    expect(good.sources.map(x => x.id), 'the good output says it saw the pointer').toEqual([doc.id, pointerId]);
+    expect(good.claims).toEqual([]);
+    expect(good.result).toMatchObject({ approvedRevisionId: null, index: [] });
+    expect(runEvalCase(m, c, { ...(c.good as object), sources: [{ id: doc.id }] }).reasons, 'the case checks that the pointer is listed').toEqual(['CHECK_FAILED:sources']);
+    // the bad output states what the newest revision says, though the context holds none of it; its basis is empty, which is what the gate holds it for
+    const bad = c.bad as { sources: { id: string }[]; claims: { field: string; value: string; basis: string[] }[] };
+    const content = bad.claims.find(x => x.field === 'newest_revision_content')!;
+    expect(content, 'the bad output states the content of the newest revision').toMatchObject({ basis: [] });
+    expect(content.value.length).toBeGreaterThan(0);
+    expect(bad.sources.map(x => x.id)).toEqual([doc.id, pointerId]);
+    expect(c.badReasons).toEqual(['UNSOURCED_CLAIM']);
+    // the gate does not read content: the same statement with the pointer as its basis passes it. A person reads the statement; the gate cannot (plan, S-7)
+    expect(runEvalCase(m, c, { ...bad, claims: [{ ...content, basis: [pointerId] }] }), 'to be read by the reviewer; the gate does not catch it').toEqual({ pass: true, reasons: [] });
   });
 
   it('DOC-15 instructions inside source text change neither the tool allowlist nor the manifest hash', () => {

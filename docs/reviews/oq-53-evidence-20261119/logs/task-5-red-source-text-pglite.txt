@@ -1,0 +1,435 @@
+# Task 5 red, PGlite, tests/source-text.test.ts against the untouched src/server/source-text.ts (9b499ae).
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 17; Tests 17 failed | 22 passed (39)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/source-text.test.ts (39 tests | 17 failed) 18297ms
+   ❯ source-text (12)
+     × only source-text.ts names the two tables that number a thread (OQ-53) 472ms
+   ❯ threadFreshness (16)
+     × T6′ threadFreshness hands back five columns and no text, in one statement: no excerpt, no content hash 462ms
+     × T7′ (row 1) the draft names the revision of the message it read and nothing was recorded since: nothing changed, and the number to write down is the head of the thread 462ms
+     × T7′ (rows 2, 3, 4) an edit the draft read does not change it; the revision before the edit does, whether the edit came before the draft or after it 460ms
+     × T7′ (rows 5, 7) a draft that names no message of the thread, or names the message and states no revision of it, has no baseline 456ms
+     × T7′ (row 8) a message the draft does not name, recorded before the newest one it names, adds no change 462ms
+     × T7′ (row 9) a message whose rows say it was recorded before the draft read the thread, but which was committed after it, still changes the draft: the number decides, not the time 458ms
+     × T7′ an edit of a message the draft does not name counts: every revision of every message of the thread has a number, and the head moves 461ms
+     × T7′ (row 12, limit L1) a late edit that is older than the revision now shown holds the draft until a message arrives; naming the highest number does not help 459ms
+     × T8′ threadFreshness reads nothing for a caller scoped to another tenant 467ms
+     × T12′ the statement's own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing for the other project, and the counter of the other project is not read 459ms
+     × T13′ a project id or a candidate id that is not a lower-case uuid gives the answer for no baseline without a statement 457ms
+     × T14′ (row 13, limit L2) no cap: in a thread of more than twenty messages a late message outside any window still changes the draft, until a message that the draft names arrives 487ms
+     × T16 a revision of the thread that has no number counts as a change, though the head stands where the draft read it 459ms
+     × T17 a pair that names a revision number the message does not have, a number that is not the latest by edit time, and a pair for a message of another thread (row 16) 460ms
+     × T18 (row 6) a named message without a pair gives no baseline even when another named message has one 457ms
+     × T19 ids and numbers that are not well formed never reach the database 463ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 17 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/source-text.test.ts > source-text > only source-text.ts names the two tables that number a thread (OQ-53)
+AssertionError: expected [] to deeply equal [ 'src/server/source-text.ts' ]
+
+- Expected
++ Received
+
+- [
+-   "src/server/source-text.ts",
+- ]
++ []
+
+ ❯ tests/source-text.test.ts:162:47
+    160|   walk(path.join(process.cwd(),'src'));
+    161|   const having=(s:string)=>files.filter(f=>readFileSync(f,'utf8').incl…
+    162|   expect(having('source_revision_positions')).toEqual(['src/server/sou…
+       |                                               ^
+    163|   expect(having('intake_thread_heads')).toEqual(['src/server/source-te…
+    164|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T6′ threadFreshness hands back five columns and no text, in one statement: no excerpt, no content hash
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": true,
+-   "position": "1",
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:364:15
+    362|   const counting=(q:Queryable):Queryable=>({query:async<T=Record<strin…
+    363|   const got=await scoped(rec.db,salesScope,tx=>threadFreshness(countin…
+    364|   expect(got).toEqual({hasBaseline:true,changed:false,position:'1'});
+       |               ^
+    365|   expect(sent).toHaveLength(1);
+    366|   const seen=rec.rows().filter(x=>(x as Record<string,unknown>).has_ba…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T7′ (row 1) the draft names the revision of the message it read and nothing was recorded since: nothing changed, and the number to write down is the head of the thread
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": true,
+-   "position": "1",
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:378:79
+    376|   const r=await root('T7-ROOT');
+    377|   expect(await numberOf(r.sourceEventId,1)).toBe('1');
+    378|   expect(await ask(ids.sales,r.id,[r.sourceEventId],[pair(r.sourceEven…
+       |                                                                               ^
+    379|  });
+    380|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T7′ (rows 2, 3, 4) an edit the draft read does not change it; the revision before the edit does, whether the edit came before the draft or after it
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": true,
+-   "position": "1",
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:384:81
+    382|   const r=await root('T7-EDIT-ROOT');
+    383|   // row 4: the draft names (message, 1), and then the message is edit…
+    384|   expect(await ask(ids.sales,r.id,[r.sourceEventId],[pair(r.sourceEven…
+       |                                                                                 ^
+    385|   expect((await editOf(r.e,'T7-EDIT-ROOT-V2')).revisionNo).toBe(2);
+    386|   expect(await ask(ids.sales,r.id,[r.sourceEventId],[pair(r.sourceEven…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T7′ (rows 5, 7) a draft that names no message of the thread, or names the message and states no revision of it, has no baseline
+AssertionError: expected { hasBaseline: false, …(2) } to deeply equal { hasBaseline: false, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": false,
+-   "position": null,
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:393:43
+    391|  test('T7′ (rows 5, 7) a draft that names no message of the thread, or…
+    392|   const r=await root('T7-NONE-ROOT');
+    393|   expect(await ask(ids.sales,r.id,[],[])).toEqual(none);
+       |                                           ^
+    394|   expect(await ask(ids.sales,r.id,[randomUUID()],[])).toEqual(none);
+    395|   expect(await ask(ids.sales,r.id,[randomUUID()],[pair(randomUUID())])…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T7′ (row 8) a message the draft does not name, recorded before the newest one it names, adds no change
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": true,
+-   "position": "2",
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:406:53
+    404|   const rp=await reply(r,'T7-ROW8-REPLY');
+    405|   expect(await numberOf(r.sourceEventId,1)).toBe('1');expect(await num…
+    406|   expect(await ask(ids.sales,r.id,[rp],[pair(rp)])).toEqual({hasBaseli…
+       |                                                     ^
+    407|   expect(await ask(ids.sales,r.id,[r.sourceEventId,rp],[pair(r.sourceE…
+    408|   // but the draft that names only the older message is behind the rep…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T7′ (row 9) a message whose rows say it was recorded before the draft read the thread, but which was committed after it, still changes the draft: the number decides, not the time
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": true,
+-   "position": "1",
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:415:25
+    413|   const r=await root('T7-ROW9-ROOT');
+    414|   const asked=()=>ask(ids.sales,r.id,[r.sourceEventId],[pair(r.sourceE…
+    415|   expect(await asked()).toEqual({hasBaseline:true,changed:false,positi…
+       |                         ^
+    416|   const late=await rawMessage(r,{anHourAgo:true});
+    417|   const times=await rows<{older:boolean}>('SELECT (m.created_at<b.crea…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T7′ an edit of a message the draft does not name counts: every revision of every message of the thread has a number, and the head moves
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": true,
+-   "position": "2",
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:426:53
+    424|   const r=await root('T7-OTHER-ROOT');
+    425|   const rp=await reply(r,'T7-OTHER-REPLY');
+    426|   expect(await ask(ids.sales,r.id,[rp],[pair(rp)])).toEqual({hasBaseli…
+       |                                                     ^
+    427|   await editOf(r.e,'T7-OTHER-ROOT-EDITED');
+    428|   expect(await ask(ids.sales,r.id,[rp],[pair(rp)])).toEqual({hasBaseli…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T7′ (row 12, limit L1) a late edit that is older than the revision now shown holds the draft until a message arrives; naming the highest number does not help
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": true,
+-   "position": "2",
++   "laterEdit": true,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:436:69
+    434|   expect((await editOf(r.e,'T7-L1-V2',1760099999000)).revisionNo).toBe…
+    435|   const named=[r.sourceEventId];
+    436|   expect(await ask(ids.sales,r.id,named,[pair(r.sourceEventId,2)])).to…
+       |                                                                     ^
+    437|   expect((await editOf(r.e,'T7-L1-V3',1760050000000)).revisionNo).toBe…
+    438|   // a draft that read revision 2 (the one shown) is now behind the he…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T8′ threadFreshness reads nothing for a caller scoped to another tenant
+AssertionError: expected { hasBaseline: false, …(2) } to deeply equal { hasBaseline: false, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": false,
+-   "position": null,
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:450:97
+    448|   await editOf(r.e,'T8-ROOT-EDITED');
+    449|   const mine=[pair(r.sourceEventId,2)];
+    450|   expect(await ask(ids.sales,r.id,[r.sourceEventId],mine,{...outsider,…
+       |                                                                                                 ^
+    451|   expect(await ask(ids.sales,r.id,[r.sourceEventId],mine)).toEqual({ha…
+    452|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T12′ the statement's own project condition holds without row-level security narrowing it: a principal scoped to both projects gets nothing for the other project, and the counter of the other project is not read
+AssertionError: expected { hasBaseline: false, …(2) } to deeply equal { hasBaseline: false, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": false,
+-   "position": null,
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:457:88
+    455|   const r=await root('T12-ROOT');
+    456|   const both={...pm,projectIds:[ids.sales,ids.transport]};
+    457|   expect(await ask(ids.transport,r.id,[r.sourceEventId],[pair(r.source…
+       |                                                                                        ^
+    458|   expect(await ask(ids.sales,r.id,[r.sourceEventId],[pair(r.sourceEven…
+    459|   // the same chat and thread key in the other project, with a counter…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T13′ a project id or a candidate id that is not a lower-case uuid gives the answer for no baseline without a statement
+AssertionError: expected { hasBaseline: false, …(2) } to deeply equal { hasBaseline: false, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": false,
+-   "position": null,
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:479:60
+    477|   const trap:Queryable={query:async()=>{throw new Error('statement sen…
+    478|   const named=[r.sourceEventId],pairs=[pair(r.sourceEventId)];
+    479|   expect(await threadFreshness(trap,'x',r.id,named,pairs)).toEqual(non…
+       |                                                            ^
+    480|   expect(await threadFreshness(trap,'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAA…
+    481|   expect(await threadFreshness(trap,ids.sales,'x',named,pairs)).toEqua…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T14′ (row 13, limit L2) no cap: in a thread of more than twenty messages a late message outside any window still changes the draft, until a message that the draft names arrives
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": true,
+-   "position": "22",
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:490:49
+    488|   for(let i=0;i<21;i++) named.push(await reply(r,`T14-REPLY-${i}`));
+    489|   const pairs=named.map(x=>pair(x));
+    490|   expect(await ask(ids.sales,r.id,named,pairs)).toEqual({hasBaseline:t…
+       |                                                 ^
+    491|   const late=(await intake([chatSales]).ingest(messageEvent({text:'T14…
+    492|   expect(named).not.toContain(late);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T16 a revision of the thread that has no number counts as a change, though the head stands where the draft read it
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+    "hasBaseline": true,
+-   "position": "1",
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:501:49
+    499|   const r=await root('T16-ROOT');
+    500|   const named=[r.sourceEventId],pairs=[pair(r.sourceEventId)];
+    501|   expect(await ask(ids.sales,r.id,named,pairs)).toEqual({hasBaseline:t…
+       |                                                 ^
+    502|   // a revision stored while the numbering trigger was off (a restore,…
+    503|   const un=await rawMessage(r,{unnumbered:true});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T17 a pair that names a revision number the message does not have, a number that is not the latest by edit time, and a pair for a message of another thread (row 16)
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: true, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": true,
+    "hasBaseline": true,
+-   "position": "3",
++   "laterEdit": true,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:522:53
+    520|   const m=r.sourceEventId;
+    521|   // (a) a number that is not the latest by edit time: the number is t…
+    522|   expect(await ask(ids.sales,r.id,[m],[pair(m,3)])).toEqual({hasBaseli…
+       |                                                     ^
+    523|   const rp=await reply(r,'T17-REPLY');   // number 4
+    524|   // the reply is named and stands at the head: the draft is fresh wit…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T18 (row 6) a named message without a pair gives no baseline even when another named message has one
+AssertionError: expected { hasBaseline: true, …(2) } to deeply equal { hasBaseline: false, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "changed": false,
+-   "hasBaseline": false,
+-   "position": null,
++   "hasBaseline": true,
++   "laterEdit": false,
++   "newerMessage": false,
+  }
+
+ ❯ tests/source-text.test.ts:543:82
+    541|   const r=await root('T18-ROOT');
+    542|   const rp=await reply(r,'T18-REPLY');
+    543|   expect(await ask(ids.sales,r.id,[r.sourceEventId,rp],[pair(r.sourceE…
+       |                                                                                  ^
+    544|   expect(await ask(ids.sales,r.id,[r.sourceEventId,rp],[pair(rp)])).to…
+    545|   expect(await ask(ids.sales,r.id,[r.sourceEventId,rp],[pair(r.sourceE…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/17]⎯
+
+ FAIL  tests/source-text.test.ts > threadFreshness > T19 ids and numbers that are not well formed never reach the database
+AssertionError: expected undefined to deeply equal []
+
+- Expected:
+[]
+
++ Received:
+undefined
+
+ ❯ tests/source-text.test.ts:564:19
+    562|   const [,, named,pairIds,pairNumbers]=sentParams[0];
+    563|   expect(named).toEqual([m]);
+    564|   expect(pairIds).toEqual([]);expect(pairNumbers).toEqual([]);
+       |                   ^
+    565|   // the limits themselves are well formed, and 2147483647 fits the co…
+    566|   await threadFreshness(spy,ids.sales,r.id,[m],[pair(m,1),pair(m,21474…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/17]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  17 failed | 22 passed (39)
+   Start at  14:21:48
+   Duration  18.45s (tests 99%)
+

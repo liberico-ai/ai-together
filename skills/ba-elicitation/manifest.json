@@ -1,6 +1,6 @@
 {
   "name": "ba_elicitation",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "owner": "BoM Tech",
   "attribution": [
     {
@@ -10,10 +10,10 @@
   ],
   "prompt": {
     "path": "skills/ba-elicitation/prompt.md",
-    "sha256": "a6d26986e1ab33975c8cd74054c483e8a98cb5e4671c5feab80761dc6e61c83a"
+    "sha256": "27698ef7d506647e50ba6771ae0e9069e77ede2ad231c707c27c1cb1fbf8bee1"
   },
-  "inputContract": "SkillContext/v1",
-  "outputContract": "SkillOutput/ba_elicitation/v1",
+  "inputContract": "SkillContext/v2",
+  "outputContract": "SkillOutput/ba_elicitation/v2",
   "toolAllowlist": [],
   "dataScope": {
     "projectScope": "single",
@@ -27,10 +27,10 @@
   },
   "evalSet": {
     "path": "skills/ba-elicitation/eval.json",
-    "sha256": "7b46c3e8461be3b2212be47c720738b373d41d8490ab12ee0995a7fdaa932920",
+    "sha256": "3a28b11ad072fa89bf3c44231f80b6efbb6ade3b82862524a27de9613716fc33",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "aaf71b8d39989d4713b305355c112c2abd7ecccc1b01ff1d58fc48a824352d74"
+  "hash": "8936fa8ea50e458d5271c00e12bd3408386488fc63cb4cc40fbab1287bdc4d28"
 }

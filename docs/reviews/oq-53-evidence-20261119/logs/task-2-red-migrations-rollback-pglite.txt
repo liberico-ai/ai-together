@@ -1,0 +1,33 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/migrations-rollback.test.ts (10 tests | 1 failed) 5337ms
+   × rollback 023 refuses while a later migration is recorded or a decision carries a thread position; it drops what 023 made and leaves source events, revisions, drafts and decisions as they were; applying 023 again restores the numbers 513ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 023 refuses while a later migration is recorded or a decision carries a thread position; it drops what 023 made and leaves source events, revisions, drafts and decisions as they were; applying 023 again restores the numbers
+AssertionError: expected [ …(3) ] to have a length of 4 but got 3
+
+- Expected
++ Received
+
+- 4
++ 3
+
+ ❯ tests/migrations-rollback.test.ts:614:27
+    612|     const full=await objects();
+    613|     expect(full.tables).toEqual(['intake_thread_heads','source_revisio…
+    614|     expect(full.triggers).toHaveLength(4);expect(full.functions).toHav…
+       |                           ^
+    615|     expect(full.column).toHaveLength(1);expect(full.constraint).toHave…
+    616|     const kept=await upstream();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  11:40:46
+   Duration  5.49s (tests 98%, import 1%, transform 1%)
+

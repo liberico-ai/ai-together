@@ -1,0 +1,11 @@
+# final run, pglite, tests/thread-order.test.ts, exit=0
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 0; Tests  22 passed | 8 skipped (30)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  22 passed | 8 skipped (30)
+   Start at  14:47:13
+   Duration  10.96s (tests 99%)
+

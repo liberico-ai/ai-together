@@ -1,0 +1,69 @@
+Migration 023, class sweep fix: the locks that the file holds, read from pg_locks inside the transaction of the file (psql, PostgreSQL 16.15, isolated database; each transaction is rolled back after the query).
+Only ShareRowExclusiveLock and AccessExclusiveLock on the tables the file names are listed.
+
+== FIRST application (023 not applied)
+after the locks of step 1
+ ai_drafts              | ShareRowExclusiveLock
+ draft_decisions        | ShareRowExclusiveLock
+ source_event_revisions | ShareRowExclusiveLock
+(3 rows)
+
+after step 9
+ ai_drafts                 | ShareRowExclusiveLock
+ draft_decisions           | ShareRowExclusiveLock
+ intake_thread_heads       | AccessExclusiveLock
+ intake_thread_heads       | ShareRowExclusiveLock
+ projects                  | ShareRowExclusiveLock
+ source_event_revisions    | ShareRowExclusiveLock
+ source_revision_positions | AccessExclusiveLock
+ source_revision_positions | ShareRowExclusiveLock
+(8 rows)
+
+at the end, before the record of the migration
+ ai_drafts                 | ShareRowExclusiveLock
+ draft_decisions           | AccessExclusiveLock
+ draft_decisions           | ShareRowExclusiveLock
+ intake_thread_heads       | AccessExclusiveLock
+ intake_thread_heads       | ShareRowExclusiveLock
+ projects                  | ShareRowExclusiveLock
+ source_event_revisions    | ShareRowExclusiveLock
+ source_revision_positions | AccessExclusiveLock
+ source_revision_positions | ShareRowExclusiveLock
+(9 rows)
+
+== SECOND application (023 applied)
+after the locks of step 1
+ ai_drafts              | ShareRowExclusiveLock
+ draft_decisions        | ShareRowExclusiveLock
+ source_event_revisions | ShareRowExclusiveLock
+(3 rows)
+
+after step 9
+ ai_drafts                 | ShareRowExclusiveLock
+ draft_decisions           | ShareRowExclusiveLock
+ intake_thread_heads       | AccessExclusiveLock
+ intake_thread_heads       | ShareRowExclusiveLock
+ source_event_revisions    | ShareRowExclusiveLock
+ source_revision_positions | AccessExclusiveLock
+ source_revision_positions | ShareRowExclusiveLock
+(7 rows)
+
+at the end, before the record of the migration
+ ai_drafts                 | ShareRowExclusiveLock
+ draft_decisions           | AccessExclusiveLock
+ draft_decisions           | ShareRowExclusiveLock
+ intake_thread_heads       | AccessExclusiveLock
+ intake_thread_heads       | ShareRowExclusiveLock
+ source_event_revisions    | ShareRowExclusiveLock
+ source_revision_positions | AccessExclusiveLock
+ source_revision_positions | ShareRowExclusiveLock
+(8 rows)
+
+
+Reading
+- Step 1 takes SHARE ROW EXCLUSIVE on the revision table, the draft table and the decision table (new: the decision table, class sweep CS-DB-3); inserts into them wait, reads do not.
+- public.projects is locked (SHARE ROW EXCLUSIVE) on a first application only, from step 2: the foreign keys of the two new tables. A second application creates nothing there.
+- public.draft_decisions: SHARE ROW EXCLUSIVE from step 1, ACCESS EXCLUSIVE from step 10 (the column): the lock of step 1 is raised, it is not a second lock; before this fix the decision table was
+  not locked until step 10.
+- The two new tables are locked ACCESS EXCLUSIVE by this transaction from steps 2 and 3 (their triggers and policies are dropped and created again, also on a second application): a reader of them
+  waits for the length of a second run (test A12).

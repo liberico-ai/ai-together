@@ -1,0 +1,23 @@
+Task 3 (OQ-53, revisionNo in the context): checks that the new cases are sensitive.
+Each mutant is a one-line edit of a file of src/ or skills/, applied in place, run, and put back; after every mutant the file was compared byte for byte with the copy saved before (cmp: identical), and after the last one
+the whole working-tree diff was compared with the diff taken before the first mutant (identical).
+Engine: pglite (PostgreSQL 18.6 in memory); the mutants are about code and file contents, not about engine behaviour, so the native engine was not repeated.
+Only the cases that went red are listed; every other case of the file stayed green. All red cases are assertion failures (no hook timeout).
+
+mutant              edit                                                             files run                  cases that went red
+m-a-max             revisionNo = max(revision_no) of the message instead of the      skill-context              C1
+                    number of the revision that is shown (source-text.ts)            source-text                "visibleThreadMessages names the number of the revision it shows ..."
+m-b-nohidden        revisionNo left out (undefined) when the message is not shown    skill-context              6 cases: (7) IBS HI project, three "hidden" cases, "defence in depth", C1
+                    (skill-context.ts)                                                                          (the schema refuses the source, so the build helper throws; C1 included)
+m-b2-zero-unshown   revisionNo = 0 when the message is not shown                     skill-context              (7) IBS HI project, C1  (schema still accepts the number: the assertions catch it)
+m-b3-zero-pointeronly  revisionNo = 0 when the project is pointer-only               skill-context              (7) IBS HI project, C1
+m-g-dropno          revisionNo = 1 for every message (constant)                      skill-context              C1
+m-c-noschema        revisionNo removed from contextSchema (strict object)            skill-contracts            "the context schema is strict", C2
+                                                                                     skills-eval                "every eval context is valid, belongs to its skill ..."
+                                                                                     skill-context              14 cases (every case that builds a context with a message: the schema refuses the unknown key), C1 included
+m-d-optional        revisionNo optional in contextSchema                             skill-contracts            C2 (only C2)
+m-e-promptv1        prompt of intake_analyst says SkillContext/v1 again              skills-manifest            "prompt and eval hashes match ...", "changing one byte of a prompt breaks the hash check", "every prompt names the input contract of its manifest ..."
+m-f-evalnonumber    revisionNo removed from the 6 sources of pm-planning/eval.json   skills-eval                "every eval context is valid, belongs to its skill ..."
+                                                                                     skills-manifest            "prompt and eval hashes match ..."
+
+Requested by the brief: (m-a) max(revision_no) instead of the shown revision -> m-a-max; (m-b) revisionNo dropped when the message is hidden -> m-b, m-b2, m-b3; (m-c) revisionNo dropped from contextSchema -> m-c-noschema, m-d-optional. Each turned at least one case red.

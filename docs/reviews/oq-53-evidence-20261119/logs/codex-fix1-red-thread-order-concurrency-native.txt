@@ -1,0 +1,34 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order-concurrency.test.ts (27 tests | 1 failed) 24209ms
+   ❯ thread numbers under concurrency (native PostgreSQL) (27)
+     × N23 the check for a revision without a number is made after the wait for the counter row: one that commits while the confirmation waits is seen 359ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N23 the check for a revision without a number is made after the wait for the counter row: one that commits while the confirmation waits is seen
+AssertionError: the second confirmation was expected to see the revision without a number: expected undefined to be 'LTZ03' // Object.is equality
+
+- Expected:
+"LTZ03"
+
++ Received:
+undefined
+
+ ❯ tests/thread-order-concurrency.test.ts:812:111
+    810|       }
+    811|       expect(codeOf(await holder)).toBeUndefined();
+    812|       expect(codeOf(await other),'the second confirmation was expected…
+       |                                                                                                               ^
+    813|       expect(await count('draft_decisions')).toBe(1);
+    814|       expect(await storedPosition(first)).toBe(read);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 26 passed (27)
+   Start at  17:47:53
+   Duration  24.35s (tests 100%)
+

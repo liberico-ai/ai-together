@@ -1,0 +1,200 @@
+Codex gate round 1 (P1), the check that no revision of the thread of the candidate lacks a number: its plan and its cost. PostgreSQL 16.15, isolated container, psql, one transaction rolled back at the end.
+Data (built by the script, with triggers off for the bulk load, then ANALYZE): 1 project, 63 000 messages with one revision and one number each, in 4 001 threads: a thread of 3 000 messages ('m:big') and
+60 000 messages spread over 4 000 other threads (15 each). A candidate and a draft on the thread of 3 000 messages; the decision carries its last number (3 000).
+Run 1 of each group is the cold one. "Trigger draft_decisions_subject_order_guard: time" is the time of the whole function, lock and comparison included (the draft and candidate lookups, the row lock).
+
+Reading: the check is one anti join over three existing indexes, no new index: idx_source_events_thread (tenant_id, chat_id, thread_key) with the project as a filter, the unique key (source_event_id, revision_no)
+of the revision table, and the unique key (revision_id) of source_revision_positions (an index-only scan). 24 000 buffers, all in cache, for 3 000 messages: about 1.2 microseconds a message.
+With the check the function takes 3.7 to 4.0 ms on this thread; without it (the function of dd8ee26, put back inside the transaction) 0.05 to 0.12 ms. The check adds about 3.6 to 3.9 ms to the time
+that a confirmation of a candidate draft holds the counter row of its thread (it runs after the lock, so that is where it adds), on a thread of 3 000 messages; it grows with the length of the thread
+(about 36 ms at 30 000 messages, by proportion), not with the size of the project.
+
+=== counts
+ events | revisions | positions | threads | big_last_seq 
+--------+-----------+-----------+---------+--------------
+  63000 |     63000 |     63000 |    4001 |         3000
+(1 row)
+
+=== the check alone, on the thread of 3 000 messages (three runs)
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Result (actual time=5.968..5.969 rows=0 loops=1)
+   One-Time Filter: $2
+   Buffers: shared hit=23825 read=358 dirtied=3 written=358
+   InitPlan 1 (returns $2)
+     ->  Nested Loop Anti Join (actual time=5.968..5.968 rows=0 loops=1)
+           Buffers: shared hit=23825 read=358 dirtied=3 written=358
+           ->  Nested Loop (actual time=0.229..3.587 rows=3000 loops=1)
+                 Buffers: shared hit=11825 read=358 dirtied=3 written=358
+                 ->  Index Scan using idx_source_events_thread on source_events ev (actual time=0.223..0.472 rows=3000 loops=1)
+                       Index Cond: ((tenant_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (chat_id = '-1000000009001'::text) AND (thread_key = 'm:big'::text))
+                       Filter: (project_id = '00000000-0000-4000-8000-0000000000b1'::uuid)
+                       Buffers: shared hit=176 read=7 dirtied=3 written=7
+                 ->  Index Scan using source_event_revisions_source_event_id_revision_no_key on source_event_revisions rv (actual time=0.001..0.001 rows=1 loops=3000)
+                       Index Cond: (source_event_id = ev.id)
+                       Filter: ((tenant_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (project_id = '00000000-0000-4000-8000-0000000000b1'::uuid))
+                       Buffers: shared hit=11649 read=351 written=351
+           ->  Index Only Scan using source_revision_positions_revision_id_key on source_revision_positions p (actual time=0.001..0.001 rows=1 loops=3000)
+                 Index Cond: (revision_id = rv.id)
+                 Heap Fetches: 3000
+                 Buffers: shared hit=12000
+ Planning:
+   Buffers: shared hit=57 read=17 dirtied=3 written=17
+ Planning Time: 0.254 ms
+ Execution Time: 5.978 ms
+(24 rows)
+
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Result (actual time=4.200..4.200 rows=0 loops=1)
+   One-Time Filter: $2
+   Buffers: shared hit=24098
+   InitPlan 1 (returns $2)
+     ->  Nested Loop Anti Join (actual time=4.199..4.200 rows=0 loops=1)
+           Buffers: shared hit=24098
+           ->  Nested Loop (actual time=0.009..2.343 rows=3000 loops=1)
+                 Buffers: shared hit=12098
+                 ->  Index Scan using idx_source_events_thread on source_events ev (actual time=0.008..0.214 rows=3000 loops=1)
+                       Index Cond: ((tenant_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (chat_id = '-1000000009001'::text) AND (thread_key = 'm:big'::text))
+                       Filter: (project_id = '00000000-0000-4000-8000-0000000000b1'::uuid)
+                       Buffers: shared hit=98
+                 ->  Index Scan using source_event_revisions_source_event_id_revision_no_key on source_event_revisions rv (actual time=0.001..0.001 rows=1 loops=3000)
+                       Index Cond: (source_event_id = ev.id)
+                       Filter: ((tenant_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (project_id = '00000000-0000-4000-8000-0000000000b1'::uuid))
+                       Buffers: shared hit=12000
+           ->  Index Only Scan using source_revision_positions_revision_id_key on source_revision_positions p (actual time=0.001..0.001 rows=1 loops=3000)
+                 Index Cond: (revision_id = rv.id)
+                 Heap Fetches: 3000
+                 Buffers: shared hit=12000
+ Planning:
+   Buffers: shared hit=32
+ Planning Time: 0.114 ms
+ Execution Time: 4.206 ms
+(24 rows)
+
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Result (actual time=4.058..4.058 rows=0 loops=1)
+   One-Time Filter: $2
+   Buffers: shared hit=24098
+   InitPlan 1 (returns $2)
+     ->  Nested Loop Anti Join (actual time=4.057..4.057 rows=0 loops=1)
+           Buffers: shared hit=24098
+           ->  Nested Loop (actual time=0.008..2.257 rows=3000 loops=1)
+                 Buffers: shared hit=12098
+                 ->  Index Scan using idx_source_events_thread on source_events ev (actual time=0.006..0.217 rows=3000 loops=1)
+                       Index Cond: ((tenant_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (chat_id = '-1000000009001'::text) AND (thread_key = 'm:big'::text))
+                       Filter: (project_id = '00000000-0000-4000-8000-0000000000b1'::uuid)
+                       Buffers: shared hit=98
+                 ->  Index Scan using source_event_revisions_source_event_id_revision_no_key on source_event_revisions rv (actual time=0.001..0.001 rows=1 loops=3000)
+                       Index Cond: (source_event_id = ev.id)
+                       Filter: ((tenant_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (project_id = '00000000-0000-4000-8000-0000000000b1'::uuid))
+                       Buffers: shared hit=12000
+           ->  Index Only Scan using source_revision_positions_revision_id_key on source_revision_positions p (actual time=0.001..0.001 rows=1 loops=3000)
+                 Index Cond: (revision_id = rv.id)
+                 Heap Fetches: 3000
+                 Buffers: shared hit=12000
+ Planning:
+   Buffers: shared hit=32
+ Planning Time: 0.104 ms
+ Execution Time: 4.064 ms
+(24 rows)
+
+=== the decision insert with the check (three runs; Trigger line = time of draft_decisions_subject_order_guard)
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Insert on draft_decisions (actual time=0.988..0.988 rows=0 loops=1)
+   ->  Subquery Scan on "*SELECT*" (actual time=0.013..0.014 rows=1 loops=1)
+         ->  Seq Scan on ai_drafts d (actual time=0.012..0.013 rows=1 loops=1)
+               Filter: (dedupe_key = 'explain-draft-01'::text)
+ Planning Time: 0.055 ms
+ Trigger for constraint draft_decisions_project_id_tenant_id_fkey: time=0.047 calls=1
+ Trigger for constraint draft_decisions_draft_id_tenant_id_project_id_fkey: time=0.025 calls=1
+ Trigger for constraint draft_decisions_document_revision_id_tenant_id_project_id_fkey: time=0.002 calls=1
+ Trigger draft_decisions_guard: time=0.540 calls=1
+ Trigger draft_decisions_pointer_only_guard: time=0.302 calls=1
+ Trigger draft_decisions_subject_order_guard: time=4.044 calls=1
+ Execution Time: 5.115 ms
+(12 rows)
+
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Insert on draft_decisions (actual time=0.108..0.108 rows=0 loops=1)
+   ->  Subquery Scan on "*SELECT*" (actual time=0.009..0.009 rows=1 loops=1)
+         ->  Seq Scan on ai_drafts d (actual time=0.008..0.008 rows=1 loops=1)
+               Filter: (dedupe_key = 'explain-draft-01'::text)
+ Planning Time: 0.032 ms
+ Trigger for constraint draft_decisions_project_id_tenant_id_fkey: time=0.011 calls=1
+ Trigger for constraint draft_decisions_draft_id_tenant_id_project_id_fkey: time=0.015 calls=1
+ Trigger for constraint draft_decisions_document_revision_id_tenant_id_project_id_fkey: time=0.001 calls=1
+ Trigger draft_decisions_guard: time=0.039 calls=1
+ Trigger draft_decisions_pointer_only_guard: time=0.038 calls=1
+ Trigger draft_decisions_subject_order_guard: time=3.708 calls=1
+ Execution Time: 3.852 ms
+(12 rows)
+
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Insert on draft_decisions (actual time=0.109..0.109 rows=0 loops=1)
+   ->  Subquery Scan on "*SELECT*" (actual time=0.007..0.008 rows=1 loops=1)
+         ->  Seq Scan on ai_drafts d (actual time=0.006..0.006 rows=1 loops=1)
+               Filter: (dedupe_key = 'explain-draft-01'::text)
+ Planning Time: 0.030 ms
+ Trigger for constraint draft_decisions_project_id_tenant_id_fkey: time=0.014 calls=1
+ Trigger for constraint draft_decisions_draft_id_tenant_id_project_id_fkey: time=0.021 calls=1
+ Trigger for constraint draft_decisions_document_revision_id_tenant_id_project_id_fkey: time=0.001 calls=1
+ Trigger draft_decisions_guard: time=0.036 calls=1
+ Trigger draft_decisions_pointer_only_guard: time=0.039 calls=1
+ Trigger draft_decisions_subject_order_guard: time=3.673 calls=1
+ Execution Time: 3.827 ms
+(12 rows)
+
+=== the decision insert with the function of dd8ee26 (without the check) (three runs)
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Insert on draft_decisions (actual time=0.099..0.099 rows=0 loops=1)
+   ->  Subquery Scan on "*SELECT*" (actual time=0.008..0.008 rows=1 loops=1)
+         ->  Seq Scan on ai_drafts d (actual time=0.007..0.007 rows=1 loops=1)
+               Filter: (dedupe_key = 'explain-draft-01'::text)
+ Planning Time: 0.029 ms
+ Trigger for constraint draft_decisions_project_id_tenant_id_fkey: time=0.010 calls=1
+ Trigger for constraint draft_decisions_draft_id_tenant_id_project_id_fkey: time=0.013 calls=1
+ Trigger for constraint draft_decisions_document_revision_id_tenant_id_project_id_fkey: time=0.000 calls=1
+ Trigger draft_decisions_guard: time=0.030 calls=1
+ Trigger draft_decisions_pointer_only_guard: time=0.038 calls=1
+ Trigger draft_decisions_subject_order_guard: time=0.118 calls=1
+ Execution Time: 0.248 ms
+(12 rows)
+
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Insert on draft_decisions (actual time=0.079..0.079 rows=0 loops=1)
+   ->  Subquery Scan on "*SELECT*" (actual time=0.005..0.005 rows=1 loops=1)
+         ->  Seq Scan on ai_drafts d (actual time=0.004..0.004 rows=1 loops=1)
+               Filter: (dedupe_key = 'explain-draft-01'::text)
+ Planning Time: 0.023 ms
+ Trigger for constraint draft_decisions_project_id_tenant_id_fkey: time=0.010 calls=1
+ Trigger for constraint draft_decisions_draft_id_tenant_id_project_id_fkey: time=0.014 calls=1
+ Trigger for constraint draft_decisions_document_revision_id_tenant_id_project_id_fkey: time=0.000 calls=1
+ Trigger draft_decisions_guard: time=0.028 calls=1
+ Trigger draft_decisions_pointer_only_guard: time=0.029 calls=1
+ Trigger draft_decisions_subject_order_guard: time=0.044 calls=1
+ Execution Time: 0.153 ms
+(12 rows)
+
+                                                QUERY PLAN                                                 
+-----------------------------------------------------------------------------------------------------------
+ Insert on draft_decisions (actual time=0.225..0.225 rows=0 loops=1)
+   ->  Subquery Scan on "*SELECT*" (actual time=0.006..0.006 rows=1 loops=1)
+         ->  Seq Scan on ai_drafts d (actual time=0.005..0.005 rows=1 loops=1)
+               Filter: (dedupe_key = 'explain-draft-01'::text)
+ Planning Time: 0.033 ms
+ Trigger for constraint draft_decisions_project_id_tenant_id_fkey: time=0.011 calls=1
+ Trigger for constraint draft_decisions_draft_id_tenant_id_project_id_fkey: time=0.015 calls=1
+ Trigger for constraint draft_decisions_document_revision_id_tenant_id_project_id_fkey: time=0.001 calls=1
+ Trigger draft_decisions_guard: time=0.165 calls=1
+ Trigger draft_decisions_pointer_only_guard: time=0.033 calls=1
+ Trigger draft_decisions_subject_order_guard: time=0.050 calls=1
+ Execution Time: 0.310 ms
+(12 rows)
+

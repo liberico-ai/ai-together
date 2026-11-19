@@ -1,0 +1,33 @@
+Task 2c (OQ-53, migration 023, after the second look at the fix round): checks that the new and changed cases are sensitive.
+Each mutant is an edit of one or two places in migrations/023_thread_order.sql, in its rollback file, or in a test file (the two last ones, for the hooks), applied in place, run, and
+put back; the file was compared byte for byte with the saved original after every mutant (cmp: identical). For a native run the isolated database was emptied (the table list of
+tests/slice1-db.ts), the triggers that a case had left switched off were turned on again, and 023 was rolled back, before and after the run.
+Engines: pglite = PostgreSQL 18.6 in memory, native = PostgreSQL 16.15 in the isolated container. Only the cases that went red are listed.
+
+mutant                                                          files run (engine)                      cases that went red
+rb-wrong-order       rollback takes the decision table before   migrations-rollback (pglite)            RB-023 (text order of the two LOCKs)
+                     the revision table (R-DB-11)               thread-order-concurrency (native)       N18b (one of the two transactions gets 40P01 "deadlock detected")
+rb-no-revision-lock  rollback takes no lock on the revision     migrations-rollback (pglite)            RB-023
+                     table first (R-DB-11)                      thread-order-concurrency (native)       N18b
+no-second-check      the second check of the logins removed     thread-order (pglite)                   A8 (iii) text (two checks, the second after the last trigger and before the record)
+                     (R-S-8)                                    thread-order (native)                   A14, A8 (iii) text
+no-clear-snapshot    the second check without throwing away     thread-order (native)                   A14
+                     the cached reading of pg_stat_activity
+second-check-early   the second check placed before step 2      thread-order (pglite)                   A8 (iii) text
+                                                                thread-order (native)                   A14, A8 (iii) text
+second-check-before- the second check placed before the step    thread-order (pglite)                   A8 (iii) text
+step10               that waits for readers of the decision     thread-order (native)                   A14, A8 (iii) text
+                     table
+no-hooks-thread-order the hooks of thread-order.test.ts do      thread-order (native)                   H2
+                     not put the triggers back (R-S-9)
+no-hooks-concurrency the hooks of thread-order-concurrency      thread-order-concurrency (native)       H4
+                     .test.ts do not put the guard back
+
+Notes
+1. The cached reading (no-clear-snapshot). PostgreSQL keeps the first reading of pg_stat_activity for the rest of the transaction. The first version of the second check, without the
+   pg_stat_clear_snapshot() that now opens it, saw exactly what the first check had seen and let the file through (A14 was red on it before the fix); with it, the check sees the login
+   that connected in between. A8 (iii) alone would not have shown this: the text was there.
+2. R-DB-12 (the header said a second run asks for no stronger lock). The choice was to correct the text, not to guard steps 2 to 6 with a catalog check. A12 has a third phase that keeps
+   the text true: a reader of intake_thread_heads waits for the second run (55P03); there is no mutant for it, the phase is a fact about the file, not a rule that a change could break
+   silently.
+3. R-S-10 (the order of the two locks at step 1) is a sentence in the header only: no code or case changed.

@@ -1,0 +1,88 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-context.test.ts (22 tests | 3 failed) 10849ms
+   ❯ skill context (22)
+     × each skill receives only its kinds and the caps hold 531ms
+     × R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one 483ms
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash 478ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > each skill receives only its kinds and the caps hold
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/skill-context.test.ts:296:42
+    294|    if(skill==='release_librarian') {
+    295|     // nothing is approved: the one revision of the context is the new…
+    296|     expect(kinds(c,'document_revision')).toHaveLength(1);
+       |                                          ^
+    297|     expect(kinds(c,'document_revision')[0]).toMatchObject({revisionNo:…
+    298|    }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one
+AssertionError: expected [] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+- [
+-   "90022f12-011c-41ef-bdef-06c76a393fdf",
+- ]
++ []
+
+ ❯ tests/skill-context.test.ts:365:56
+    363|   const none=await build(pm,input('release_librarian'));
+    364|   // nothing is approved: one revision, the newest, as a pointer; no t…
+    365|   expect(kinds(none,'document_revision').map(s=>s.id)).toEqual([revs[2…
+       |                                                        ^
+    366|   expect(kinds(none,'document_revision')[0]).toMatchObject({documentId…
+    367|   expect(JSON.stringify(none)).not.toContain('Bản một của tài liệu');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+AssertionError: expected [] to deeply equal [ { …(9) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "documentId": "02d34032-727a-4b0f-9b89-1924a2a46d2c",
+-     "hashVerification": "self_declared",
+-     "id": "ae43a919-70c7-4264-8904-9b86c769ddd7",
+-     "kind": "document_revision",
+-     "missing": [],
+-     "present": [],
+-     "revisionNo": 3,
+-     "sourceHash": null,
+-     "summary": null,
+-   },
+- ]
++ []
+
+ ❯ tests/skill-context.test.ts:415:43
+    413|   const rec1=recordingDb(h.db);
+    414|   const none=await build(pm,input,both,rec1.db);
+    415|   expect(kinds(none,'document_revision')).toEqual([pointer(r[2])]);
+       |                                           ^
+    416|   expect(rec1.rows().length).toBeGreaterThan(0);
+    417|   absent(none,rec1,1,2,3);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 19 passed (22)
+   Start at  15:46:37
+   Duration  10.96s (tests 99%)
+

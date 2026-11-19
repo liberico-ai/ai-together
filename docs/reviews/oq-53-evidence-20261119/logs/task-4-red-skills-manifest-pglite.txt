@@ -1,0 +1,49 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skills-manifest.test.ts (18 tests | 2 failed) 19ms
+   ❯ skill manifests (16)
+     × six skills, each with name, version, hash, tool allowlist, data scope and owner 3ms
+     × every prompt names the output contract of its manifest; the three message skills tell the model to copy messageRevisions from the context, the others do not mention it 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skills-manifest.test.ts > skill manifests > six skills, each with name, version, hash, tool allowlist, data scope and owner
+AssertionError: expected 'SkillOutput/intake_analyst/v1' to be 'SkillOutput/intake_analyst/v2' // Object.is equality
+
+Expected: "SkillOutput/intake_analyst/v2"
+Received: "SkillOutput/intake_analyst/v1"
+
+ ❯ tests/skills-manifest.test.ts:52:32
+     50|       expect(Array.isArray(m.toolAllowlist)).toBe(true);
+     51|       expect(m.inputContract).toBe('SkillContext/v2');
+     52|       expect(m.outputContract).toBe(outputContractOf(name));   // OQ-5…
+       |                                ^
+     53|       expect(m.attribution).toEqual([{ ref: 'docs/SPEC-009-PM-BA-DOCUM…
+     54|       expect(m.prompt.path).toBe(`skills/${dirOf(name)}/prompt.md`);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/skills-manifest.test.ts > skill manifests > every prompt names the output contract of its manifest; the three message skills tell the model to copy messageRevisions from the context, the others do not mention it
+AssertionError: intake_analyst output line: expected 'Một đối tượng JSON theo hợp đồng `Ski…' to contain 'messageRevisions'
+
+Expected: "messageRevisions"
+Received: "Một đối tượng JSON theo hợp đồng `SkillOutput/intake_analyst/v1`: sources, claims, questions, conflicts, confidence, toolRequests, result. `skill` và `manifestHash` do hệ thống điền; không viết hai trường đó."
+
+ ❯ tests/skills-manifest.test.ts:186:50
+    184|       }
+    185|       // the output line lists the field; one rule of «Quy tắc chung» …
+    186|       expect(outputLine!, `${name} output line`).toContain('messageRev…
+       |                                                  ^
+    187|       expect(rules, `${name}: one rule`).toHaveLength(1);
+    188|       const [rule] = rules;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 16 passed (18)
+   Start at  14:04:00
+   Duration  142ms (import 48%, transform 31%, tests 20%, worker 2%)
+
+exit=1

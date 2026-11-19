@@ -1,0 +1,92 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-context.test.ts (21 tests | 3 failed) 6681ms
+   ❯ skill context (21)
+     × (7) a record of an IBS HI project never enters the context of a Xeca project 392ms
+     × positive control: with the flag in force the same read carries the text and the hash 295ms
+     × C1 the context carries the revision number of the revision it shows, for every display mode 325ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > (7) a record of an IBS HI project never enters the context of a Xeca project
+AssertionError: expected { …(8) } to match object { …(5) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "forwarded": false,
+    "hash": null,
+    "id": "d1a532bc-b52c-4829-b25b-65643caebcfa",
+-   "revisionNo": 1,
+    "text": null,
+  }
+
+ ❯ tests/skill-context.test.ts:88:14
+     86|   expect(rev).toMatchObject({documentId:td.record.id,summary:null,pres…
+     87|   const ev=kinds(trCtx,'source_event')[0] as Src<'source_event'>;
+     88|   expect(ev).toMatchObject({id:tm.sourceEventId,text:null,hash:null,fo…
+       |              ^
+     89|   expect(ev.ref).toBeTruthy();
+     90|   expect(ev.observedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > positive control: with the flag in force the same read carries the text and the hash
+AssertionError: expected { …(8) } to match object { mode: 'excerpt', …(4) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "hash": "2da7532a9cf8cfb95f2008c609497945f1a0a1d248dca44b136dd4e4dbc08384",
+    "id": "bfbad73e-6a21-491a-9fb6-f936b155dede",
+    "mode": "excerpt",
+-   "revisionNo": 1,
+    "text": "ZEBRA-CTX-5522 nội dung",
+  }
+
+ ❯ tests/skill-context.test.ts:145:38
+    143|   const m=await msg({text:marker});
+    144|   const c=await build(pm,{skill:'intake_analyst',projectId:ids.sales,c…
+    145|   expect(kinds(c,'source_event')[0]).toMatchObject({mode:'excerpt',tex…
+       |                                      ^
+    146|  });
+    147|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > C1 the context carries the revision number of the revision it shows, for every display mode
+AssertionError: expected { …(8) } to match object { Object (mode, revisionNo, ...) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "hash": "8a90d34a24f2e1a789b1e746863ac182f5b7b601e74646512e0eccbd59a2745d",
+    "mode": "excerpt",
+-   "revisionNo": 2,
+    "text": "C1-R-V2",
+  }
+
+ ❯ tests/skill-context.test.ts:177:41
+    175|   // text shown: the number is that of the revision whose text is shown
+    176|   const shown=byId(await build(pm,input));
+    177|   expect(shown.get(root.sourceEventId)).toMatchObject({mode:'excerpt',…
+       |                                         ^
+    178|   expect(shown.get(pointer.sourceEventId)).toMatchObject({mode:'pointe…
+    179|   expect(shown.get(plain.sourceEventId)).toMatchObject({mode:'excerpt'…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 18 passed (21)
+   Start at  13:25:25
+   Duration  6.79s (tests 99%, import 1%)
+
+exit=1

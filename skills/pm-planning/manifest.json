@@ -1,6 +1,6 @@
 {
   "name": "pm_planning",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "owner": "BoM Tech",
   "attribution": [
     {
@@ -10,10 +10,10 @@
   ],
   "prompt": {
     "path": "skills/pm-planning/prompt.md",
-    "sha256": "0c886c328967b839b664d9f36f8dd498e2cceb933a4f953691b54c344e54f980"
+    "sha256": "7cee7bbab31ce3322bc7110738bb543807138ced9bcee2b76bf04b781886f680"
   },
-  "inputContract": "SkillContext/v1",
-  "outputContract": "SkillOutput/pm_planning/v1",
+  "inputContract": "SkillContext/v2",
+  "outputContract": "SkillOutput/pm_planning/v2",
   "toolAllowlist": [],
   "dataScope": {
     "projectScope": "single",
@@ -27,10 +27,10 @@
   },
   "evalSet": {
     "path": "skills/pm-planning/eval.json",
-    "sha256": "a2c00c7c58feef4eefc7dc2c45a51258a7d9ab1ee0083499594148076146a558",
+    "sha256": "b7e6443be268e17591018d37e678bcfece17cf728ea2b60c0dcaa57e57faadcc",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "32dec3b6526f6b77af74ce0bbb40525cf1d9d335a6eb5dc394d6e28a70b9280d"
+  "hash": "5d2457b450170f8dc33d1a45a41ad812ceb8d7912aab7c056d84ea0f5e83936c"
 }

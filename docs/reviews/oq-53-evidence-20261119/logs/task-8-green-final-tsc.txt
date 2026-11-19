@@ -1,0 +1,2 @@
+# npx tsc --noEmit, after Task 8 (final)
+exit=0

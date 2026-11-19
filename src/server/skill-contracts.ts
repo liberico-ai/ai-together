@@ -9,7 +9,7 @@ import type { DocType } from './types';
 export const SKILLS = ['intake_analyst', 'ba_elicitation', 'pm_planning', 'technical_writer', 'doc_reviewer', 'release_librarian'] as const;
 export type SkillName = typeof SKILLS[number];
 export type ContextSource =
-  | { id: string; kind: 'source_event'; ref: string; mode: DisplayMode; text: string | null; hash: string | null; observedAt: string; forwarded: boolean }
+  | { id: string; kind: 'source_event'; ref: string; mode: DisplayMode; text: string | null; hash: string | null; observedAt: string; forwarded: boolean; revisionNo: number }
   | { id: string; kind: 'document'; refCode: string; docType: DocType; title: string | null; latestRevisionId: string | null; approvedRevisionId: string | null }
   | { id: string; kind: 'document_revision'; documentId: string; revisionNo: number; summary: string | null; present: string[]; missing: string[]; sourceHash: string | null; hashVerification: 'self_declared' | 'verified' };
 export type SkillContext = { skill: SkillName; projectId: string; pointerOnly: boolean; sources: ContextSource[] };
@@ -19,18 +19,22 @@ const docTypes = ['project_index', 'change_brief', 'requirements', 'design', 'pl
 export const contextSchema: z.ZodType<SkillContext> = z.strictObject({
   skill: skillEnum, projectId: z.string(), pointerOnly: z.boolean(),
   sources: z.array(z.discriminatedUnion('kind', [
-    z.strictObject({ id: z.string(), kind: z.literal('source_event'), ref: z.string(), mode: z.enum(['excerpt', 'hidden', 'pointer_only']), text: z.string().nullable(), hash: z.string().nullable(), observedAt: z.string(), forwarded: z.boolean() }),
+    z.strictObject({ id: z.string(), kind: z.literal('source_event'), ref: z.string(), mode: z.enum(['excerpt', 'hidden', 'pointer_only']), text: z.string().nullable(), hash: z.string().nullable(), observedAt: z.string(), forwarded: z.boolean(), revisionNo: z.number().int().min(1) }),
     z.strictObject({ id: z.string(), kind: z.literal('document'), refCode: z.string(), docType: z.enum(docTypes), title: z.string().nullable(), latestRevisionId: z.string().nullable(), approvedRevisionId: z.string().nullable() }),
     z.strictObject({ id: z.string(), kind: z.literal('document_revision'), documentId: z.string(), revisionNo: z.number().int(), summary: z.string().nullable(), present: z.array(z.string()), missing: z.array(z.string()), sourceHash: z.string().nullable(), hashVerification: z.enum(['self_declared', 'verified']) }),
   ])),
 });
 
+// `messageRevisions` (OQ-53 point 1 (b)): present, as a list that may be empty, in the output of the three skills that receive messages; the other three have no such field.
 export type SkillOutput = { skill: SkillName; manifestHash: string; sources: { id: string }[]; claims: { field: string; value: string; basis: string[] }[];
-  questions: { field: string; question: string }[]; conflicts: { field: string; sourceIds: string[]; note: string }[]; confidence: number; toolRequests: { tool: string }[]; result: unknown };
+  questions: { field: string; question: string }[]; conflicts: { field: string; sourceIds: string[]; note: string }[]; confidence: number; toolRequests: { tool: string }[]; result: unknown;
+  messageRevisions?: { id: string; revisionNo: number }[] };
 
 // Limits no looser than the backstop CHECKs of the table that stores these outputs (migration 021).
 export const MAX_OUTPUT_BYTES = 32768;
 const MAX_SOURCES = 100, MAX_QUESTIONS = 50, MAX_QUESTIONS_BYTES = 16384;
+// OQ-53: a context holds at most 20 messages; the list is capped far above that. A revision number is a whole number that fits the integer column it is compared with.
+const MAX_MESSAGE_REVISIONS = 100, MAX_REVISION_NO = 2147483647;
 
 const str = z.string();
 const basis = z.array(str);
@@ -46,15 +50,22 @@ const results = {
 
 const questions = z.array(so({ field: str, question: str })).max(MAX_QUESTIONS)
   .refine(q => Buffer.byteLength(JSON.stringify(q), 'utf8') <= MAX_QUESTIONS_BYTES, 'questions too large');
-const outputOf = <R extends z.ZodType>(result: R) => so({
-  skill: skillEnum, manifestHash: str, sources: z.array(so({ id: str })).max(MAX_SOURCES),
-  claims: z.array(so({ field: str, value: str, basis })), questions,
-  conflicts: z.array(so({ field: str, sourceIds: z.array(str), note: str })),
-  confidence: z.number().int().min(0).max(100), toolRequests: z.array(so({ tool: str })), result,
-});
+// The messages a draft read and the revision of each: the confirmation reads a pair as «the draft read that revision» (OQ-53 point 1 (b)). Each `id` is held to the rules of every id field (SKILL_IDS below).
+// Whoever runs the pipeline writes this list from the context it handed the model, not the model (plan N6); the contract only holds its shape.
+const messageRevisions = z.array(so({ id: str, revisionNo: z.number().int().min(1).max(MAX_REVISION_NO) })).max(MAX_MESSAGE_REVISIONS);
+/** `receivesMessages` is true for the three skills whose context holds messages: their contract states `messageRevisions` (required); the strict contract of the other three has no such field. */
+const outputOf = <R extends z.ZodType>(result: R, receivesMessages: boolean) => {
+  const shape = {
+    skill: skillEnum, manifestHash: str, sources: z.array(so({ id: str })).max(MAX_SOURCES),
+    claims: z.array(so({ field: str, value: str, basis })), questions,
+    conflicts: z.array(so({ field: str, sourceIds: z.array(str), note: str })),
+    confidence: z.number().int().min(0).max(100), toolRequests: z.array(so({ tool: str })), result,
+  };
+  return so(receivesMessages ? { ...shape, messageRevisions } : shape);
+};
 export const outputSchemas: Record<SkillName, z.ZodType<SkillOutput>> = {
-  intake_analyst: outputOf(results.intake_analyst), ba_elicitation: outputOf(results.ba_elicitation), pm_planning: outputOf(results.pm_planning),
-  technical_writer: outputOf(results.technical_writer), doc_reviewer: outputOf(results.doc_reviewer), release_librarian: outputOf(results.release_librarian),
+  intake_analyst: outputOf(results.intake_analyst, true), ba_elicitation: outputOf(results.ba_elicitation, true), pm_planning: outputOf(results.pm_planning, true),
+  technical_writer: outputOf(results.technical_writer, false), doc_reviewer: outputOf(results.doc_reviewer, false), release_librarian: outputOf(results.release_librarian, false),
 };
 
 type Measured = { fits: boolean; parsed: unknown };
@@ -96,11 +107,13 @@ type IdField = { path: string; supports: boolean; kind?: Kind };
 const COMMON_IDS: readonly IdField[] = [
   { path: 'sources.*.id', supports: false }, { path: 'claims.*.basis.*', supports: true }, { path: 'conflicts.*.sourceIds.*', supports: true },
 ];
+// messageRevisions: a message of the context (a source_event) whose text was shown. An entry backs no statement (`supports: false`): a message that was read need not be cited or listed in `sources`.
+const MESSAGE_REVISION_ID: IdField = { path: 'messageRevisions.*.id', supports: false, kind: 'source_event' };
 const SKILL_IDS: Record<SkillName, readonly IdField[]> = {
   // duplicateOf: another message of the context (a source_event); a document or revision is not a duplicate of an incoming message.
-  intake_analyst: [{ path: 'result.duplicateOf', supports: false, kind: 'source_event' }],
-  ba_elicitation: ['userStories', 'rules', 'acceptance'].map(k => ({ path: `result.${k}.*.basis.*`, supports: true })),
-  pm_planning: ['milestones', 'actions'].map(k => ({ path: `result.${k}.*.basis.*`, supports: true })),
+  intake_analyst: [{ path: 'result.duplicateOf', supports: false, kind: 'source_event' }, MESSAGE_REVISION_ID],
+  ba_elicitation: [...['userStories', 'rules', 'acceptance'].map(k => ({ path: `result.${k}.*.basis.*`, supports: true })), MESSAGE_REVISION_ID],
+  pm_planning: [...['milestones', 'actions'].map(k => ({ path: `result.${k}.*.basis.*`, supports: true })), MESSAGE_REVISION_ID],
   technical_writer: ['sections', 'terms'].map(k => ({ path: `result.${k}.*.basis.*`, supports: true })),
   doc_reviewer: [{ path: 'result.baseRevisionId', supports: false, kind: 'document_revision' }, { path: 'result.candidateRevisionId', supports: false, kind: 'document_revision' }],
   release_librarian: [{ path: 'result.approvedRevisionId', supports: false }, { path: 'result.index.*.documentId', supports: false, kind: 'document' },
@@ -120,6 +133,30 @@ const idsOf = (out: SkillOutput, skill: SkillName, supportsOnly: boolean) =>
 /** Every id a value names at every path of ID_FIELDS[skill], once each, in order of first appearance. A value that is not an output names nothing. */
 export function namedIds(skill: SkillName, value: unknown): string[] {
   return [...new Set(ID_FIELDS[skill].flatMap(f => collect(value, f.path.split('.'))))];
+}
+
+/**
+ * The pairs (message id, revision number) a value states in `messageRevisions`, once each, in order of first appearance; the same message with two different numbers comes back twice.
+ * Only a pair whose `id` is a string and whose `revisionNo` is a whole number from 1 to 2147483647 is returned, as a new object of those two fields; every other entry is left out.
+ * A value that is not an output, one without that list at its top level, and a skill that has no such field (the table has no such path) give [].
+ * The pair is what the draft says it read: this function neither checks the id against a context nor trusts the number.
+ */
+export function namedRevisions(skill: SkillName, value: unknown): { id: string; revisionNo: number }[] {
+  if (!ID_FIELDS[skill].some(f => f.path === MESSAGE_REVISION_ID.path)) return [];
+  const list = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>).messageRevisions : undefined;
+  if (!Array.isArray(list)) return [];
+  const seen = new Set<string>();
+  const pairs: { id: string; revisionNo: number }[] = [];
+  for (const entry of list) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const { id, revisionNo } = entry as Record<string, unknown>;
+    if (typeof id !== 'string' || typeof revisionNo !== 'number' || !Number.isInteger(revisionNo) || revisionNo < 1 || revisionNo > MAX_REVISION_NO) continue;
+    const key = JSON.stringify([id, revisionNo]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ id, revisionNo });
+  }
+  return pairs;
 }
 
 // True when every leaf of a parsed value is empty: null, '', false, an empty array, or an object whose leaves are all empty. Iterative.

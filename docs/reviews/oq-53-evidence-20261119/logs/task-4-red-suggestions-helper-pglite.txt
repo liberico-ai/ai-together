@@ -1,0 +1,700 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (110 tests | 39 failed | 1 skipped) 51861ms
+   ❯ Z4 drafts: submit (14)
+     × a valid output at exactly the limit is stored 474ms
+     × R12-b the same key with a different output or entity is a conflict; the same content is a replay 493ms
+   ❯ Z4 drafts: decide (17)
+     × the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidden is held 481ms
+     × R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results 499ms
+   ❯ Z4 drafts: fix round 1 (7)
+     × F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are held for the OQ-53 (3) placeholder alone 473ms
+     × replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content 465ms
+   ❯ Z4 drafts: one idempotency claim per decision (Codex gate, round 1) (8)
+     × (e) a rejection claims its key, for a document draft and for a candidate draft: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT; a held candidate confirmation leaves its key free 479ms
+   ❯ Z4 drafts: who reads the content (OQ-45 point 1) (9)
+     × L1 a candidate draft: only the project manager reads its content; engineer, technical and business get no content, no source id and no hash 459ms
+     × L2 a document draft: every role that may write the ledger reads its content; viewer and bot get the not-found answer for both kinds of draft 474ms
+     × L3 nothing the writer chose reaches the service for a reader without the authority: no value, question, confidence, version string, hash or source id in any row handed to it 465ms
+     × L6 one rule for reading and deciding: a role reads the content of a draft exactly when it may decide it 472ms
+     × L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided 472ms
+   ❯ Z4 drafts: the content is re-checked at read time (OQ-45 point 2) (10)
+     × M1 the content is masked when the reader cannot read the text of a message the draft cites 462ms
+     × M2 the content is masked once the project is pointer-only: mapped to IBS_HI after the draft was stored, for a document draft and a candidate draft; the latest row decides 474ms
+     × M6 an error the service does not understand is not turned into a mask: the read fails and returns nothing 471ms
+     × M7 decide answers with the same masked view: a rejection by a manager who cannot read the cited text is recorded, and its answer carries no content 464ms
+     × M10 a reader without the authority causes no read of the message tables; a reader of a document draft causes exactly one, a single boolean for the project 463ms
+   ❯ Z4 drafts: what masks at read time holds at confirmation (P3 invariant) (1)
+     × P3 whatever masks a draft at read time holds it at confirmation 492ms
+   ❯ Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) (8)
+     × H1 under every mask the view of a person who may decide carries no value hash 488ms
+     × H2 for a person to whom the draft is masked, decide answers the same whatever value hash is sent: the right one, a wrong one, none 476ms
+     × H4 for a person to whom the content is shown the hash is still required: none, or a wrong one, is REVISION_CONFLICT 469ms
+     × H5 a reader without the authority gets the authority answer with a hash, with a wrong one and with none 463ms
+     × H8 when a mask reason holds a draft, the hold of a confirmation names only the mask reasons (and the placeholder for a candidate draft) 490ms
+   ❯ Z4 drafts: IBS HI is refused at write (OQ-45 point 3) (4)
+     × a draft for an IBS HI project is refused when it is written: POINTER_ONLY_PROJECT, nothing stored, no database error text 471ms
+   ❯ Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown (5)
+     × dừng tại OQ-55: a candidate draft that names no message is masked once the stored text of its thread is no longer shown 471ms
+     × dừng tại OQ-55: a thread whose newest revision is pointer-only but an earlier revision stored text still masks its candidate drafts when the group is not flagged 483ms
+     × a draft that cites a message of such a thread carries the reason of the cited message and both placeholder reasons 475ms
+   ❯ Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) (8)
+     × W4 a project whose messages stored no text masks nothing 487ms
+     × W7 dừng tại OQ-55: a candidate draft that carries the text of another thread of its project is masked while that text is not shown 480ms
+   ❯ Z4 drafts: a draft whose thread moved on is held (OQ-46) (5)
+     × a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is held for the OQ-53 (3) placeholder alone 469ms
+     × a message the draft does not name, recorded before the newest one it names, adds no hold: the draft is held for the OQ-53 (3) placeholder alone 471ms
+     × dừng tại OQ-53 (1): an edit recorded at or after the newest named message holds the draft as SUBJECT_EDIT_UNVERIFIED, also when the edit was already there when the draft was written; an edit recorded before the newest named message does not 466ms
+     × dừng tại OQ-53 (2): a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING 477ms
+     × a held candidate draft can still be rejected; a recorded decision replays unchanged after a new message arrives 470ms
+   ❯ Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) (5)
+     × dừng tại OQ-53 (3): a candidate draft that passes every other check is held as SUBJECT_ORDER_UNVERIFIED and nothing else; nothing is written and the key stays free 464ms
+     × dừng tại OQ-53 (3): every other check still runs; when no mask reason holds the draft each names its code next to the placeholder, and when one does the hold names the mask reasons and the placeholder 469ms
+     × dừng tại OQ-53 (3): the placeholder holds a confirmation only — the manager still reads the content of a candidate draft and can reject it, and the code never appears in a list 476ms
+     × dừng tại OQ-53 (3): a document draft is not touched, and a candidate confirmation that carries a revision body is INVALID_INPUT before any hold 483ms
+     × the fault of the command is answered after the authority, the decided state and the value hash, never before them 469ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 39 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: submit > a valid output at exactly the limit is stored
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ tests/suggestions.test.ts:194:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: submit > R12-b the same key with a different output or entity is a conflict; the same content is a replay
+AssertionError: expected Error: Đầu ra của kỹ năng không hợp lệ nê… { …(2) } to match object { code: 'IDEMPOTENCY_CONFLICT', …(1) }
+
+- Expected
++ Received
+
+- {
+-   "code": "IDEMPOTENCY_CONFLICT",
+-   "status": 409,
++ AppError {
++   "code": "DRAFT_INVALID",
++   "status": 422,
+  }
+
+ ❯ refused tests/suggestions.test.ts:49:12
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+     49|  expect(e).toMatchObject({code,status});
+       |            ^
+     50|  return e as Error;
+     51| };
+ ❯ tests/suggestions.test.ts:238:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: decide > the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a message whose text is now hidden is held
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ tests/suggestions.test.ts:334:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: decide > R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both results
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:473:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: fix round 1 > F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown the same drafts are held for the OQ-53 (3) placeholder alone
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ tests/suggestions.test.ts:642:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: fix round 1 > replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision without the content
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:677:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: one idempotency claim per decision (Codex gate, round 1) > (e) a rejection claims its key, for a document draft and for a candidate draft: the same person reusing it for another draft is IDEMPOTENCY_CONFLICT; a held candidate confirmation leaves its key free
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:735:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L1 a candidate draft: only the project manager reads its content; engineer, technical and business get no content, no source id and no hash
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ loud tests/suggestions.test.ts:808:23
+ ❯ tests/suggestions.test.ts:814:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L2 a document draft: every role that may write the ledger reads its content; viewer and bot get the not-found answer for both kinds of draft
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:830:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L3 nothing the writer chose reaches the service for a reader without the authority: no value, question, confidence, version string, hash or source id in any row handed to it
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ loud tests/suggestions.test.ts:808:23
+ ❯ tests/suggestions.test.ts:843:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L6 one rule for reading and deciding: a role reads the content of a draft exactly when it may decide it
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:897:47
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: who reads the content (OQ-45 point 1) > L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is decided
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:927:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M1 the content is masked when the reader cannot read the text of a message the draft cites
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ loudDraft tests/suggestions.test.ts:958:23
+ ❯ tests/suggestions.test.ts:967:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M2 the content is masked once the project is pointer-only: mapped to IBS_HI after the draft was stored, for a document draft and a candidate draft; the latest row decides
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:982:30
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M6 an error the service does not understand is not turned into a mask: the read fails and returns nothing
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:1043:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M7 decide answers with the same masked view: a rejection by a manager who cannot read the cited text is recorded, and its answer carries no content
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ loudDraft tests/suggestions.test.ts:958:23
+ ❯ tests/suggestions.test.ts:1050:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: the content is re-checked at read time (OQ-45 point 2) > M10 a reader without the authority causes no read of the message tables; a reader of a document draft causes exactly one, a single boolean for the project
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:1091:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: what masks at read time holds at confirmation (P3 invariant) > P3 whatever masks a draft at read time holds it at confirmation
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ Object.TEXT_NOT_VISIBLE tests/suggestions.test.ts:1129:25
+ ❯ tests/suggestions.test.ts:1159:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H1 under every mask the view of a person who may decide carries no value hash
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ Object.TEXT_NOT_VISIBLE tests/suggestions.test.ts:1129:25
+ ❯ tests/suggestions.test.ts:1182:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H2 for a person to whom the draft is masked, decide answers the same whatever value hash is sent: the right one, a wrong one, none
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:1194:53
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H4 for a person to whom the content is shown the hash is still required: none, or a wrong one, is REVISION_CONFLICT
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:1226:53
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H5 a reader without the authority gets the authority answer with a hash, with a wrong one and with none
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:1240:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a masked draft gives no value hash and none is compared for it (Codex gate round 2) > H8 when a mask reason holds a draft, the hold of a confirmation names only the mask reasons (and the placeholder for a candidate draft)
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ draftNaming tests/suggestions.test.ts:1602:22
+ ❯ tests/suggestions.test.ts:1310:37
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: IBS HI is refused at write (OQ-45 point 3) > a draft for an IBS HI project is refused when it is written: POINTER_ONLY_PROJECT, nothing stored, no database error text
+AssertionError: expected Error: Đầu ra của kỹ năng không hợp lệ nê… { …(2) } to match object { code: 'POINTER_ONLY_PROJECT', …(1) }
+
+- Expected
++ Received
+
+- {
+-   "code": "POINTER_ONLY_PROJECT",
++ AppError {
++   "code": "DRAFT_INVALID",
+    "status": 422,
+  }
+
+ ❯ refused tests/suggestions.test.ts:49:12
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+     49|  expect(e).toMatchObject({code,status});
+       |            ^
+     50|  return e as Error;
+     51| };
+ ❯ tests/suggestions.test.ts:1355:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a candidate draft that names no message is masked once the stored text of its thread is no longer shown
+AssertionError: expected [ 'PROJECT_TEXT_HIDDEN', …(2) ] to deeply equal [ 'PROJECT_TEXT_HIDDEN', …(1) ]
+
+- Expected
++ Received
+
+  [
+    "PROJECT_TEXT_HIDDEN",
++   "SCHEMA_INVALID",
+    "THREAD_TEXT_HIDDEN",
+  ]
+
+ ❯ tests/suggestions.test.ts:1412:26
+    1410|   const x=await quiet(c,d);
+    1411|   const it=await first(none(),pm,c.candidateId);
+    1412|   expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN','THREAD_TEXT_H…
+       |                          ^
+    1413|   expect(it.value).toBeNull();expect(it.sources).toEqual([]);
+    1414|   expect(JSON.stringify(it)).not.toContain(MARK);expect(JSON.stringify…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > dừng tại OQ-55: a thread whose newest revision is pointer-only but an earlier revision stored text still masks its candidate drafts when the group is not flagged
+AssertionError: expected [ 'PROJECT_TEXT_HIDDEN', …(2) ] to deeply equal [ 'PROJECT_TEXT_HIDDEN', …(1) ]
+
+- Expected
++ Received
+
+  [
+    "PROJECT_TEXT_HIDDEN",
++   "SCHEMA_INVALID",
+    "THREAD_TEXT_HIDDEN",
+  ]
+
+ ❯ tests/suggestions.test.ts:1428:62
+    1426|   expect(modes.map(m=>m.content_mode)).toEqual(['excerpt','pointer_onl…
+    1427|   await clean(c,d);
+    1428|   expect((await first(none(),pm,c.candidateId)).maskReasons).toEqual([…
+       |                                                              ^
+    1429|  });
+    1430|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder — a thread with stored text that is no longer shown > a draft that cites a message of such a thread carries the reason of the cited message and both placeholder reasons
+AssertionError: expected [ 'PROJECT_TEXT_HIDDEN', …(2) ] to deeply equal [ 'PROJECT_TEXT_HIDDEN', …(2) ]
+
+- Expected
++ Received
+
+  [
+    "PROJECT_TEXT_HIDDEN",
+-   "TEXT_NOT_VISIBLE",
++   "SCHEMA_INVALID",
+    "THREAD_TEXT_HIDDEN",
+  ]
+
+ ❯ tests/suggestions.test.ts:1454:26
+    1452|   await rawDraft({entityType:'intake_candidate',entityId:c.candidateId…
+    1453|   const it=await first(none(),pm,c.candidateId);
+    1454|   expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN','TEXT_NOT_VISI…
+       |                          ^
+    1455|   expect(it.value).toBeNull();expect(JSON.stringify(it)).not.toContain…
+    1456|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W4 a project whose messages stored no text masks nothing
+AssertionError: expected [ 'SCHEMA_INVALID' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "SCHEMA_INVALID",
++ ]
+
+ ❯ tests/suggestions.test.ts:1535:68
+    1533|   await rawDraft({entityType:'intake_candidate',entityId:c.candidateId…
+    1534|   expect((await firstOf(none(),pm,dq(d.record.id))).maskReasons).toEqu…
+    1535|   expect((await firstOf(none(),pm,cq(c.candidateId))).maskReasons).toE…
+       |                                                                    ^
+    1536|  });
+    1537|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[28/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-55 placeholder by project — stored text that is no longer shown masks and holds every draft of the project (Codex gate, round 1) > W7 dừng tại OQ-55: a candidate draft that carries the text of another thread of its project is masked while that text is not shown
+AssertionError: expected [ 'PROJECT_TEXT_HIDDEN', …(1) ] to deeply equal [ 'PROJECT_TEXT_HIDDEN' ]
+
+- Expected
++ Received
+
+  [
+    "PROJECT_TEXT_HIDDEN",
++   "SCHEMA_INVALID",
+  ]
+
+ ❯ tests/suggestions.test.ts:1580:26
+    1578|   await rawDraft({entityType:'intake_candidate',entityId:t1.candidateI…
+    1579|   const it=await firstOf(none(),pm,cq(t1.candidateId));
+    1580|   expect(it.maskReasons).toEqual(['PROJECT_TEXT_HIDDEN']);
+       |                          ^
+    1581|   expect(it.value).toBeNull();expect(JSON.stringify(it)).not.toContain…
+    1582|   const ok=await firstOf(svc(),pm,cq(t1.candidateId));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[29/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, the key stays free; a new draft that names the new message is held for the OQ-53 (3) placeholder alone
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ draftNaming tests/suggestions.test.ts:1602:22
+ ❯ tests/suggestions.test.ts:1610:37
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[30/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a message the draft does not name, recorded before the newest one it names, adds no hold: the draft is held for the OQ-53 (3) placeholder alone
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ draftNaming tests/suggestions.test.ts:1602:22
+ ❯ tests/suggestions.test.ts:1629:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[31/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > dừng tại OQ-53 (1): an edit recorded at or after the newest named message holds the draft as SUBJECT_EDIT_UNVERIFIED, also when the edit was already there when the draft was written; an edit recorded before the newest named message does not
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ draftNaming tests/suggestions.test.ts:1602:22
+ ❯ tests/suggestions.test.ts:1634:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[32/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > dừng tại OQ-53 (2): a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ tests/suggestions.test.ts:1655:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[33/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a draft whose thread moved on is held (OQ-46) > a held candidate draft can still be rejected; a recorded decision replays unchanged after a new message arrives
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ draftNaming tests/suggestions.test.ts:1602:22
+ ❯ tests/suggestions.test.ts:1670:37
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[34/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): a candidate draft that passes every other check is held as SUBJECT_ORDER_UNVERIFIED and nothing else; nothing is written and the key stays free
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:1688:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[35/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): every other check still runs; when no mask reason holds the draft each names its code next to the placeholder, and when one does the hold names the mask reasons and the placeholder
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ draftNaming tests/suggestions.test.ts:1602:22
+ ❯ tests/suggestions.test.ts:1698:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[36/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): the placeholder holds a confirmation only — the manager still reads the content of a candidate draft and can reject it, and the code never appears in a list
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:1729:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[37/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > dừng tại OQ-53 (3): a document draft is not touched, and a candidate confirmation that carries a revision body is INVALID_INPUT before any hold
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:1745:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[38/39]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: OQ-53 point 3 placeholder — no candidate draft is confirmed (the Chairman's scope decision of 18/11/2026, option B) > the fault of the command is answered after the authority, the decided state and the value hash, never before them
+Error: Đầu ra của kỹ năng không hợp lệ nên không được lưu.
+ ❯ draftInvalid src/server/suggestions.ts:22:24
+     20| const NOT_FOUND='Không tìm thấy mục trong phạm vi được cấp.';
+     21| const denied=()=>new AppError('SCOPE_DENIED',NOT_FOUND,404);
+     22| const draftInvalid=()=>new AppError('DRAFT_INVALID','Đầu ra của kỹ năn…
+       |                        ^
+     23| const idempotencyConflict=()=>new AppError('IDEMPOTENCY_CONFLICT','Mã …
+     24| /** SQLSTATE raised by the pointer-only guard of migration 022. */
+ ❯ SuggestionService.submitDraft src/server/suggestions.ts:150:29
+ ❯ candDraft tests/suggestions.test.ts:95:22
+ ❯ tests/suggestions.test.ts:1753:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39/39]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  39 failed | 70 passed | 1 skipped (110)
+   Start at  14:04:10
+   Duration  52.06s (tests 100%)
+
+exit=1

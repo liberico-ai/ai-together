@@ -1,0 +1,106 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/z4-schema.test.ts (25 tests | 5 failed) 8411ms
+   × draft decisions are invisible to another project, another tenant and a session with no context 321ms
+   × a confirmation can only attach a revision of the very document the draft is about 353ms
+   × drafts and draft decisions reject update and delete 313ms
+   × the decision guard also stops the operational login 353ms
+   × running 021 again changes nothing: one trigger, one function, the same policies and grants 314ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/z4-schema.test.ts > draft decisions are invisible to another project, another tenant and a session with no context
+error: The thread of the candidate moved on
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ Object.query src/server/db.ts:38:120
+     36|     await assertRestrictedLogin({ query: async <T>(sql: string, params…
+     37|   })();
+     38|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+       |                                                                                                                        ^
+     39|   return {
+     40|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/z4-schema.test.ts:189:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/z4-schema.test.ts > a confirmation can only attach a revision of the very document the draft is about
+AssertionError: promise rejected "error: The thread of the candidate moved … { …(15) }" instead of resolving
+ ❯ tests/z4-schema.test.ts:233:34
+    231|   // a revision of A on a draft about A, and no revision at all, are a…
+    232|   await expect(decide(await about(docA.record.id),{document_revision_i…
+    233|   await expect(decide(candidate)).resolves.toBeTruthy();
+       |                                  ^
+    234| });
+    235|
+
+Caused by: error: The thread of the candidate moved on
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ Object.query src/server/db.ts:38:120
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/z4-schema.test.ts:233:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 179, severity: 'ERROR', code: 'LTZ03', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: 'PL/pgSQL function public.draft_decisions_subject_order_guard() line 22 at RAISE', schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'pl_exec.c', routine: 'exec_stmt_raise' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/z4-schema.test.ts > drafts and draft decisions reject update and delete
+error: The thread of the candidate moved on
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ Object.query src/server/db.ts:38:120
+     36|     await assertRestrictedLogin({ query: async <T>(sql: string, params…
+     37|   })();
+     38|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+       |                                                                                                                        ^
+     39|   return {
+     40|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/z4-schema.test.ts:272:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/z4-schema.test.ts > the decision guard also stops the operational login
+AssertionError: promise rejected "error: The thread of the candidate moved … { …(15) }" instead of resolving
+ ❯ tests/z4-schema.test.ts:379:51
+    377|   await expect(insertDecision(h.operator,unsourced)).rejects.toThrow(/…
+    378|   await expect(insertDecision(h.operator,sourced,{draft_value_hash:OTH…
+    379|   await expect(insertDecision(h.operator,sourced)).resolves.toBeTruthy…
+       |                                                   ^
+    380| });
+    381|
+
+Caused by: error: The thread of the candidate moved on
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ Object.query src/server/db.ts:40:91
+ ❯ tests/z4-schema.test.ts:379:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 179, severity: 'ERROR', code: 'LTZ03', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: 'PL/pgSQL function public.draft_decisions_subject_order_guard() line 22 at RAISE', schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'pl_exec.c', routine: 'exec_stmt_raise' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/z4-schema.test.ts > running 021 again changes nothing: one trigger, one function, the same policies and grants
+AssertionError: expected [ Array(4) ] to have a length of 3 but got 4
+
+- Expected
++ Received
+
+- 3
++ 4
+
+ ❯ tests/z4-schema.test.ts:468:27
+    466|   });
+    467|   const before=await shape();
+    468|   expect(before.triggers).toHaveLength(3);
+       |                           ^
+    469|   expect(before.functions).toHaveLength(1);
+    470|   await h.exec(sql);await h.exec(sql);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 20 passed (25)
+   Start at  11:44:59
+   Duration  8.54s (tests 99%, import 1%)
+

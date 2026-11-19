@@ -1,6 +1,6 @@
 {
   "name": "doc_reviewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "owner": "BoM Tech",
   "attribution": [
     {
@@ -10,9 +10,9 @@
   ],
   "prompt": {
     "path": "skills/doc-reviewer/prompt.md",
-    "sha256": "f5aed8be07710466e0b4978ee889901bfa6ec96f15f4f1f876a97788bbc392aa"
+    "sha256": "2cd06b3d7041f5f800c7e9079ed1c603ceeb4c31391679a58e6a28c7d71f68f8"
   },
-  "inputContract": "SkillContext/v1",
+  "inputContract": "SkillContext/v2",
   "outputContract": "SkillOutput/doc_reviewer/v1",
   "toolAllowlist": [],
   "dataScope": {
@@ -31,5 +31,5 @@
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "98d9fbfbb83d1a894eca63690dc043875206806aac10df1780ba7b24ea4581bb"
+  "hash": "96125f6a1a90802f3a5e14dd51d233b1761ecda820ee9806c6d69826f7817233"
 }

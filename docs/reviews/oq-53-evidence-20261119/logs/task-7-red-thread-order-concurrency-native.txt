@@ -1,0 +1,101 @@
+# native, tests/thread-order-concurrency.test.ts, exit=1
+# counts: 'timed out|PGlite is closed' = 0; '^AssertionError' = 4; Tests  4 failed | 20 passed (24)
+
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/thread-order-concurrency.test.ts (24 tests | 4 failed) 18157ms
+   ❯ thread numbers under concurrency (native PostgreSQL) (24)
+     × N12 the reverse-commit gap is closed: a message whose intake transaction began before the draft's message and committed after the context was read holds the draft 334ms
+     × N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stays free 303ms
+     × N14 a confirmation in flight makes an intake of the thread wait; both commit; a second draft that names the old message is then held 301ms
+     × N15 a confirmation that waits past the cap fails with the database error 55P03 and writes nothing; the same command succeeds once the thread is free 301ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N12 the reverse-commit gap is closed: a message whose intake transaction began before the draft's message and committed after the context was read holds the draft
+AssertionError: expected [ 'SUBJECT_CHANGED', …(1) ] to deeply equal [ 'SUBJECT_CHANGED' ]
+
+- Expected
++ Received
+
+  [
+    "SUBJECT_CHANGED",
++   "SUBJECT_ORDER_UNVERIFIED",
+  ]
+
+ ❯ tests/thread-order-concurrency.test.ts:561:88
+    559|     // the hold names codes only: no id, no number, no word of the dat…
+    560|     expect(e.message!).not.toMatch(/LTZ03|thread|[0-9a-f]{8}-/);
+    561|     expect(e.message!.slice(e.message!.indexOf(': ')+2).replace(/\.$/,…
+       |                                                                                        ^
+    562|   };
+    563|   const sug=(db:Database=h.db)=>new SuggestionService(db,h.operator,[c…
+ ❯ tests/thread-order-concurrency.test.ts:614:28
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stays free
+AssertionError: the statement was expected to wait for a lock: expected 'settled' to be 'blocked' // Object.is equality
+
+Expected: "blocked"
+Received: "settled"
+
+ ❯ inFlight tests/thread-order-concurrency.test.ts:268:67
+    266|   const inFlight=async(p:Promise<unknown>,n=1)=>{
+    267|     const first=await Promise.race([p.then(()=>'settled' as const),wai…
+    268|     expect(first,'the statement was expected to wait for a lock').toBe…
+       |                                                                   ^
+    269|   };
+    270|   /** Waits until a session is blocked by the backend `pid` (told apar…
+ ❯ tests/thread-order-concurrency.test.ts:631:7
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/thread-order-concurrency.test.ts:627:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N14 a confirmation in flight makes an intake of the thread wait; both commit; a second draft that names the old message is then held
+AssertionError: the decision row was written: expected Error: Nháp được giữ lại, chưa xác nhận đ… { …(2) } to be null
+
+- Expected:
+null
+
++ Received:
+AppError {
+  "message": "Nháp được giữ lại, chưa xác nhận được: SUBJECT_ORDER_UNVERIFIED.",
+  "code": "DRAFT_HELD",
+  "status": 422,
+}
+
+ ❯ tests/thread-order-concurrency.test.ts:658:107
+    656|     let intake!:Promise<unknown>;
+    657|     try {
+    658|       expect(await Promise.race([written.promise.then(()=>null),comman…
+       |                                                                                                           ^
+    659|       intake=settle(textIntake().ingest(messageEvent({context:{replyTo…
+    660|       await inFlight(intake);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N15 a confirmation that waits past the cap fails with the database error 55P03 and writes nothing; the same command succeeds once the thread is free
+AssertionError: expected 'DRAFT_HELD' to be '55P03' // Object.is equality
+
+Expected: "55P03"
+Received: "DRAFT_HELD"
+
+ ❯ tests/thread-order-concurrency.test.ts:698:29
+    696|       await holder;
+    697|     }
+    698|     expect(codeOf(failure)).toBe('55P03');
+       |                             ^
+    699|     expect(failure instanceof AppError).toBe(false);
+    700|     expect(await count('draft_decisions')).toBe(before.decisions);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 20 passed (24)
+   Start at  15:01:55
+   Duration  18.30s (tests 99%)
+

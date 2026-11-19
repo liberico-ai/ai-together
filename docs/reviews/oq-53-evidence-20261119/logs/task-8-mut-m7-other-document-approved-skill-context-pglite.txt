@@ -1,0 +1,73 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-context.test.ts (22 tests | 2 failed) 10786ms
+   ❯ skill context (22)
+     × R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one 483ms
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash 483ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one
+AssertionError: expected [ …(3) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+    "f8622722-6a9c-4aab-816d-fa87df3a9061",
+    "025dfa06-8c6a-4801-ac30-db42087b2f4c",
++   "f610ef1d-0e95-4404-a32c-10982d6881fc",
+  ]
+
+ ❯ tests/skill-context.test.ts:388:56
+    386|   await approve(o1.record.id,orev);
+    387|   const lib2=await build(pm,input('release_librarian'));
+    388|   expect(kinds(lib2,'document_revision').map(s=>s.id)).toEqual([revs[2…
+       |                                                        ^
+    389|  });
+    390|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+AssertionError: expected [ { …(9) }, { …(9) }, { …(9) } ] to deeply equal [ { …(9) }, { …(9) } ]
+
+- Expected
++ Received
+
+@@ -23,6 +23,17 @@
+      ],
+      "revisionNo": 2,
+      "sourceHash": "e1605634bbdd51ff18c604d1ca08ff15b5687237ae1505565fc9c55dfa93c7f8",
+      "summary": "PTR-SUMMARY-2-4471 nội dung",
+    },
++   {
++     "documentId": "be0c65c8-778f-45c2-a705-c2b28d9a983b",
++     "hashVerification": "self_declared",
++     "id": "59844f3a-251b-408c-8029-c400b334e936",
++     "kind": "document_revision",
++     "missing": [],
++     "present": [],
++     "revisionNo": 1,
++     "sourceHash": null,
++     "summary": null,
++   },
+  ]
+
+ ❯ tests/skill-context.test.ts:453:44
+    451|   const rec5=recordingDb(h.db);
+    452|   const again=await build(pm,input,both,rec5.db);
+    453|   expect(kinds(again,'document_revision')).toEqual([pointer(r[2]),cont…
+       |                                            ^
+    454|   absent(again,rec5,7,8);
+    455|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 passed (22)
+   Start at  15:46:03
+   Duration  10.90s (tests 99%)
+

@@ -1,0 +1,44 @@
+Task 1 (OQ-53, migration 023, intake half): the existing suites run again with 023 present, one file at a time.
+Engine pglite = no SLICE1_* variable (PostgreSQL 18.6 in memory); native = PostgreSQL 16.15 in the isolated container. Lines are the vitest summary of each raw log.
+== pglite ==
+rls-catalog                 Tests 1 passed (1) | hook-timeouts 0
+intake                      Tests 49 passed (49) | hook-timeouts 0
+intake-schema               Tests 16 passed | 1 skipped (17) | hook-timeouts 0
+intake-scoped               Tests 1 passed (1) | hook-timeouts 0
+intake-concurrency          Tests 2 skipped (2) | hook-timeouts 0
+inbox-service               Tests 26 passed | 1 skipped (27) | hook-timeouts 0
+outbox                      Tests 29 passed (29) | hook-timeouts 0
+bridge-limits               Tests 9 passed (9) | hook-timeouts 0
+inbox-http                  Tests 7 passed (7) | hook-timeouts 0
+ledger-reconcile            Tests 7 passed (7) | hook-timeouts 0
+outbox-crash                Tests 4 skipped (4) | hook-timeouts 0
+outbox-schema               Tests 46 passed | 2 skipped (48) | hook-timeouts 0
+skill-context               Tests 20 passed (20) | hook-timeouts 0
+source-text                 Tests 31 passed (31) | hook-timeouts 0
+slice3-bom-events           Tests 8 passed (8) | hook-timeouts 0
+z4-schema                   Tests 23 passed | 2 skipped (25) | hook-timeouts 0
+z4-pointer-guard            Tests 28 passed | 11 skipped (39) | hook-timeouts 0
+suggestions                 Tests 109 passed | 1 skipped (110) | hook-timeouts 0
+intake-slo                  Tests 1 skipped (1) | hook-timeouts 0
+suggestions-concurrency     Tests 9 skipped (9) | hook-timeouts 0
+== native ==
+rls-catalog                 Tests 1 passed (1) | hook-timeouts 0
+intake                      Tests 49 passed (49) | hook-timeouts 0
+intake-schema               Tests 17 passed (17) | hook-timeouts 0
+intake-scoped               Tests 1 passed (1) | hook-timeouts 0
+intake-concurrency          Tests 2 passed (2) | hook-timeouts 0
+inbox-service               Tests 27 passed (27) | hook-timeouts 0
+outbox                      Tests 29 passed (29) | hook-timeouts 0
+bridge-limits               Tests 9 passed (9) | hook-timeouts 0
+inbox-http                  Tests 7 passed (7) | hook-timeouts 0
+ledger-reconcile            Tests 7 passed (7) | hook-timeouts 0
+outbox-crash                Tests 4 passed (4) | hook-timeouts 0
+outbox-schema               Tests 48 passed (48) | hook-timeouts 0
+skill-context               Tests 20 passed (20) | hook-timeouts 0
+source-text                 Tests 31 passed (31) | hook-timeouts 0
+slice3-bom-events           Tests 8 passed (8) | hook-timeouts 0
+z4-schema                   Tests 25 passed (25) | hook-timeouts 0
+z4-pointer-guard            Tests 39 passed (39) | hook-timeouts 0
+suggestions                 Tests 110 passed (110) | hook-timeouts 0
+intake-slo                  Tests 1 passed (1) | hook-timeouts 0
+suggestions-concurrency     Tests 9 passed (9) | hook-timeouts 0

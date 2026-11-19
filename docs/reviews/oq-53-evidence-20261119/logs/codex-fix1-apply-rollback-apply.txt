@@ -1,0 +1,56 @@
+Codex fix 1: apply, roll back, apply again, 023 on the isolated database (PostgreSQL 16.15), the files as they are after the fix. psql, ON_ERROR_STOP.
+
+-- start (023 not applied)
+   -[ RECORD 1 ]-+-------------------------------------
+   recorded      | 0
+   heads         | f
+   positions     | f
+   guard_fn      | f
+   col           | 0
+   has_new_check | f
+   triggers      | draft_decisions_pointer_only_guard:O
+   
+-- apply 023
+COMMIT
+   -[ RECORD 1 ]-+--------------------------------------------------------------------------------------------------------------------
+   recorded      | 1
+   heads         | t
+   positions     | t
+   guard_fn      | t
+   col           | 1
+   has_new_check | t
+   triggers      | draft_decisions_pointer_only_guard:O,draft_decisions_subject_order_guard:O,source_event_revisions_thread_position:O
+   
+-- roll back 023
+COMMIT
+   -[ RECORD 1 ]-+-------------------------------------
+   recorded      | 0
+   heads         | f
+   positions     | f
+   guard_fn      | f
+   col           | 0
+   has_new_check | f
+   triggers      | draft_decisions_pointer_only_guard:O
+   
+-- apply 023 again
+COMMIT
+   -[ RECORD 1 ]-+--------------------------------------------------------------------------------------------------------------------
+   recorded      | 1
+   heads         | t
+   positions     | t
+   guard_fn      | t
+   col           | 1
+   has_new_check | t
+   triggers      | draft_decisions_pointer_only_guard:O,draft_decisions_subject_order_guard:O,source_event_revisions_thread_position:O
+   
+-- apply a third time (idempotent)
+COMMIT
+   -[ RECORD 1 ]-+--------------------------------------------------------------------------------------------------------------------
+   recorded      | 1
+   heads         | t
+   positions     | t
+   guard_fn      | t
+   col           | 1
+   has_new_check | t
+   triggers      | draft_decisions_pointer_only_guard:O,draft_decisions_subject_order_guard:O,source_event_revisions_thread_position:O
+   

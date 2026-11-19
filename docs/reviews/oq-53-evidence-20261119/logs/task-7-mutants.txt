@@ -1,0 +1,156 @@
+# Task 7 mutants (OQ-53): one change at a time, applied, run, put back, and compared byte for byte with the saved copy (cmp: identical after each).
+# m1-m10 change src/server/suggestions.ts; m11 changes src/server/source-text.ts (rule 3 of the freshness check) and is NOT part of the list of the task: it shows that N12 and N14 depend on the thread number.
+# Engines: pglite = PostgreSQL 18.6 in memory, native = PostgreSQL 16.15 in the isolated container (database slice1_verify_531119 with migration 023 as of dd8ee26; no migration was touched).
+# Original: tests/suggestions.test.ts 115 passed | 1 skipped (PGlite), 116 passed (native); tests/thread-order-concurrency.test.ts 24 passed; tests/suggestions-concurrency.test.ts 9 passed (native).
+# Each block: label and description of the change, then per file the result line, the number of hook timeouts ('timed out|PGlite is closed'), the number of '^AssertionError' lines, and the red cases (first characters of the name).
+# "other:" lines are errors that are not assertions and were thrown out of the red cases: a hold that is the wrong hold, or a database error that went out raw (vitest prints identical errors once).
+# Cases that stayed green are not listed. Mutants that made no case red: none.
+#
+# Change per label (old -> new):
+# m1   randomUUID(),threadNumber])  ->  randomUUID(),null])                                             no position is passed
+# m2   threadNumber=confirmed&&candidate?subjectPosition:null  ->  candidate?(subjectPosition??'1'):null  a rejection carries a position
+# m3   if(confirmed&&candidate&&code===SUBJECT_ORDER_SQLSTATE)  ->  if(false&&code===SUBJECT_ORDER_SQLSTATE)   LTZ03 is not translated
+# m3n  same as m3, run on native tests/suggestions.test.ts (K3 with the arrival on a second connection)
+# m4   'SUBJECT_CHANGED.' in the LTZ03 hold  ->  'POINTER_ONLY_PROJECT.'                                  LTZ03 becomes another code
+# m5   a line `if(candidate) reasons.add('SUBJECT_ORDER_' + 'UNVERIFIED')` put back before the hold          the retired placeholder is left in decide
+# m6   present(...,contexts,known)  ->  present(...,contexts)                                              the answer scans the message tables after the write (K4)
+# m7   `throw e;` before the code of the error is read                                                    no catch path: every error of the decision row goes out raw
+# m8   hiddenThread:new Map(threadHidden...)  ->  hiddenThread:new Map()                                  known carries no thread result
+# m9   hiddenProject:projectHidden  ->  hiddenProject:undefined                                            known carries no project result
+# m10  ?subjectPosition:null  ->  ?'1':null                                                               the position written is the constant 1
+# m11  source-text.ts: changed=...||baseline===null||head===null||head!==baseline  ->  changed=not_latest||unnumbered   rule 3 (thread number) of the freshness check removed
+#
+MUTANT m1  no position is passed: the decision row carries NULL
+  [pglite suggestions] Tests  14 failed | 101 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 0
+    red: × the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a me
+    red: × R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both re
+    red: × F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown t
+    red: × replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision
+    red: × (e) a rejection and a candidate confirmation now claim their key: the same person reusing it for another draft is IDEMPOTE
+    red: × L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is d
+    red: × dừng tại OQ-55: a replayed confirmation of a candidate draft answers with the recorded decision and no content once th
+    red: × a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, th
+    red: × a message the draft does not name, recorded before the newest one it names, does not hold it
+    red: × J1 an edit that arrives after the draft holds it as SUBJECT_CHANGED; an edit the draft read does not hold it; naming the o
+    red: × J2 a draft that names a message of its thread without its revision has no baseline
+    red: × a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives
+    red: × K1 a candidate draft that names the newest revision of every message it cites is confirmed: one decision that carries the 
+    red: × K4 after the decision row is written a confirmation reads no message table: its answer is built from what it already check
+    other:    1 Error: Nháp được giữ lại, chưa xác nhận được: SUBJECT_CHANGED.
+  [native thread-order-concurrency] Tests  4 failed | 20 passed (24) | hook-timeouts: 0 | ^AssertionError lines: 3
+    red: × N12 the reverse-commit gap is closed: a message whose intake transaction began before the draft's message and committed af
+    red: × N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stay
+    red: × N14 a confirmation in flight makes an intake of the thread wait; both commit; a second draft that names the old message is
+    red: × N15 a confirmation that waits past the cap fails with the database error 55P03 and writes nothing; the same command succee
+    other:    1 AppError {
+    other:    1 Error: Nháp được giữ lại, chưa xác nhận được: SUBJECT_CHANGED.
+  restored: cmp identical
+
+MUTANT m2  the decision row of a rejection of a candidate draft carries a position
+  [pglite suggestions] Tests  11 failed | 104 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both re
+    red: × L6 one rule for reading and deciding: a role reads the content of a draft exactly when it may decide it
+    red: × M7 decide answers with the same masked view: a rejection by a manager who cannot read the cited text is recorded, and its 
+    red: × H4 for a person to whom the content is shown the hash is still required: none, or a wrong one, is REVISION_CONFLICT
+    red: × dừng tại OQ-55: what is masked for that reason cannot be confirmed either
+    red: × a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives
+    red: × K2 a rejection and a document confirmation write no thread position
+    red: × K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+    red: × K4 after the decision row is written a confirmation reads no message table: its answer is built from what it already check
+    red: × the manager reads the content of a candidate draft and can reject it
+    red: × the fault of the command is answered after the authority, the decided state and the value hash, never before them
+    other:    1 error: new row for relation "draft_decisions" violates check constraint "draft_decisions_thread_seq_only_confirmed"
+  restored: cmp identical
+
+MUTANT m3  LTZ03 is not translated
+  [pglite suggestions] Tests  1 failed | 114 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+  [native thread-order-concurrency] Tests  1 failed | 23 passed (24) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stay
+  restored: cmp identical
+
+MUTANT m4  LTZ03 is translated into another code (POINTER_ONLY_PROJECT)
+  [pglite suggestions] Tests  1 failed | 114 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+  [native thread-order-concurrency] Tests  1 failed | 23 passed (24) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stay
+  restored: cmp identical
+
+MUTANT m5  the order placeholder line is left in decide
+  [pglite suggestions] Tests  19 failed | 96 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 8
+    red: × the confirmer's own scope decides: a draft citing a source the confirmer cannot read, a source of another project, or a me
+    red: × R12-e authority: a document draft needs the document ledger rule, a candidate draft needs the project manager, for both re
+    red: × F12-2 a message cited only in sources, or only through duplicateOf, is held once its text is hidden; with the text shown t
+    red: × replay after a change of role: lost project or viewer is the 404; a manager lowered to engineer gets the recorded decision
+    red: × (e) a rejection and a candidate confirmation now claim their key: the same person reusing it for another draft is IDEMPOTE
+    red: × L8 decide answers a reader without the authority the same way whatever valueHash is sent and whether or not the draft is d
+    red: × H8 when a mask reason holds a draft, the hold of a confirmation names only the mask reasons
+    red: × dừng tại OQ-55: a replayed confirmation of a candidate draft answers with the recorded decision and no content once th
+    red: × a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, th
+    red: × a message the draft does not name, recorded before the newest one it names, does not hold it
+    red: × J1 an edit that arrives after the draft holds it as SUBJECT_CHANGED; an edit the draft read does not hold it; naming the o
+    red: × J2 a draft that names a message of its thread without its revision has no baseline
+    red: × J3 the retired edit-hold code and the retired order-hold code are no longer in src
+    red: × a candidate draft that names no message of its own thread is held as SUBJECT_BASELINE_MISSING
+    red: × a held candidate draft can still be rejected; a recorded confirmation replays unchanged after a new message arrives
+    red: × K1 a candidate draft that names the newest revision of every message it cites is confirmed: one decision that carries the 
+    red: × K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+    red: × K4 after the decision row is written a confirmation reads no message table: its answer is built from what it already check
+    red: × every other check still runs: when no mask reason holds the draft each names its code, and when one does the hold names th
+    other:    1 Error: Nháp được giữ lại, chưa xác nhận được: SUBJECT_ORDER_UNVERIFIED.
+  restored: cmp identical
+
+MUTANT m6  present is not given what the confirmation checked: it scans the message tables after the write
+  [pglite suggestions] Tests  1 failed | 114 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × K4 after the decision row is written a confirmation reads no message table: its answer is built from what it already check
+  restored: cmp identical
+
+MUTANT m7  no catch path: every database error of the decision row goes out raw
+  [pglite suggestions] Tests  2 failed | 113 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 2
+    red: × X1 a confirmation whose project became pointer-only after the service's own check is held as POINTER_ONLY_PROJECT by the g
+    red: × K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+  [native thread-order-concurrency] Tests  1 failed | 23 passed (24) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stay
+  [native suggestions-concurrency] Tests  1 failed | 8 passed (9) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × a confirmation that waited for an uncommitted IBS_HI mapping of its project is held as POINTER_ONLY_PROJECT; nothing of it
+  restored: cmp identical
+
+MUTANT m8  known carries no thread result: the answer of a candidate confirmation scans its thread
+  [pglite suggestions] Tests  1 failed | 114 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × K4 after the decision row is written a confirmation reads no message table: its answer is built from what it already check
+  restored: cmp identical
+
+MUTANT m9  known carries no project result: the answer scans the project
+  [pglite suggestions] Tests  1 failed | 114 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × K4 after the decision row is written a confirmation reads no message table: its answer is built from what it already check
+  restored: cmp identical
+
+MUTANT m10  the position written is the constant 1 instead of the number the check read
+  [pglite suggestions] Tests  5 failed | 110 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 0
+    red: × a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, th
+    red: × a message the draft does not name, recorded before the newest one it names, does not hold it
+    red: × J1 an edit that arrives after the draft holds it as SUBJECT_CHANGED; an edit the draft read does not hold it; naming the o
+    red: × J2 a draft that names a message of its thread without its revision has no baseline
+    red: × K1 a candidate draft that names the newest revision of every message it cites is confirmed: one decision that carries the 
+    other:    1 Error: Nháp được giữ lại, chưa xác nhận được: SUBJECT_CHANGED.
+  [native thread-order-concurrency] Tests  1 failed | 23 passed (24) | hook-timeouts: 0 | ^AssertionError lines: 0
+    red: × N12 the reverse-commit gap is closed: a message whose intake transaction began before the draft's message and committed af
+    other:    1 Error: Nháp được giữ lại, chưa xác nhận được: SUBJECT_CHANGED.
+  restored: cmp identical
+
+MUTANT m3n  LTZ03 is not translated (native, the K3 case on a second connection)
+  [native suggestions] Tests  1 failed | 115 passed (116) | hook-timeouts: 0 | ^AssertionError lines: 1
+    red: × K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+  restored: cmp identical
+
+MUTANT m11  threadFreshness ignores the thread number (rule 3 of the plan removed): only the latest-revision and unnumbered rules are left
+  [pglite suggestions] Tests  4 failed | 111 passed | 1 skipped (116) | hook-timeouts: 0 | ^AssertionError lines: 4
+    red: × H8 when a mask reason holds a draft, the hold of a confirmation names only the mask reasons
+    red: × a candidate draft is held once its thread has a message recorded after the newest message the draft names: no decision, th
+    red: × J4 the subject check hands back the number of the thread it read, for a candidate draft only, and reasons that are codes
+    red: × every other check still runs: when no mask reason holds the draft each names its code, and when one does the hold names th
+  [native thread-order-concurrency] Tests  2 failed | 22 passed (24) | hook-timeouts: 0 | ^AssertionError lines: 2
+    red: × N12 the reverse-commit gap is closed: a message whose intake transaction began before the draft's message and committed af
+    red: × N14 a confirmation in flight makes an intake of the thread wait; both commit; a second draft that names the old message is
+  restored: cmp identical
+

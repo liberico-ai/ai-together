@@ -1,0 +1,316 @@
+== (0) drop and recreate the scratch database (own database, created in this task)
+DROP DATABASE
+CREATE DATABASE
+rc=0
+== (0b) apply 001-023 through the harness (tests/thread-order.test.ts, native, scratch DB only)
+target=scratch-only
+ Test Files  1 passed (1)
+      Tests  30 passed (30)
+harness_rc=0
+== (a) catalog after forward apply
+Output format is aligned.
+== triggers (tgenabled O = fires in session_replication_role origin)
+                 tgname                 |        on_table        | tgenabled | row_level | before_trg | on_insert |                    fn                    
+----------------------------------------+------------------------+-----------+-----------+------------+-----------+------------------------------------------
+ draft_decisions_subject_order_guard    | draft_decisions        | O         | t         | f          | t         | draft_decisions_subject_order_guard()
+ source_event_revisions_thread_position | source_event_revisions | O         | t         | f          | t         | source_event_revisions_thread_position()
+(2 rows)
+
+== functions (prosecdef, proconfig, owner, owner superuser)
+                    fn                    | prosecdef |                              proconfig                               |     owner     | owner_is_super 
+------------------------------------------+-----------+----------------------------------------------------------------------+---------------+----------------
+ source_event_revisions_thread_position() | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s} | oq53_operator | t
+ draft_decisions_subject_order_guard()    | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s} | oq53_operator | t
+(2 rows)
+
+== function ACL (expect owner-only, no EXECUTE for other roles)
+                proname                 |             proacl              
+----------------------------------------+---------------------------------
+ source_event_revisions_thread_position | {oq53_operator=X/oq53_operator}
+ draft_decisions_subject_order_guard    | {oq53_operator=X/oq53_operator}
+(2 rows)
+
+== EXECUTE grant check for PUBLIC and libetech_runtime, libetech_ai (if present)
+                proname                 | public_exec | runtime_role_exists | runtime_exec 
+----------------------------------------+-------------+---------------------+--------------
+ source_event_revisions_thread_position | f           |                   1 | false
+ draft_decisions_subject_order_guard    | f           |                   1 | false
+(2 rows)
+
+== RLS on the new tables and policies
+          relname          | relrowsecurity | relforcerowsecurity | runtime_select_policies | all_policies 
+---------------------------+----------------+---------------------+-------------------------+--------------
+ intake_thread_heads       | t              | t                   |                       1 |            1
+ source_revision_positions | t              | t                   |                       1 |            1
+(2 rows)
+
+== revisions without a number (expect 0)
+ revisions_total | without_number 
+-----------------+----------------
+               0 |              0
+(1 row)
+
+== per thread: counter row last_seq vs count of numbered revisions (mismatch expect 0)
+ threads | mismatched | max_mismatched 
+---------+------------+----------------
+       0 |          0 |              0
+(1 row)
+
+== draft_decisions.subject_thread_seq column
+    column_name     | data_type 
+--------------------+-----------
+ subject_thread_seq | bigint
+(1 row)
+
+catalog_a_rc=0
+== (b) rollback 023
+BEGIN
+SET
+SET
+DO
+DELETE 1
+COMMIT
+rollback_rc=0
+-- object counts after rollback (expect all 0)
+tables=0
+functions=0
+triggers=0
+column=0
+counts_b_rc=0
+== (c) forward apply 023 after rollback
+BEGIN
+SET
+DO
+LOCK TABLE
+LOCK TABLE
+DO
+CREATE TABLE
+NOTICE:  trigger "intake_thread_heads_no_delete" for relation "public.intake_thread_heads" does not exist, skipping
+DROP TRIGGER
+CREATE TRIGGER
+CREATE TABLE
+NOTICE:  trigger "source_revision_positions_immutable" for relation "public.source_revision_positions" does not exist, skipping
+DROP TRIGGER
+CREATE TRIGGER
+COMMENT
+COMMENT
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+DROP POLICY
+NOTICE:  policy "runtime_select" for relation "public.intake_thread_heads" does not exist, skipping
+CREATE POLICY
+NOTICE:  policy "runtime_select" for relation "public.source_revision_positions" does not exist, skipping
+DROP POLICY
+CREATE POLICY
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+DO
+INSERT 0 0
+CREATE TRIGGER
+ANALYZE
+ALTER TABLE
+COMMENT
+DO
+GRANT
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+NOTICE:  trigger "draft_decisions_subject_order_guard" for relation "public.draft_decisions" does not exist, skipping
+CREATE TRIGGER
+DO
+INSERT 0 1
+COMMIT
+apply_c_rc=0
+-- catalog after (c)
+Output format is aligned.
+== triggers (tgenabled O = fires in session_replication_role origin)
+                 tgname                 |        on_table        | tgenabled | row_level | before_trg | on_insert |                    fn                    
+----------------------------------------+------------------------+-----------+-----------+------------+-----------+------------------------------------------
+ draft_decisions_subject_order_guard    | draft_decisions        | O         | t         | f          | t         | draft_decisions_subject_order_guard()
+ source_event_revisions_thread_position | source_event_revisions | O         | t         | f          | t         | source_event_revisions_thread_position()
+(2 rows)
+
+== functions (prosecdef, proconfig, owner, owner superuser)
+                    fn                    | prosecdef |                              proconfig                               |  owner   | owner_is_super 
+------------------------------------------+-----------+----------------------------------------------------------------------+----------+----------------
+ draft_decisions_subject_order_guard()    | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s} | postgres | t
+ source_event_revisions_thread_position() | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s} | postgres | t
+(2 rows)
+
+== function ACL (expect owner-only, no EXECUTE for other roles)
+                proname                 |        proacl         
+----------------------------------------+-----------------------
+ draft_decisions_subject_order_guard    | {postgres=X/postgres}
+ source_event_revisions_thread_position | {postgres=X/postgres}
+(2 rows)
+
+== EXECUTE grant check for PUBLIC and libetech_runtime, libetech_ai (if present)
+                proname                 | public_exec | runtime_role_exists | runtime_exec 
+----------------------------------------+-------------+---------------------+--------------
+ draft_decisions_subject_order_guard    | f           |                   1 | false
+ source_event_revisions_thread_position | f           |                   1 | false
+(2 rows)
+
+== RLS on the new tables and policies
+          relname          | relrowsecurity | relforcerowsecurity | runtime_select_policies | all_policies 
+---------------------------+----------------+---------------------+-------------------------+--------------
+ intake_thread_heads       | t              | t                   |                       1 |            1
+ source_revision_positions | t              | t                   |                       1 |            1
+(2 rows)
+
+== revisions without a number (expect 0)
+ revisions_total | without_number 
+-----------------+----------------
+               0 |              0
+(1 row)
+
+== per thread: counter row last_seq vs count of numbered revisions (mismatch expect 0)
+ threads | mismatched | max_mismatched 
+---------+------------+----------------
+       0 |          0 |              0
+(1 row)
+
+== draft_decisions.subject_thread_seq column
+    column_name     | data_type 
+--------------------+-----------
+ subject_thread_seq | bigint
+(1 row)
+
+catalog_c_rc=0
+== (d) forward apply 023 a second time (idempotent)
+BEGIN
+SET
+DO
+LOCK TABLE
+LOCK TABLE
+DO
+CREATE TABLE
+NOTICE:  relation "intake_thread_heads" already exists, skipping
+DROP TRIGGER
+CREATE TRIGGER
+NOTICE:  relation "source_revision_positions" already exists, skipping
+CREATE TABLE
+DROP TRIGGER
+CREATE TRIGGER
+COMMENT
+COMMENT
+NOTICE:  relation "idx_intake_thread_heads_scope_created" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "idx_intake_thread_heads_project_fk" already exists, skipping
+CREATE INDEX
+CREATE INDEX
+NOTICE:  relation "idx_source_revision_positions_scope_created" already exists, skipping
+CREATE INDEX
+ALTER TABLE
+NOTICE:  relation "idx_source_revision_positions_project_fk" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+DROP POLICY
+CREATE POLICY
+DROP POLICY
+CREATE POLICY
+REVOKE
+GRANT
+CREATE FUNCTION
+REVOKE
+DO
+INSERT 0 0
+CREATE TRIGGER
+ANALYZE
+NOTICE:  column "subject_thread_seq" of relation "draft_decisions" already exists, skipping
+ALTER TABLE
+COMMENT
+DO
+GRANT
+CREATE FUNCTION
+REVOKE
+DROP TRIGGER
+CREATE TRIGGER
+DO
+INSERT 0 0
+COMMIT
+apply_d_rc=0
+-- catalog after (d) (must equal (c))
+Output format is aligned.
+== triggers (tgenabled O = fires in session_replication_role origin)
+                 tgname                 |        on_table        | tgenabled | row_level | before_trg | on_insert |                    fn                    
+----------------------------------------+------------------------+-----------+-----------+------------+-----------+------------------------------------------
+ draft_decisions_subject_order_guard    | draft_decisions        | O         | t         | f          | t         | draft_decisions_subject_order_guard()
+ source_event_revisions_thread_position | source_event_revisions | O         | t         | f          | t         | source_event_revisions_thread_position()
+(2 rows)
+
+== functions (prosecdef, proconfig, owner, owner superuser)
+                    fn                    | prosecdef |                              proconfig                               |  owner   | owner_is_super 
+------------------------------------------+-----------+----------------------------------------------------------------------+----------+----------------
+ draft_decisions_subject_order_guard()    | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s} | postgres | t
+ source_event_revisions_thread_position() | t         | {"search_path=pg_catalog, pg_temp",row_security=off,lock_timeout=5s} | postgres | t
+(2 rows)
+
+== function ACL (expect owner-only, no EXECUTE for other roles)
+                proname                 |        proacl         
+----------------------------------------+-----------------------
+ draft_decisions_subject_order_guard    | {postgres=X/postgres}
+ source_event_revisions_thread_position | {postgres=X/postgres}
+(2 rows)
+
+== EXECUTE grant check for PUBLIC and libetech_runtime, libetech_ai (if present)
+                proname                 | public_exec | runtime_role_exists | runtime_exec 
+----------------------------------------+-------------+---------------------+--------------
+ draft_decisions_subject_order_guard    | f           |                   1 | false
+ source_event_revisions_thread_position | f           |                   1 | false
+(2 rows)
+
+== RLS on the new tables and policies
+          relname          | relrowsecurity | relforcerowsecurity | runtime_select_policies | all_policies 
+---------------------------+----------------+---------------------+-------------------------+--------------
+ intake_thread_heads       | t              | t                   |                       1 |            1
+ source_revision_positions | t              | t                   |                       1 |            1
+(2 rows)
+
+== revisions without a number (expect 0)
+ revisions_total | without_number 
+-----------------+----------------
+               0 |              0
+(1 row)
+
+== per thread: counter row last_seq vs count of numbered revisions (mismatch expect 0)
+ threads | mismatched | max_mismatched 
+---------+------------+----------------
+       0 |          0 |              0
+(1 row)
+
+== draft_decisions.subject_thread_seq column
+    column_name     | data_type 
+--------------------+-----------
+ subject_thread_seq | bigint
+(1 row)
+
+catalog_d_rc=0
+== (e) rollback 022 while 023 is recorded (expect REFUSAL)
+BEGIN
+SET
+ERROR:  Roll back the later migrations before 022.
+CONTEXT:  PL/pgSQL function inline_code_block line 3 at RAISE
+rollback_022_rc=3
+-- object counts after (e) (expect unchanged: 2/2/2/1)
+tables=2
+functions=2
+triggers=2
+column=1
+counts_e_rc=0
+-- schema_migrations versions 021-023
+021
+022
+023
+== cleanup: drop scratch database
+DROP DATABASE
+drop_rc=0
