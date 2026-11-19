@@ -1,0 +1,24 @@
+Codex gate round 1 (P1), fix 1: checks that the new check and its cases are sensitive.
+Each mutant is an edit of one or two places in migrations/023_thread_order.sql, applied in place, run, and put back; the file was compared byte for byte with the saved original after
+every mutant (cmp: identical). For a native run the isolated database was emptied (the table list of tests/slice1-db.ts), the triggers that a case had left switched off were turned on
+again, and 023 was rolled back, before and after the run.
+Engines: pglite = PostgreSQL 18.6 in memory, native = PostgreSQL 16.15 in the isolated container. Only the cases that went red are listed.
+
+mutant               what changed                                          files run (engine)                     cases that went red
+no-check             the new check removed                                 thread-order (pglite)                  B10
+                                                                           suggestions (pglite)                   K3b
+                                                                           thread-order-concurrency (native)      N23
+check-no-project     the check looks at the thread without the project     thread-order (pglite)                  B10 (the revision without a number that another project has under the same
+                     of the decision                                                                              chat and thread key)
+check-no-tenant      the check looks at the thread without the tenant      thread-order (pglite)                  none: EQUIVALENT. A project fixes its tenant (projects.id is the key, and the
+                     of the decision                                                                              foreign keys of the three tables are (project_id, tenant_id)); with the project
+                                                                                                                  filter in place the tenant filter excludes nothing.
+check-before-lock    the check made before the lock on the counter row     thread-order-concurrency (native)      N23 (a revision without a number committed while the confirmation waits for the lock)
+check-event-level    the check asks whether the message has a number,      thread-order (pglite)                  B10 (an edit, revision 2 of a message whose revision 1 is numbered)
+                     not whether the revision has one                      suggestions (pglite)                   none: K3b stores a new message, which has no number at the event level either
+check-wrong-code     the check answers LTZ02 instead of LTZ03             thread-order (pglite)                  B10
+                                                                           suggestions (pglite)                   K3b (the service turns LTZ03 into the hold; any other code goes out raw)
+
+Not mutated, said why:
+- The order of the new check and the comparison of last_seq (both after the lock): either order gives the same answer, so a swap is equivalent.
+- N22 pins a limit, not a rule: it is green on the file as it is and goes red only if the limit is closed (then the header of 023 has to change).

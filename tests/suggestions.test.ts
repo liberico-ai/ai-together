@@ -1738,15 +1738,18 @@ const beforeStatementTx=(db:Database,pattern:RegExp,hook:(tx:Queryable)=>Promise
  }})),close:()=>db.close()};
 };
 let arrivals=0;
-/** One more message in the thread of the candidate, stored by raw SQL the way the intake stores one (the trigger of migration 023 numbers it). */
-async function arrive(tx:Queryable,c:{candidateId:string}):Promise<void> {
+/** One more message in the thread of the candidate, stored by raw SQL the way the intake stores one (the trigger of migration 023 numbers it). With `unnumbered` the session does not fire
+ * the numbering trigger (session_replication_role = replica, as a restore does): the message is stored and has no number. */
+async function arrive(tx:Queryable,c:{candidateId:string},unnumbered=false):Promise<void> {
  arrivals+=1;
  const message=String(7000000+arrivals);
+ if(unnumbered) await tx.query('SET LOCAL session_replication_role = replica');
  const t=(await tx.query<{chat_id:string;thread_key:string}>('SELECT chat_id,thread_key FROM intake_candidates WHERE id=$1',[c.candidateId])).rows[0];
  const e=(await tx.query<{id:string}>(`INSERT INTO source_events(tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
   VALUES($1,$2,$3,'telegram_gateway',80,$4,$5,$6,'actor-1',now(),false,false,$7,$7) RETURNING id`,[ids.tenant,ids.sales,'gw-'+message,t.chat_id,message,t.thread_key,randomUUID()])).rows[0].id;
  await tx.query(`INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,content_mode) VALUES($1,$2,$3,1,$4,$5,'pointer_only')`,
   [ids.tenant,ids.sales,e,'7'.repeat(64),'b'.repeat(64)]);
+ if(unnumbered) await tx.query('RESET session_replication_role');
 }
 
 describe('Z4 drafts: a candidate draft is confirmed only against the thread it read (OQ-53)',()=>{
@@ -1798,6 +1801,31 @@ describe('Z4 drafts: a candidate draft is confirmed only against the thread it r
   expect(Object.keys(e).sort()).toEqual(['code','status']);
   await zeroDecisions();
   expect(await n('document_commands')).toBe(cmds);
+  // the key stays free: a rejection with it is stored, and it carries no position
+  const v=await decide(svc(),pm,c.draftId,confirmRejected(c,'Lý do đủ dài'),key);
+  expect(v.decision?.result).toBe('rejected');
+  expect(await rows('SELECT result,subject_thread_seq FROM draft_decisions')).toEqual([{result:'rejected',subject_thread_seq:null}]);
+ });
+
+ // Codex gate, round 1 (P1): the comparison of last_seq alone does not see a revision that the numbering trigger never saw. The service checked the thread (every revision numbered, the mark current),
+ // then a session that does not fire the trigger stores a message and commits: the counter row does not move. The trigger of the decision table checks that every revision of the thread has a number.
+ test('K3b a message without a number, committed after the checks of the service and before its write, is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text',async()=>{
+  const c=await candDraft(),key=k(),cmds=await n('document_commands');
+  const racing=new SuggestionService(beforeStatementTx(h.db,/INSERT INTO draft_decisions/,async tx=>{
+   if(native) {await h.operator.transaction(t=>arrive(t,c,true));return;}
+   await tx.query('RESET ROLE');
+   await arrive(tx,c,true);
+   await tx.query('SET LOCAL ROLE libetech_runtime');
+  }),h.operator,chats);
+  const e=await heldOnly(decide(racing,pm,c.draftId,body(c.valueHash),key),'SUBJECT_CHANGED');
+  expect(e.message).not.toMatch(/LTZ03|thread|[0-9a-f]{8}-/);
+  expect(e).toBeInstanceOf(AppError);expect((e as {cause?:unknown}).cause).toBeUndefined();
+  expect(Object.keys(e).sort()).toEqual(['code','status']);
+  await zeroDecisions();
+  expect(await n('document_commands')).toBe(cmds);
+  // native: the message was committed on another connection and stays, without a number; PGlite: it was stored in the command's own transaction and went with the refusal
+  const unnumbered=(await rows<{n:string}>('SELECT count(*) n FROM source_event_revisions r WHERE NOT EXISTS (SELECT 1 FROM source_revision_positions p WHERE p.revision_id=r.id)'))[0].n;
+  expect(Number(unnumbered)).toBe(native?1:0);
   // the key stays free: a rejection with it is stored, and it carries no position
   const v=await decide(svc(),pm,c.draftId,confirmRejected(c,'Lý do đủ dài'),key);
   expect(v.decision?.result).toBe('rejected');

@@ -1013,3 +1013,64 @@ test.skipIf(!native)('H2 the case that follows finds both on: the hooks put them
   expect(await q("SELECT tgname,tgenabled FROM pg_trigger WHERE tgname IN ('draft_decisions_pointer_only_guard','source_event_revisions_thread_position') AND NOT tgisinternal ORDER BY 1"))
     .toEqual([{tgname:'draft_decisions_pointer_only_guard',tgenabled:'O'},{tgname:'source_event_revisions_thread_position',tgenabled:'O'}]);
 });
+
+// ---- Codex gate, round 1 (P1): a revision that no number was given to ----
+// The comparison of last_seq sees only revisions that the numbering trigger saw: a revision that a session wrote without firing it (a restore, session_replication_role = replica, the trigger
+// switched off and on again in one transaction) does not move the counter row, so the position that the service read still equals it. The trigger of the decision table also checks that
+// every revision of the thread of the candidate has a number (the invariant of rule 4 of the service, at the database, for the one case where the counter cannot say it).
+/** A revision that stays without a number, committed. `how`: replica = session_replication_role (a restore); trigger = the numbering trigger switched off and on again in one transaction (T16). */
+const leaveUnnumbered=(how:'replica'|'trigger',project:string,event:string,no:number)=>h.operator.transaction(async tx=>{
+  if(how==='replica') await tx.query('SET LOCAL session_replication_role = replica');
+  else await tx.query('ALTER TABLE public.source_event_revisions DISABLE TRIGGER source_event_revisions_thread_position');
+  await tx.query(revSql,[ids.tenant,project,event,no,hex(String(no)),hex('b')]);
+  if(how==='trigger') await tx.query('ALTER TABLE public.source_event_revisions ENABLE TRIGGER source_event_revisions_thread_position');
+});
+const unnumberedCount=async()=>(await q<{n:number}>('SELECT count(*)::int n FROM source_event_revisions r WHERE NOT EXISTS (SELECT 1 FROM source_revision_positions p WHERE p.revision_id=r.id)'))[0].n;
+const eventOf=async(chat:string,message:string)=>(await q<{id:string}>('SELECT id FROM source_events WHERE chat_id=$1 AND message_id=$2',[chat,message]))[0].id;
+
+test('B10 a confirmation is refused while any revision of the thread of the candidate has no number, whatever position it carries; the check is about that thread only',async()=>{
+  const a=await realCandidate();await anotherMessage(a);
+  const posA=await position(a.thread),root=await eventOf(chatSales,a.event.context.messageId);
+  const draftA=await draftOf('intake_candidate',a.id);
+  expect(await unnumberedCount()).toBe(0);
+  // the service read the position of the thread; then a session that does not fire the numbering trigger commits one more revision of it: the counter row does not move
+  await leaveUnnumbered('replica',ids.sales,root,2);
+  expect(await unnumberedCount()).toBe(1);
+  expect(await position(a.thread)).toBe(posA);
+  const headsBefore=await heads();
+  const e=await decide(draftA,{subject_thread_seq:posA});
+  expect(e).not.toBeNull();
+  expect(e!.code).toBe('LTZ03');
+  expect(e!.message).toBe('The thread of the candidate moved on');
+  const said=[e!.message,e!.detail,e!.hint].filter(Boolean).join(' ');
+  expect(said).not.toMatch(/[0-9a-f]{8}-/);
+  expect(said).not.toMatch(/[0-9]/);
+  expect(await decisionCount()).toBe(0);
+  expect(await heads()).toEqual(headsBefore);
+  // the other way to leave a revision without a number: the trigger off and on again in one transaction (T16)
+  await leaveUnnumbered('trigger',ids.sales,root,3);
+  expect(await unnumberedCount()).toBe(2);
+  expect((await decide(draftA,{subject_thread_seq:posA}))?.code).toBe('LTZ03');
+  expect(await decisionCount()).toBe(0);
+  // the check is about the thread of the candidate: two revisions without a number in the thread of A do not stop a confirmation of another thread of the same project ...
+  const b=await realCandidate(),draftB=await draftOf('intake_candidate',b.id);
+  expect(await decide(draftB,{subject_thread_seq:await position(b.thread)})).toBeNull();
+  // ... nor one of a thread whose chat and thread key another project has too, with a revision without a number of its own there
+  const d=await realCandidate(),draftD=await draftOf('intake_candidate',d.id);
+  const foreign=await rawEvent(chatSales,'9951',d.thread,ids.transport);
+  await leaveUnnumbered('replica',ids.transport,foreign,1);
+  expect(await unnumberedCount()).toBe(3);
+  expect(await decide(draftD,{subject_thread_seq:await position(d.thread)})).toBeNull();
+  expect(await decisionCount()).toBe(2);
+  // the invariant clears when the revisions are numbered again: the file numbers them (a person decides the undecided draft first, refusal 4 of the file), and the position of the
+  // thread moves on by the two revisions that were numbered, so the position that was read is stale and the new one is stored
+  expect(await decide(draftA,{result:'rejected',reason:'Lý do đủ dài'})).toBeNull();
+  await h.exec(await forwardSql());
+  expect(await unnumberedCount()).toBe(0);
+  const posA2=await position(a.thread);
+  expect(posA2).toBe(posA+2);
+  const draftA2=await draftOf('intake_candidate',a.id);
+  expect((await decide(draftA2,{subject_thread_seq:posA}))?.code).toBe('LTZ03');
+  expect(await decide(draftA2,{subject_thread_seq:posA2})).toBeNull();
+  expect(await storedPosition(draftA2)).toBe(posA2);
+});

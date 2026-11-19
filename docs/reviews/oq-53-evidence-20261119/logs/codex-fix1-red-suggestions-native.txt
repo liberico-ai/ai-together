@@ -1,0 +1,37 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (122 tests | 1 failed) 41241ms
+   ❯ Z4 drafts: a candidate draft is confirmed only against the thread it read (OQ-53) (9)
+     × K3b a message without a number, committed after the checks of the service and before its write, is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text 314ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a candidate draft is confirmed only against the thread it read (OQ-53) > K3b a message without a number, committed after the checks of the service and before its write, is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+AssertionError: expected a refusal: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ refused tests/suggestions.test.ts:48:33
+     46| const refused=async(promise:Promise<unknown>,code:string,status:number…
+     47|  const e=await promise.then(()=>null,x=>x);
+     48|  expect(e,'expected a refusal').toBeTruthy();
+       |                                 ^
+     49|  expect(e).toMatchObject({code,status});
+     50|  return e as Error;
+ ❯ held tests/suggestions.test.ts:112:10
+ ❯ heldOnly tests/suggestions.test.ts:119:10
+ ❯ tests/suggestions.test.ts:1820:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 121 passed (122)
+   Start at  17:47:11
+   Duration  41.37s (tests 100%)
+

@@ -22,6 +22,16 @@
 --    confirmations that overlap starve the intake (measurements 4 and 7). The trigger fires after the BEFORE triggers of 021 (draft_decisions_guard) and 022
 --    (draft_decisions_pointer_only_guard) and after the WITH CHECK of runtime_insert (021): a decision about a draft outside the scope of the caller, or in the name
 --    of another person, is refused before any lock on a thread is asked for. Lock order of a confirmation: project row (022), then the thread (here).
+--    It also keeps one invariant of the database (Codex gate, round 1, P1): no revision of the thread of the candidate lacks a row in source_revision_positions. last_seq counts what
+--    the numbering trigger counted; a revision that a session stored without firing that trigger (a restore, session_replication_role = replica, the trigger switched off and on again
+--    in one transaction, the trigger absent: W9, L7) does not move it, so the comparison alone passes a position that is stale. The check is made after the lock and the comparison,
+--    in the thread of the candidate (tenant, project, chat_id, thread_key, as the counter row), over three existing indexes and no new one: about 4 ms on a thread of 3 000 messages,
+--    which a confirmation holds the counter row for on top of the rest (measured: codex-fix1-explain.txt). It gives LTZ03 and the same sentence. It is that invariant only: the rules
+--    about what the draft read (the revision of each message, the mark) stay in the service. The invariant clears when this file numbers the revision again (a re-application).
+--    What it does not close, the limit of the check (test N22): a revision without a number that commits AFTER the check and BEFORE the commit of the decision. Its writer takes no lock
+--    that the confirmation holds, because the numbering trigger, which would take the counter row, is the one that did not fire; a lock that would make it wait (SHARE ROW EXCLUSIVE on
+--    the revision table, held by every confirmation) would make every intake wait for every confirmation, and is not taken. The path exists only for a session that bypasses the
+--    numbering trigger (a superuser, a restore); the window is the time from the check to the commit of the decision. It is stated, not closed (L7).
 -- What the column proves, and what it does not (S-6; the same sentence is the comment of the column):
 -- subject_thread_seq IS NOT NULL chỉ chứng minh rằng không bản nào được nhận vào luồng giữa lúc số được đọc và lúc quyết định được ghi; nó không chứng minh nháp đã qua phép kiểm nào của dịch vụ.
 -- (A raw session of the runtime role can read last_seq and hand it back: the column is the number the service handed, not a proof that its rules ran. Nothing that reads the column may conclude more.)
@@ -60,7 +70,7 @@
 --    member of (tests A10, A11, A14); under the true name it has none until a login of that role exists (N14).
 -- 3. public.source_event_revisions holds more revisions without a number than libetech.thread_order_max_rows (a setting of the session, empty = 250 000; P12). Revisions that
 --    already have a number do not count: the second run of this file, which puts the trigger back (W9, L7, N12), is not stopped by the size of the table. The numbering of
---    step 8 runs under the lock above, about 11 microseconds a revision (Database review of the plan: 0.52 s for 60 000 revisions). The review of the code timed the
+--    step 8 runs under the lock above, 13 to 20 microseconds a revision at 500 000 revisions (the two timings below; the Database review of the plan measured 0.52 s for 60 000). The review of the code timed the
 --    actual statement on PostgreSQL 16 under load: 6.65 s for 500 000 revisions in 70 000 threads and 10.16 s for 500 000 threads of one revision each (the worst shape), the
 --    second at the 10 s statement_timeout of the pool; hence 250 000, and N3: time it on a copy of the production data before applying. Above the cap: stop, ask for a plan
 --    in batches; raise the setting only with an approved plan, for that run only.
@@ -280,6 +290,16 @@ BEGIN
    WHERE h.tenant_id = NEW.tenant_id AND h.project_id = NEW.project_id AND h.chat_id = c.chat_id AND h.thread_key = c.thread_key
    FOR NO KEY UPDATE;
   IF NOT FOUND OR cur <> NEW.subject_thread_seq THEN
+    RAISE EXCEPTION 'The thread of the candidate moved on' USING ERRCODE = 'LTZ03';
+  END IF;
+  -- The counter row says only what the numbering trigger counted (Codex gate, round 1, P1). A revision that a session wrote without firing that trigger (a restore, session_replication_role =
+  -- replica, the trigger switched off and on again) does not move last_seq, so the position that the service read still equals it. The invariant of rule 4 of the service, every revision of the
+  -- thread has a number, is checked here as well, after the lock and the comparison, in the thread of the candidate: the same tenant, project, chat and thread key as the counter row. Only that
+  -- invariant: the rules about what the draft read (the revision of each message, the mark) stay in the service. The answer is the same code and the same sentence as for every other cause.
+  IF EXISTS (SELECT 1 FROM public.source_events ev
+               JOIN public.source_event_revisions rv ON rv.source_event_id = ev.id AND rv.tenant_id = ev.tenant_id AND rv.project_id = ev.project_id
+              WHERE ev.tenant_id = NEW.tenant_id AND ev.project_id = NEW.project_id AND ev.chat_id = c.chat_id AND ev.thread_key = c.thread_key
+                AND NOT EXISTS (SELECT 1 FROM public.source_revision_positions p WHERE p.revision_id = rv.id)) THEN
     RAISE EXCEPTION 'The thread of the candidate moved on' USING ERRCODE = 'LTZ03';
   END IF;
   RETURN NULL;
