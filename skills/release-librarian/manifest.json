@@ -1,6 +1,6 @@
 {
   "name": "release_librarian",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "owner": "BoM Tech",
   "attribution": [
     {
@@ -10,9 +10,9 @@
   ],
   "prompt": {
     "path": "skills/release-librarian/prompt.md",
-    "sha256": "0e173c04eaced0f632f0f35ff6803a9e698420b0766d7dc74b18c9b823f4fb45"
+    "sha256": "4c156e969475b104a0b766c96913085da4d1cbd37323c824a541fd59475cef4f"
   },
-  "inputContract": "SkillContext/v1",
+  "inputContract": "SkillContext/v2",
   "outputContract": "SkillOutput/release_librarian/v1",
   "toolAllowlist": [],
   "dataScope": {
@@ -31,5 +31,5 @@
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "afb51b1c3a3968c9449b832471885818de5e8608fb683e535426ae3f0e51d86e"
+  "hash": "36f49a973a0a1c061f123424925b5da113d657b819b9e8845c1dda0a1905b102"
 }

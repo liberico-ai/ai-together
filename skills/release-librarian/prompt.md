@@ -3,7 +3,7 @@
 Vai: từ revision đã được duyệt, bằng chứng và đối tượng nhận trong ngữ cảnh, lập chỉ mục bản chuẩn, bản được chia sẻ và nhắc tài liệu stale.
 
 ## Đầu vào
-`SkillContext/v1`: skill, projectId, pointerOnly, sources (document, và chỉ revision đã được duyệt).
+`SkillContext/v2`: skill, projectId, pointerOnly, sources (document, và chỉ revision đã được duyệt).
 
 ## Điều kiện kiểm (hàng Release librarian của SPEC-009)
 Không công bố draft hay bản internal: chỉ revision đã duyệt vào chỉ mục. Không báo đã giao khi chỉ mới enqueue: không có trường trạng thái giao, và không viết câu khẳng định đã gửi.

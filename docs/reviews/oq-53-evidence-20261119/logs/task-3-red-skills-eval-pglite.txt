@@ -1,0 +1,38 @@
+
+ RUN  v5.1.0 <repo>
+
+stdout | tests/skills-eval.test.ts
+{"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
+
+ ❯ tests/skills-eval.test.ts (41 tests | 1 failed) 19ms
+   ❯ skill eval sets (41)
+     × every eval context is valid, belongs to its skill and holds only the kinds that skill receives 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skills-eval.test.ts > skill eval sets > every eval context is valid, belongs to its skill and holds only the kinds that skill receives
+AssertionError: intake_analyst/fabrication_when_missing revisionNo: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/skills-eval.test.ts:78:121
+     76|         if (s.kind === 'source_event') expect(s.ref, tag).toMatch(/^te…
+     77|         // C1/C2 of OQ-53: every message source states the number of t…
+     78|         if (s.kind === 'source_event') expect(Number.isInteger(s.revis…
+       |                                                                                                                         ^
+     79|       }
+     80|       expect(c.id, tag).toMatch(UUID);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 40 passed (41)
+   Start at  13:24:54
+   Duration  144ms (import 49%, transform 30%, tests 20%, worker 1%)
+
+exit=1

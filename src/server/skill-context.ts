@@ -55,7 +55,7 @@ export async function buildSkillContextIn(tx:Queryable,p:Principal,input:SkillCo
   if(!cand) throw denied();
   for(const m of await visibleThreadMessages(tx,projectId,cand.id,excerptChats,MAX_MESSAGES)) {
    const shown=!pointerOnly&&m.displayMode==='excerpt';
-   sources.push({id:m.sourceEventId,kind:'source_event',ref:m.ref,mode:m.displayMode,text:shown?m.text:null,hash:shown?m.contentHash:null,observedAt:m.observedAt,forwarded:m.forwarded});
+   sources.push({id:m.sourceEventId,kind:'source_event',ref:m.ref,mode:m.displayMode,text:shown?m.text:null,hash:shown?m.contentHash:null,observedAt:m.observedAt,forwarded:m.forwarded,revisionNo:m.revisionNo});
   }
  }
  let documentId:string|null=null;

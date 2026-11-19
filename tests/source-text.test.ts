@@ -8,7 +8,7 @@ import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,type
 import {mapDomain,nextDbInstant,recordingDb} from './slice3-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {InboxService} from '../src/server/inbox';
-import {displayMode,listVisibleRevisions,projectHasHiddenText,threadFreshness,threadHasHiddenText} from '../src/server/source-text';
+import {displayMode,listVisibleRevisions,projectHasHiddenText,threadFreshness,threadHasHiddenText,visibleThreadMessages} from '../src/server/source-text';
 import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
 
@@ -125,6 +125,24 @@ describe('source-text',()=>{
   expect(items.some(c=>c.candidateId===other.id)).toBe(false);
   expect(JSON.stringify(items.flatMap(c=>c.duplicateCandidates))).not.toContain(other.id);
   expect(JSON.stringify(rec.rows())).not.toContain(a.hash);
+ });
+
+ test('visibleThreadMessages names the number of the revision it shows: the latest by edit time, not the highest number, and the number survives hidden text',async()=>{
+  const e=messageEvent({text:'RN-V1'});
+  const first=await intake([chatSales]).ingest(e);
+  const candidateId=(await rows<{id:string}>('SELECT id FROM intake_candidates WHERE root_source_event_id=$1',[first.sourceEventId]))[0].id;
+  const edit=(text:string,at:number)=>intake([chatSales]).ingest({...e,text,contentHash:createHash('sha256').update(text).digest('hex'),editedAt:new Date(at).toISOString(),traceId:randomUUID()});
+  expect((await edit('RN-V2',1760099999000)).revisionNo).toBe(2);   // the latest edit time
+  expect((await edit('RN-V3',1760050000000)).revisionNo).toBe(3);   // the highest number, an earlier edit time
+  const shown=await scoped(h.db,salesScope,tx=>visibleThreadMessages(tx,ids.sales,candidateId,[chatSales],20));
+  expect(shown).toHaveLength(1);
+  expect(shown[0]).toMatchObject({sourceEventId:first.sourceEventId,revisionNo:2,displayMode:'excerpt',text:'RN-V2'});
+  const hidden=await scoped(h.db,salesScope,tx=>visibleThreadMessages(tx,ids.sales,candidateId,[],20));
+  expect(hidden[0]).toMatchObject({revisionNo:2,displayMode:'hidden',text:null,contentHash:null});
+  // a message that was never edited is number 1
+  const solo=await ingest({text:'RN-SOLO'},[chatSales]);
+  const soloRead=await scoped(h.db,salesScope,tx=>visibleThreadMessages(tx,ids.sales,solo.id,[chatSales],20));
+  expect(soloRead.map(m=>m.revisionNo)).toEqual([1]);
  });
 
  test('only source-text.ts reads revision text',()=>{

@@ -74,6 +74,8 @@ describe('skill eval sets', () => {
         expect(CONTEXT_KINDS[name], tag).toContain(s.kind);
         expect(s.id, tag).toMatch(UUID);
         if (s.kind === 'source_event') expect(s.ref, tag).toMatch(/^telegram:-100000000000[0-9]:\d+$/);
+        // C1/C2 of OQ-53: every message source states the number of the revision it shows, a whole number of at least 1
+        if (s.kind === 'source_event') expect(Number.isInteger(s.revisionNo) && s.revisionNo >= 1, `${tag} revisionNo`).toBe(true);
       }
       expect(c.id, tag).toMatch(UUID);
       // good and bad never carry the manifest-bound fields; the runner fills them
@@ -131,7 +133,7 @@ describe('skill eval sets', () => {
     const extra = { ...second, documentId: (rl.sources.find(s => s.kind === 'document_revision') as { documentId: string }).documentId, revisionNo: 2 };
     expect(emitProblems('release_librarian', { ...rl, sources: [...rl.sources, extra] }).length).toBeGreaterThan(0);
     const ev = (i: number, chat: string) => ({ id: `00000000-0000-4000-8000-${String(7000 + i).padStart(12, '0')}`, kind: 'source_event' as const, ref: `telegram:${chat}:${i}`, mode: 'excerpt' as const,
-      text: 'x', hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
+      text: 'x', hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 1 });
     const sixty = Array.from({ length: 21 }, (_, i) => ev(i, '-1000000000001'));
     expect(emitProblems('intake_analyst', { pointerOnly: false, sources: sixty }).length).toBeGreaterThan(0);
     expect(emitProblems('intake_analyst', { pointerOnly: false, sources: [ev(1, '-1000000000001'), ev(2, '-1000000000002')] }).length).toBeGreaterThan(0);

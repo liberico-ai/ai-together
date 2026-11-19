@@ -18,7 +18,7 @@ import type { ContextSource, SkillContext, SkillName } from './skill-contracts';
 // A manifest grants nothing: no tool, no model, not enabled. Its hash covers the prompt and eval hashes, so any edit of a skill file shows.
 export type SkillManifest = {
   name: SkillName; version: string; owner: string; attribution: { ref: string; note: string }[]; prompt: { path: string; sha256: string };
-  inputContract: 'SkillContext/v1'; outputContract: string; toolAllowlist: string[];
+  inputContract: 'SkillContext/v2'; outputContract: string; toolAllowlist: string[];
   dataScope: { projectScope: 'single'; kinds: ContextSource['kind'][]; ibsHi: 'pointer_hash_metadata_only'; hiddenText: 'never' };
   evalSet: { path: string; sha256: string; cases: 5 }; modelBinding: 'none'; enabled: false; hash: string;
 };

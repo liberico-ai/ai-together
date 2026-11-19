@@ -1,0 +1,10 @@
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  13:28:05
+   Duration  149ms (import 44%, transform 39%, tests 15%, worker 1%)
+
+exit=0

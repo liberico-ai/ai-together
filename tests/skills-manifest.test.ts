@@ -41,11 +41,11 @@ describe('skill manifests', () => {
     for (const name of SKILLS) {
       const m = skillManifests[name];
       expect(m.name).toBe(name);
-      expect(m.version).toBe('0.1.0');
+      expect(m.version).toBe('0.2.0');   // OQ-53 Task 3: the context names revisionNo, SkillContext/v2
       expect(m.owner).toBe('BoM Tech');
       expect(m.hash).toMatch(/^[0-9a-f]{64}$/);
       expect(Array.isArray(m.toolAllowlist)).toBe(true);
-      expect(m.inputContract).toBe('SkillContext/v1');
+      expect(m.inputContract).toBe('SkillContext/v2');
       expect(m.outputContract).toBe(`SkillOutput/${name}/v1`);
       expect(m.attribution).toEqual([{ ref: 'docs/SPEC-009-PM-BA-DOCUMENTS-20261111.md:97-104', note: 'viết mới theo bảng năng lực; không chép từ khung ngoài' }]);
       expect(m.prompt.path).toBe(`skills/${dirOf(name)}/prompt.md`);
@@ -154,6 +154,18 @@ describe('skill manifests', () => {
       expect(text, name).toContain('`skill` và `manifestHash` do hệ thống điền; không viết hai trường đó');
     }
     expect(await readFile(path.join(ROOT, skillManifests.technical_writer.prompt.path), 'utf8')).not.toMatch(/ví dụ/i);
+  });
+
+  it('every prompt names the input contract of its manifest, and the three message skills say the context states revisionNo for each message', async () => {
+    for (const name of SKILLS) {
+      const text = await readFile(path.join(ROOT, skillManifests[name].prompt.path), 'utf8');
+      const inputLine = text.split('\n').find(l => l.startsWith('`SkillContext/'));
+      expect(inputLine, `${name} input line`).toBeDefined();
+      expect(inputLine!.startsWith(`\`${skillManifests[name].inputContract}\`:`), `${name}: the input line names ${skillManifests[name].inputContract}`).toBe(true);
+      expect(text, `${name}: no older context label is left`).not.toContain('SkillContext/v1');
+      // only the skills that receive messages are told about the number of a message's revision
+      expect(inputLine!.includes('revisionNo'), `${name} input line`).toBe(CONTEXT_KINDS[name].includes('source_event'));
+    }
   });
 
   it('skillEvalSets is frozen at every depth', () => {

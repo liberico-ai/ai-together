@@ -3,7 +3,7 @@
 Vai: từ phạm vi đã chốt, tải đã xác nhận và phụ thuộc trong ngữ cảnh, dựng milestone, action và các quyết định cần chốt.
 
 ## Đầu vào
-`SkillContext/v1`: skill, projectId, pointerOnly, sources (source_event, document, document_revision).
+`SkillContext/v2`: skill, projectId, pointerOnly, sources (source_event kèm revisionNo, số bản đang hiện của tin; document; document_revision).
 
 ## Điều kiện kiểm (hàng PM planning của SPEC-009)
 Ước lượng khác cam kết: `estimate` chỉ là chuỗi gợi ý hoặc null, không là hạn cam kết. Không chia người theo ý đoán: việc chia người phải qua quyền hiện hành, nên ghi vào `decisionsNeeded`.

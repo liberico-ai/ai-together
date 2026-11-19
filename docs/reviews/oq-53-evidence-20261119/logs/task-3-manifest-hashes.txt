@@ -1,0 +1,10 @@
+Task 3 (OQ-53): manifest hash of the six skills, before (HEAD 00228a4) and after. version 0.1.0 -> 0.2.0, inputContract SkillContext/v1 -> SkillContext/v2; outputContract unchanged (Task 4).
+The sha256 of every prompt.md and eval.json was recomputed from the bytes on disk; hash = sha256(canonicalJson(manifest without hash)). A scratch script (not in the repo) reproduced the six old hashes from the HEAD manifests before it was used.
+
+skill              old hash                                                          new hash
+intake_analyst     e007b1885b091fe0386f8ce3970d916c02436b0cd362511c8992d3e3e7f989f7  657bbcb0431dd07c6af0664bb969127705fe69f780f2c887e5bb09b8b5bc2716
+ba_elicitation     aaf71b8d39989d4713b305355c112c2abd7ecccc1b01ff1d58fc48a824352d74  0970030d0d2e4aaae84a5dc2b76b5c03417243f388fb35fd7c751895c4da7a13
+pm_planning        32dec3b6526f6b77af74ce0bbb40525cf1d9d335a6eb5dc394d6e28a70b9280d  0e607510121bed430c568269c9739748df568fb9155e4fd7b3651bf7c688c6ec
+technical_writer   8e77d82e88c509c008cd1fd1d8219efe04dd1f7c7c2cf8212319977e514052d0  509ef4afadfbde73eac552cc7f0a62bf8b35828b7490e74306ad3b6bb5f6eb27
+doc_reviewer       98d9fbfbb83d1a894eca63690dc043875206806aac10df1780ba7b24ea4581bb  96125f6a1a90802f3a5e14dd51d233b1761ecda820ee9806c6d69826f7817233
+release_librarian  afb51b1c3a3968c9449b832471885818de5e8608fb683e535426ae3f0e51d86e  36f49a973a0a1c061f123424925b5da113d657b819b9e8845c1dda0a1905b102

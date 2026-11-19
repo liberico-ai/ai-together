@@ -1,0 +1,40 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/source-text.test.ts (32 tests | 1 failed) 15742ms
+   ❯ source-text (11)
+     × visibleThreadMessages names the number of the revision it shows: the latest by edit time, not the highest number, and the number survives hidden text 491ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/source-text.test.ts > source-text > visibleThreadMessages names the number of the revision it shows: the latest by edit time, not the highest number, and the number survives hidden text
+AssertionError: expected { …(7) } to match object { …(4) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "displayMode": "excerpt",
+-   "revisionNo": 2,
+    "sourceEventId": "796c68c2-d646-4422-9cc1-9b4b734a91c2",
+    "text": "RN-V2",
+  }
+
+ ❯ tests/source-text.test.ts:139:20
+    137|   const shown=await scoped(h.db,salesScope,tx=>visibleThreadMessages(t…
+    138|   expect(shown).toHaveLength(1);
+    139|   expect(shown[0]).toMatchObject({sourceEventId:first.sourceEventId,re…
+       |                    ^
+    140|   const hidden=await scoped(h.db,salesScope,tx=>visibleThreadMessages(…
+    141|   expect(hidden[0]).toMatchObject({revisionNo:2,displayMode:'hidden',t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 31 passed (32)
+   Start at  13:25:32
+   Duration  15.88s (tests 99%)
+
+exit=1

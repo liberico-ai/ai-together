@@ -7,9 +7,9 @@ import type { SkillContext, SkillName } from '../src/server/skill-contracts';
 const ctx = (over: Partial<SkillContext> = {}): SkillContext => ({
   skill: 'intake_analyst', projectId: 'p1', pointerOnly: false,
   sources: [
-    { id: 'e1', kind: 'source_event', ref: 'ref-1', mode: 'excerpt', text: 'synthetic text', hash: 'h1', observedAt: '2026-11-15T00:00:00.000Z', forwarded: false },
-    { id: 'e2', kind: 'source_event', ref: 'ref-2', mode: 'hidden', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false },
-    { id: 'e3', kind: 'source_event', ref: 'ref-3', mode: 'pointer_only', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: true },
+    { id: 'e1', kind: 'source_event', ref: 'ref-1', mode: 'excerpt', text: 'synthetic text', hash: 'h1', observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 1 },
+    { id: 'e2', kind: 'source_event', ref: 'ref-2', mode: 'hidden', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 2 },
+    { id: 'e3', kind: 'source_event', ref: 'ref-3', mode: 'pointer_only', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: true, revisionNo: 1 },
     { id: 'd1', kind: 'document', refCode: 'DOC-1', docType: 'guide', title: 'Synthetic guide', latestRevisionId: 'r2', approvedRevisionId: 'r1' },
     { id: 'r1', kind: 'document_revision', documentId: 'd1', revisionNo: 1, summary: 'first', present: ['a'], missing: [], sourceHash: null, hashVerification: 'self_declared' },
     { id: 'r2', kind: 'document_revision', documentId: 'd1', revisionNo: 2, summary: 'second', present: ['a', 'b'], missing: ['c'], sourceHash: 'h2', hashVerification: 'verified' },
@@ -65,6 +65,29 @@ describe('skill contracts', () => {
     const c = ctx(); (c.sources[0] as Record<string, unknown>).extra = 1;
     expect(contextSchema.safeParse(c).success).toBe(false);
     expect(contextSchema.safeParse({ ...ctx(), sources: [{ id: 'x', kind: 'other' }] }).success).toBe(false);
+  });
+
+  it('C2 the context schema refuses a message source without a revision number', () => {
+    // a message source with a whole number of its revision is accepted (positive control: the fixtures above carry one)
+    const msgs = ctx().sources.filter(s => s.kind === 'source_event');
+    expect(msgs).toHaveLength(3);
+    for (const m of msgs) {
+      expect(contextSchema.safeParse(ctx({ sources: [m] })).success, `${m.id} with its number`).toBe(true);
+      // the number is not optional: a source without it is refused, in every display mode
+      const { revisionNo, ...without } = m as typeof m & { revisionNo: number };
+      expect(revisionNo, `${m.id} fixture`).toBeGreaterThanOrEqual(1);
+      expect(contextSchema.safeParse(ctx({ sources: [without as never] })).success, `${m.id} without it`).toBe(false);
+      // and it is a whole number, not a string, a fraction, null or a boolean
+      for (const bad of ['1', 1.5, null, true, undefined, [1]])
+        expect(contextSchema.safeParse(ctx({ sources: [{ ...m, revisionNo: bad } as never] })).success, `${m.id} revisionNo ${JSON.stringify(bad)}`).toBe(false);
+    }
+    // a context with one message source lacking the number among well-formed ones is refused as a whole
+    const mixed = ctx(); delete (mixed.sources[1] as Record<string, unknown>).revisionNo;
+    expect(contextSchema.safeParse(mixed).success).toBe(false);
+    // the other two kinds are unchanged by this field: a document and a revision of one carry no `revisionNo` of a message, and the revision of a document keeps its own
+    const docOnly = ctx().sources.filter(s => s.kind === 'document');
+    expect(contextSchema.safeParse(ctx({ sources: docOnly })).success).toBe(true);
+    expect(contextSchema.safeParse(ctx({ sources: [{ ...docOnly[0], revisionNo: 1 } as never] })).success, 'a document does not take a revision number').toBe(false);
   });
 
   it('a manifest mismatch of skill or hash is held', () => {
@@ -366,7 +389,7 @@ describe('skill contracts', () => {
   });
 
   it('a context with no shown text and no document yields only held outputs', () => {
-    const msg = (id: string, mode: 'hidden' | 'pointer_only') => ({ id, kind: 'source_event' as const, ref: `ref-${id}`, mode, text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
+    const msg = (id: string, mode: 'hidden' | 'pointer_only') => ({ id, kind: 'source_event' as const, ref: `ref-${id}`, mode, text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 1 });
     for (const pointerOnly of [true, false]) for (const s of SKILLS) {
       const c: SkillContext = { skill: s, projectId: 'p1', pointerOnly, sources: [msg('h1', 'hidden'), msg('h2', 'pointer_only')] };
       const questionsOnly = { ...clean(s), sources: [], claims: [], conflicts: [], questions: [{ field: 'f', question: 'Cần văn bản hoặc tài liệu để phân tích?' }], result: emptyOf[s] };
@@ -386,7 +409,7 @@ describe('skill contracts', () => {
 
   it('F9-3 an excerpt without text does not support a statement', () => {
     const c = ctx();
-    c.sources.push({ id: 'e4', kind: 'source_event', ref: 'ref-4', mode: 'excerpt', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
+    c.sources.push({ id: 'e4', kind: 'source_event', ref: 'ref-4', mode: 'excerpt', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 1 });
     const o = { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, { id: 'e4' }] }; o.claims[0].basis = ['e4'];
     expect(check('intake_analyst', o, [], c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
   });
@@ -431,7 +454,7 @@ describe('skill contracts', () => {
     }
     // an excerpt without text counts as not shown here too
     const c = ctx();
-    c.sources.push({ id: 'e4', kind: 'source_event', ref: 'ref-4', mode: 'excerpt', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false });
+    c.sources.push({ id: 'e4', kind: 'source_event', ref: 'ref-4', mode: 'excerpt', text: null, hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 1 });
     expect(check('intake_analyst', { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, { id: 'e4' }] }, [], c).reasons).toEqual(['TEXT_NOT_VISIBLE']);
     // documents and revisions carry no visibility rule
     expect(check('intake_analyst', { ...clean('intake_analyst'), sources: [{ id: 'e1' }, { id: 'r1' }, { id: 'd1' }, { id: 'r2' }] }).verdict).toBe('accept');

@@ -3,7 +3,7 @@
 Vai: đọc tin gốc trong phạm vi dự án, gợi ý loại ứng viên (incident, request, document), chỉ ra tin trùng hoặc khác, và nêu câu hỏi còn thiếu. Bạn chỉ gợi ý; con người quyết định.
 
 ## Đầu vào
-`SkillContext/v1`: skill, projectId, pointerOnly, sources (tin gốc source_event, tài liệu document).
+`SkillContext/v2`: skill, projectId, pointerOnly, sources (tin gốc source_event kèm revisionNo, số bản đang hiện của tin; tài liệu document).
 
 ## Điều kiện kiểm (hàng Intake analyst của SPEC-009)
 Không bịa hạn hay người phụ trách: nếu tin không nêu thì hỏi, không điền. Không bỏ nguồn: mọi tin có văn bản được hiển thị và có liên quan phải được trích hoặc nêu lý do bỏ qua trong `questions`; tin không có văn bản được hiển thị chỉ được nhắc như một câu hỏi, không đưa mã của nó vào `sources`.

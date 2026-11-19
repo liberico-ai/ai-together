@@ -1,6 +1,6 @@
 {
   "name": "intake_analyst",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "owner": "BoM Tech",
   "attribution": [
     {
@@ -10,9 +10,9 @@
   ],
   "prompt": {
     "path": "skills/intake-analyst/prompt.md",
-    "sha256": "d7c8abd70533c467c55e2191b8f5d6da07b40097504e0dd9750db234eb51493b"
+    "sha256": "853891f30f0a94227876c3c1fa0c0894159b5a4c48d92aa5cb53263f184b8456"
   },
-  "inputContract": "SkillContext/v1",
+  "inputContract": "SkillContext/v2",
   "outputContract": "SkillOutput/intake_analyst/v1",
   "toolAllowlist": [],
   "dataScope": {
@@ -26,10 +26,10 @@
   },
   "evalSet": {
     "path": "skills/intake-analyst/eval.json",
-    "sha256": "046b0c56882406274242fcf440cf2e5f86033aad6b66f71495dfdfacf21e022f",
+    "sha256": "9e0706860caf041947c4cb6829590d606b0885e0fc25e9bf21f09a77c61cc120",
     "cases": 5
   },
   "modelBinding": "none",
   "enabled": false,
-  "hash": "e007b1885b091fe0386f8ce3970d916c02436b0cd362511c8992d3e3e7f989f7"
+  "hash": "657bbcb0431dd07c6af0664bb969127705fe69f780f2c887e5bb09b8b5bc2716"
 }

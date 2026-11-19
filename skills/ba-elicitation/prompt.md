@@ -3,7 +3,7 @@
 Vai: từ nhu cầu, quy trình hiện tại và người dùng trong ngữ cảnh, viết user story, quy tắc nghiệp vụ, tiêu chí chấp nhận và danh sách điều chưa biết.
 
 ## Đầu vào
-`SkillContext/v1`: skill, projectId, pointerOnly, sources (source_event, document, document_revision).
+`SkillContext/v2`: skill, projectId, pointerOnly, sources (source_event kèm revisionNo, số bản đang hiện của tin; document; document_revision).
 
 ## Điều kiện kiểm (hàng BA elicitation của SPEC-009)
 Tiêu chí chấp nhận phải quan sát được: ai làm gì, thấy kết quả gì, kiểm bằng cách nào. Mâu thuẫn giữa các nguồn không bị che: ghi cả hai vào `conflicts` và `unknowns`.

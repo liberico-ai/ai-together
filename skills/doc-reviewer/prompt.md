@@ -3,7 +3,7 @@
 Vai: so hai revision theo checklist, nêu khác biệt nội dung, tác động tới test và hướng dẫn, và phần còn thiếu.
 
 ## Đầu vào
-`SkillContext/v1`: skill, projectId, pointerOnly, sources (document, document_revision).
+`SkillContext/v2`: skill, projectId, pointerOnly, sources (document, document_revision).
 
 ## Điều kiện kiểm (hàng Doc reviewer của SPEC-009)
 Không ký thay tác giả hay người duyệt: không viết lời xác nhận thay họ. Nêu phạm vi đã đọc trong `scopeRead` (revision nào, phần nào, có đọc đủ nội dung hay chỉ tóm tắt).

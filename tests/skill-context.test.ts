@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,describe,expect,test} from 'vitest';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {openHarness,type Harness} from './slice1-db';
@@ -85,7 +85,7 @@ describe('skill context',()=>{
   const rev=kinds(trCtx,'document_revision')[0] as Src<'document_revision'>;
   expect(rev).toMatchObject({documentId:td.record.id,summary:null,present:[],missing:[],revisionNo:1});
   const ev=kinds(trCtx,'source_event')[0] as Src<'source_event'>;
-  expect(ev).toMatchObject({id:tm.sourceEventId,text:null,hash:null,forwarded:false});
+  expect(ev).toMatchObject({id:tm.sourceEventId,text:null,hash:null,forwarded:false,revisionNo:1});
   expect(ev.ref).toBeTruthy();
   expect(ev.observedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
  });
@@ -142,7 +142,59 @@ describe('skill context',()=>{
   const marker='ZEBRA-CTX-5522 nội dung';
   const m=await msg({text:marker});
   const c=await build(pm,{skill:'intake_analyst',projectId:ids.sales,candidateId:m.candidateId});
-  expect(kinds(c,'source_event')[0]).toMatchObject({mode:'excerpt',text:marker,hash:m.hash,id:m.sourceEventId});
+  expect(kinds(c,'source_event')[0]).toMatchObject({mode:'excerpt',text:marker,hash:m.hash,id:m.sourceEventId,revisionNo:1});
+ });
+
+ test('C1 the context carries the revision number of the revision it shows, for every display mode',async()=>{
+  const LATE=1760099999000,EARLY=1760050000000;
+  /** Another revision of a message already taken in: same chat and message id, a new text, edited at `editedAt`. Returns the number the database gave it. */
+  const revise=async(m:{messageId:string},o:{text:string;editedAt:number;flags?:string[]}):Promise<number>=>{
+   const e=messageEvent({text:o.text,editedAt:new Date(o.editedAt).toISOString(),context:{chatId:chatSales,messageId:m.messageId}});
+   const ack=await new IntakeService(h.operator,ids.tenant,intakePrincipalId,{...bridgeConfig.chatScopes,[chatTwo]:[ids.sales]},{chats:[...chats,chatTwo],excerptChats:o.flags??[...both,chatTwo]}).ingest(e);
+   return ack.revisionNo;
+  };
+  // Number 1 has no edit time, number 2 the LATEST edit time, number 3 an EARLIER one: the revision a context shows is number 2 (LATEST_REVISION_ORDER), not the highest number 3.
+  const threeRevisions=async(m:{messageId:string;sourceEventId:string},tag:string,flags?:string[])=>{
+   expect(await revise(m,{text:`${tag}-V2`,editedAt:LATE,flags}),`${tag} second revision`).toBe(2);
+   expect(await revise(m,{text:`${tag}-V3`,editedAt:EARLY,flags}),`${tag} third revision`).toBe(3);
+   expect((await rows<{top:number;n:number}>('SELECT max(revision_no)::int AS top, count(*)::int AS n FROM source_event_revisions WHERE source_event_id=$1',[m.sourceEventId]))[0],`${tag} premise`).toEqual({top:3,n:3});
+  };
+  const root=await msg({text:'C1-R-V1'});                                               // text shown, three revisions
+  await threeRevisions(root,'C1-R');
+  const pointer=await msg({text:'C1-P-V1',replyTo:root.messageId,flags:[]});           // stored no text, three revisions
+  await threeRevisions(pointer,'C1-P',[]);
+  const plain=await msg({text:'C1-S-V1',replyTo:root.messageId});                      // text shown, never edited
+  const input={skill:'intake_analyst',projectId:ids.sales,candidateId:root.candidateId};
+  const order=[root.sourceEventId,pointer.sourceEventId,plain.sourceEventId];
+  const byId=(c:SkillContext)=>{
+   expect(kinds(c,'source_event').map(x=>x.id)).toEqual(order);
+   return new Map(kinds(c,'source_event').map(x=>[x.id,x as Src<'source_event'>]));
+  };
+  const v2hash=createHash('sha256').update('C1-R-V2').digest('hex');
+
+  // text shown: the number is that of the revision whose text is shown
+  const shown=byId(await build(pm,input));
+  expect(shown.get(root.sourceEventId)).toMatchObject({mode:'excerpt',revisionNo:2,text:'C1-R-V2',hash:v2hash});
+  expect(shown.get(pointer.sourceEventId)).toMatchObject({mode:'pointer_only',revisionNo:2,text:null,hash:null});
+  expect(shown.get(plain.sourceEventId)).toMatchObject({mode:'excerpt',revisionNo:1,text:'C1-S-V1'});
+
+  // text hidden (the group is no longer flagged): the number stays, text and hash stay null
+  const hidden=byId(await build(pm,input,[]));
+  expect(hidden.get(root.sourceEventId)).toMatchObject({mode:'hidden',revisionNo:2,text:null,hash:null});
+  expect(hidden.get(pointer.sourceEventId)).toMatchObject({mode:'pointer_only',revisionNo:2,text:null,hash:null});
+  expect(hidden.get(plain.sourceEventId)).toMatchObject({mode:'hidden',revisionNo:1,text:null,hash:null});
+
+  // a pointer-only context (the project is mapped to IBS_HI after the text was stored): the number stays, nothing of the text or its hash does
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  const ibsContext=await build(pm,input);
+  expect(ibsContext.pointerOnly).toBe(true);
+  const ibs=byId(ibsContext);
+  expect(ibs.get(root.sourceEventId)).toMatchObject({revisionNo:2,text:null,hash:null});
+  expect(ibs.get(pointer.sourceEventId)).toMatchObject({revisionNo:2,text:null,hash:null});
+  expect(ibs.get(plain.sourceEventId)).toMatchObject({revisionNo:1,text:null,hash:null});
+  for(const s of ibs.values()) expect(s.mode,s.id).not.toBe('excerpt');
+  expect(JSON.stringify(ibsContext)).not.toContain('C1-R-V2');
+  expect(JSON.stringify(ibsContext)).not.toContain(v2hash);
  });
 
  test('revoked access: a principal that lost the project gets the not-found answer and no source',async()=>{

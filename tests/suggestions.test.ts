@@ -1653,7 +1653,7 @@ describe('Z4 drafts: a draft whose thread moved on is held (OQ-46)',()=>{
   // a message of another thread is out of this draft's context, a mask reason: the hold names what a read names, and the placeholder (Codex gate round 2)
   await heldOnly(decide(svc(),pm,y.draftId,body(sha(out2))),'SOURCE_OUT_OF_CONTEXT','SUBJECT_ORDER_UNVERIFIED');
   // the baseline rule itself, on a shape no mask reason holds: the other thread's message steered into the context as shown text, the subject check holds
-  const shownMessage:ContextSource={id:o2.sourceEventId,kind:'source_event',ref:'steered',mode:'excerpt',text:'Tin của luồng khác',hash:null,observedAt:new Date().toISOString(),forwarded:false};
+  const shownMessage:ContextSource={id:o2.sourceEventId,kind:'source_event',ref:'steered',mode:'excerpt',text:'Tin của luồng khác',hash:null,observedAt:new Date().toISOString(),forwarded:false,revisionNo:1};
   await heldBySubjectOnly({extra:[shownMessage],entityType:'intake_candidate',entityId:other.candidateId,draftId:y.draftId,
    confirm:()=>decide(svc(),pm,y.draftId,body(sha(out2)))},'SUBJECT_BASELINE_MISSING','SUBJECT_ORDER_UNVERIFIED');
   await zeroDecisions();

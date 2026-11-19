@@ -53,23 +53,25 @@ export async function listVisibleRevisions(tx:Queryable,sourceEventId:string,exc
   textTruncated:r.text_truncated,recordedAt:new Date(r.created_at as string).toISOString()}));
 }
 
-export type VisibleMessage={sourceEventId:string;ref:string;observedAt:string;forwarded:boolean;displayMode:DisplayMode;text:string|null;contentHash:string|null};
+/** `revisionNo` is the number of the revision shown (the newest by LATEST_REVISION_ORDER, not the highest number): the same row the display mode, text and hash come from, and present whatever the display mode is. */
+export type VisibleMessage={sourceEventId:string;ref:string;revisionNo:number;observedAt:string;forwarded:boolean;displayMode:DisplayMode;text:string|null;contentHash:string|null};
 /**
  * Newest revision of each message in the thread of one candidate (same chat_id and thread_key, project $1 only), the newest `limit` messages by
  * observed_at then id, returned oldest first (ties by id), each shown by its own stored mode and the current config. A candidate that is not in the project gives [].
+ * Each message also names the number of the revision it shows (`revisionNo`); a number is not text, so it is given for a hidden or pointer-only message too.
  */
 export async function visibleThreadMessages(tx:Queryable,projectId:string,candidateId:string,excerptChats:readonly string[],limit:number):Promise<VisibleMessage[]> {
  const n=Math.max(0,Math.min(Math.trunc(limit),200));
- const rows=(await tx.query<{id:string;source_id:string;observed_at:unknown;forwarded:boolean;display_mode:DisplayMode;visible_text:string|null;visible_hash:string|null}>(
-  `SELECT t.id,t.source_id,t.observed_at,t.forwarded,t.display_mode,t.visible_text,t.visible_hash FROM (
-     SELECT e.id,e.source_id,e.observed_at,e.forwarded,${visibleColumnsSql('r','e','$3')}
+ const rows=(await tx.query<{id:string;source_id:string;revision_no:number;observed_at:unknown;forwarded:boolean;display_mode:DisplayMode;visible_text:string|null;visible_hash:string|null}>(
+  `SELECT t.id,t.source_id,t.revision_no,t.observed_at,t.forwarded,t.display_mode,t.visible_text,t.visible_hash FROM (
+     SELECT e.id,e.source_id,r.revision_no,e.observed_at,e.forwarded,${visibleColumnsSql('r','e','$3')}
      FROM intake_candidates c
      JOIN source_events e ON e.project_id=c.project_id AND e.chat_id=c.chat_id AND e.thread_key=c.thread_key
      JOIN LATERAL (SELECT * FROM source_event_revisions r WHERE r.source_event_id=e.id ORDER BY ${LATEST_REVISION_ORDER} LIMIT 1) r ON true
      WHERE c.id=$2::uuid AND c.project_id=$1::uuid AND e.project_id=$1::uuid
      ORDER BY e.observed_at DESC, e.id DESC LIMIT $4::int) t
    ORDER BY t.observed_at ASC, t.id ASC`,[projectId,candidateId,[...excerptChats],n])).rows;
- return rows.map(r=>({sourceEventId:r.id,ref:r.source_id,observedAt:new Date(r.observed_at as string).toISOString(),forwarded:r.forwarded,displayMode:r.display_mode,text:r.visible_text,contentHash:r.visible_hash}));
+ return rows.map(r=>({sourceEventId:r.id,ref:r.source_id,revisionNo:r.revision_no,observedAt:new Date(r.observed_at as string).toISOString(),forwarded:r.forwarded,displayMode:r.display_mode,text:r.visible_text,contentHash:r.visible_hash}));
 }
 
 const UUID_LOWER=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

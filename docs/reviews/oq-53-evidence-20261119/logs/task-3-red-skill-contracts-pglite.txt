@@ -1,0 +1,55 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-contracts.test.ts (38 tests | 2 failed) 54ms
+   ❯ skill contracts (38)
+     × the context schema is strict 5ms
+     × C2 the context schema refuses a message source without a revision number 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > the context schema is strict
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/skill-contracts.test.ts:63:52
+     61|
+     62|   it('the context schema is strict', () => {
+     63|     expect(contextSchema.safeParse(ctx()).success).toBe(true);
+       |                                                    ^
+     64|     expect(contextSchema.safeParse({ ...ctx(), extra: 1 }).success).to…
+     65|     const c = ctx(); (c.sources[0] as Record<string, unknown>).extra =…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > C2 the context schema refuses a message source without a revision number
+AssertionError: e1 with its number: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/skill-contracts.test.ts:75:97
+     73|     expect(msgs).toHaveLength(3);
+     74|     for (const m of msgs) {
+     75|       expect(contextSchema.safeParse(ctx({ sources: [m] })).success, `…
+       |                                                                                                 ^
+     76|       // the number is not optional: a source without it is refused, i…
+     77|       const { revisionNo, ...without } = m as typeof m & { revisionNo:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 36 passed (38)
+   Start at  13:24:53
+   Duration  162ms (tests 50%, transform 26%, import 22%, worker 1%)
+
+exit=1
