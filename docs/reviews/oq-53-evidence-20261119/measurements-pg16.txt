@@ -108,3 +108,23 @@ Reading of the numbers (planner; the plan states the design)
 7    FOR SHARE on the confirm side starves a writer of the thread when confirmations overlap (57014 after 9 s, 175 confirmations
      meanwhile); FOR NO KEY UPDATE serves it in arrival order (370 ms). With the project row lock of migration 022 taken first,
      confirmations of one project already run one at a time and neither strength starves.
+
+Added for plan 0.2 (19/11/2026, after the two plan gates) — nothing above this line was changed
+===============================================================================================
+One read-only probe (probe-3.cjs): no schema, no table, no role was created or altered; it only reads pg_stat_activity and pg_roles
+from two superuser sessions of the same test database. It answers one question of the security gate's S-1: can migration 023 refuse
+mechanically while a session that can act as libetech_ai is connected?
+
+== 9. the refusal "a session of a role that is a member of libetech_ai is connected" (plan 0.2, P6; security gate S-1) ==
+9a another superuser session only: check without "NOT rolsuper" counts 1 (pg_has_role is true for a superuser); with it: 0
+9b the other session does SET LOCAL ROLE libetech_ai inside a transaction (what the tests' AI handle does): check counts 0; its usename is still the login
+9c the other session does SET SESSION AUTHORIZATION libetech_ai: usename in pg_stat_activity = the operator login; check counts 0
+9d the other session is libetech_runtime (not a member): check counts 0
+9e members of libetech_ai among login roles today: 0
+
+Reading (planner)
+9    The check must exclude superusers (pg_has_role answers true for them: 9a), so it only sees a NON-superuser login that is a member
+     of libetech_ai. No such login exists today (9e): the check always passes until the AI login exists. A session that merely does
+     SET ROLE or SET SESSION AUTHORIZATION to libetech_ai keeps its login name in pg_stat_activity and is not seen (9b, 9c): the
+     refusing branch cannot be exercised by a test without a real member login, which this PR does not create.
+Numbers of the two gates that plan 0.2 quotes are theirs, not re-measured here: docs/reviews/oq-53-evidence-20261119/gates/.
