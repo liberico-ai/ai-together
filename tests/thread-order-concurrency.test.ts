@@ -2,15 +2,18 @@ import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
 import {pm,seedSlice1} from './slice1-fixtures';
-import type {Queryable} from '../src/server/db';
+import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
 import {IntakeService,type IntakeAck} from '../src/server/intake';
 import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent} from './slice2-fixtures';
 
-// Migration 023, the intake half: the numbers of one thread follow the order of commit. Every case here needs two connections, so it runs on native PostgreSQL only
+// Migration 023, the intake half (N1-N6, N16): the numbers of one thread follow the order of commit. The confirming half (N7-N11, N17): a confirmation of a candidate draft
+// carries the position it read, and the database compares it with the counter row of the thread under a lock. Every case here needs two connections, so it runs on native PostgreSQL only
 // (PGlite has one connection and shows no lock wait). The order of each case is set by the case itself: a raw transaction holds the counter row of a thread
 // until the case lets it go; nothing is timed except the caps that the migration sets (5 seconds) and the answers that must not wait.
 const hex=(c:string)=>c.repeat(64);
+// a promise that is settled from outside: the way a case holds a transaction open on one connection while another connection acts
+const latch=()=>{let open!:()=>void;const promise=new Promise<void>(r=>{open=r;});return {promise,open};};
 
 describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',()=>{
   let h:Harness;
@@ -228,4 +231,187 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
       expect(code).toBe('55P03');
     });
   });
+
+  // ---- The confirming half: a decision row that carries the position of the thread, compared with the counter row under FOR NO KEY UPDATE ----
+  const SOURCES='[{"ref":"synthetic-source"}]';
+  const codeOf=(x:unknown)=>(x as {code?:string}|undefined)?.code;
+  const candidateOf=async(thread:string,chat=chatSales)=>(await q<{id:string}>('SELECT id FROM intake_candidates WHERE chat_id=$1 AND thread_key=$2',[chat,thread]))[0].id;
+  /** A draft about the candidate, written as the operational login: one source, value hash hex('c'). */
+  const draftOf=async(candidate:string,project=ids.sales)=>(await q<{id:string}>(`INSERT INTO intelligence.ai_drafts(tenant_id,project_id,entity_type,entity_id,signal_type,skill_version,manifest_hash,model_version,value,value_hash,sources,confidence,input_hash,ai_principal_id,trace_id,dedupe_key)
+    VALUES($1,$2,'intake_candidate',$3,'intake_analyst','1',$4,'m','{}',$4,$5::jsonb,1,$4,$3,$3,$6) RETURNING id`,[ids.tenant,project,candidate,hex('c'),SOURCES,'thread-order-'+randomUUID()]))[0].id;
+  const asRuntime=<T,>(projects:string[],fn:(tx:Queryable)=>Promise<T>)=>scoped(h.db,{...pm,projectIds:projects},async tx=>{
+    await tx.query("SELECT set_config('app.person_id',$1,true)",[pm.id]);
+    return fn(tx);
+  });
+  const insertDecision=(tx:Queryable,draft:string,over:Record<string,unknown>={})=>{
+    const v:Record<string,unknown>={tenant_id:ids.tenant,project_id:ids.sales,draft_id:draft,draft_value_hash:hex('c'),result:'confirmed',reason:'',decided_by:pm.id,
+      command_key:'thread-order-'+randomUUID(),request_id:randomUUID(),trace_id:randomUUID(),subject_thread_seq:null,...over},keys=Object.keys(v);
+    return tx.query(`INSERT INTO draft_decisions(${keys.join(',')}) VALUES(${keys.map((_,i)=>`$${i+1}`).join(',')})`,keys.map(k=>v[k]));
+  };
+  const storedPosition=async(draft:string)=>(await q<{s:number|null}>('SELECT subject_thread_seq::int s FROM draft_decisions WHERE draft_id=$1',[draft]))[0]?.s;
+  /** The statement `p` is in flight and waits for a lock: it has not settled while `n` sessions are blocked. A statement that is refused at once fails here, with a sentence. */
+  const inFlight=async(p:Promise<unknown>,n=1)=>{
+    const first=await Promise.race([p.then(()=>'settled' as const),waitForBlocked(h,n).then(()=>'blocked' as const)]);
+    expect(first,'the statement was expected to wait for a lock').toBe('blocked');
+  };
+  /** Waits until a session is blocked by the backend `pid` (told apart from the sessions that wait for somebody else); `p` must not have settled meanwhile. */
+  const waitBlockedBy=async(pid:number,p:Promise<unknown>,timeoutMs=5000)=>{
+    let settled=false;
+    void p.then(()=>{settled=true;});
+    const deadline=Date.now()+timeoutMs;
+    for(;;){
+      const n=(await q<{n:number}>("SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND $1::int = ANY(pg_blocking_pids(pid))",[pid]))[0].n;
+      if(n>=1) return;
+      expect(settled,'the statement was expected to wait for the lock of the other transaction').toBe(false);
+      if(Date.now()>deadline) throw new Error('Gave up waiting for a session blocked by the transaction that holds the lock');
+      await new Promise(r=>setTimeout(r,50));
+    }
+  };
+
+  test('N7 a confirmation that carries the position it read waits for an intake of the thread in flight and is refused once that intake commits',async()=>{
+    const {thread}=await root();
+    const draft=await draftOf(await candidateOf(thread));
+    const read=await head(thread);
+    expect(read).toBe(1);
+    let decision!:Promise<unknown>;
+    await h.operator.transaction(async tx=>{
+      // the intake has its number (2) and has not committed: the counter row of the thread is held
+      await writeIn(tx,chatSales,thread,'9201');
+      decision=settle(asRuntime([ids.sales],t=>insertDecision(t,draft,{subject_thread_seq:read})));
+      await inFlight(decision);
+      // nothing is stored while the confirmation waits
+      expect(await count('draft_decisions')).toBe(0);
+    });
+    expect(codeOf(await decision)).toBe('LTZ03');
+    expect(await count('draft_decisions')).toBe(0);
+    expect(await head(thread)).toBe(2);
+  });
+
+  test('N8 an intake waits for a confirmation in flight; the confirmation commits first',async()=>{
+    const {e,thread}=await root();
+    const draft=await draftOf(await candidateOf(thread));
+    const read=await head(thread);
+    const held=latch(),opened=latch();
+    // the confirmation has written its row (the position is current) and has not committed: it holds the counter row
+    const holder=settle(asRuntime([ids.sales],async tx=>{await insertDecision(tx,draft,{subject_thread_seq:read});opened.open();await held.promise;}));
+    let intake!:Promise<unknown>;
+    try {
+      expect(await Promise.race([opened.promise.then(()=>null),holder]),'the confirmation was stored').toBeNull();
+      intake=settle(svc().ingest(messageEvent({context:{replyToMessageId:e.context.messageId}})));
+      await inFlight(intake);
+      // the thread has not moved while the intake waits
+      expect(await head(thread)).toBe(read);
+    } finally {
+      // a case that fails above must not leave its transaction open for the cases that follow
+      held.open();
+    }
+    expect(codeOf(await holder)).toBeUndefined();
+    const ack=await intake as IntakeAck;
+    expect(ack.replayed).toBe(false);
+    expect(await count('draft_decisions')).toBe(1);
+    expect(await storedPosition(draft)).toBe(read);
+    expect(await head(thread)).toBe(read+1);
+    expect((await numbers(thread)).map(r=>r.seq)).toEqual([1,2]);
+  });
+
+  test('N9 a rejection does not wait for an intake of the thread',async()=>{
+    const {thread}=await root();
+    const draft=await draftOf(await candidateOf(thread));
+    let answer:unknown;
+    await h.operator.transaction(async tx=>{
+      await writeIn(tx,chatSales,thread,'9202');
+      // the counter row is held; the rejection is answered, and stored, before that transaction ends
+      answer=await settle(asRuntime([ids.sales],t=>insertDecision(t,draft,{result:'rejected',reason:'Lý do đủ dài'})));
+    });
+    expect(codeOf(answer)).toBeUndefined();
+    expect(await count('draft_decisions')).toBe(1);
+    expect(await storedPosition(draft)).toBeNull();
+  });
+
+  test('N10 scoped to another project, the runtime role is answered at once while the thread is held',async()=>{
+    const mine=await root();
+    const theirs=messageEvent({context:{chatId:chatTransport}});
+    await svc().ingest(theirs);
+    const theirThread='m:'+theirs.context.messageId;
+    const draftMine=await draftOf(await candidateOf(mine.thread)),draftTheirs=await draftOf(await candidateOf(theirThread,chatTransport),ids.transport);
+    const minePos=await head(mine.thread),theirPos=await head(theirThread);
+    const answers:{name:string;code:string|undefined;ms:number}[]=[];
+    // both threads are held by writers that have not committed
+    await h.operator.transaction(async holderA=>{
+      await writeIn(holderA,chatTransport,theirThread,'9211',ids.transport);
+      await h.operator.transaction(async holderB=>{
+        await writeIn(holderB,chatSales,mine.thread,'9212');
+        const forms:[string,string,Record<string,unknown>][]=[
+          ['a draft of another project, the row names that project',draftTheirs,{project_id:ids.transport,subject_thread_seq:theirPos}],
+          ['a draft of another project, the row names the project in scope',draftTheirs,{subject_thread_seq:theirPos}],
+          ['a draft in scope, decided_by another person',draftMine,{decided_by:randomUUID(),subject_thread_seq:minePos}],
+        ];
+        for(const [name,draft,over] of forms){
+          const t0=Date.now();
+          const x=await settle(asRuntime([ids.sales],tx=>insertDecision(tx,draft,over)));
+          answers.push({name,code:codeOf(x),ms:Date.now()-t0});
+        }
+      });
+    });
+    expect(answers.map(a=>a.code)).toEqual(['P0001','P0001','42501']);
+    for(const a of answers) expect(a.ms,a.name).toBeLessThan(100);
+    expect(await count('draft_decisions')).toBe(0);
+    // the two holders each stored one number; the refused rows stored none and moved no counter
+    expect(await head(mine.thread)).toBe(minePos+1);expect(await head(theirThread)).toBe(theirPos+1);
+  });
+
+  test('N11 intake, a mapping insert and a confirmation of one project never deadlock: the confirmation waits for the mapping, then for the intake, and is refused',async()=>{
+    const {thread}=await root();
+    const draft=await draftOf(await candidateOf(thread));
+    const read=await head(thread);
+    const pidOf=async(tx:Queryable)=>(await tx.query<{p:number}>('SELECT pg_backend_pid() p')).rows[0].p;
+    let confirmation!:Promise<unknown>;
+    await h.operator.transaction(async intake=>{
+      await intake.query("SET LOCAL lock_timeout = '3s'");
+      const pidIntake=await pidOf(intake);
+      // the intake takes the number (and holds the counter row of the thread), with a key-share lock on the project row
+      await writeIn(intake,chatSales,thread,'9221');
+      await h.operator.transaction(async mapping=>{
+        const pidMapping=await pidOf(mapping);
+        // the mapping insert holds the project row FOR NO KEY UPDATE (migration 022)
+        await mapping.query("INSERT INTO project_domain_mappings(tenant_id,project_id,domain_code,confirmed_by,source,mapping_version) VALUES($1,$2,'XECA',$3,'synthetic-source',1)",[ids.tenant,ids.sales,pm.id]);
+        // the intake goes on writing while the mapping holds the project row: a key-share lock does not conflict, so this does not wait
+        await intake.query(eventSql,[ids.tenant,ids.sales,'gw-9222',chatSales,'9222','m:9222',randomUUID()]);
+        confirmation=settle(asRuntime([ids.sales],t=>insertDecision(t,draft,{subject_thread_seq:read})));
+        // first it waits for the mapping (project row) ...
+        await waitBlockedBy(pidMapping,confirmation);
+      });
+      // ... the mapping has committed: now it waits for the intake (counter row of the thread)
+      await waitBlockedBy(pidIntake,confirmation);
+    });
+    const done=await confirmation;
+    expect(codeOf(done),'no deadlock, and the thread moved on').toBe('LTZ03');
+    expect(await count('draft_decisions')).toBe(0);
+    expect((await q<{n:number}>("SELECT count(*)::int n FROM project_domain_mappings WHERE project_id=$1",[ids.sales]))[0].n).toBe(1);
+    expect((await numbers(thread)).map(r=>r.seq)).toEqual([1,2]);
+  },20000);
+
+  test('N17 an open triage of the candidate, an intake of its thread and a confirmation do not deadlock',async()=>{
+    const {e,thread}=await root();
+    const candidate=await candidateOf(thread),draft=await draftOf(candidate);
+    const read=await head(thread);
+    let intake!:Promise<unknown>,confirmation!:Promise<unknown>;
+    await h.operator.transaction(async triage=>{
+      // the triage as src/server/inbox.ts does it: the candidate row FOR UPDATE, then UPDATE; the transaction stays open
+      await triage.query('SELECT id FROM intake_candidates WHERE id=$1 FOR UPDATE',[candidate]);
+      await triage.query("UPDATE intake_candidates SET state='needs_info',missing_fields='[\"synthetic\"]'::jsonb,version=version+1,updated_at=now() WHERE id=$1",[candidate]);
+      // the intake of the thread takes its number (and the counter row), then waits at the insert of the candidate that the triage holds
+      intake=settle(svc().ingest(messageEvent({context:{replyToMessageId:e.context.messageId}})));
+      await inFlight(intake);
+      // the confirmation, with the position it read, waits for the counter row held by the intake
+      confirmation=settle(asRuntime([ids.sales],t=>insertDecision(t,draft,{subject_thread_seq:read})));
+      await inFlight(confirmation,2);
+    });
+    const ack=await intake as IntakeAck;
+    expect(ack.replayed).toBe(false);
+    expect(codeOf(await confirmation),'no deadlock, and the thread moved on').toBe('LTZ03');
+    expect(await count('draft_decisions')).toBe(0);
+    expect((await numbers(thread)).map(r=>r.seq)).toEqual([1,2]);
+    expect(await head(thread)).toBe(read+1);
+  },20000);
 });

@@ -1,0 +1,38 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/z4-pointer-guard.test.ts (39 tests | 1 failed | 11 skipped) 14614ms
+   ❯ migration 022: the pointer-only guard (39)
+     × G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role 499ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role
+AssertionError: expected [ 'draft_decisions_guard', …(3) ] to deeply equal [ 'draft_decisions_guard', …(2) ]
+
+- Expected
++ Received
+
+  [
+    "draft_decisions_guard",
+    "draft_decisions_immutable",
+    "draft_decisions_pointer_only_guard",
++   "draft_decisions_subject_order_guard",
+  ]
+
+ ❯ tests/z4-pointer-guard.test.ts:264:51
+    262|     const names=async(t:string)=>(await rows<{tgname:string}>('SELECT …
+    263|     expect(await names('intelligence.ai_drafts')).toEqual(['ai_drafts_…
+    264|     expect(await names('public.draft_decisions')).toEqual(['draft_deci…
+       |                                                   ^
+    265|     expect(await names('public.project_domain_mappings')).toEqual(['pr…
+    266|     // the order they fire in: BEFORE INSERT row triggers of one table…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 27 passed | 11 skipped (39)
+   Start at  11:44:19
+   Duration  14.73s (tests 100%)
+

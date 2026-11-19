@@ -556,18 +556,22 @@ test('rollback 022 runs again after 021 was rolled back and its schema is gone',
   }
 });
 
-test('rollback 023 refuses while a later migration is applied, drops the two tables, the function and the trigger of 023, and leaves source events, revisions, drafts and decisions as they were; applying 023 again restores the numbers',async()=>{
+test('rollback 023 refuses while a later migration is recorded or a decision carries a thread position; it drops what 023 made and leaves source events, revisions, drafts and decisions as they were; applying 023 again restores the numbers',async()=>{
   const h=await openHarness();
   const forward=await readFile(dir('migrations/023_thread_order.sql'),'utf8');
   const rollback=await readFile(dir('migrations/rollback/023_thread_order.sql'),'utf8');
   expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+ROLE|DROP\s+SCHEMA/i);
   const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
-  const OWN="('source_event_revisions_thread_position','intake_thread_heads_no_delete','source_revision_positions_immutable')";
-  // 023 leaves two tables (with their own immutability triggers), one function and one trigger on the revision table
+  const OWN="('source_event_revisions_thread_position','intake_thread_heads_no_delete','source_revision_positions_immutable','draft_decisions_subject_order_guard')";
+  // 023 leaves two tables (with their own immutability triggers), two functions and two triggers (one on the revision table, one on the decision table),
+  // and on the decision table a column, its check constraint and the INSERT grant of that column
   const objects=async()=>({
     tables:(await q<{t:string|null}>("SELECT to_regclass(n)::text t FROM unnest(ARRAY['public.intake_thread_heads','public.source_revision_positions']) n")).map(r=>r.t),
     triggers:(await q<{t:string;d:string}>(`SELECT tgrelid::regclass::text t,pg_get_triggerdef(oid) d FROM pg_trigger WHERE tgname IN ${OWN} AND NOT tgisinternal ORDER BY 1,2`)),
-    functions:(await q<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname='source_event_revisions_thread_position'")).map(r=>r.d),
+    functions:(await q<{d:string}>("SELECT pg_get_functiondef(p.oid) d FROM pg_proc p WHERE p.proname IN ('source_event_revisions_thread_position','draft_decisions_subject_order_guard') ORDER BY p.proname")).map(r=>r.d),
+    column:(await q<{acl:string|null;comment:string|null}>(`SELECT a.attacl::text acl,col_description(a.attrelid,a.attnum) comment FROM pg_attribute a
+      WHERE a.attrelid='public.draft_decisions'::regclass AND a.attname='subject_thread_seq' AND NOT a.attisdropped`)),
+    constraint:(await q<{d:string}>("SELECT pg_get_constraintdef(oid) d FROM pg_constraint WHERE conname='draft_decisions_thread_seq_only_confirmed'")),
   });
   const upstream=async()=>({
     triggers:(await q<{t:string;d:string}>(`SELECT tgrelid::regclass::text t,pg_get_triggerdef(oid) d FROM pg_trigger WHERE NOT tgisinternal AND tgname NOT IN ${OWN}
@@ -607,7 +611,8 @@ test('rollback 023 refuses while a later migration is applied, drops the two tab
       VALUES($1,$2,$3,$4,'rejected','Lý do đủ dài',$5,'rollback-key',$6,$6)`,[ids.tenant,ids.sales,draftId,hash,pm.id,randomUUID()]);
     const full=await objects();
     expect(full.tables).toEqual(['intake_thread_heads','source_revision_positions']);
-    expect(full.triggers).toHaveLength(3);expect(full.functions).toHaveLength(1);
+    expect(full.triggers).toHaveLength(4);expect(full.functions).toHaveLength(2);
+    expect(full.column).toHaveLength(1);expect(full.constraint).toHaveLength(1);
     const kept=await upstream();
     const numbered=await numbers(),counted=await heads();
     expect(numbered.map(r=>r.seq)).toEqual([1,2,3,1]);
@@ -619,12 +624,34 @@ test('rollback 023 refuses while a later migration is applied, drops the two tab
     try { await refused(/later|024/i); }
     finally { await q("DELETE FROM schema_migrations WHERE version='024'"); }
     expect(await objects()).toEqual(full);expect(await applied()).toBe(1);expect(await numbers()).toEqual(numbered);
+    // 1b. a decision that carries the position of a thread blocks it: the position would be lost and the row cannot be removed (the decision table is append-only).
+    // The decision is written in the same transaction as the rollback and discarded with it, so the cases below start from the same rows.
+    const [pe,pc,pd]=[randomUUID(),randomUUID(),randomUUID()];
+    const carrying=`BEGIN;
+      INSERT INTO source_events(id,tenant_id,project_id,source_id,source_type,quality_score,chat_id,message_id,thread_key,source_actor,observed_at,forwarded,addressed,trace_id,correlation_id)
+        VALUES('${pe}','${ids.tenant}','${ids.sales}','gw-9204','telegram_gateway',80,'${chat}','9204','m:9204','actor-1',now(),false,false,'${pe}','${pe}');
+      INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,content_mode)
+        VALUES('${ids.tenant}','${ids.sales}','${pe}',1,'${'6'.repeat(64)}','${'b'.repeat(64)}','pointer_only');
+      INSERT INTO intake_candidates(id,tenant_id,project_id,chat_id,thread_key,root_source_event_id) VALUES('${pc}','${ids.tenant}','${ids.sales}','${chat}','m:9204','${pe}');
+      INSERT INTO intelligence.ai_drafts(id,tenant_id,project_id,entity_type,entity_id,signal_type,skill_version,manifest_hash,model_version,value,value_hash,sources,confidence,input_hash,ai_principal_id,trace_id,dedupe_key)
+        VALUES('${pd}','${ids.tenant}','${ids.sales}','intake_candidate','${pc}','intake_analyst','1','${hash}','m','{}','${hash}','[{"ref":"synthetic-source"}]',1,'${hash}','${pe}','${pe}','rollback-023-carrying');
+      INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,decided_by,command_key,request_id,trace_id,subject_thread_seq)
+        VALUES('${ids.tenant}','${ids.sales}','${pd}','${hash}','confirmed','','${pm.id}','rollback-carrying-key','${pe}','${pe}',1);
+      SELECT count(*) FROM draft_decisions WHERE subject_thread_seq IS NOT NULL;
+      ${rollback}`;
+    await expect(h.exec(carrying)).rejects.toThrow(/position of its thread/);
+    await h.exec('ROLLBACK');
+    expect(await objects()).toEqual(full);expect(await applied()).toBe(1);expect(await numbers()).toEqual(numbered);
+    expect(await counts()).toEqual(rows0);
     // 2. clean: the tables, the function and the trigger go, 023 is forgotten; events, revisions, the draft, the decision and the triggers of 016, 021 and 022 stay
     await h.exec(rollback);
-    expect(await objects()).toEqual({tables:[null,null],triggers:[],functions:[]});
+    expect(await objects()).toEqual({tables:[null,null],triggers:[],functions:[],column:[],constraint:[]});
     expect(await applied()).toBe(0);
     expect(await counts()).toEqual(rows0);
     expect(await upstream()).toEqual(kept);
+    // the decision table is as 021 and 022 left it: their triggers, no new column
+    expect((await q<{tgname:string}>("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid='public.draft_decisions'::regclass ORDER BY 1")).map(r=>r.tgname))
+      .toEqual(['draft_decisions_guard','draft_decisions_immutable','draft_decisions_pointer_only_guard']);
     // what the rollback re-opens: a revision stored now is numbered nowhere
     await revision(e2,2,7,'5');
     expect(await counts()).toEqual({...rows0,revisions:5});

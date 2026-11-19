@@ -1,0 +1,33 @@
+Task 2 (OQ-53, migration 023, confirming half): checks that the new cases are sensitive.
+Each mutant is a one-line edit of migrations/023_thread_order.sql (or of its rollback file, rb-*), applied in place, run, and put back; the file was compared byte for byte with the saved original afterwards (cmp: identical).
+For a native run the isolated database was emptied (the table list of tests/slice1-db.ts) and 023 rolled back before the run, so that the harness applied the mutated file; after the run it was rolled back again.
+Engines: pglite = PostgreSQL 18.6 in memory, native = PostgreSQL 16.15 in the isolated container. Only the cases that went red are listed; every other case of the file stayed green.
+
+mutant                                                         files run (engine)                           cases that went red
+db2-nolock       drop FOR NO KEY UPDATE of the decision trigger     thread-order-concurrency (native)            N7, N8, N11, N17
+db2-keyshare     FOR KEY SHARE instead                              thread-order-concurrency (native)            N7, N8, N11, N17
+db3-ge           compare with >= instead of <>                      thread-order (pglite)                        B1, B6
+                                                                    thread-order-concurrency (native)            N8
+db11-nodrop      no drop-if-exists before the decision trigger      thread-order (pglite)                        A6, A7, A7b, A8 (i), A8 (ii), B5 (second application fails with 42710)
+m-before         BEFORE INSERT instead of AFTER INSERT              thread-order (pglite)                        B1, B2, B3, B4, B5, B6
+                                                                    thread-order-concurrency (native)            N8, N9, N10
+m-noisolation    no isolation check in the decision trigger         thread-order (pglite)                        B7
+m-allentity      a confirmation of a document draft is judged       thread-order (pglite)                        B2
+                 like one of a candidate draft                      z4-schema (pglite)                           5 cases (the five that use the default draft, now about a document)
+m-noconstraint   check constraint that checks nothing              thread-order (pglite)                        B2, B3
+m-grant-intake   the intake role may insert the new column          thread-order (pglite)                        B5
+m-publicexec     the decision function stays executable by PUBLIC   thread-order (pglite)                        B5
+m-nosecdef       invoker instead of definer                         thread-order (pglite)                        B1, B2, B3, B4, B5, B6, B7
+m-nonull         a confirmation with no position is not refused     thread-order (pglite)                        B1, B3
+                 before the lookup
+m-noprojectscope the candidate is looked up without the project     thread-order (pglite)                        first version of B4: NONE (the lookup of the counter row, which also carries the project of the decision,
+                 of the decision                                                                                  refused anyway: two layers). B4 then got the case "same chat and thread key in two projects"; with it: B4
+rb-nocarry       rollback does not refuse while a decision          migrations-rollback (pglite)                 RB-023
+                 carries a position
+rb-keepcolumn    rollback leaves the column behind                  migrations-rollback (pglite)                 RB-023, "forward -> rollback -> forward leaves source tables untouched"
+rb-keeptrigger   rollback leaves the decision trigger behind        migrations-rollback (pglite)                 RB-023 and 8 other cases of the file (they roll 023 back and meet the trigger still on the table)
+
+Note on the first run of db2-keyshare and db3-ge: every case of the concurrency file went red, because the database still held the rows of the run before (a case that failed before it released its latch left a transaction open until the process ended). Two things changed after that:
+the case N8 releases its latch in a finally block, and the mutant driver empties the database before it rolls 023 back. The table above is from the repeated runs.
+
+db2 (the plan asks for both forms): N7 and N8 are red with the lock removed and with FOR KEY SHARE, as the plan says (measurement 4: FOR KEY SHARE closes neither direction).

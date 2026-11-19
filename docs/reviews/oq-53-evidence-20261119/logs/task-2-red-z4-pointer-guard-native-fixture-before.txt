@@ -1,0 +1,95 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/z4-pointer-guard.test.ts (39 tests | 3 failed) 18164ms
+   ❯ migration 022: the pointer-only guard (39)
+     × G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role 317ms
+     × P4 a confirmation waits for an uncommitted IBS_HI mapping of its project and is then refused LTZ01; when the mapping is rolled back it is stored 429ms
+     × P5 a mapping insert waits for an open confirmation of its project: the decision is stored first and the mapping after it 330ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role
+AssertionError: expected [ 'draft_decisions_guard', …(3) ] to deeply equal [ 'draft_decisions_guard', …(2) ]
+
+- Expected
++ Received
+
+  [
+    "draft_decisions_guard",
+    "draft_decisions_immutable",
+    "draft_decisions_pointer_only_guard",
++   "draft_decisions_subject_order_guard",
+  ]
+
+ ❯ tests/z4-pointer-guard.test.ts:264:51
+    262|     const names=async(t:string)=>(await rows<{tgname:string}>('SELECT …
+    263|     expect(await names('intelligence.ai_drafts')).toEqual(['ai_drafts_…
+    264|     expect(await names('public.draft_decisions')).toEqual(['draft_deci…
+       |                                                   ^
+    265|     expect(await names('public.project_domain_mappings')).toEqual(['pr…
+    266|     // the order they fire in: BEFORE INSERT row triggers of one table…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > P4 a confirmation waits for an uncommitted IBS_HI mapping of its project and is then refused LTZ01; when the mapping is rolled back it is stored
+AssertionError: expected error: The thread of the candidate moved … { …(15) } to be null
+
+- Expected:
+null
+
++ Received:
+error {
+  "message": "The thread of the candidate moved on",
+  "length": 179,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "LTZ03",
+  "detail": undefined,
+  "hint": undefined,
+  "position": undefined,
+  "internalPosition": undefined,
+  "internalQuery": undefined,
+  "where": "PL/pgSQL function public.draft_decisions_subject_order_guard() line 22 at RAISE",
+  "schema": undefined,
+  "table": undefined,
+  "column": undefined,
+  "dataType": undefined,
+  "constraint": undefined,
+  "file": "pl_exec.c",
+  "line": "3897",
+  "routine": "exec_stmt_raise",
+}
+
+ ❯ tests/z4-pointer-guard.test.ts:1036:22
+    1034|     expect(await decisions(refused.draft)).toBe(0);
+    1035|     const stored=await attempt(sameBuProject,'rollback');
+    1036|     expect(stored.e).toBeNull();
+       |                      ^
+    1037|     expect(await decisions(stored.draft)).toBe(1);
+    1038|   },20000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > P5 a mapping insert waits for an open confirmation of its project: the decision is stored first and the mapping after it
+error: The thread of the candidate moved on
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ Object.query src/server/db.ts:38:120
+     36|     await assertRestrictedLogin({ query: async <T>(sql: string, params…
+     37|   })();
+     38|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+       |                                                                                                                        ^
+     39|   return {
+     40|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+ ❯ tests/z4-pointer-guard.test.ts:1045:7
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/z4-pointer-guard.test.ts:1051:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 36 passed (39)
+   Start at  11:44:41
+   Duration  18.28s (tests 100%)
+

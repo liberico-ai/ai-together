@@ -1,0 +1,90 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/z4-schema.test.ts (25 tests | 5 failed | 2 skipped) 12076ms
+   × draft decisions are invisible to another project, another tenant and a session with no context 508ms
+   × a confirmation can only attach a revision of the very document the draft is about 557ms
+   × drafts and draft decisions reject update and delete 530ms
+   × the decision guard also stops the operational login 521ms
+   × running 021 again changes nothing: one trigger, one function, the same policies and grants 512ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/z4-schema.test.ts > draft decisions are invisible to another project, another tenant and a session with no context
+ FAIL  tests/z4-schema.test.ts > drafts and draft decisions reject update and delete
+error: The thread of the candidate moved on
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/z4-schema.test.ts > a confirmation can only attach a revision of the very document the draft is about
+AssertionError: promise rejected "error: The thread of the candidate moved … { …(18) }" instead of resolving
+ ❯ tests/z4-schema.test.ts:233:34
+    231|   // a revision of A on a draft about A, and no revision at all, are a…
+    232|   await expect(decide(await about(docA.record.id),{document_revision_i…
+    233|   await expect(decide(candidate)).resolves.toBeTruthy();
+       |                                  ^
+    234| });
+    235|
+
+Caused by: error: The thread of the candidate moved on
+ ❯ pe.Oe node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:18174
+ ❯ pe.tt node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:15560
+ ❯ pe.parse node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:14234
+ ❯ q.Ce node_modules/@electric-sql/pglite/dist/chunk-O74Z5DUS.js:5:1759
+ ❯ node_modules/@electric-sql/pglite/dist/chunk-O74Z5DUS.js:5:1151
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 179, severity: 'ERROR', code: 'LTZ03', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: 'PL/pgSQL function public.draft_decisions_subject_order_guard() line 22 at RAISE', schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'pl_exec.c', routine: 'exec_stmt_raise', query: 'INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,decided_by,command_key,request_id,trace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id', params: [ '10000000-0000-4000-8000-000000000001', '11000000-0000-4000-8000-000000000001', 'fd28b8fb-3b49-4b9b-92ab-57e3d5c73df3', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'confirmed', '', '14000000-0000-4000-8000-000000000001', 'cmd-b7e1487a-90dd-4279-99cb-390e70ba1335', '2aa7a530-dd2f-4e63-a6b4-4fea5dd272a1', '1831f5fd-85cc-4112-9e84-e050ad286eae' ], queryOptions: undefined }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/z4-schema.test.ts > the decision guard also stops the operational login
+AssertionError: promise rejected "error: The thread of the candidate moved … { …(18) }" instead of resolving
+ ❯ tests/z4-schema.test.ts:379:51
+    377|   await expect(insertDecision(h.operator,unsourced)).rejects.toThrow(/…
+    378|   await expect(insertDecision(h.operator,sourced,{draft_value_hash:OTH…
+    379|   await expect(insertDecision(h.operator,sourced)).resolves.toBeTruthy…
+       |                                                   ^
+    380| });
+    381|
+
+Caused by: error: The thread of the candidate moved on
+ ❯ pe.Oe node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:18174
+ ❯ pe.tt node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:15560
+ ❯ pe.parse node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:14234
+ ❯ q.Ce node_modules/@electric-sql/pglite/dist/chunk-O74Z5DUS.js:5:1759
+ ❯ node_modules/@electric-sql/pglite/dist/chunk-O74Z5DUS.js:5:1151
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 179, severity: 'ERROR', code: 'LTZ03', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: 'PL/pgSQL function public.draft_decisions_subject_order_guard() line 22 at RAISE', schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'pl_exec.c', routine: 'exec_stmt_raise', query: 'INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,decided_by,command_key,request_id,trace_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id', params: [ '10000000-0000-4000-8000-000000000001', '11000000-0000-4000-8000-000000000001', '1470afcc-6b4b-4014-84d2-fb362d329b87', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'confirmed', '', '14000000-0000-4000-8000-000000000001', 'cmd-78243a84-11c4-4a4f-8089-d511341aaa17', '3d2f314f-b2fe-4f8b-8597-50c6311c8f80', '70721289-eecf-4036-8733-dbda7ea872fb' ], queryOptions: undefined }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/z4-schema.test.ts > running 021 again changes nothing: one trigger, one function, the same policies and grants
+AssertionError: expected [ Array(4) ] to have a length of 3 but got 4
+
+- Expected
++ Received
+
+- 3
++ 4
+
+ ❯ tests/z4-schema.test.ts:468:27
+    466|   });
+    467|   const before=await shape();
+    468|   expect(before.triggers).toHaveLength(3);
+       |                           ^
+    469|   expect(before.functions).toHaveLength(1);
+    470|   await h.exec(sql);await h.exec(sql);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed | 18 passed | 2 skipped (25)
+   Start at  11:44:00
+   Duration  12.20s (tests 99%)
+

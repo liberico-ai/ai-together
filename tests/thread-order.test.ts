@@ -7,9 +7,11 @@ import {pm,seedSlice1} from './slice1-fixtures';
 import {scoped,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
 import {IntakeService} from '../src/server/intake';
-import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent} from './slice2-fixtures';
+import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent,type EventOverride} from './slice2-fixtures';
+import {mapDomain} from './slice3-fixtures';
 
-// Migration 023, the intake half (OQ-53 point 3 (b)): a number per thread for every stored revision, a counter row per thread, and the refusals of the file.
+// Migration 023 (OQ-53 point 3 (b)). The intake half: a number per thread for every stored revision, a counter row per thread, and the refusals of the file (A1-A9).
+// The confirming half: the column draft_decisions.subject_thread_seq and the trigger that compares it with the counter row and writes it (B1-B7).
 // The cases that need two connections are in thread-order-concurrency.test.ts (native PostgreSQL only).
 const file=(p:string)=>readFile(path.join(process.cwd(),p),'utf8');
 const forwardSql=()=>file('migrations/023_thread_order.sql');
@@ -390,4 +392,295 @@ test('A9 a revision whose source event is not visible is refused by the foreign 
   expect(said).not.toMatch(/[0-9]/);
   expect(await count('source_revision_positions')).toBe(before.positions);
   expect(await heads()).toEqual(before.heads);
+});
+
+// ---- The confirming half (steps 10 and 11 of 023): draft_decisions.subject_thread_seq and draft_decisions_subject_order_guard ----
+// A decision row is inserted raw, as the runtime role in the scope of the caller, for a draft about a candidate that the intake service really created.
+type Told={code?:string;message:string;detail?:string;hint?:string;where?:string;constraint?:string};
+const SOURCES='[{"ref":"synthetic-source"}]';
+const GUARD='draft_decisions_subject_order_guard';
+// The sentence of S-6, in the header of the file and in the comment of the column: the column does not prove that the rules of the service ran.
+const NOT_NULL_SENTENCE='subject_thread_seq IS NOT NULL chỉ chứng minh rằng không bản nào được nhận vào luồng giữa lúc số được đọc và lúc quyết định được ghi; nó không chứng minh nháp đã qua phép kiểm nào của dịch vụ';
+
+/** A candidate that exists because the service took in a message; `thread` is its thread key. */
+async function realCandidate(over:EventOverride={}){
+  const event=messageEvent(over),thread='m:'+event.context.messageId;
+  await svc().ingest(event);
+  const c=(await q<{id:string}>('SELECT id FROM intake_candidates WHERE chat_id=$1 AND thread_key=$2',[event.context.chatId,thread]))[0];
+  return {id:c.id,event,thread};
+}
+const position=async(thread:string)=>(await heads()).find(r=>r.thread_key===thread)!.last_seq;
+const anotherMessage=(c:{event:{context:{messageId:string}}})=>svc().ingest(messageEvent({context:{replyToMessageId:c.event.context.messageId}}));
+/** A draft written as the operational login (the AI role is not what these cases are about): one source, value hash hex('c'). */
+const draftOf=async(entityType:'intake_candidate'|'document',entityId:string,o:{project?:string;sources?:string}={})=>
+  (await q<{id:string}>(`INSERT INTO intelligence.ai_drafts(tenant_id,project_id,entity_type,entity_id,signal_type,skill_version,manifest_hash,model_version,value,value_hash,sources,confidence,input_hash,ai_principal_id,trace_id,dedupe_key)
+    VALUES($1,$2,$3,$4,'intake_analyst','1',$5,'m','{}',$5,$6::jsonb,1,$5,$4,$4,$7) RETURNING id`,[ids.tenant,o.project??ids.sales,entityType,entityId,hex('c'),o.sources??SOURCES,'thread-order-'+randomUUID()]))[0].id;
+const decisionVals=(draft:string,over:Record<string,unknown>={}):Record<string,unknown>=>({tenant_id:ids.tenant,project_id:ids.sales,draft_id:draft,draft_value_hash:hex('c'),result:'confirmed',reason:'',
+  decided_by:pm.id,command_key:'thread-order-'+randomUUID(),request_id:randomUUID(),trace_id:randomUUID(),subject_thread_seq:null,...over});
+const insertDecision=(tx:Queryable,draft:string,over:Record<string,unknown>={})=>{
+  const v=decisionVals(draft,over),keys=Object.keys(v);
+  return tx.query(`INSERT INTO draft_decisions(${keys.join(',')}) VALUES(${keys.map((_,i)=>`$${i+1}`).join(',')})`,keys.map(k=>v[k]));
+};
+/** The insert as the runtime role in the scope `projects` (default: the sales project); null when it is stored, else the error. */
+const decide=(draft:string,over:Record<string,unknown>={},projects:string[]=[ids.sales])=>refusal(asRuntime(projects,tx=>insertDecision(tx,draft,over))) as Promise<Told|null>;
+const decisionCount=async(draft?:string)=>(await q<{n:number}>(draft?'SELECT count(*)::int n FROM draft_decisions WHERE draft_id=$1':'SELECT count(*)::int n FROM draft_decisions',draft?[draft]:[]))[0].n;
+const storedPosition=async(draft:string)=>(await q<{s:number|null}>('SELECT subject_thread_seq::int s FROM draft_decisions WHERE draft_id=$1',[draft]))[0]?.s;
+/** One transaction that always rolls back: the operational login first (for the statements that need it), then the runtime role in scope. */
+const asRuntimeAfter=(before:(tx:Queryable)=>Promise<void>,fn:(tx:Queryable)=>Promise<unknown>,projects:string[]=[ids.sales])=>{
+  const done=new Error('rolled back on purpose');
+  return refusal(h.operator.transaction(async tx=>{
+    await before(tx);
+    await tx.query('SET LOCAL ROLE libetech_runtime');
+    await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.person_id',$3,true)",[ids.tenant,projects.join(','),pm.id]);
+    await fn(tx);
+    throw done;
+  })).then(e=>(e as unknown)===done?null:e) as Promise<Told|null>;
+};
+
+test('B1 a confirmed decision of a candidate draft is stored only with the current position of its thread',async()=>{
+  const c=await realCandidate();
+  await anotherMessage(c);
+  const read=await position(c.thread);
+  expect(read).toBe(2);
+  const draft=await draftOf('intake_candidate',c.id);
+  // the position was read, then a message arrived: the thread has moved on
+  await anotherMessage(c);
+  const now=await position(c.thread);
+  expect(now).toBe(read+1);
+  const headsBefore=await heads();
+  for(const [label,seq] of [['the position that was read before a message arrived',read],['a larger position',now+1],['no position',null]] as const){
+    const e=await decide(draft,{subject_thread_seq:seq});
+    expect(e,label).not.toBeNull();
+    expect(e!.code,label).toBe('LTZ03');
+    expect(await decisionCount(draft),label).toBe(0);
+  }
+  // a candidate that does not exist
+  const ghost=await draftOf('intake_candidate',randomUUID());
+  expect((await decide(ghost,{subject_thread_seq:1}))?.code).toBe('LTZ03');
+  // a candidate whose thread has no counter row: a root event and its candidate, no numbered revision
+  const bare=await rawEvent(chatSales,'9301','m:9301');
+  const bareCandidate=(await q<{id:string}>("INSERT INTO intake_candidates(tenant_id,project_id,chat_id,thread_key,root_source_event_id) VALUES($1,$2,$3,'m:9301',$4) RETURNING id",[ids.tenant,ids.sales,chatSales,bare]))[0].id;
+  const orphan=await draftOf('intake_candidate',bareCandidate);
+  expect((await decide(orphan,{subject_thread_seq:1}))?.code).toBe('LTZ03');
+  expect(await decisionCount()).toBe(0);
+  // refusals moved nothing: the counter rows are as they were
+  expect(await heads()).toEqual(headsBefore);
+  // the current position is stored, and the column carries it
+  expect(await decide(draft,{subject_thread_seq:now})).toBeNull();
+  expect(await decisionCount(draft)).toBe(1);
+  expect(await storedPosition(draft)).toBe(now);
+  expect(await heads()).toEqual(headsBefore);
+});
+
+test('B2 a rejection, and any decision of a document draft, carries no thread position',async()=>{
+  const c=await realCandidate();
+  const pos=await position(c.thread);
+  const draft=await draftOf('intake_candidate',c.id),doc=await draftOf('document',randomUUID());
+  // a rejection with a position, and a confirmation with a position that is not positive: the constraint
+  for(const [label,over] of [['a rejection with a position',{result:'rejected',reason:'Lý do đủ dài',subject_thread_seq:pos}],
+    ['a confirmation with position 0',{subject_thread_seq:0}],['a confirmation with a negative position',{subject_thread_seq:-1}]] as const){
+    const e=await decide(draft,over);
+    expect(e,label).not.toBeNull();
+    expect(e!.code,label).toBe('23514');
+    expect(e!.message,label).toMatch(/draft_decisions_thread_seq_only_confirmed/);
+  }
+  // a confirmation of a document draft with a position: refused by the trigger
+  expect((await decide(doc,{subject_thread_seq:pos}))?.code).toBe('LTZ03');
+  expect(await decisionCount()).toBe(0);
+  // with the constraint out of the way the trigger refuses the rejection by itself (defence in depth); the transaction rolls back
+  const alone=await asRuntimeAfter(async tx=>{await tx.query('ALTER TABLE draft_decisions DROP CONSTRAINT draft_decisions_thread_seq_only_confirmed');},
+    tx=>insertDecision(tx,draft,{result:'rejected',reason:'Lý do đủ dài',subject_thread_seq:pos}));
+  expect(alone?.code).toBe('LTZ03');
+  expect(alone?.where).toContain(GUARD);
+  expect(await q("SELECT 1 FROM pg_constraint WHERE conname='draft_decisions_thread_seq_only_confirmed'")).toHaveLength(1);
+  // neither carries a position: stored, as before 023
+  expect(await decide(draft,{result:'rejected',reason:'Lý do đủ dài'})).toBeNull();
+  expect(await decide(doc)).toBeNull();
+  expect(await decisionCount()).toBe(2);
+  expect(await storedPosition(draft)).toBeNull();expect(await storedPosition(doc)).toBeNull();
+});
+
+test('B3 the answer of the guard names no id and no number',async()=>{
+  const c=await realCandidate();
+  const pos=await position(c.thread);
+  const draft=await draftOf('intake_candidate',c.id),doc=await draftOf('document',randomUUID()),ghost=await draftOf('intake_candidate',randomUUID());
+  await anotherMessage(c);
+  const told:[string,Told|null][]=[
+    ['a position that has become old',await decide(draft,{subject_thread_seq:pos})],
+    ['no position',await decide(draft,{subject_thread_seq:null})],
+    ['a candidate that does not exist',await decide(ghost,{subject_thread_seq:1})],
+    ['a position on a document draft',await decide(doc,{subject_thread_seq:pos})],
+  ];
+  const messages=new Set<string>();
+  for(const [label,e] of told){
+    expect(e,label).not.toBeNull();
+    expect(e!.code,label).toBe('LTZ03');
+    const said=[e!.message,e!.detail,e!.hint].filter(Boolean).join(' ');
+    expect(said,label).not.toMatch(/[0-9a-f]{8}-/);
+    expect(said,label).not.toMatch(/[0-9]/);
+    messages.add(e!.message);
+  }
+  // one fixed sentence for all the causes
+  expect(messages.size).toBe(1);
+  // the check constraint, under the runtime role: the answer does not carry the row that was refused
+  const e=await decide(draft,{result:'rejected',reason:'Lý do đủ dài',subject_thread_seq:pos});
+  expect(e?.code).toBe('23514');
+  const said=[e!.message,e!.detail,e!.hint].filter(Boolean).join(' ');
+  expect(said).not.toMatch(/[0-9a-f]{8}-/);
+  expect(e!.detail??'').not.toMatch(/Failing row/);
+});
+
+test('B4 a decision about a draft outside the caller\'s scope never reaches the thread',async()=>{
+  const mine=await realCandidate(),theirs=await realCandidate({context:{chatId:chatTransport}});
+  const draftMine=await draftOf('intake_candidate',mine.id),draftTheirs=await draftOf('intake_candidate',theirs.id,{project:ids.transport});
+  const headsBefore=await heads();
+  const theirPos=await position(theirs.thread),minePos=await position(mine.thread);
+  // a draft of another project, the row naming that project or its own: draft_decisions_guard (BEFORE) does not see the draft under the scope of the caller
+  for(const project of [ids.transport,ids.sales]){
+    const e=await decide(draftTheirs,{project_id:project,subject_thread_seq:theirPos},[ids.sales]);
+    expect(e,project).not.toBeNull();
+    expect(e!.code,project).toBe('P0001');
+    expect(e!.message,project).toBe('A decision names a draft of its own project');
+    expect(e!.where,project).toContain('draft_decisions_guard');
+    expect(e!.where,project).not.toContain(GUARD);
+  }
+  // a draft in scope, decided_by another person: row-level security, which answers before the AFTER trigger
+  const other=await decide(draftMine,{decided_by:randomUUID(),subject_thread_seq:minePos});
+  expect(other).not.toBeNull();
+  expect(other!.code).toBe('42501');
+  expect(other!.message).toMatch(/row-level security/);
+  // a draft of this project that names a candidate of another project (written by the operational login): the candidate is looked up in the project of the decision,
+  // so the thread of the other project is not read, locked or compared, whatever position the row carries
+  const crossed=await draftOf('intake_candidate',theirs.id);
+  const across=await decide(crossed,{subject_thread_seq:theirPos});
+  expect(across).not.toBeNull();
+  expect(across!.code).toBe('LTZ03');
+  expect(await decisionCount()).toBe(0);
+  expect(await heads()).toEqual(headsBefore);
+  // the same chat and thread key in two projects (raw rows): the sales project has a thread under that key, the transport project has a candidate under it. A draft of the
+  // sales project that names the candidate of the transport project is not judged against the thread that the sales project happens to hold under the same key
+  const shared='m:9400';
+  await rawRevision(await rawEvent(chatSales,'9401',shared),1,new Date().toISOString(),'a');
+  const transportRoot=await rawEvent(chatSales,'9402',shared,ids.transport);
+  const sharedCandidate=(await q<{id:string}>('INSERT INTO intake_candidates(tenant_id,project_id,chat_id,thread_key,root_source_event_id) VALUES($1,$2,$3,$4,$5) RETURNING id',
+    [ids.tenant,ids.transport,chatSales,shared,transportRoot]))[0].id;
+  const sharedPos=await position(shared);
+  expect(sharedPos).toBe(1);
+  const sharedDraft=await draftOf('intake_candidate',sharedCandidate);
+  expect((await decide(sharedDraft,{subject_thread_seq:sharedPos}))?.code).toBe('LTZ03');
+  expect(await decisionCount()).toBe(0);
+});
+
+test('B5 the catalog of the confirming half: the trigger is AFTER INSERT, the function is definer with the three settings, runtime may insert the new column and nothing else changed; a second run changes nothing',async()=>{
+  await realCandidate();
+  const shape=async()=>({
+    triggers:await q(`SELECT tgname,tgtype::int,tgenabled,pg_get_triggerdef(oid) d FROM pg_trigger WHERE NOT tgisinternal AND tgrelid='public.draft_decisions'::regclass ORDER BY 1`),
+    functions:await q(`SELECT p.proname,p.prosecdef,p.proconfig,p.proacl::text acl,pg_get_userbyid(p.proowner) owner,pg_get_functiondef(p.oid) d FROM pg_proc p
+      WHERE p.pronamespace='public'::regnamespace AND p.proname='${GUARD}'`),
+    column:await q(`SELECT a.attname,format_type(a.atttypid,a.atttypmod) t,a.attnotnull,a.atthasdef,a.attacl::text acl,col_description(a.attrelid,a.attnum) comment FROM pg_attribute a
+      WHERE a.attrelid='public.draft_decisions'::regclass AND a.attname='subject_thread_seq' AND NOT a.attisdropped`),
+    constraint:await q("SELECT conname,contype,convalidated,pg_get_constraintdef(oid) d FROM pg_constraint WHERE conname='draft_decisions_thread_seq_only_confirmed'"),
+    indexes:await q("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND tablename='draft_decisions' ORDER BY 1"),
+  });
+  const first=await shape();
+  // the triggers of the table, by timing: 021 and 022 BEFORE INSERT (tgtype 7), 023 AFTER INSERT (tgtype 5), the history guard BEFORE UPDATE OR DELETE (tgtype 27); all enabled for every session role
+  const byName=Object.fromEntries((first.triggers as {tgname:string;tgtype:number;tgenabled:string;d:string}[]).map(t=>[t.tgname,t]));
+  expect(Object.keys(byName).sort()).toEqual(['draft_decisions_guard','draft_decisions_immutable','draft_decisions_pointer_only_guard',GUARD]);
+  expect(byName[GUARD]).toMatchObject({tgtype:5,tgenabled:'O'});
+  expect(byName[GUARD].d).toMatch(/AFTER INSERT ON (public\.)?draft_decisions FOR EACH ROW EXECUTE FUNCTION (public\.)?draft_decisions_subject_order_guard\(\)/);
+  for(const n of ['draft_decisions_guard','draft_decisions_pointer_only_guard']) expect(byName[n],n).toMatchObject({tgtype:7,tgenabled:'O'});
+  expect(byName.draft_decisions_immutable).toMatchObject({tgtype:27,tgenabled:'O'});
+  // the function: definer, the three settings, owned by a role that row-level security does not bind, executable by nobody else
+  expect(first.functions).toHaveLength(1);
+  const fn=first.functions[0] as {prosecdef:boolean;proconfig:string[];owner:string;d:string};
+  expect(fn.prosecdef).toBe(true);
+  expect([...fn.proconfig].sort()).toEqual(['lock_timeout=5s','row_security=off','search_path=pg_catalog, pg_temp']);
+  expect((await q<{ok:boolean}>('SELECT (r.rolsuper OR r.rolbypassrls) ok FROM pg_roles r WHERE r.rolname=$1',[fn.owner]))[0].ok).toBe(true);
+  expect(await q(`SELECT coalesce(r.rolname,'PUBLIC') grantee FROM pg_proc p CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a LEFT JOIN pg_roles r ON r.oid=a.grantee
+    WHERE p.proname='${GUARD}' AND a.privilege_type='EXECUTE' AND a.grantee<>p.proowner`)).toEqual([]);
+  for(const role of ['libetech_runtime','libetech_intake','libetech_ai','libetech_web'])
+    expect((await q<{ok:boolean}>(`SELECT has_function_privilege($1,'public.${GUARD}()','EXECUTE') ok`,[role]))[0].ok,role).toBe(false);
+  // the column: bigint, no default, may be empty; its comment carries the sentence of S-6; the constraint is there and validated
+  expect(first.column).toHaveLength(1);
+  expect(first.column[0]).toMatchObject({attname:'subject_thread_seq',t:'bigint',attnotnull:false,atthasdef:false});
+  expect((first.column[0] as {comment:string}).comment).toContain(NOT_NULL_SENTENCE);
+  expect(first.constraint).toHaveLength(1);
+  expect(first.constraint[0]).toMatchObject({contype:'c',convalidated:true});
+  // only the runtime role may insert the column, and nothing else of the table was granted: the insertable columns are the eleven of 021 and the new one
+  expect(await q(`SELECT coalesce(r.rolname,'PUBLIC') grantee,a.privilege_type p FROM pg_attribute t CROSS JOIN LATERAL aclexplode(t.attacl) a LEFT JOIN pg_roles r ON r.oid=a.grantee
+    WHERE t.attrelid='public.draft_decisions'::regclass AND t.attname='subject_thread_seq'`)).toEqual([{grantee:'libetech_runtime',p:'INSERT'}]);
+  const cols=async(role:string,priv:string)=>(await q<{c:string}>(`SELECT a.attname c FROM pg_attribute a WHERE a.attrelid='public.draft_decisions'::regclass AND a.attnum>0 AND NOT a.attisdropped
+    AND has_column_privilege($1,a.attrelid,a.attnum,$2) ORDER BY 1`,[role,priv])).map(r=>r.c);
+  expect(await cols('libetech_runtime','INSERT')).toEqual(['command_key','decided_by','document_revision_id','draft_id','draft_value_hash','project_id','reason','request_id','result','subject_thread_seq','tenant_id','trace_id']);
+  for(const {rolname} of await q<{rolname:string}>("SELECT rolname FROM pg_roles WHERE rolname LIKE 'libetech\\_%' ORDER BY 1")){
+    expect(await cols(rolname,'UPDATE'),rolname+' UPDATE').toEqual([]);
+    if(rolname!=='libetech_runtime') for(const p of ['INSERT','SELECT','REFERENCES']) expect(await cols(rolname,p),rolname+' '+p).toEqual([]);
+  }
+  // the second run: nothing changes (DB-1: a trigger created twice would fail here with 42710; ADD COLUMN IF NOT EXISTS and the guarded constraint add nothing)
+  await h.exec(await forwardSql());
+  expect(await shape()).toEqual(first);
+  expect(await q("SELECT 1 FROM schema_migrations WHERE version='023'")).toHaveLength(1);
+});
+
+test('B6 each guard of 021 and 022 still fires on a candidate draft of a real candidate, and before the guard of 023',async()=>{
+  const c=await realCandidate();
+  const pos=await position(c.thread);
+  const draft=await draftOf('intake_candidate',c.id),unsourced=await draftOf('intake_candidate',c.id,{sources:'[]'});
+  const headsBefore=await heads();
+  // each case also carries NO position: if the guard of 023 were reached first, the answer would be LTZ03
+  const first=async(label:string,draftId:string,over:Record<string,unknown>,code:string|undefined,message:string,fn:string)=>{
+    const e=await decide(draftId,{subject_thread_seq:null,...over});
+    expect(e,label).not.toBeNull();
+    if(code) expect(e!.code,label).toBe(code);
+    expect(e!.code,label).not.toBe('LTZ03');
+    expect(e!.message,label).toBe(message);
+    expect(e!.where,label).toContain(fn);
+    expect(e!.where,label).not.toContain(GUARD);
+    expect(await decisionCount(draftId),label).toBe(0);
+  };
+  // 021
+  await first('021 a wrong value hash',draft,{draft_value_hash:hex('d')},undefined,'A decision carries the value hash of the draft it answers','draft_decisions_guard');
+  await first('021 a draft that names no source',unsourced,{},undefined,'A draft that names no source cannot be confirmed','draft_decisions_guard');
+  await first('021 a revision attached to a candidate draft',draft,{document_revision_id:randomUUID()},undefined,'A revision can only be attached to a draft about that very document','draft_decisions_guard');
+  // 022: not READ COMMITTED
+  const rr=await refusal(h.operator.transaction(async tx=>{
+    await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    await tx.query('SET LOCAL ROLE libetech_runtime');
+    await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.person_id',$3,true)",[ids.tenant,ids.sales,pm.id]);
+    await insertDecision(tx,draft,{subject_thread_seq:null});
+  })) as Told|null;
+  expect(rr?.code).toBe('LTZ02');
+  expect(rr?.message).toBe('A draft is confirmed in a READ COMMITTED transaction');
+  expect(rr?.where).toContain('draft_decisions_pointer_only_guard');
+  expect(rr?.where).not.toContain(GUARD);
+  // everything right: stored, and the column carries the position
+  expect(await decide(draft,{subject_thread_seq:pos})).toBeNull();
+  expect(await storedPosition(draft)).toBe(pos);
+  // 022: a project that is IBS_HI (another draft of the same candidate: one decision per draft)
+  const later=await draftOf('intake_candidate',c.id);
+  await mapDomain(h,ids.sales,'IBS_HI',1);
+  await first('022 an IBS_HI project',later,{},'LTZ01','A draft of a pointer-only project is not confirmed','draft_decisions_pointer_only_guard');
+  expect(await heads()).toEqual(headsBefore);
+});
+
+test('B7 the guard of 023 refuses a confirmation outside READ COMMITTED by itself when the guard of 022 is switched off; the transaction rolls back',async()=>{
+  const c=await realCandidate();
+  const pos=await position(c.thread);
+  const draft=await draftOf('intake_candidate',c.id);
+  const done=new Error('rolled back on purpose');
+  const e=await refusal(h.operator.transaction(async tx=>{
+    await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    await tx.query('ALTER TABLE draft_decisions DISABLE TRIGGER draft_decisions_pointer_only_guard');
+    await tx.query('SET LOCAL ROLE libetech_runtime');
+    await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.person_id',$3,true)",[ids.tenant,ids.sales,pm.id]);
+    await insertDecision(tx,draft,{subject_thread_seq:pos});
+    throw done;
+  })) as Told|null;
+  expect(e).not.toBe(done);
+  expect(e?.code).toBe('LTZ02');
+  expect(e?.where).toContain(GUARD);
+  expect(e?.message).toMatch(/READ COMMITTED/);
+  expect(e?.message).not.toBe('A draft is confirmed in a READ COMMITTED transaction');
+  expect(await decisionCount()).toBe(0);
+  expect((await q<{tgenabled:string}>("SELECT tgenabled FROM pg_trigger WHERE tgname='draft_decisions_pointer_only_guard' AND NOT tgisinternal"))[0].tgenabled).toBe('O');
 });
