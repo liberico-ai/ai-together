@@ -1,0 +1,31 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skills-manifest.test.ts (19 tests | 1 failed) 19ms
+   ❯ skill manifests (17)
+     × prompt and eval hashes match the files on disk and the manifest hash matches its content 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skills-manifest.test.ts > skill manifests > prompt and eval hashes match the files on disk and the manifest hash matches its content
+AssertionError: release_librarian eval: expected '087d1568d327899b6bfef267d72a5078f907b…' to be '53cb75e07583a99b0a879bd8eb9f0a72726d3…' // Object.is equality
+
+Expected: "53cb75e07583a99b0a879bd8eb9f0a72726d37d33a85010f288105c7524d8b00"
+Received: "087d1568d327899b6bfef267d72a5078f907b542441c3911886b78ac18bda2a7"
+
+ ❯ tests/skills-manifest.test.ts:65:84
+     63|       const m = skillManifests[name];
+     64|       expect(sha(await readFile(path.join(ROOT, m.prompt.path))), `${n…
+     65|       expect(sha(await readFile(path.join(ROOT, m.evalSet.path))), `${…
+       |                                                                                    ^
+     66|       const onDisk = JSON.parse(await readFile(path.join(ROOT, 'skills…
+     67|       expect(onDisk).toEqual(m);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 passed (19)
+   Start at  15:48:26
+   Duration  126ms (import 55%, tests 25%, transform 19%, worker 2%)
+

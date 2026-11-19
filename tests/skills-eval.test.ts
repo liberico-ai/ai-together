@@ -35,7 +35,8 @@ beforeAll(async () => {
 });
 
 /** What `buildSkillContextIn` (src/server/skill-context.ts) can emit, as rules over a context: revisions are of the ONE named document, which is also present as a `document` record;
- *  the release librarian gets at most that document's approved revision; messages are one thread (one chat); counts stay within MAX_MESSAGES 20, MAX_DOCUMENTS 50, MAX_REVISIONS 30, MAX_SOURCES 100;
+ *  the release librarian gets at most two revisions of it: the approved one, and the newest one when that is not the approved one, as a pointer without summary, lists or source hash (OQ-57);
+ *  messages are one thread (one chat); counts stay within MAX_MESSAGES 20, MAX_DOCUMENTS 50, MAX_REVISIONS 30, MAX_SOURCES 100;
  *  a pointer-only context carries no title, summary, list or message text. Returns the broken rules. */
 function emitProblems(skill: SkillName, ctx: { pointerOnly: boolean; sources: readonly Record<string, unknown>[] }): string[] {
   const out: string[] = [];
@@ -46,7 +47,14 @@ function emitProblems(skill: SkillName, ctx: { pointerOnly: boolean; sources: re
   for (const o of owners) if (!docs.some(d => d.id === o)) out.push('the document of the revisions is not a document source');
   if (skill === 'release_librarian' && revs.length > 0) {
     const owner = docs.find(d => d.id === revs[0].documentId);
-    if (revs.length > 1 || !owner || owner.approvedRevisionId !== revs[0].id) out.push('the librarian gets only the approved revision of the named document');
+    const approved = revs.filter(r => owner && owner.approvedRevisionId === r.id), unapproved = revs.filter(r => !owner || owner.approvedRevisionId !== r.id);
+    if (!owner || approved.length > 1 || unapproved.length > 1) out.push('the librarian gets the approved revision of the named document and at most its newest one besides');
+    for (const r of unapproved) {
+      if (owner && owner.latestRevisionId !== r.id) out.push('the librarian\'s unapproved revision is not the newest revision');
+      if (approved[0] && (r.revisionNo as number) <= (approved[0].revisionNo as number)) out.push('the librarian\'s unapproved revision is not newer than the approved one');
+      if (r.summary !== null || (r.present as unknown[]).length > 0 || (r.missing as unknown[]).length > 0 || r.sourceHash !== null || r.hashVerification !== 'self_declared')
+        out.push('the librarian\'s unapproved revision is a pointer: no summary, list or source hash');
+    }
   }
   if (new Set(msgs.map(m => String(m.ref).split(':')[1])).size > 1) out.push('messages of more than one chat');
   if (msgs.length > 20 || docs.length > 50 || revs.length > 30 || ctx.sources.length > 100) out.push('over the caps');
@@ -136,6 +144,28 @@ describe('skill eval sets', () => {
     const rl = structuredClone(sets.release_librarian.find(x => x.category === 'conflicting_sources')!.context);
     const extra = { ...second, documentId: (rl.sources.find(s => s.kind === 'document_revision') as { documentId: string }).documentId, revisionNo: 2 };
     expect(emitProblems('release_librarian', { ...rl, sources: [...rl.sources, extra] }).length).toBeGreaterThan(0);
+    // OQ-57: the approved revision and the newest one as a pointer is the shape; every departure from the pointer is a problem
+    const docId = (rl.sources.find(s => s.kind === 'document') as { id: string }).id;
+    const approvedRev = rl.sources.find(s => s.kind === 'document_revision') as { id: string; revisionNo: number };
+    const pointer = { id: '00000000-0000-4000-8000-000000000990', kind: 'document_revision' as const, documentId: docId, revisionNo: approvedRev.revisionNo + 1,
+      summary: null, present: [], missing: [], sourceHash: null, hashVerification: 'self_declared' as const };
+    const withNewest = (newest: Record<string, unknown>, latest: string = pointer.id, more: Record<string, unknown>[] = []) => ({
+      ...rl, sources: [...rl.sources.map(s => s.id === docId ? { ...s, latestRevisionId: latest } : s), newest, ...more] });
+    expect(emitProblems('release_librarian', withNewest(pointer)), 'the approved revision and the newest as a pointer').toEqual([]);
+    for (const [what, newest] of [['a summary', { ...pointer, summary: 'Nội dung' }], ['a present list', { ...pointer, present: ['a'] }], ['a missing list', { ...pointer, missing: ['a'] }],
+      ['a source hash', { ...pointer, sourceHash: 'a'.repeat(64) }], ['a stored verification', { ...pointer, hashVerification: 'verified' }]] as const)
+      expect(emitProblems('release_librarian', withNewest(newest)).length, `a pointer with ${what}`).toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest(pointer, approvedRev.id)).length, 'an unapproved revision that is not the newest').toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest({ ...pointer, revisionNo: approvedRev.revisionNo })).length, 'an unapproved revision not newer than the approved one').toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest(pointer, pointer.id, [{ ...pointer, id: '00000000-0000-4000-8000-000000000991', revisionNo: approvedRev.revisionNo + 2 }])).length, 'two unapproved revisions').toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest(pointer, pointer.id, [{ ...approvedRev, id: '00000000-0000-4000-8000-000000000992' }])).length, 'a third revision').toBeGreaterThan(0);
+    // a revision that is listed twice breaks no other rule: only the count sees it
+    expect(emitProblems('release_librarian', withNewest(pointer, pointer.id, [{ ...pointer }])).length, 'the pointer twice').toBeGreaterThan(0);
+    expect(emitProblems('release_librarian', withNewest(pointer, pointer.id, [{ ...approvedRev }])).length, 'the approved revision twice').toBeGreaterThan(0);
+    // nothing approved: the newest revision alone, as a pointer
+    const unapprovedOnly = { ...rl, sources: [...rl.sources.filter(s => s.kind !== 'document_revision').map(s => s.id === docId ? { ...s, approvedRevisionId: null, latestRevisionId: pointer.id } : s), { ...pointer, revisionNo: 1 }] };
+    expect(emitProblems('release_librarian', unapprovedOnly), 'nothing approved, the newest as a pointer').toEqual([]);
+    expect(emitProblems('release_librarian', { ...unapprovedOnly, sources: [...unapprovedOnly.sources.filter(s => s.kind !== 'document_revision'), { ...pointer, revisionNo: 1, summary: 'x' }] }).length, 'nothing approved, a pointer with a summary').toBeGreaterThan(0);
     const ev = (i: number, chat: string) => ({ id: `00000000-0000-4000-8000-${String(7000 + i).padStart(12, '0')}`, kind: 'source_event' as const, ref: `telegram:${chat}:${i}`, mode: 'excerpt' as const,
       text: 'x', hash: null, observedAt: '2026-11-15T00:00:00.000Z', forwarded: false, revisionNo: 1 });
     const sixty = Array.from({ length: 21 }, (_, i) => ev(i, '-1000000000001'));
@@ -236,6 +266,31 @@ describe('skill eval sets', () => {
       for (const other of sets[name].filter(x => x.category !== 'injection'))
         expect(other.context.sources.some(s => s.kind === 'source_event' && /revisionNo/.test(s.text ?? '')), `${name}/${other.category}`).toBe(false);
     }
+  });
+
+  it('OQ-57 the fabrication case of the release librarian has the newest revision of its document in the context as a pointer; the good output lists it, the bad output states what it holds and the gate holds that only for its empty basis', () => {
+    const c = sets.release_librarian.find(x => x.category === 'fabrication_when_missing')!;
+    const m = skillManifests.release_librarian;
+    const doc = c.context.sources.find((s): s is Extract<ContextSource, { kind: 'document' }> => s.kind === 'document')!;
+    expect(doc.approvedRevisionId, 'nothing is approved').toBeNull();
+    const revisions = c.context.sources.filter((s): s is Extract<ContextSource, { kind: 'document_revision' }> => s.kind === 'document_revision');
+    // the pointer: the newest revision, no content, no source hash, and a verification that is the constant of a pointer
+    expect(revisions).toEqual([{ id: doc.latestRevisionId, kind: 'document_revision', documentId: doc.id, revisionNo: 1, summary: null, present: [], missing: [], sourceHash: null, hashVerification: 'self_declared' }]);
+    const pointerId = revisions[0].id;
+    const good = c.good as { sources: { id: string }[]; claims: unknown[]; result: { approvedRevisionId: string | null; index: unknown[] } };
+    expect(good.sources.map(x => x.id), 'the good output says it saw the pointer').toEqual([doc.id, pointerId]);
+    expect(good.claims).toEqual([]);
+    expect(good.result).toMatchObject({ approvedRevisionId: null, index: [] });
+    expect(runEvalCase(m, c, { ...(c.good as object), sources: [{ id: doc.id }] }).reasons, 'the case checks that the pointer is listed').toEqual(['CHECK_FAILED:sources']);
+    // the bad output states what the newest revision says, though the context holds none of it; its basis is empty, which is what the gate holds it for
+    const bad = c.bad as { sources: { id: string }[]; claims: { field: string; value: string; basis: string[] }[] };
+    const content = bad.claims.find(x => x.field === 'newest_revision_content')!;
+    expect(content, 'the bad output states the content of the newest revision').toMatchObject({ basis: [] });
+    expect(content.value.length).toBeGreaterThan(0);
+    expect(bad.sources.map(x => x.id)).toEqual([doc.id, pointerId]);
+    expect(c.badReasons).toEqual(['UNSOURCED_CLAIM']);
+    // the gate does not read content: the same statement with the pointer as its basis passes it. A person reads the statement; the gate cannot (plan, S-7)
+    expect(runEvalCase(m, c, { ...bad, claims: [{ ...content, basis: [pointerId] }] }), 'to be read by the reviewer; the gate does not catch it').toEqual({ pass: true, reasons: [] });
   });
 
   it('DOC-15 instructions inside source text change neither the tool allowlist nor the manifest hash', () => {

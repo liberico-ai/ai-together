@@ -1,0 +1,54 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-context.test.ts (22 tests | 1 failed) 10843ms
+   ❯ skill context (22)
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash 482ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+AssertionError: expected [ { …(9) } ] to deeply equal [ { …(9) } ]
+
+- Expected
++ Received
+
+  [
+    {
+      "documentId": "894aaaec-04c4-4746-9161-bc5ab878f226",
+-     "hashVerification": "verified",
++     "hashVerification": "self_declared",
+      "id": "d43eff71-cb4a-4ea6-ad00-12c0b431fa6f",
+      "kind": "document_revision",
+-     "missing": [
+-       "PTR-MISSING-3-4473",
+-     ],
+-     "present": [
+-       "PTR-PRESENT-3-4472",
+-     ],
++     "missing": [],
++     "present": [],
+      "revisionNo": 3,
+-     "sourceHash": "7eafdaea5a16ea7ef8bbf66c14efcd3060b4523ab6da0a3392c83eec724c1ef3",
+-     "summary": "PTR-SUMMARY-3-4471 nội dung",
++     "sourceHash": null,
++     "summary": null,
+    },
+  ]
+
+ ❯ tests/skill-context.test.ts:432:42
+    430|   const rec3=recordingDb(h.db);
+    431|   const top=await build(pm,input,both,rec3.db);
+    432|   expect(kinds(top,'document_revision')).toEqual([content(r[2])]);
+       |                                          ^
+    433|   absent(top,rec3,1,2);
+    434|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 21 passed (22)
+   Start at  15:45:52
+   Duration  10.96s (tests 99%)
+

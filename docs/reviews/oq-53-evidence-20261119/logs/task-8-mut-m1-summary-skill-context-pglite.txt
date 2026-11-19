@@ -1,0 +1,69 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-context.test.ts (22 tests | 2 failed) 10559ms
+   ❯ skill context (22)
+     × R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one 473ms
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash 467ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one
+AssertionError: expected { …(9) } to match object { …(5) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "documentId": "89fb148f-134e-44a5-97d3-9d13138079ec",
+    "missing": [],
+    "present": [],
+    "revisionNo": 3,
+-   "summary": null,
++   "summary": "Bản ba của tài liệu",
+  }
+
+ ❯ tests/skill-context.test.ts:366:46
+    364|   // nothing is approved: one revision, the newest, as a pointer; no t…
+    365|   expect(kinds(none,'document_revision').map(s=>s.id)).toEqual([revs[2…
+    366|   expect(kinds(none,'document_revision')[0]).toMatchObject({documentId…
+       |                                              ^
+    367|   expect(JSON.stringify(none)).not.toContain('Bản một của tài liệu');
+    368|   expect(JSON.stringify(none)).not.toContain('Bản ba của tài liệu');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+AssertionError: expected [ { …(9) } ] to deeply equal [ { …(9) } ]
+
+- Expected
++ Received
+
+@@ -6,8 +6,8 @@
+      "kind": "document_revision",
+      "missing": [],
+      "present": [],
+      "revisionNo": 3,
+      "sourceHash": null,
+-     "summary": null,
++     "summary": "PTR-SUMMARY-3-4471 nội dung",
+    },
+  ]
+
+ ❯ tests/skill-context.test.ts:415:43
+    413|   const rec1=recordingDb(h.db);
+    414|   const none=await build(pm,input,both,rec1.db);
+    415|   expect(kinds(none,'document_revision')).toEqual([pointer(r[2])]);
+       |                                           ^
+    416|   expect(rec1.rows().length).toBeGreaterThan(0);
+    417|   absent(none,rec1,1,2,3);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 passed (22)
+   Start at  15:43:54
+   Duration  10.67s (tests 99%)
+

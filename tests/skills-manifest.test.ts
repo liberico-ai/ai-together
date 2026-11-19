@@ -195,6 +195,23 @@ describe('skill manifests', () => {
     }
   });
 
+  it('OQ-57 the release librarian prompt says the newest unapproved revision is a pointer: seen in sources, never in index or as the approved revision, never read for content; no other prompt says so', async () => {
+    const text = await readFile(path.join(ROOT, skillManifests.release_librarian.prompt.path), 'utf8');
+    const lines = text.split('\n');
+    const inputLine = lines.find(l => l.startsWith('`SkillContext/'))!;
+    for (const part of ['revision đã được duyệt', 'bản mới nhất khi chưa được duyệt', 'chỉ là con trỏ', 'không có nội dung']) expect(inputLine, `input line: ${part}`).toContain(part);
+    expect(inputLine, 'the old reading of the input line is gone').not.toContain('chỉ revision đã được duyệt');
+    const rules = lines.filter(l => l.startsWith('- ') && l.includes('Bản chưa duyệt chỉ là con trỏ'));
+    expect(rules, 'one rule').toHaveLength(1);
+    for (const part of ['nêu mã của nó trong `sources` để cho biết đã thấy', 'Không đưa mã đó vào `index` hay `approvedRevisionId`', 'Không trích và không đoán nội dung của nó', 'không có tóm tắt, danh sách hay hash của bản đó'])
+      expect(rules[0], part).toContain(part);
+    // the rule sits among «Quy tắc chung», before «Đầu ra»
+    expect(text.indexOf('## Quy tắc chung')).toBeLessThan(text.indexOf(rules[0]));
+    expect(text.indexOf(rules[0])).toBeLessThan(text.indexOf('## Đầu ra'));
+    for (const name of SKILLS.filter(n => n !== 'release_librarian'))
+      expect(await readFile(path.join(ROOT, skillManifests[name].prompt.path), 'utf8'), name).not.toContain('Bản chưa duyệt chỉ là con trỏ');
+  });
+
   it('skillEvalSets is frozen at every depth', () => {
     expect(isFrozenDeep(skillEvalSets)).toBe(true);
     for (const name of SKILLS) {

@@ -3,7 +3,7 @@
 Vai: từ revision đã được duyệt, bằng chứng và đối tượng nhận trong ngữ cảnh, lập chỉ mục bản chuẩn, bản được chia sẻ và nhắc tài liệu stale.
 
 ## Đầu vào
-`SkillContext/v2`: skill, projectId, pointerOnly, sources (document, và chỉ revision đã được duyệt).
+`SkillContext/v2`: skill, projectId, pointerOnly, sources (document; revision đã được duyệt, có nội dung; và bản mới nhất khi chưa được duyệt, chỉ là con trỏ: mã, mã tài liệu, số bản, không có nội dung).
 
 ## Điều kiện kiểm (hàng Release librarian của SPEC-009)
 Không công bố draft hay bản internal: chỉ revision đã duyệt vào chỉ mục. Không báo đã giao khi chỉ mới enqueue: không có trường trạng thái giao, và không viết câu khẳng định đã gửi.
@@ -14,6 +14,7 @@ Không công bố draft hay bản internal: chỉ revision đã duyệt vào ch�
 - Thiếu thông tin thì ghi vào `questions` (field, question), không đoán.
 - Nguồn mâu thuẫn thì ghi vào `conflicts` (field, sourceIds, note); mỗi mục nêu ít nhất hai mã nguồn khác nhau; không chọn giúp một giá trị.
 - Nguồn chỉ có con trỏ hoặc bị ẩn thì không trích nội dung. Khi `pointerOnly` là true: để `claims`, `conflicts` và mọi trường của `result` rỗng, chỉ ghi `questions`. `confidence` là số nguyên 0–100.
+- Bản chưa duyệt chỉ là con trỏ: nêu mã của nó trong `sources` để cho biết đã thấy. Không đưa mã đó vào `index` hay `approvedRevisionId`. Không trích và không đoán nội dung của nó: ngữ cảnh không có tóm tắt, danh sách hay hash của bản đó.
 - Không đưa mã của tin không có văn bản được hiển thị (tin bị ẩn hoặc chỉ có con trỏ: chế độ hiển thị khác excerpt, hoặc text là null) vào `sources`, `basis`, `sourceIds` hay bất kỳ trường nào khác.
 - Khi không có nguồn nào có văn bản được hiển thị và không có tài liệu nào để dựa vào: chỉ ghi `questions`, để `sources` rỗng. Đầu ra như vậy vẫn là bản nháp, không được đưa ra để xác nhận.
 - Không gọi công cụ: `toolRequests` luôn là `[]`. Không có trường giao việc, hạn, duyệt hay trạng thái giao.

@@ -1,0 +1,148 @@
+# Task 8 (OQ-57), hand mutants. Each line of the table: the one-line (or few-line) edit applied, the test file run, the cases it made red. Every edit was restored and the file compared with a byte copy (the line "restored ... identical to the saved copy: True").
+# Engine: PGlite unless the block says native. The raw run of each file is in task-8-mut-<name>-<file>-<engine>.txt.
+#
+# mutant                                 | what it changes                                                                                                        | red cases (file)
+# m1-summary                             | the pointer carries the stored summary (hide cut for IBS only)                                                         | R10-g, L1 (skill-context)
+# m2a-present                            | the pointer carries the stored `present` list                                                                          | L1 (skill-context)
+# m2b-missing                            | the pointer carries the stored `missing` list                                                                          | L1 (skill-context)
+# m3-sourcehash                          | the pointer carries the stored source hash                                                                             | L1 (skill-context)
+# m4-storedverification                  | hashVerification is the stored value, not the constant                                                                 | L1 (skill-context)
+# m5-js-mask                             | everything is read from the database and cut in JavaScript (the context is identical; the rows the builder was handed carry the text) | L1 on PGlite and on native (the rows check)
+# m6-newest-pointer-even-if-approved     | the newest revision is a pointer also when it is the approved one                                                      | L1 (skill-context)
+# m7-other-document-approved             | the approved revision of another document of the project enters                                                        | R10-g, L1 (skill-context)
+# m8-emit-any-count                      | emitProblems no longer limits the number of revisions of the librarian                                                 | "every eval context is a shape the context builder can emit" (skills-eval)
+# m9-index-accepts-pointer               | NOT_APPROVED_REVISION accepts a pointer revision in index[].revisionId (src/server/skill-contracts.ts, restored)       | R-d, L3 (skill-contracts); L3 through the service (suggestions)
+# m10-pointer-is-oldest                  | the pointer is the oldest revision, not the newest                                                                     | caps, R10-g, L1 (skill-context)
+# m11-ibs-content-shown-for-approved     | the pointer-only (IBS HI) cut of content is dropped                                                                    | (7), L1 (skill-context)
+# m12-no-pointer-row                     | no pointer row at all (the behaviour before the change)                                                                | caps, R10-g, L1 (skill-context)
+# m13-pointer-for-every-skill            | every skill gets the librarian's two revisions only                                                                    | (7), caps, R10-g (skill-context)
+# m14-prompt-rule-removed                | the pointer rule of the librarian prompt is deleted                                                                    | prompt rule case, prompt/manifest hash (skills-manifest)
+# m15-eval-pointer-removed               | the pointer source is taken out of the fabrication eval case                                                           | fabrication case, OQ-57 eval case, "the eval needs no network" (skills-eval); hash (skills-manifest)
+#
+# One earlier attempt at m5 and one at m11 were discarded: m5 because its first edit did not match the file (the driver now stops when an edit does not apply), m11 because
+# the edit left $3 unused and PostgreSQL refused the statement (a SQL error, not a behaviour). Both were rewritten and re-run; only the re-runs are below.
+#
+# Raw summary of the runs follows.
+applied m1-summary ( 1 edit(s) )
+== m1-summary | tests/skill-context.test.ts | pglite
+Tests  2 failed | 20 passed (22)
+AssertionError lines: 2; hook timeouts: 0
+     × R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m1-summary identical to the saved copy: True
+applied m2a-present ( 1 edit(s) )
+== m2a-present | tests/skill-context.test.ts | pglite
+Tests  1 failed | 21 passed (22)
+AssertionError lines: 1; hook timeouts: 0
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m2a-present identical to the saved copy: True
+applied m2b-missing ( 1 edit(s) )
+== m2b-missing | tests/skill-context.test.ts | pglite
+Tests  1 failed | 21 passed (22)
+AssertionError lines: 1; hook timeouts: 0
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m2b-missing identical to the saved copy: True
+applied m3-sourcehash ( 1 edit(s) )
+== m3-sourcehash | tests/skill-context.test.ts | pglite
+Tests  1 failed | 21 passed (22)
+AssertionError lines: 1; hook timeouts: 0
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m3-sourcehash identical to the saved copy: True
+applied m4-storedverification ( 1 edit(s) )
+== m4-storedverification | tests/skill-context.test.ts | pglite
+Tests  1 failed | 21 passed (22)
+AssertionError lines: 1; hook timeouts: 0
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m4-storedverification identical to the saved copy: True
+applied m5-js-mask ( 7 edit(s) )
+== m5-js-mask | tests/skill-context.test.ts | pglite
+Tests  1 failed | 21 passed (22)
+AssertionError lines: 1; hook timeouts: 0
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m5-js-mask identical to the saved copy: True
+applied m5-js-mask ( 7 edit(s) )
+== m5-js-mask | tests/skill-context.test.ts | native
+Tests  1 failed | 21 passed (22)
+AssertionError lines: 1; hook timeouts: 0
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m5-js-mask identical to the saved copy: True
+applied m6-newest-pointer-even-if-approved ( 1 edit(s) )
+== m6-newest-pointer-even-if-approved | tests/skill-context.test.ts | pglite
+Tests  1 failed | 21 passed (22)
+AssertionError lines: 1; hook timeouts: 0
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m6-newest-pointer-even-if-approved identical to the saved copy: True
+applied m7-other-document-approved ( 2 edit(s) )
+== m7-other-document-approved | tests/skill-context.test.ts | pglite
+Tests  2 failed | 20 passed (22)
+AssertionError lines: 2; hook timeouts: 0
+     × R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m7-other-document-approved identical to the saved copy: True
+applied m10-pointer-is-oldest ( 1 edit(s) )
+== m10-pointer-is-oldest | tests/skill-context.test.ts | pglite
+Tests  3 failed | 19 passed (22)
+AssertionError lines: 3; hook timeouts: 0
+     × each skill receives only its kinds and the caps hold
+     × R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m10-pointer-is-oldest identical to the saved copy: True
+applied m12-no-pointer-row ( 1 edit(s) )
+== m12-no-pointer-row | tests/skill-context.test.ts | pglite
+Tests  3 failed | 19 passed (22)
+AssertionError lines: 3; hook timeouts: 0
+     × each skill receives only its kinds and the caps hold
+     × R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m12-no-pointer-row identical to the saved copy: True
+applied m13-pointer-for-every-skill ( 1 edit(s) )
+== m13-pointer-for-every-skill | tests/skill-context.test.ts | pglite
+Tests  3 failed | 19 passed (22)
+AssertionError lines: 3; hook timeouts: 0
+     × (7) a record of an IBS HI project never enters the context of a Xeca project
+     × each skill receives only its kinds and the caps hold
+     × R10-g: the content of the release librarian's context is the approved revision's only; the newest revision is a pointer when it is not the approved one
+restored m13-pointer-for-every-skill identical to the saved copy: True
+applied m11-ibs-content-shown-for-approved ( 1 edit(s) )
+== m11-ibs-content-shown-for-approved | tests/skill-context.test.ts | pglite
+Tests  2 failed | 20 passed (22)
+AssertionError lines: 2; hook timeouts: 0
+     × (7) a record of an IBS HI project never enters the context of a Xeca project
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+restored m11-ibs-content-shown-for-approved identical to the saved copy: True
+applied m8-emit-any-count ( 1 edit(s) )
+== m8-emit-any-count | tests/skills-eval.test.ts | pglite
+Tests  1 failed | 43 passed (44)
+AssertionError lines: 1; hook timeouts: 0
+     × every eval context is a shape the context builder can emit
+restored m8-emit-any-count identical to the saved copy: True
+applied m9-index-accepts-pointer ( 1 edit(s) )
+== m9-index-accepts-pointer | tests/skill-contracts.test.ts | pglite
+Tests  2 failed | 40 passed (42)
+AssertionError lines: 2; hook timeouts: 0
+     × R-d the release librarian only names approved revisions
+     × NOT_APPROVED_REVISION is unchanged: naming the unapproved pointer in sources does not let index[].revisionId or approvedRevisionId be anything but the approved revision
+== m9-index-accepts-pointer | tests/suggestions.test.ts | pglite
+Tests  1 failed | 118 passed | 1 skipped (120)
+AssertionError lines: 1; hook timeouts: 0
+     × NOT_APPROVED_REVISION holds as before: a draft that indexes the unapproved pointer, or states it as the approved revision, is held for that alone; naming it in sources holds nothing
+restored m9-index-accepts-pointer identical to the saved copy: True
+applied m14-prompt-rule-removed ( 1 edit(s) )
+== m14-prompt-rule-removed | tests/skills-manifest.test.ts | pglite
+Tests  2 failed | 17 passed (19)
+AssertionError lines: 2; hook timeouts: 0
+     × prompt and eval hashes match the files on disk and the manifest hash matches its content
+     × OQ-57 the release librarian prompt says the newest unapproved revision is a pointer: seen in sources, never in index or as the approved revision, never read for content; no other pro
+restored m14-prompt-rule-removed identical to the saved copy: True
+applied m15-eval-pointer-removed ( 1 edit(s) )
+== m15-eval-pointer-removed | tests/skills-eval.test.ts | pglite
+Tests  3 failed | 41 passed (44)
+AssertionError lines: 3; hook timeouts: 0
+     × release_librarian/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason
+     × OQ-57 the fabrication case of the release librarian has the newest revision of its document in the context as a pointer; the good output lists it, the bad output states what it holds
+     × the eval needs no network
+== m15-eval-pointer-removed | tests/skills-manifest.test.ts | pglite
+Tests  1 failed | 18 passed (19)
+AssertionError lines: 1; hook timeouts: 0
+     × prompt and eval hashes match the files on disk and the manifest hash matches its content
+restored m15-eval-pointer-removed identical to the saved copy: True

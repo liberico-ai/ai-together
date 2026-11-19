@@ -1906,3 +1906,67 @@ describe('Z4 drafts: a candidate draft is confirmed only against the thread it r
   await refused(decide(svc(),pm,c.draftId,body(c.valueHash,{revision:rev}),k()),'DRAFT_ALREADY_DECIDED',409);
  });
 });
+
+describe('Z4 drafts: a release librarian draft is confirmed against the newest revision of its document (OQ-57)',()=>{
+ const approveRev=(documentId:string,revisionId:string)=>h.operator.transaction(async tx=>{
+  // the operational login points the approval; the runtime guard needs a decision row, which is not under test here
+  await tx.query('SET LOCAL session_replication_role=replica');
+  await tx.query('UPDATE document_records SET approved_revision_id=$1 WHERE id=$2',[revisionId,documentId]);
+ });
+ const revisionIds=async(d:DocumentDetail)=>(await rows<{id:string}>('SELECT id FROM document_revisions WHERE document_id=$1 ORDER BY revision_no',[d.record.id])).map(r=>r.id);
+ /** Two or three revisions of one document, none approved. */
+ async function revisions(count:number):Promise<{d:DocumentDetail;r:string[]}> {
+  let d=await doc();
+  while((await revisionIds(d)).length<count) d=await proposeRev(h,pm,await fresh(d.record.id));
+  return {d,r:await revisionIds(d)};
+ }
+ /** The output of a release librarian: the document and the revisions `named` in `sources` (naming the pointer there says it was seen); the result states `approved` and indexes `indexed`. */
+ const librarian=(d:DocumentDetail,named:string[],approved:string|null=null,indexed:string[]=approved?[approved]:[]):R=>
+  out('release_librarian',[d.record.id,...named],{result:{approvedRevisionId:approved,index:indexed.map(revisionId=>({documentId:d.record.id,revisionId})),staleReminders:[]}});
+ const store=async(d:DocumentDetail,output:R)=>({draftId:(await svc().submitDraft(ai,env('document',d.record.id,'release_librarian',output))).draftId,valueHash:sha(output)});
+ const confirm=async(d:DocumentDetail,x:{draftId:string;valueHash:string},key:string=k())=>decide(svc(),pm,x.draftId,body(x.valueHash,{revision:revisionBody(await fresh(d.record.id))}),key);
+ const confirmed={decision:{result:'confirmed'}};
+
+ test('a release librarian draft on a document that has revisions and no approved one is confirmed when it names the newest revision',async()=>{
+  const {d,r}=await revisions(2);
+  // naming the document and no revision: no baseline (OQ-53 point 2 (a)); an older revision is no part of the librarian's context
+  await heldOnly(confirm(d,await store(d,librarian(d,[]))),'SUBJECT_BASELINE_MISSING');
+  await heldOnly(confirm(d,await store(d,librarian(d,[r[0]]))),'SOURCE_OUT_OF_CONTEXT');
+  await zeroDecisions();
+  // the newest revision named in `sources`: the context carries it as a pointer, so the draft can be checked, and it is confirmed
+  await expect(confirm(d,await store(d,librarian(d,[r[1]])))).resolves.toMatchObject(confirmed);
+  expect(await n('draft_decisions')).toBe(1);
+ });
+
+ test('a librarian draft that names only the approved revision while a newer one exists is held as SUBJECT_CHANGED; naming both is confirmed',async()=>{
+  const {d,r}=await revisions(3);
+  await approveRev(d.record.id,r[1]);      // revision 2 is approved, revision 3 is newer and is not
+  await heldOnly(confirm(d,await store(d,librarian(d,[r[1]],r[1]))),'SUBJECT_CHANGED');
+  await zeroDecisions();
+  await expect(confirm(d,await store(d,librarian(d,[r[1],r[2]],r[1])))).resolves.toMatchObject(confirmed);
+  expect(await n('draft_decisions')).toBe(1);
+ });
+
+ test('a revision proposed after a librarian draft was written holds it though the approved revision did not change; a draft that names the new revision is confirmed',async()=>{
+  const {d,r}=await revisions(2);
+  await approveRev(d.record.id,r[1]);      // revision 2 is approved and is the newest
+  const x=await store(d,librarian(d,[r[1]],r[1]));
+  const key=k();
+  const d3=await proposeRev(h,pm,await fresh(d.record.id));
+  const r3=(await revisionIds(d3))[2];
+  expect((await rows<{approved_revision_id:string}>('SELECT approved_revision_id FROM document_records WHERE id=$1',[d.record.id]))[0].approved_revision_id,'the approved revision is the same').toBe(r[1]);
+  await heldOnly(confirm(d,x,key),'SUBJECT_CHANGED');
+  await zeroDecisions();
+  await expect(confirm(d,await store(d,librarian(d,[r[1],r3],r[1])),key),'the held command left its key free').resolves.toMatchObject(confirmed);
+ });
+
+ test('NOT_APPROVED_REVISION holds as before: a draft that indexes the unapproved pointer, or states it as the approved revision, is held for that alone; naming it in sources holds nothing',async()=>{
+  const {d,r}=await revisions(2);
+  await approveRev(d.record.id,r[0]);      // revision 1 is approved, revision 2 (the newest) is not: the context holds it as a pointer
+  await heldOnly(confirm(d,await store(d,librarian(d,[r[0],r[1]],r[0],[r[1]]))),'NOT_APPROVED_REVISION');
+  await heldOnly(confirm(d,await store(d,librarian(d,[r[0],r[1]],r[1],[r[0]]))),'NOT_APPROVED_REVISION');
+  await heldOnly(confirm(d,await store(d,librarian(d,[r[0],r[1]],r[1]))),'NOT_APPROVED_REVISION');
+  await zeroDecisions();
+  await expect(confirm(d,await store(d,librarian(d,[r[0],r[1]],r[0])))).resolves.toMatchObject(confirmed);
+ });
+});

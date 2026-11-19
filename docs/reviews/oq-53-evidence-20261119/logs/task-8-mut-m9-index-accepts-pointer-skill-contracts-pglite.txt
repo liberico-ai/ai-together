@@ -1,0 +1,53 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-contracts.test.ts (42 tests | 2 failed) 56ms
+   ❯ skill contracts (39)
+     × R-d the release librarian only names approved revisions 4ms
+     × NOT_APPROVED_REVISION is unchanged: naming the unapproved pointer in sources does not let index[].revisionId or approvedRevisionId be anything but the approved revision 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > R-d the release librarian only names approved revisions
+AssertionError: expected [] to deeply equal [ 'NOT_APPROVED_REVISION' ]
+
+- Expected
++ Received
+
+- [
+-   "NOT_APPROVED_REVISION",
+- ]
++ []
+
+ ❯ tests/skill-contracts.test.ts:320:53
+    318|     expect(check('release_librarian', latest).reasons).toEqual(['NOT_A…
+    319|     const idx = clean('release_librarian'); (idx.result as { index: { …
+    320|     expect(check('release_librarian', idx).reasons).toEqual(['NOT_APPR…
+       |                                                     ^
+    321|     const c = ctx({ skill: 'release_librarian' });
+    322|     c.sources = c.sources.map(x => x.kind === 'document' ? { ...x, app…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/skill-contracts.test.ts > skill contracts > NOT_APPROVED_REVISION is unchanged: naming the unapproved pointer in sources does not let index[].revisionId or approvedRevisionId be anything but the approved revision
+AssertionError: expected [] to deeply equal [ 'NOT_APPROVED_REVISION' ]
+
+- Expected
++ Received
+
+- [
+-   "NOT_APPROVED_REVISION",
+- ]
++ []
+
+ ❯ tests/skill-contracts.test.ts:345:162
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 40 passed (42)
+   Start at  15:47:26
+   Duration  166ms (tests 49%, transform 30%, import 21%, worker 1%)
+

@@ -1,0 +1,31 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skills-manifest.test.ts (19 tests | 1 failed) 19ms
+   ❯ skill manifests (17)
+     × OQ-57 the release librarian prompt says the newest unapproved revision is a pointer: seen in sources, never in index or as the approved revision, never read for content; no other prompt says so 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skills-manifest.test.ts > skill manifests > OQ-57 the release librarian prompt says the newest unapproved revision is a pointer: seen in sources, never in index or as the approved revision, never read for content; no other prompt says so
+AssertionError: input line: bản mới nhất khi chưa được duyệt: expected '`SkillContext/v2`: skill, projectId, …' to contain 'bản mới nhất khi chưa được duyệt'
+
+Expected: "bản mới nhất khi chưa được duyệt"
+Received: "`SkillContext/v2`: skill, projectId, pointerOnly, sources (document, và chỉ revision đã được duyệt)."
+
+ ❯ tests/skills-manifest.test.ts:202:168
+    200|     const lines = text.split('\n');
+    201|     const inputLine = lines.find(l => l.startsWith('`SkillContext/'))!;
+    202|     for (const part of ['revision đã được duyệt', 'bản mới nhất khi ch…
+       |                                                                                                                                                                        ^
+    203|     expect(inputLine, 'the old reading of the input line is gone').not…
+    204|     const rules = lines.filter(l => l.startsWith('- ') && l.includes('…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 passed (19)
+   Start at  15:38:11
+   Duration  140ms (import 47%, transform 32%, tests 20%, worker 2%)
+

@@ -1,0 +1,99 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/suggestions.test.ts (120 tests | 4 failed) 39367ms
+   ❯ Z4 drafts: a release librarian draft is confirmed against the newest revision of its document (OQ-57) (4)
+     × a release librarian draft on a document that has revisions and no approved one is confirmed when it names the newest revision 349ms
+     × a librarian draft that names only the approved revision while a newer one exists is held as SUBJECT_CHANGED; naming both is confirmed 332ms
+     × a revision proposed after a librarian draft was written holds it though the approved revision did not change; a draft that names the new revision is confirmed 331ms
+     × NOT_APPROVED_REVISION holds as before: a draft that indexes the unapproved pointer, or states it as the approved revision, is held for that alone; naming it in sources holds nothing 346ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a release librarian draft is confirmed against the newest revision of its document (OQ-57) > a release librarian draft on a document that has revisions and no approved one is confirmed when it names the newest revision
+AssertionError: promise rejected "Error: Nháp được giữ lại, chưa xác nhận đ… { …(2) }" instead of resolving
+ ❯ tests/suggestions.test.ts:1937:62
+    1935|   await zeroDecisions();
+    1936|   // the newest revision named in `sources`: the context carries it as…
+    1937|   await expect(confirm(d,await store(d,librarian(d,[r[1]])))).resolves…
+       |                                                              ^
+    1938|   expect(await n('draft_decisions')).toBe(1);
+    1939|  });
+
+Caused by: Error: Nháp được giữ lại, chưa xác nhận được: SOURCE_OUT_OF_CONTEXT.
+ ❯ src/server/suggestions.ts:343:13
+ ❯ claimDocumentCommand src/server/document-commands.ts:25:18
+ ❯ src/server/suggestions.ts:286:4
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/suggestions.test.ts:1937:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'DRAFT_HELD', status: 422 }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a release librarian draft is confirmed against the newest revision of its document (OQ-57) > a librarian draft that names only the approved revision while a newer one exists is held as SUBJECT_CHANGED; naming both is confirmed
+AssertionError: promise rejected "Error: Nháp được giữ lại, chưa xác nhận đ… { …(2) }" instead of resolving
+ ❯ tests/suggestions.test.ts:1946:72
+    1944|   await heldOnly(confirm(d,await store(d,librarian(d,[r[1]],r[1]))),'S…
+    1945|   await zeroDecisions();
+    1946|   await expect(confirm(d,await store(d,librarian(d,[r[1],r[2]],r[1])))…
+       |                                                                        ^
+    1947|   expect(await n('draft_decisions')).toBe(1);
+    1948|  });
+
+Caused by: Error: Nháp được giữ lại, chưa xác nhận được: SOURCE_OUT_OF_CONTEXT.
+ ❯ src/server/suggestions.ts:343:13
+ ❯ claimDocumentCommand src/server/document-commands.ts:25:18
+ ❯ src/server/suggestions.ts:286:4
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/suggestions.test.ts:1946:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'DRAFT_HELD', status: 422 }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a release librarian draft is confirmed against the newest revision of its document (OQ-57) > a revision proposed after a librarian draft was written holds it though the approved revision did not change; a draft that names the new revision is confirmed
+AssertionError: promise rejected "Error: Nháp được giữ lại, chưa xác nhận đ… { …(2) }" instead of resolving
+ ❯ tests/suggestions.test.ts:1960:111
+    1958|   await heldOnly(confirm(d,x,key),'SUBJECT_CHANGED');
+    1959|   await zeroDecisions();
+    1960|   await expect(confirm(d,await store(d,librarian(d,[r[1],r3],r[1])),ke…
+       |                                                                                                               ^
+    1961|  });
+    1962|
+
+Caused by: Error: Nháp được giữ lại, chưa xác nhận được: SOURCE_OUT_OF_CONTEXT.
+ ❯ src/server/suggestions.ts:343:13
+ ❯ claimDocumentCommand src/server/document-commands.ts:25:18
+ ❯ src/server/suggestions.ts:286:4
+ ❯ Object.transaction src/server/db.ts:44:57
+ ❯ tests/suggestions.test.ts:1960:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'DRAFT_HELD', status: 422 }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a release librarian draft is confirmed against the newest revision of its document (OQ-57) > NOT_APPROVED_REVISION holds as before: a draft that indexes the unapproved pointer, or states it as the approved revision, is held for that alone; naming it in sources holds nothing
+AssertionError: expected 'Nháp được giữ lại, chưa xác nhận được…' to contain 'NOT_APPROVED_REVISION'
+
+Expected: "NOT_APPROVED_REVISION"
+Received: "Nháp được giữ lại, chưa xác nhận được: SOURCE_OUT_OF_CONTEXT."
+
+ ❯ held tests/suggestions.test.ts:113:44
+    111| const held=async(promise:Promise<unknown>,...reasons:string[])=>{
+    112|  const e=await refused(promise,'DRAFT_HELD',422);
+    113|  for(const r of reasons) expect(e.message).toContain(r);
+       |                                            ^
+    114|  expect(e.message).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/); // codes o…
+    115|  return e;
+ ❯ heldOnly tests/suggestions.test.ts:119:10
+ ❯ tests/suggestions.test.ts:1966:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 116 passed (120)
+   Start at  15:48:44
+   Duration  39.50s (tests 100%)
+

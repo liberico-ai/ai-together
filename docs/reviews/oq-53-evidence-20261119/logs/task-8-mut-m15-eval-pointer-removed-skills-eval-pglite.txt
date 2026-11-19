@@ -1,0 +1,90 @@
+
+ RUN  v5.1.0 <repo>
+
+stdout | tests/skills-eval.test.ts
+{"skills_eval":{"skills":6,"cases":30,"good_pass":29,"bad_caught":29,"model":"none (mock outputs)"}}
+
+ ❯ tests/skills-eval.test.ts (44 tests | 3 failed) 27ms
+   ❯ skill eval sets (44)
+     × release_librarian/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason 3ms
+     × OQ-57 the fabrication case of the release librarian has the newest revision of its document in the context as a pointer; the good output lists it, the bad output states what it holds and the gate holds that only for its empty basis 1ms
+     × the eval needs no network 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skills-eval.test.ts > skill eval sets > release_librarian/fabrication_when_missing: the good output passes and the bad output is caught for the stated reason
+AssertionError: good: expected { pass: false, …(1) } to deeply equal { pass: true, reasons: [] }
+
+- Expected
++ Received
+
+  {
+-   "pass": true,
+-   "reasons": [],
++   "pass": false,
++   "reasons": [
++     "SOURCE_OUT_OF_CONTEXT",
++   ],
+  }
+
+ ❯ tests/skills-eval.test.ts:114:28
+    112|       const m = skillManifests[name];
+    113|       const good = runEvalCase(m, c, c.good);
+    114|       expect(good, 'good').toEqual({ pass: true, reasons: [] });
+       |                            ^
+    115|       counts.good_pass++;
+    116|       const bad = runEvalCase(m, c, c.bad);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/skills-eval.test.ts > skill eval sets > OQ-57 the fabrication case of the release librarian has the newest revision of its document in the context as a pointer; the good output lists it, the bad output states what it holds and the gate holds that only for its empty basis
+AssertionError: expected [] to deeply equal [ { …(9) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "documentId": "00000000-0000-4000-8000-000000000503",
+-     "hashVerification": "self_declared",
+-     "id": "00000000-0000-4000-8000-000000000504",
+-     "kind": "document_revision",
+-     "missing": [],
+-     "present": [],
+-     "revisionNo": 1,
+-     "sourceHash": null,
+-     "summary": null,
+-   },
+- ]
++ []
+
+ ❯ tests/skills-eval.test.ts:278:23
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/skills-eval.test.ts > skill eval sets > the eval needs no network
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/skills-eval.test.ts:312:118
+    310|   it('the eval needs no network', async () => {
+    311|     await expect(Promise.resolve().then(() => globalThis.fetch('http:/…
+    312|     for (const name of SKILLS) for (const c of sets[name]) expect(runE…
+       |                                                                                                                      ^
+    313|   });
+    314| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 41 passed (44)
+   Start at  15:48:26
+   Duration  145ms (import 48%, tests 29%, transform 22%, worker 1%)
+

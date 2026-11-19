@@ -1,0 +1,44 @@
+
+ RUN  v5.1.0 <repo>
+
+stdout | tests/skills-eval.test.ts
+{"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
+
+ ❯ tests/skills-eval.test.ts (44 tests | 1 failed) 26ms
+   ❯ skill eval sets (44)
+     × OQ-57 the fabrication case of the release librarian has the newest revision of its document in the context as a pointer; the good output lists it, the bad output states what it holds and the gate holds that only for its empty basis 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skills-eval.test.ts > skill eval sets > OQ-57 the fabrication case of the release librarian has the newest revision of its document in the context as a pointer; the good output lists it, the bad output states what it holds and the gate holds that only for its empty basis
+AssertionError: expected [] to deeply equal [ { …(9) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "documentId": "00000000-0000-4000-8000-000000000503",
+-     "hashVerification": "self_declared",
+-     "id": "00000000-0000-4000-8000-000000000504",
+-     "kind": "document_revision",
+-     "missing": [],
+-     "present": [],
+-     "revisionNo": 1,
+-     "sourceHash": null,
+-     "summary": null,
+-   },
+- ]
++ []
+
+ ❯ tests/skills-eval.test.ts:275:23
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 43 passed (44)
+   Start at  15:34:55
+   Duration  160ms (import 40%, transform 34%, tests 24%, worker 1%)
+

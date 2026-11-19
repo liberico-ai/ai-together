@@ -1,0 +1,32 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/skill-context.test.ts (22 tests | 1 failed) 7018ms
+   ❯ skill context (22)
+     × the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash 315ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skill-context.test.ts > skill context > the release librarian gets the content of the approved revision only; the newest revision, when it is not the approved one, comes as a pointer without summary, lists or source hash
+AssertionError: rows: PTR-SUMMARY-3-4471 nội dung: expected '[{"set_config":"11000000-0000-4000-80…' not to contain 'PTR-SUMMARY-3-4471 nội dung'
+
+Expected: "PTR-SUMMARY-3-4471 nội dung"
+Received: "[{"set_config":"11000000-0000-4000-8000-000000000001"},{"id":"11000000-0000-4000-8000-000000000001","pointer_only":false},{"id":"4342617d-a8f5-43d4-80dd-459f3d29b91d"},{"id":"4342617d-a8f5-43d4-80dd-459f3d29b91d","ref_code":"","doc_type":"design","title":"PTR-DOC","latest_revision_id":"0de03bd9-2496-4899-95dc-cc571faa69f3","approved_revision_id":null},{"id":"0de03bd9-2496-4899-95dc-cc571faa69f3","revision_no":3,"summary":"PTR-SUMMARY-3-4471 nội dung","present":["PTR-PRESENT-3-4472"],"missing":["PTR-MISSING-3-4473"],"source_hash":"7eafdaea5a16ea7ef8bbf66c14efcd3060b4523ab6da0a3392c83eec724c1ef3","hash_verification":"verified","ptr":true}]"
+
+ ❯ absent tests/skill-context.test.ts:409:164
+    407|   /** Nothing of revision `n` (text, lists, source hash) is in the con…
+    408|   const absent=(c:SkillContext,rec:{rows():unknown[]},...ns:number[])=…
+    409|    for(const n of ns) for(const m of everyMark(n)) {expect(JSON.string…
+       |                                                                                                                                                                    ^
+    410|   };
+    411|
+ ❯ tests/skill-context.test.ts:417:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 21 passed (22)
+   Start at  15:45:39
+   Duration  7.13s (tests 99%, import 1%)
+

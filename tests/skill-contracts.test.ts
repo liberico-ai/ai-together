@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ID_FIELDS, MAX_OUTPUT_BYTES, MINIMUM_DOSSIER, SKILLS, checkSkillOutput, contextSchema, namedIds, namedRevisions, outputFits, outputSchemas } from '../src/server/skill-contracts';
-import type { SkillContext, SkillName } from '../src/server/skill-contracts';
+import type { ContextSource, SkillContext, SkillName } from '../src/server/skill-contracts';
 
 // Synthetic fixtures only. Ids are short labels, not real identifiers.
 const ctx = (over: Partial<SkillContext> = {}): SkillContext => ({
@@ -324,6 +324,33 @@ describe('skill contracts', () => {
     expect(check('release_librarian', none, [], c).reasons).toEqual(['NOT_APPROVED_REVISION']);
     (none.result as { index: unknown[] }).index = [];
     expect(check('release_librarian', none, [], c).verdict).toBe('accept');
+  });
+
+  it('NOT_APPROVED_REVISION is unchanged: naming the unapproved pointer in sources does not let index[].revisionId or approvedRevisionId be anything but the approved revision', () => {
+    // OQ-57: the librarian's context holds the approved revision r1 with its content and the newest revision r2 (not approved) as a pointer without content
+    const pointer: ContextSource = { id: 'r2', kind: 'document_revision', documentId: 'd1', revisionNo: 2, summary: null, present: [], missing: [], sourceHash: null, hashVerification: 'self_declared' };
+    const withPointer = ctx({ skill: 'release_librarian' });
+    withPointer.sources = [...withPointer.sources.filter(x => x.id !== 'r2'), pointer];
+    // nothing approved: the same document, its approval pointer null, the pointer the only revision
+    const nothingApproved = ctx({ skill: 'release_librarian' });
+    nothingApproved.sources = [...nothingApproved.sources.filter(x => x.kind !== 'document_revision').map((x): ContextSource => x.kind === 'document' ? { ...x, approvedRevisionId: null } : x), pointer];
+    // an output that makes no claim and no conflict: only the listed sources and the result are in play
+    const draft = (sources: string[], result: { approvedRevisionId: string | null; index: { documentId: string; revisionId: string }[]; staleReminders: { documentId: string; note: string }[] }) =>
+      ({ ...clean('release_librarian'), sources: sources.map(id => ({ id })), claims: [], conflicts: [], result });
+    const entry = (revisionId: string) => [{ documentId: 'd1', revisionId }];
+
+    // the pointer named in `sources`, to say it was seen: nothing is held for naming it
+    expect(check('release_librarian', draft(['d1', 'r1', 'r2'], { approvedRevisionId: 'r1', index: entry('r1'), staleReminders: [] }), [], withPointer)).toMatchObject({ verdict: 'accept', reasons: [] });
+    // the pointer as the revision of an index entry: not the approved revision
+    expect(check('release_librarian', draft(['d1', 'r1', 'r2'], { approvedRevisionId: 'r1', index: entry('r2'), staleReminders: [] }), [], withPointer).reasons).toEqual(['NOT_APPROVED_REVISION']);
+    // the pointer as the approved revision: not the approved revision
+    expect(check('release_librarian', draft(['d1', 'r1', 'r2'], { approvedRevisionId: 'r2', index: entry('r1'), staleReminders: [] }), [], withPointer).reasons).toEqual(['NOT_APPROVED_REVISION']);
+    // both at once
+    expect(check('release_librarian', draft(['d1', 'r1', 'r2'], { approvedRevisionId: 'r2', index: entry('r2'), staleReminders: [] }), [], withPointer).reasons).toEqual(['NOT_APPROVED_REVISION']);
+    // nothing approved in the context: the pointer is still no approved revision, in either field; naming it in `sources` alone holds nothing
+    expect(check('release_librarian', draft(['d1', 'r2'], { approvedRevisionId: 'r2', index: [], staleReminders: [] }), [], nothingApproved).reasons).toEqual(['NOT_APPROVED_REVISION']);
+    expect(check('release_librarian', draft(['d1', 'r2'], { approvedRevisionId: null, index: entry('r2'), staleReminders: [] }), [], nothingApproved).reasons).toEqual(['NOT_APPROVED_REVISION']);
+    expect(check('release_librarian', draft(['d1', 'r2'], { approvedRevisionId: null, index: [], staleReminders: [] }), [], nothingApproved)).toMatchObject({ verdict: 'accept', reasons: [] });
   });
 
   it('R-e a pointer-only context carries no text to reason from', () => {

@@ -1,0 +1,30 @@
+
+ RUN  v5.1.0 <repo>
+
+stdout | tests/skills-eval.test.ts
+{"skills_eval":{"skills":6,"cases":30,"good_pass":30,"bad_caught":30,"model":"none (mock outputs)"}}
+
+ ❯ tests/skills-eval.test.ts (44 tests | 1 failed) 25ms
+   ❯ skill eval sets (44)
+     × every eval context is a shape the context builder can emit 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/skills-eval.test.ts > skill eval sets > every eval context is a shape the context builder can emit
+AssertionError: the pointer twice: expected 0 to be greater than 0
+ ❯ tests/skills-eval.test.ts:163:126
+    161|     expect(emitProblems('release_librarian', withNewest(pointer, point…
+    162|     // a revision that is listed twice breaks no other rule: only the …
+    163|     expect(emitProblems('release_librarian', withNewest(pointer, point…
+       |                                                                                                                              ^
+    164|     expect(emitProblems('release_librarian', withNewest(pointer, point…
+    165|     // nothing approved: the newest revision alone, as a pointer
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 43 passed (44)
+   Start at  15:47:25
+   Duration  165ms (import 44%, transform 32%, tests 23%, worker 1%)
+

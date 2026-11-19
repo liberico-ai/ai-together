@@ -24,7 +24,7 @@ export const CONTEXT_KINDS:Record<SkillName,readonly Kind[]>={
  pm_planning:['source_event','document','document_revision'],
  technical_writer:['document','document_revision'],
  doc_reviewer:['document','document_revision'],
- release_librarian:['document','document_revision'], // revisions: only the approved one (R10-g)
+ release_librarian:['document','document_revision'], // R10-g: only the content of the approved revision; the newest unapproved revision is a pointer (OQ-57)
 };
 
 const lower=z.string().transform(s=>s.toLowerCase());
@@ -72,18 +72,25 @@ export async function buildSkillContextIn(tx:Queryable,p:Principal,input:SkillCo
  for(const d of docs) sources.push({id:d.id,kind:'document',refCode:d.ref_code,docType:d.doc_type,title:d.title,latestRevisionId:d.latest_revision_id,approvedRevisionId:d.approved_revision_id});
 
  if(documentId!==null) {
-  // Newest first. The release librarian gets only the revision that is the document's approved pointer.
-  const onlyApproved=skill==='release_librarian';
+  // Newest first. R10-g, read as «only the content of the approved revision»: the release librarian gets the approved revision of the document in full, and the newest revision when it is
+  // not the approved one as a pointer (id, document, number; OQ-57). A pointer carries no summary, no list, no source hash and a constant verification; every field is cut here, in
+  // the statement, so what it hides never reaches this process. `hide` is every field of content (also for an IBS HI project); `pointer` is the cut of an unapproved revision.
+  const librarian=skill==='release_librarian';
   const revs=(await tx.query<{id:string;revision_no:number;summary:string|null;present:unknown;missing:unknown;source_hash:string|null;hash_verification:'self_declared'|'verified'}>(
    `SELECT v.id,v.revision_no,
-     CASE WHEN $3::boolean THEN NULL ELSE v.changes->>'summary' END AS summary,
-     CASE WHEN $3::boolean THEN '[]'::jsonb ELSE coalesce(v.changes->'present','[]'::jsonb) END AS present,
-     CASE WHEN $3::boolean THEN '[]'::jsonb ELSE coalesce(v.changes->'missing','[]'::jsonb) END AS missing,
-     v.source_hash,v.hash_verification
-    FROM document_revisions v
-    WHERE v.project_id=$1::uuid AND v.document_id=$2::uuid
-     AND (NOT $4::boolean OR v.id=(SELECT a.approved_revision_id FROM document_records a WHERE a.id=$2::uuid AND a.project_id=$1::uuid))
-    ORDER BY v.revision_no DESC, v.id LIMIT $5::int`,[projectId,documentId,pointerOnly,onlyApproved,MAX_REVISIONS])).rows;
+     CASE WHEN m.hide THEN NULL ELSE v.changes->>'summary' END AS summary,
+     CASE WHEN m.hide THEN '[]'::jsonb ELSE coalesce(v.changes->'present','[]'::jsonb) END AS present,
+     CASE WHEN m.hide THEN '[]'::jsonb ELSE coalesce(v.changes->'missing','[]'::jsonb) END AS missing,
+     CASE WHEN m.pointer THEN NULL ELSE v.source_hash END AS source_hash,
+     CASE WHEN m.pointer THEN 'self_declared' ELSE v.hash_verification END AS hash_verification
+    FROM document_records d
+    JOIN document_revisions v ON v.document_id=d.id AND v.project_id=d.project_id
+    CROSS JOIN LATERAL (SELECT ($4::boolean AND v.id IS DISTINCT FROM d.approved_revision_id) AS pointer,
+      ($3::boolean OR ($4::boolean AND v.id IS DISTINCT FROM d.approved_revision_id)) AS hide) m
+    WHERE d.project_id=$1::uuid AND d.id=$2::uuid
+     AND (NOT $4::boolean OR v.id=d.approved_revision_id
+      OR v.id=(SELECT n.id FROM document_revisions n WHERE n.project_id=d.project_id AND n.document_id=d.id ORDER BY n.revision_no DESC, n.id LIMIT 1))
+    ORDER BY v.revision_no DESC, v.id LIMIT $5::int`,[projectId,documentId,pointerOnly,librarian,MAX_REVISIONS])).rows;
   for(const r of revs) sources.push({id:r.id,kind:'document_revision',documentId,revisionNo:r.revision_no,summary:r.summary,present:strings(r.present),missing:strings(r.missing),sourceHash:r.source_hash,hashVerification:r.hash_verification});
  }
  for(const s of sources) if(!allowed.includes(s.kind)) throw new AppError('CONTEXT_KIND_FORBIDDEN','Ngữ cảnh chứa loại nguồn ngoài bảng của kỹ năng.',500);
