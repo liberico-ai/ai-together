@@ -173,3 +173,59 @@ Lưu ý quy trình cho người nhận báo cáo: ghế CSDL chạy song song **
 1. R-S-1: thêm `LOCK TABLE public.draft_decisions IN ACCESS EXCLUSIVE MODE` (canh `to_regclass`) vào đầu khối `DO` của tệp lùi, trước phép kiểm vị trí; thêm một ca native hai kết nối (xác nhận đang bay, tệp lùi, commit, tệp lùi từ chối). Một dòng mã, đã thử.
 2. R-S-2: một ca (cả hai engine) cho `(chat_id, thread_key)` chung hai dự án, và một ca tenant, làm m6, m6b đỏ; thêm ca native không chờ chéo dự án. Đây là ranh giới cô lập của phép so-và-ghi, đang chỉ được giữ bằng một dòng không có ca.
 3. R-S-3 cùng R-S-4: khoá `intelligence.ai_drafts` trước hai phép P6 và đặt lại phép (ii) cuối giao dịch; thay ca chữ của A8 (iii) bằng ca hành vi thay tên role (đã đo hành vi khớp thiết kế).
+
+---
+
+## Xem lại đợt sửa 2b (`00228a4`)
+
+VERDICT: READY_FOR_GATE
+
+Số finding mới: P0 0 · P1 0 · P2 0 · P3 3 (R-S-8, R-S-9, R-S-10). Không finding cũ nào còn mở ở mức P1 hoặc P2; R-S-3 đóng cho phép (i) và để lại một phần dư nhỏ của phép (ii) thành R-S-8.
+
+Cách làm: `git diff 4076ba7 00228a4 -- migrations tests` đọc từng dòng. Mọi đột biến và mọi lần chạy vitest trong một bản `git archive 00228a4` ngoài repo, trên CSDL riêng của ghế (tạo lại, đã `DROP` cuối phiên), `pgrep -f '[v]itest'` bằng 0 và `uptime` trước mỗi lần chạy; một builder chạy vitest song song trong worktree nên có lúc phải chờ. Worktree không bị ghế này sửa (các tệp `M` và `??` trong đó là việc của builder cho Task 3).
+
+Chạy lại xanh, native PostgreSQL 16.15: `thread-order` 27, `thread-order-concurrency` 17, `migrations-rollback` 10, `rls-catalog` 1, `z4-schema` 26, `z4-pointer-guard` 40. PGlite 18 (không dùng CSDL): `thread-order` 22 (5 bỏ qua, chỉ native), `migrations-rollback` 10, `z4-schema` 24, `z4-pointer-guard` 29. `CREATE OR REPLACE TRIGGER`, `LOCK TABLE` chạy được trên cả hai engine.
+
+### Từng finding cũ
+
+| Mã | Kết luận | Bằng chứng |
+|---|---|---|
+| R-S-1 (tệp lùi kiểm trước, khoá sau) | Đóng, đúng | Tệp lùi `LOCK TABLE public.draft_decisions IN ACCESS EXCLUSIVE MODE` (canh `to_regclass`) trước phép kiểm vị trí, sau phép kiểm bản ghi sau. Chạy lại đúng kịch bản của probe-1 với tệp mới [đo]: lệnh xác nhận đang bay, tệp lùi chờ 1,5 giây, rồi dừng bằng `P0001 Roll back stops: a decision of a person carries the position of its thread`; cột, trigger, bản ghi `023` và vị trí còn nguyên. Ca N18 (`thread-order-concurrency.test.ts:437`) và ca tĩnh trong RB-023: đột biến r1 (bỏ khoá) làm cả hai đỏ ([đo]; N18: `the rollback was expected to refuse`) |
+| R-S-2 (ranh giới phạm vi của câu khoá dòng đếm) | Đóng, đúng | Đột biến m6 (bỏ `project_id` khỏi câu khoá) nay đỏ ở B8 (`9702 with the number of 9701: expected null not to be null`) và N20 (`The thread of the candidate moved on`). Ca B8 (`thread-order.test.ts:861`) dựng cùng `(chat_id, thread_key)` ở ba phạm vi (hai dự án cùng tenant, một dự án tenant khác), thử mọi cặp số của phạm vi khác (phải `LTZ03`) rồi số của chính nó (phải lưu); N20 (`:517`) giữ khoá dòng đếm của dự án mình trong giao dịch mở và khẳng định dòng của dự án kia còn tự do (`NOWAIT`) |
+| R-S-3 (hai phép P6 kiểm-rồi-commit) | Đóng cho (i); (ii) còn phần dư nhỏ (R-S-8) | `LOCK TABLE intelligence.ai_drafts IN SHARE ROW EXCLUSIVE MODE` ở `023:88`, sau khoá bảng bản sửa `:87`, trước mọi phép kiểm; P6 (i) và (ii) chạy dưới hai khoá. A13 (`:918`): nháp đang ghi được chờ rồi thấy, tệp dừng `no person has decided`. Đột biến s1 (bỏ khoá `ai_drafts`) đỏ A13 và ca thứ tự của A8 (iii); s2 (phép kiểm trước khoá) đỏ A8 (iii) và A11 |
+| R-S-4 (ca hành vi cho nhánh từ chối P6 (ii)) | Đóng, đúng | A10 và A11 thay đúng một lần `'libetech_ai'` bằng `'libetech_runtime'` trong vị từ (ca đếm vị từ chỉ có một lần trong tệp) và dùng login web thật (`h.db`). Khớp đo của ghế (probe-6): phiên superuser, kể cả sau `SET ROLE`, không bị đếm; phiên login web thì bị. Đột biến s3 (đếm cả superuser) đỏ A8 (iii) hai ca, A10, A11, A12, A13; s4 (xoá phép kiểm) đỏ A10 và A11 |
+| R-S-5 (ba tra cứu phòng thủ) | Đóng, đúng | A9b tắt mọi trigger của bảng bản sửa trong một giao dịch sẽ lùi rồi bật lại đúng trigger cần thử; B9 tắt mọi trigger của bảng quyết định tương tự. m24 và m24b (bỏ vị từ của tra nguồn tin) đỏ A9b; m25 (bỏ `project_id` của tra nháp) đỏ B9; m5 (bỏ `project_id` của tra ứng viên) đỏ B4 |
+| R-S-6 (`LOCK TABLE ... ACCESS SHARE`) | Đóng bằng tài liệu | Ghi chú d ở đầu `023:68`, nêu `pg_locks` và N1. Đúng với đo của ghế; không có mã để đổi |
+| R-S-7 (chủ hàm là superuser) | Đóng bằng tài liệu | Ghi chú e ở đầu tệp. Ca catalog «không tên bảng không tiền tố» là tuỳ chọn, không làm: chấp nhận |
+
+Ba đột biến chỉ-lọc-tenant sống (m6b: câu khoá dòng đếm bỏ `tenant_id`; m23: tra ứng viên bỏ `tenant_id`; m25b: tra nháp bỏ `tenant_id`) là **tương đương**; lập luận của builder đúng và đã kiểm lại: `projects.id` là khoá chính (`migrations/001_foundation.sql:14`) và cả ba bảng (`intake_thread_heads`, `intake_candidates`, `draft_decisions`) có khoá ngoại ghép `(project_id, tenant_id)` tới `projects(id, tenant_id)` [catalog đo]; thử chèn một hàng mang tenant khác tenant của dự án thì khoá ngoại từ chối (`23503`) cho cả bảng đếm và bảng ứng viên, bảng quyết định thì guard của 021 dừng trước. Nên `tenant_id = NEW.tenant_id` được hàm ý bởi `project_id = NEW.project_id`; một ca không dựng được phản ví dụ. Sự tương đương còn dựa vào các khoá ngoại ấy, và A6 nay khẳng định khoá ngoại của hai bảng mới (ca `defs`), còn của hai bảng cũ do 016 và 021 giữ. Các đột biến chỉ-lọc-dự-án (m6, m5, m24b, m25) đều đã đỏ.
+
+### Lỗi bảo mật mới do đợt sửa
+
+Hai khoá mới của migration không mở kênh dữ liệu nào. `SHARE ROW EXCLUSIVE` xung đột với `ROW EXCLUSIVE` (chèn), `SHARE UPDATE EXCLUSIVE`, `SHARE` và mạnh hơn; không xung đột với `ACCESS SHARE` (đọc) hay `ROW SHARE` (khoá dòng của khoá ngoại), nên người đọc và các khoá ngoại của lệnh xác nhận không chờ. Chỉ `libetech_ai` (quyền `INSERT` trên `ai_drafts`) và `libetech_intake` (trên bản sửa) giữ được một khoá xung đột; `libetech_runtime` chỉ lấy được `ACCESS SHARE` [đo trước đó, probe-2]. Khoá giữ bởi migration, không bởi role nào có phạm vi; người chờ (một lệnh ghi nháp của role AI) chỉ biết rằng bảng đang bị khoá, không biết gì của phạm vi khác; `pg_locks` vốn đọc được với mọi role.
+
+Đo [probe-9, PostgreSQL 16.15]:
+
+| Tình huống | Kết quả |
+|---|---|
+| Không ai giữ | áp xong 304 ms |
+| Một nháp của role AI đang ghi (giữ `ROW EXCLUSIVE` trên `ai_drafts`) | migration chờ tới khi nháp commit rồi áp xong (2,7 giây); trong lúc chờ, một lệnh chèn bản sửa của role intake chờ rồi `55P03` (trần 1,5 giây đặt ở phía thử) |
+| Một lệnh chèn bản sửa đang ghi | tương tự |
+| Giao dịch thô ghi `ai_drafts` rồi ghi bản sửa (thứ tự ngược thứ tự của tệp) | `40P01`: **migration** là bên bị chọn, giao dịch thô đi tiếp; fail-closed, không để lại gì. Không mã nào của dịch vụ ghi hai bảng đó trong một giao dịch |
+
+Không tìm thấy kênh mới nào về dữ liệu hay phạm vi. Ba P3 dưới đây:
+
+**R-S-8 [P3] Phép kiểm login AI nằm ở đầu giao dịch, không ở cuối.** Vị trí: `023:90-93` (phép (ii) ngay sau hai khoá); đầu tệp `:50-52` nêu những gì phép kiểm không thấy nhưng bỏ sót khoảng giữa lúc kiểm và lúc commit. Một login thành viên `libetech_ai` kết nối sau phép kiểm và trước commit đọc ngữ cảnh khi các bản chưa có số (đọc không bị khoá), rồi ghi nháp sau commit (lệnh ghi bị khoá `ai_drafts` giữ lại tới lúc đó): đúng loại nháp mà P6 (ii) sinh ra để chặn. Khoá `ai_drafts` đã đóng phép (i) (nháp đang ghi) nhưng không đóng được việc đọc. Mức P3: không login nào như vậy hôm nay, Z4 tắt, và nháp như thế nhận `MANIFEST_MISMATCH` khi hợp đồng đổi (C8). Sửa rẻ: đặt lại phép (ii) ngay trước `INSERT INTO schema_migrations` (`:285`), vẫn dưới hai khoá (cửa sổ co từ vài giây xuống mili giây; ca A8 (iii) đang ghim thứ tự, cần đổi theo), và thêm một câu vào đầu tệp. Đây là điều tôi đề xuất ở R-S-3 mà builder chưa làm.
+
+**R-S-9 [P3] Ca dùng `DISABLE TRIGGER` dạng đã commit không có lưới an toàn.** Vị trí: `tests/thread-order-concurrency.test.ts:468-513` (`turns(true)` của N19b, câu tắt ở `:470`, bật lại trong `finally`) và, từ đợt trước, `tests/thread-order.test.ts:317` (A7b). Cần dạng đã commit vì các kết nối khác phải thấy guard 022 tắt. Ca chết giữa chừng (SIGKILL, mất điện) để guard tắt trong CSDL. Đo [mô phỏng trong bản sao: một ca tắt guard của 022 bằng câu đã commit rồi tự `SIGKILL`]: guard ở lại `D`; vòng chạy kế tiếp của `thread-order` đỏ 4 ca (B5, B6, B7, B9: lớn tiếng), `thread-order-concurrency` đỏ N11 và tự bật lại guard ở N19b, `z4-schema` xanh 26 ca (không phụ thuộc guard), `z4-pointer-guard` đỏ G12 rồi G12 áp lại 022 và các ca sau xanh. Tức không im lặng yếu đi, và tự lành sau một vòng, nhưng có một cửa sổ đỏ giả. Rủi ro cho CSDL thật: không. Harness chỉ chấp nhận `127.0.0.1:55471` với tên `slice1_verify` hoặc `slice1_verify_<số>` (`tests/slice1-db.ts:11-13`, gọi trước mọi câu lệnh); cổng 55471 chỉ ánh xạ tới container thử `libetech-slice1-pg` (cổng 5432 trong container, nghe 127.0.0.1); PostgreSQL của bản cài thật nghe cổng khác (5547, `deploy/install-user.py:125`). `reset()` vốn đã `TRUNCATE ... CASCADE` trên cùng đích, nên phòng vệ cùng một hàng rào. Sửa rẻ: một `afterEach` (và `beforeEach`) trong khối `describe` chạy câu bật lại guard 022 và trigger bản sửa một cách idempotent, hoặc khẳng định mọi trigger của bảng là `O` trước khi bắt đầu. Ca A9b và B9 (tắt trong giao dịch sẽ lùi) không có vấn đề này: máy chủ huỷ giao dịch khi kết nối chết.
+
+**R-S-10 [P3] Thứ tự hai khoá làm đường nhận tin chờ vô ích.** `023:87-88`: bản sửa trước, `ai_drafts` sau. Khi một nháp AI đang ghi, migration giữ khoá bản sửa trong lúc chờ khoá `ai_drafts`, nên đường nhận tin (đường thật của sản phẩm) bị chặn tới 5 giây thêm [đo ở bảng trên]. Đổi thứ tự (`ai_drafts` trước, bản sửa sau) giữ nhận tin chảy trong khi chờ nháp AI (Z4 hiếm khi có nháp), không đổi khả năng bế tắc (cả hai thứ tự đều có một thứ tự ngược của giao dịch thô). Cần sửa ca thứ tự của A8 (iii). Không chặn.
+
+### Hai điều ghế được hỏi riêng
+
+- `CREATE OR REPLACE TRIGGER` [đo]: lần chạy thứ hai đưa trigger đã `DISABLE`, `ENABLE REPLICA` hay `ENABLE ALWAYS` về `O`; thay luôn một trigger cùng tên của người khác (loại `BEFORE`, hàm khác) bằng trigger của 023; không đổi OID hay thứ tự bắn (theo tên). Cần PostgreSQL 14 trở lên; bản cài thật đòi 16 (`deploy/install-d1.sh:23`), PGlite của repo là 18. Hệ quả duy nhất đáng ghi: trigger cố ý đặt `ENABLE ALWAYS` (để bắn khi `session_replication_role = replica`) bị đưa về `O` bởi lần chạy lại; khớp ý định của A7b và W9, không phải lỗi. Trigger của bảng quyết định vẫn `DROP` rồi `CREATE` (khoá `ACCESS EXCLUSIVE` đã giữ từ bước 10) và cũng về `O`.
+- Cả hai chỗ còn lại của phần sửa: bỏ `WHERE h.last_seq < EXCLUDED.last_seq` ở câu cập nhật dòng đếm là an toàn (số viết ra luôn lớn hơn `last_seq` cũ, vì chúng bắt đầu sau nó và bảng bản sửa bị khoá nên không dòng đếm nào đổi giữa lúc đọc và lúc ghi; một dòng đếm bị hạ bằng tay vẫn bị khoá duy nhất `(…, thread_seq)` biến thành lỗi to). Trần đếm các bản chưa có số (mặc định 250 000) và đột biến s6 (đếm mọi bản) đỏ A8 (i).
+
+### Đột biến đã chạy trong đợt này (15, bản sao của `00228a4`, CSDL riêng)
+
+r1 (tệp lùi bỏ khoá): đỏ N18, RB-023. s1 (bỏ khoá `ai_drafts`): đỏ A13, A8 (iii). s2 (kiểm trước khoá): đỏ A8 (iii), A11. s3 (đếm superuser): đỏ A8 (iii) ×2, A10, A11, A12, A13. s4 (xoá phép kiểm login): đỏ A10, A11. s5 (`DROP`+`CREATE` thay `OR REPLACE`): đỏ A8 (iii), A12. s6 (trần đếm mọi bản): đỏ A8 (i). m6: đỏ B8, N20 (đợt trước sống). m6b, m23, m25b: sống, tương đương. m5: đỏ B4. m24, m24b: đỏ A9b. m25: đỏ B9.

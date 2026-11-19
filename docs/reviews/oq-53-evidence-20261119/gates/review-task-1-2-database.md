@@ -178,3 +178,67 @@ Một câu: thiết kế và SQL đúng ở những chỗ hai cổng kế hoạc
 ## 5 · Lời nhắn cho phiên chính
 
 Phải sửa trước cổng Codex: R-DB-1 (đổi thứ tự trong tệp; hai ca kèm R-DB-4). Nên sửa cùng đợt: R-DB-2 (một dòng SQL), R-DB-3 (một ca), R-DB-5 (trần). R-DB-6 đến R-DB-10 có thể gộp sau mà không đổi hành vi.
+
+## 6 · Xem lại đợt sửa 2b (`00228a4`)
+
+VERDICT: READY_FOR_GATE
+
+Finding mới: 0 P0 · 0 P1 · 0 P2 · 2 P3 (R-DB-11, R-DB-12). Finding cũ chưa đóng: không có (R-DB-1 … R-DB-10 đều đã đóng; R-DB-7 đóng kèm một chỗ chữ sai, ghi ở R-DB-12). Hai P3 mới có thể gộp vào cổng hoặc ghi lại; không cái nào đổi hành vi của đường nhận tin hay xác nhận.
+
+Đối tượng: `git diff 4076ba7 00228a4 -- migrations tests` (hai tệp migration, ba tệp ca kiểm). Cách làm: bản xuất `git archive 00228a4` đặt ngoài repo, `node_modules` nối vào; mọi đột biến và mọi lần chạy vitest ở đó, không đụng worktree; CSDL riêng `slice1_verify_5311191` tạo lại và đã `DROP` (0 CSDL còn lại). Trước mỗi lần chạy tôi đếm tiến trình bằng `pgrep -f '[v]itest'` trong một lệnh không chứa chữ đó và chờ về 0 (có lúc ghế khác đang chạy, tôi chờ; giữa các đột biến trong một lô tôi không đếm lại). Không tạo hay đổi role; không in chuỗi kết nối.
+
+Đã chạy, xanh: `thread-order` PGlite 22 qua + 5 bỏ, native 27 qua (4 lần liên tiếp: một lần đầu và ba lần lặp, không chập chờn); `thread-order-concurrency` native 17 qua (4 lần); `migrations-rollback` 10/10 cả hai engine; `z4-schema` (PGlite 24 + 2 bỏ, native 26), `z4-pointer-guard` (PGlite 29 + 11 bỏ, native 40), `rls-catalog`, `intake-schema` native.
+
+### 6.1 · Từng finding cũ
+
+| Mã | Đóng? | Bằng chứng của tôi |
+|---|---|---|
+| R-DB-1 (khoá trước phép kiểm login AI) | Đóng | Tệp đã có `LOCK TABLE` hai bảng ngay sau phép kiểm superuser, phép kiểm login nằm sau (`023:87-88`, rồi `:90`). Dựng lại đúng probe vai thay thế của lần trước trên tệp mới: login `libetech_web` kết nối **trong** lúc tệp chờ giao dịch nhận tin đang bay → tệp từ chối với câu cố định, `schema_migrations` không có `023` (trước: áp thành công) [đo]. Đối chứng (kết nối trước khi chạy) vẫn từ chối. Ca A11 đỏ khi tôi đưa hai `LOCK` về sau phép kiểm (`AssertionError`, native) và xanh trên tệp đúng; ca chữ A8 (iii) khẳng định thứ tự và đúng một `LOCK TABLE public.source_event_revisions` |
+| R-DB-2 (trần đếm bản chưa số) | Đóng | `023:186`: đếm `NOT EXISTS (… source_revision_positions …)`. Áp lại với trần mặc định trên 300 000 bản đã có số: chạy 0,37 s, `023` được ghi [đo]; 300 000 bản chưa số với trần mặc định: từ chối sau 0,08 s, không bảng nào; nâng trần: 4,46 s. Đột biến «đếm mọi bản» làm A8 (i) đỏ |
+| R-DB-3 (đột biến lọc dự án, khoá ngoại) | Đóng | B8 (ba phạm vi: hai dự án, hai tenant, cùng khoá) đỏ với đột biến bỏ `h.project_id`; N20 (native) cũng đỏ (lệnh xác nhận hợp lệ bị `LTZ03`, lỗi thật, không phải hết giờ); A6 liệt kê 10 ràng buộc với giá trị mong đợi, đỏ khi bỏ khoá ngoại `intake_thread_heads → projects`; đột biến bỏ `x.project_id` của ứng viên làm B4 đỏ. Hai đột biến tenant (`h.tenant_id`, `x.tenant_id`) vẫn tương đương về kết quả (đã nêu ở mục 1): không cần ca |
+| R-DB-4 (không ca hành vi cho P6 (ii)) | Đóng | A10 (native) dùng cách thay vai như tôi đề xuất, kiểm cả hai chiều (phiên superuser, kể cả `SET LOCAL ROLE libetech_runtime`, không bị đếm; phiên `libetech_web` bị đếm). Đột biến `IF false AND EXISTS …` làm A10 đỏ (`AssertionError`). Còn lại đúng như N14: tên thật `libetech_ai` chưa có login để thử |
+| R-DB-5 (trần và thời gian) | Đóng | Trần mặc định 250 000 (`023:185`), chữ ghi 6,65 s / 10,16 s đúng số của tôi, N3 giữ «đo trên bản sao». Đo tệp mới ở 300 000 bản: 4,46 s (cùng hình dạng 70 000 luồng); ở 250 000 ngoại suy ≈ 3,7 s, dưới trần 10 s của pool; hình dạng xấu nhất ở 250 000 ≈ 5 s (#inference, theo tỉ lệ của số đo 500 000) |
+| R-DB-6 (`FOR SHARE`) | Đóng | N19b (đã tắt guard 022) đỏ với đột biến `FOR SHARE` (lệnh xác nhận thứ hai không chờ: `AssertionError: expected 'settled' to be 'blocked'`); N19 (guard 022 bật) không đỏ với đột biến đó, đúng như ghi trong ca (khoá dòng dự án của 022 đã xếp hàng chúng). Cả hai xanh trên tệp đúng, 4 lần. Thứ tự chờ của N19b (lệnh nhận tin đến trước, lệnh xác nhận thứ hai bị từ chối) dựa vào xếp hàng khoá theo thứ tự đến của PostgreSQL; không chập chờn trong 4 lần, tôi không thử dưới tải nặng (#inference) |
+| R-DB-7 (`CREATE OR REPLACE TRIGGER`; `pg_locks`) | Đóng, một chỗ chữ sai (R-DB-12) | `pg_locks` sau từng bước (giao dịch bị `ROLLBACK`): **lần đầu** — `SHARE ROW EXCLUSIVE` trên `source_event_revisions` và `ai_drafts` từ bước 1, trên `projects` từ bước 2, `ACCESS EXCLUSIVE` trên `draft_decisions` từ bước 10: đúng chữ của chú thích. **Lần hai** — hai bảng đầu vẫn chỉ `SHARE ROW EXCLUSIVE`, không `ACCESS EXCLUSIVE` nào trên bảng bản sửa (trước: có từ bước 9); `ANALYZE` (bước 9, `SHARE UPDATE EXCLUSIVE` trên hai bảng mới) đứng trước `ACCESS EXCLUSIVE` của `draft_decisions` (bước 10). A12 đỏ với đột biến «`DROP TRIGGER` + `CREATE TRIGGER`» (native). Đột biến đặt trần 500 000, hay mức khoá yếu hơn (`ACCESS SHARE` cho `ai_drafts`, `SHARE` cho bảng bản sửa), hay đưa hai `LOCK` về sau phép kiểm: A8 (iii) đỏ. Tôi không chạy riêng đột biến «`ANALYZE` xuống sau bước 10»; vị trí của nó được `pg_locks` ở trên xác nhận và A8 (iii) khẳng định thứ tự bằng chữ |
+| R-DB-8 (đồng hồ) | Đóng | N4, N5, N10 không còn đọc `Date.now()`; N5 và N10 khẳng định mã (`42501`, `P0001`) và `pg_stat_activity` không có phiên chờ khoá. Một bản đột biến «trigger `BEFORE`» sẽ chờ 5 s rồi `55P03`, đỏ bằng mã chứ không bằng ngưỡng (suy luận; tôi không chạy đột biến đó). Không thấy chập chờn trong 4 lần |
+| R-DB-9 (nhánh `23503` chết) | Đóng | A9b tắt trigger khoá ngoại trong một giao dịch rồi bật lại đúng trigger cần thử: nhánh chạy thật, `23503`, đúng câu, `where` chứa tên hàm, không id, không số; giao dịch lùi, không trigger nào còn tắt. Xanh cả hai engine |
+| R-DB-10 (mục nhỏ) | Đóng | (1)–(4) và hai điều khác nằm ở chú thích đầu tệp, mục «Also to know» a–e. `WHERE h.last_seq < EXCLUDED.last_seq` đã bỏ; lập luận «số gán luôn lớn hơn số cũ» đúng: số = `coalesce(last_seq,0)+rn` trong cùng ảnh chụp, đường ghi bản bị khoá |
+| R-S-1 của ghế bảo mật (tệp lùi khoá `draft_decisions`) | Đóng, kèm R-DB-11 | N18 (native) đỏ khi bỏ `LOCK` (`AssertionError`), xanh khi có; ca chữ trong `migrations-rollback` khẳng định `LOCK` đứng trước câu đọc vị trí |
+
+### 6.2 · Tìm lỗi mới do đợt sửa
+
+Hỏi: khoá thêm lên `intelligence.ai_drafts` có tạo vòng chờ hay chạm đường khác không; thứ tự khoá của migration so với đường nhận tin, xác nhận, ghi ánh xạ; ca mới có đỏ giả hay không thể đỏ không.
+
+- **Khoá `ai_drafts` (SRE, bước 1): không tìm thấy vòng chờ.** Thứ tự khoá của tệp là `source_event_revisions` → `ai_drafts` → `projects` (bước 2) → … → `draft_decisions` (bước 10). Các đường khác: nhận tin giữ `ROW EXCLUSIVE` trên bảng bản sửa rồi trên hai bảng mới, không bao giờ chạm `ai_drafts`, `draft_decisions` hay ghi `projects`; nháp AI giữ `ROW EXCLUSIVE` trên `ai_drafts` rồi chỉ lấy khoá dòng `projects` (`ROW SHARE`, không xung đột với `SHARE ROW EXCLUSIVE`); xác nhận đọc bản (`ACCESS SHARE`, không xung đột với SRE) rồi ghi `draft_decisions`: đi cùng chiều với tệp (một lệnh xác nhận đã giữ `ROW EXCLUSIVE` còn được vượt hàng đợi của `ACCESS EXCLUSIVE` của bước 10 theo luật hàng đợi khoá của PostgreSQL: lập luận, tôi không dựng riêng); ghi ánh xạ chỉ lấy khoá dòng `projects`. Mọi lần chờ của tệp đều có `lock_timeout` 5 s: tệ nhất là `55P03` sạch. Việc đặt `ai_drafts` trước `projects` là đúng chiều (một lệnh ghi nháp đang bay giữ `ai_drafts` rồi cần dòng `projects`, tệp chưa giữ `projects` lúc chờ `ai_drafts`). Tác dụng phụ: lệnh ghi nháp mới chờ trong suốt lần áp (cố ý, A13), lệnh đọc `ai_drafts` thì không.
+- **Ca mới đỏ giả hay không thể đỏ?** Đã thử mỗi ca bằng một đột biến làm đúng điều nó khẳng định: A10, A11, A12, A13, N18, N19b, N20, B8, A6 (ràng buộc), A8 (i), A8 (iii) (thứ tự, trần, mức khoá) đều đỏ đúng với đột biến tương ứng, bằng `AssertionError` hoặc lỗi thật của CSDL (N20: lệnh xác nhận hợp lệ bị `LTZ03`), không bằng hết giờ; riêng A12 đỏ kèm một lần chờ hết `lock_timeout` (đúng bản chất ca: tệp phải chờ nếu còn `DROP TRIGGER`). Chưa đột biến, chỉ xanh: A9b, B9, và các chỗ N4, N5, N10 đã bỏ đồng hồ. Xanh 4 lần liên tiếp. Còn lại ghi nhận: A10, A11 và ý `libetech_web` của A3 giả định `SLICE1_WEB_DATABASE_URL` được đặt (không đặt thì `h.db` là login superuser và A10, A11 đỏ giả); mục 10 của kế hoạch đã đòi cả hai biến, nên không coi là finding.
+
+### R-DB-11 · [P3] Tệp lùi khoá `draft_decisions` trước `source_event_revisions`: ngược chiều với một lệnh xác nhận, và chữ chú thích («chờ tới `lock_timeout`») chưa đủ
+
+- **Vị trí:** `migrations/rollback/023_thread_order.sql:29` (khoá `ACCESS EXCLUSIVE` trên `draft_decisions` ở câu đầu tiên), rồi `:53` (`DROP TRIGGER … ON public.source_event_revisions`, `ACCESS EXCLUSIVE` trên bảng bản sửa) ở nửa sau.
+- **Lỗi:** `decide` đọc bảng bản sửa (`threadHasHiddenText`, `projectHasHiddenText`: `ACCESS SHARE`, giữ tới commit) **rồi** ghi quyết định. Tệp lùi đi chiều ngược: `draft_decisions` trước, bản sửa sau.
+- **Kịch bản [đo, native, tệp lùi nguyên văn]:** một giao dịch xác nhận (vai runtime) đã `SELECT count(*)` bảng bản sửa; tệp lùi chạy, lấy `ACCESS EXCLUSIVE` trên `draft_decisions`, rồi chờ bảng bản sửa; giao dịch xác nhận ghi quyết định, chờ `draft_decisions`: vòng chờ. Kết quả: `40P01 deadlock detected` cho lệnh xác nhận (nạn nhân), tệp lùi chạy xong và gỡ `023`. Không mất dữ liệu (quyết định không được ghi) và dịch vụ nhận `40P01` thô (điều kiện N8). **Cùng kết quả với tệp lùi trước đợt sửa** (đo trên bản `4076ba7`): đợt sửa không gây ra, chỉ dời khoá `draft_decisions` lên đầu; nhưng chú thích mới («the wait ends at lock_timeout with 55P03 and nothing changes») không nêu khả năng này.
+- **Mức:** P3: tệp lùi chỉ chạy khi đường ghi Z4 đã đóng (đầu tệp, điều 3), tức không có lệnh xác nhận nào đang bay; hậu quả là một lỗi thô cho một lệnh, không mất gì.
+- **Sửa [đã thử trên bản sao ngoài repo]:** lấy `source_event_revisions` trước, rồi `draft_decisions` (cùng chiều với lệnh xác nhận và với tệp áp tới):
+  ```sql
+  IF pg_catalog.to_regclass('public.source_event_revisions') IS NOT NULL THEN
+    EXECUTE 'LOCK TABLE public.source_event_revisions IN ACCESS EXCLUSIVE MODE';
+  END IF;
+  IF pg_catalog.to_regclass('public.draft_decisions') IS NOT NULL THEN
+    EXECUTE 'LOCK TABLE public.draft_decisions IN ACCESS EXCLUSIVE MODE';
+  END IF;
+  ```
+  Với thứ tự này cùng kịch bản cho: lệnh xác nhận **được lưu**, tệp lùi **từ chối** vì quyết định mang vị trí (đúng nghĩa R-S-1: không mất vị trí). N18 vẫn đỏ khi bỏ khoá `draft_decisions`; thêm một ca chữ cho thứ tự hai khoá.
+
+### R-DB-12 · [P3] Chú thích «lần hai không xin khoá mạnh hơn» chưa đúng với hai bảng mới
+
+- **Vị trí:** `migrations/023_thread_order.sql:35-41` (đoạn «Lock window»; câu «A second run asks for the same locks and for no stronger one» ở `:40-41`).
+- **Đo [đo, `pg_locks`, lần áp thứ hai]:** đúng cho `source_event_revisions` và `ai_drafts` (chỉ `SHARE ROW EXCLUSIVE`) và cho `draft_decisions` (`ACCESS EXCLUSIVE`, như lần đầu); **không** đúng cho `intake_thread_heads` và `source_revision_positions`: `ACCESS EXCLUSIVE` từ bước 2 và 3 (`DROP TRIGGER IF EXISTS`, `DROP POLICY IF EXISTS`, `ALTER TABLE … ENABLE/FORCE ROW LEVEL SECURITY`) tới commit. Hệ quả: một lệnh đọc hai bảng đó (`threadFreshness` của Task 5, vai runtime) chờ suốt lần áp lại; lệnh nhận tin không bị thêm gì (đã chờ ở khoá bảng bản sửa).
+- **Mức:** P3: chữ, và cửa sổ ngắn (không có gì để đánh số ở lần hai), A12 đặt tên đúng phạm vi («a reader of the revision table»).
+- **Sửa:** sửa câu cho đúng («… for no stronger one on the revision table and the draft table; the two new tables are locked ACCESS EXCLUSIVE by the steps that drop and create their triggers and policies»), hoặc bọc các bước 2–6 trong kiểm catalog để lần hai không chạm hai bảng đó.
+
+### 6.3 · Đã thử mà không phá được (đợt này)
+
+- Hai khoá bảng mới ở bước 1 trên cả hai chiều chờ (giao dịch nhận tin đang bay; nháp AI đang ghi): tệp chờ, rồi kiểm sau khi chúng commit (A11, A13); không vòng chờ trong thứ tự `source_event_revisions` → `ai_drafts` → `projects` → `draft_decisions` so với nhận tin, ghi nháp, xác nhận, ghi ánh xạ.
+- Trần trên dữ liệu đã đánh số: không còn chặn lần áp lại (0,37 s ở 300 000 bản).
+- Đánh số dòng cũ không đổi (không đụng thân CTE); việc bỏ `WHERE h.last_seq < EXCLUDED.last_seq` an toàn theo lập luận trên (số gán luôn lớn hơn số cũ; đường ghi `intake_thread_heads` bị khoá).
+- Các đột biến sống sót lần trước (`h.project_id`, khoá ngoại của `intake_thread_heads`, `IF false AND`, `FOR SHARE`) nay đều bị bắt (xem 6.1); đột biến bỏ `x.project_id` của ứng viên cũng bị bắt (B4). Tôi không chạy lại các đột biến đã bị bắt lần trước (`ORDER BY` bỏ `r.id`, `>= 0`, `search_path`, `GRANT` thừa, không khoá và `FOR KEY SHARE` của trigger quyết định): các ca đó không đổi trong đợt sửa này.
