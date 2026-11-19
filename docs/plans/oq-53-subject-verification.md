@@ -603,3 +603,7 @@ Bản 0.1 hỏi cổng bảo mật bảy câu và review CSDL mười câu. Cả
 - Không OQ mới: mọi điểm của bản 0.2 là kỹ thuật hoặc vận hành, không chạm lời Chairman hay SPEC. OQ-57 không đổi trong bản 0.2; bản 0.3 chỉ ghi rằng Chairman đã quyết nó.
 - Không tạo hay sửa tệp nào trong `src/`, `migrations/`, `tests/`, `skills/`, `bot-plugin/`. Tệp đã ghi ở bản 0.2: kế hoạch này; phần nối cuối của `docs/reviews/oq-53-evidence-20261119/measurements-pg16.txt` (đo 9) và `probe-3.cjs`.
 - Chưa làm: chạy bộ ca hiện có trên nhánh; đếm từng ca bị P10 chạm (U5).
+
+## 21 · Ghi chú thực thi (phiên chính, 19/11/2026)
+
+Bản thực thi khác bản 0.3 ở những chỗ ghi ở `docs/DELIVERY-016-oq-53-subject-order-and-revisions-20261119.md`, mục «Chỗ khác bản 0.3 của kế hoạch» (A9; trần P12 250 000 và chỉ đếm bản chưa có số; cửa sổ khoá của 023 và kiểm hai lần; `CREATE OR REPLACE TRIGGER`; tệp lùi; ca thêm; luật 2 của `threadFreshness` viết lại; `revisionNo ≥ 1`; P13 và L14; SV-S-2 và C11) và ở ba vòng sau cổng Codex: vòng 1 (`CHANGES_REQUIRED`, một P1: trigger xác nhận cũng phải từ chối khi luồng có bản chưa có số), quét theo lớp trước vòng 2 (trigger cấp số `ENABLE ALWAYS`; phép kiểm `tgenabled`, `tgtype`, `tgqual`, `tgfoid`; `LOCK TABLE draft_decisions` chỉ khi áp lại; `plan_cache_mode`), vòng 2 (`PASS`). Điều kiện mới ngoài mục 16: N15 (luồng bị giữ mãi khi có bản không số). OQ mới: OQ-58 (tin trả lời đến trước tin gốc). Số đo cuối: biên nhận, mục «Bằng chứng kiểm».
