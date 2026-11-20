@@ -1,0 +1,149 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/foundation.test.ts (19 tests | 1 failed) 960924ms
+   ❯ scope and identity (6)
+     × bot and customer cannot write, even with a forged body 951059ms
+ ❯ tests/pre-023-check.test.ts (15 tests | 1 failed | 2 skipped) 644829ms
+   ❯ the count before 023 answers what 023 would answer (12)
+     × C8 a second run changes nothing and answers the same (the answer's timeouts are those of the session, which the case does not change) 638059ms
+ ❯ tests/document-dependencies.test.ts (13 tests | 1 failed) 564269ms
+   ❯ document dependencies (13)
+     × proposing a revision of a document that has dependents succeeds under the runtime role, and the flag event names the proposer 558122ms
+ ❯ tests/bridge-limits.test.ts (9 tests | 1 failed) 1029663ms
+   × Sec M2 a declared Content-Length above the cap is refused before the body is read; the read itself stays capped 1025299ms
+ ❯ tests/documents-http.test.ts (9 tests | 1 failed) 64553ms
+   ❯ documents HTTP (8)
+     × project registry routes round trip 58796ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/bridge-limits.test.ts > Sec M2 a declared Content-Length above the cap is refused before the body is read; the read itself stays capped
+Error: Hook timed out in 30000ms.
+If this is a long-running hook, pass a timeout value as the last argument or configure it globally with "hookTimeout".
+ ❯ tests/bridge-limits.test.ts:17:1
+     15| // Bridge body limits and config failures (T2 M5, Security M1 and M2).…
+     16| let h:Harness,identity:IdentityService;
+     17| beforeEach(async()=>{h=await openHarness();await h.reset();await seedS…
+       | ^
+     18| afterEach(async()=>{await h.reset();await h.close();});
+     19| const call=(req:Request)=>handleBridgeIo(req,new URL(req.url).pathname…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  tests/bridge-limits.test.ts > Sec M2 a declared Content-Length above the cap is refused before the body is read; the read itself stays capped
+Error: PGlite is closed
+ ❯ q._checkReady node_modules/@electric-sql/pglite/src/pglite.ts:936:13
+ ❯ q.close node_modules/@electric-sql/pglite/src/pglite.ts:832:16
+ ❯ Object.close tests/slice1-db.ts:53:18
+     51|     query:(sql,params)=>pg.query(sql,params),
+     52|     transaction:fn=>pg.transaction(tx=>fn({query:(sql,params)=>tx.quer…
+     53|     close:()=>pg.close(),
+       |                  ^
+     54|   };
+     55|   return {operator,db:operator,native:false,exec:async sql=>{await pg.…
+ ❯ Object.close tests/slice1-db.ts:55:120
+ ❯ tests/bridge-limits.test.ts:18:45
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  tests/document-dependencies.test.ts > document dependencies > proposing a revision of a document that has dependents succeeds under the runtime role, and the flag event names the proposer
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/document-dependencies.test.ts:44:2
+     42|
+     43| describe('document dependencies',()=>{
+     44|  test('proposing a revision of a document that has dependents succeeds…
+       |  ^
+     45|   const a=await doc(),b=await doc(),c=await doc(),lone=await doc();
+     46|   await link(pm,a.record.id,b.record.id);await link(pm,a.record.id,c.r…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  tests/documents-http.test.ts > documents HTTP > project registry routes round trip
+Error: Hook timed out in 30000ms.
+If this is a long-running hook, pass a timeout value as the last argument or configure it globally with "hookTimeout".
+ ❯ tests/documents-http.test.ts:12:1
+     10| let h:Harness;
+     11| const url='http://127.0.0.1:3147';
+     12| beforeEach(async()=>{h=await openHarness();await h.reset();await seedS…
+       | ^
+     13|   for(const t of [ids.tenant,ids.otherTenant]) await h.operator.transa…
+     14| afterEach(async()=>{await h.reset();await h.close();});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  tests/documents-http.test.ts > documents HTTP > project registry routes round trip
+Error: PGlite is closed
+ ❯ q._checkReady node_modules/@electric-sql/pglite/src/pglite.ts:936:13
+ ❯ q.close node_modules/@electric-sql/pglite/src/pglite.ts:832:16
+ ❯ Object.close tests/slice1-db.ts:53:18
+     51|     query:(sql,params)=>pg.query(sql,params),
+     52|     transaction:fn=>pg.transaction(tx=>fn({query:(sql,params)=>tx.quer…
+     53|     close:()=>pg.close(),
+       |                  ^
+     54|   };
+     55|   return {operator,db:operator,native:false,exec:async sql=>{await pg.…
+ ❯ Object.close tests/slice1-db.ts:55:120
+ ❯ tests/documents-http.test.ts:14:45
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  tests/foundation.test.ts > scope and identity > bot and customer cannot write, even with a forged body
+Error: Hook timed out in 30000ms.
+If this is a long-running hook, pass a timeout value as the last argument or configure it globally with "hookTimeout".
+ ❯ tests/foundation.test.ts:17:1
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  tests/foundation.test.ts > scope and identity > bot and customer cannot write, even with a forged body
+Error: PGlite is closed
+ ❯ q._checkReady node_modules/@electric-sql/pglite/src/pglite.ts:936:13
+ ❯ q.close node_modules/@electric-sql/pglite/src/pglite.ts:832:16
+ ❯ Object.close src/server/db.ts:12:171
+     10|   const pg = await PGlite.create(dataDir);
+     11|   for (const file of (await readdir(path.join(process.cwd(),'migration…
+     12|   return { query: (sql, params) => pg.query(sql, params), transaction:…
+       |                                                                                                                                                                           ^
+     13| }
+     14| /**
+ ❯ tests/foundation.test.ts:18:31
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C8 a second run changes nothing and answers the same (the answer's timeouts are those of the session, which the case does not change)
+Error: Hook timed out in 30000ms.
+If this is a long-running hook, pass a timeout value as the last argument or configure it globally with "hookTimeout".
+ ❯ tests/pre-023-check.test.ts:32:1
+     30| let h:Harness;
+     31| let needsForward=false;
+     32| beforeEach(async()=>{needsForward=false;h=await openHarness();await h.…
+       | ^
+     33| afterEach(async()=>{
+     34|   await h.exec('ROLLBACK').catch(()=>{});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C8 a second run changes nothing and answers the same (the answer's timeouts are those of the session, which the case does not change)
+Error: PGlite is closed
+ ❯ q._checkReady node_modules/@electric-sql/pglite/src/pglite.ts:936:13
+ ❯ q.close node_modules/@electric-sql/pglite/src/pglite.ts:832:16
+ ❯ Object.close tests/slice1-db.ts:53:18
+     51|     query:(sql,params)=>pg.query(sql,params),
+     52|     transaction:fn=>pg.transaction(tx=>fn({query:(sql,params)=>tx.quer…
+     53|     close:()=>pg.close(),
+       |                  ^
+     54|   };
+     55|   return {operator,db:operator,native:false,exec:async sql=>{await pg.…
+ ❯ Object.close tests/slice1-db.ts:55:120
+ ❯ tests/pre-023-check.test.ts:35:93
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  5 failed | 65 passed | 14 skipped (84)
+      Tests  5 failed | 1321 passed | 148 skipped (1474)
+   Start at  13:01:16
+   Duration  3768.40s (tests 100%)
+

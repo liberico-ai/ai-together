@@ -1,0 +1,205 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/pre-023-check.test.ts (10 tests | 7 failed | 2 skipped) 4482ms
+   ❯ the count before 023 answers what 023 would answer (8)
+     × C1 a database from before 023 with four old revisions: ready, with the counts, and 023 then runs 716ms
+     × C2 after 023 every revision has a number: ready, nothing to number, and the file says 023 is there 538ms
+     × C3 more unnumbered revisions than the cap: blocked with PRE-023-02 and the cap it read, and 023 refuses with its own words; at the cap it is ready 549ms
+     × C4 an undecided candidate draft while revisions have no number: blocked with PRE-023-03, 023 refuses; once decided it is ready; with every revision numbered it is not a reason 534ms
+     × C5 not a superuser: blocked with PRE-023-01 and nothing counted (a login that cannot apply 023 reads nothing it was not given) 520ms
+     × C6 the file reads and writes nothing: it runs in a read-only transaction, and carries no statement that writes 520ms
+     × C7 the answer holds counts, booleans and fixed codes only: no id, chat, thread key, role or database name 559ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C1 a database from before 023 with four old revisions: ready, with the counts, and 023 then runs
+AssertionError: expected { pre_023: 'unimplemented' } to match object { pre_023: 'ready', reasons: [], …(6) }
+
+- Expected
++ Received
+
+  {
+-   "ai_logins_connected": 0,
+-   "cap": 250000,
+-   "has_023": false,
+-   "pre_023": "ready",
+-   "reasons": [],
+-   "revisions": 4,
+-   "revisions_without_number": 4,
+-   "undecided_candidate_drafts": 0,
++   "pre_023": "unimplemented",
+  }
+
+ ❯ tests/pre-023-check.test.ts:74:15
+     72|     await oldRevisions(4);
+     73|     const a=await check();
+     74|     expect(a).toMatchObject({pre_023:'ready',reasons:[],revisions:4,re…
+       |               ^
+     75|     expect(a.migrations_max).toBe('022');
+     76|     await h.exec(await forwardSql());
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C2 after 023 every revision has a number: ready, nothing to number, and the file says 023 is there
+AssertionError: expected { pre_023: 'unimplemented' } to match object { pre_023: 'ready', reasons: [], …(3) }
+
+- Expected
++ Received
+
+  {
+-   "has_023": true,
+-   "migrations_max": "023",
+-   "pre_023": "ready",
+-   "reasons": [],
+-   "revisions_without_number": 0,
++   "pre_023": "unimplemented",
+  }
+
+ ❯ tests/pre-023-check.test.ts:81:15
+     79|   test('C2 after 023 every revision has a number: ready, nothing to nu…
+     80|     const a=await check();
+     81|     expect(a).toMatchObject({pre_023:'ready',reasons:[],revisions_with…
+       |               ^
+     82|   });
+     83|   test('C3 more unnumbered revisions than the cap: blocked with PRE-02…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C3 more unnumbered revisions than the cap: blocked with PRE-023-02 and the cap it read, and 023 refuses with its own words; at the cap it is ready
+AssertionError: expected { pre_023: 'unimplemented' } to match object { pre_023: 'blocked', …(3) }
+
+- Expected
++ Received
+
+  {
+-   "cap": 3,
+-   "pre_023": "blocked",
+-   "reasons": [
+-     "PRE-023-02",
+-   ],
+-   "revisions_without_number": 4,
++   "pre_023": "unimplemented",
+  }
+
+ ❯ tests/pre-023-check.test.ts:86:21
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C4 an undecided candidate draft while revisions have no number: blocked with PRE-023-03, 023 refuses; once decided it is ready; with every revision numbered it is not a reason
+AssertionError: expected { pre_023: 'unimplemented' } to match object { pre_023: 'blocked', …(3) }
+
+- Expected
++ Received
+
+  {
+-   "pre_023": "blocked",
+-   "reasons": [
+-     "PRE-023-03",
+-   ],
+-   "revisions_without_number": 2,
+-   "undecided_candidate_drafts": 1,
++   "pre_023": "unimplemented",
+  }
+
+ ❯ tests/pre-023-check.test.ts:94:27
+     92|     await oldRevisions(2);
+     93|     const draft=await undecidedDraft();
+     94|     expect(await check()).toMatchObject({pre_023:'blocked',reasons:['P…
+       |                           ^
+     95|     await expect(h.exec(await forwardSql())).rejects.toThrow(/no perso…
+     96|     await h.exec('ROLLBACK').catch(()=>{});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C4 an undecided candidate draft while revisions have no number: blocked with PRE-023-03, 023 refuses; once decided it is ready; with every revision numbered it is not a reason
+error: Migration 023 stops: an AI draft of an intake candidate that no person has decided exists while revisions still carry no thread number. Decide or reject the draft, then apply again.
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C5 not a superuser: blocked with PRE-023-01 and nothing counted (a login that cannot apply 023 reads nothing it was not given)
+AssertionError: expected { pre_023: 'unimplemented' } to match object { pre_023: 'blocked', …(5) }
+
+- Expected
++ Received
+
+  {
+-   "ai_logins_connected": null,
+-   "pre_023": "blocked",
+-   "reasons": [
+-     "PRE-023-01",
+-   ],
+-   "revisions": null,
+-   "revisions_without_number": null,
+-   "undecided_candidate_drafts": null,
++   "pre_023": "unimplemented",
+  }
+
+ ❯ tests/pre-023-check.test.ts:105:15
+    103|   test('C5 not a superuser: blocked with PRE-023-01 and nothing counte…
+    104|     const a=await check('libetech_runtime');
+    105|     expect(a).toMatchObject({pre_023:'blocked',reasons:['PRE-023-01'],…
+       |               ^
+    106|   });
+    107|   test('C6 the file reads and writes nothing: it runs in a read-only t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C6 the file reads and writes nothing: it runs in a read-only transaction, and carries no statement that writes
+AssertionError: expected { pre_023: 'unimplemented' } to match object { pre_023: 'ready' }
+
+- Expected
++ Received
+
+  {
+-   "pre_023": "ready",
++   "pre_023": "unimplemented",
+  }
+
+ ❯ tests/pre-023-check.test.ts:114:40
+    112|       return (await tx.query<{result:string}>(parts[2])).rows;
+    113|     });
+    114|     expect(JSON.parse(rows[0].result)).toMatchObject({pre_023:'ready'}…
+       |                                        ^
+    115|     const code=(await checkSql()).split('\n').filter(l=>!/^\s*--/.test…
+    116|     expect(code).not.toMatch(/\b(INSERT\s+INTO|UPDATE\s+\w|DELETE\s+FR…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C7 the answer holds counts, booleans and fixed codes only: no id, chat, thread key, role or database name
+AssertionError: expected [ 'pre_023' ] to deeply equal [ 'ai_logins_connected', 'cap', …(9) ]
+
+- Expected
++ Received
+
+  [
+-   "ai_logins_connected",
+-   "cap",
+-   "has_023",
+-   "migrations_max",
+-   "open_transactions_over_5s",
+    "pre_023",
+-   "reasons",
+-   "revisions",
+-   "revisions_without_number",
+-   "undecided_candidate_drafts",
+-   "warnings",
+  ]
+
+ ❯ tests/pre-023-check.test.ts:122:35
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 1 passed | 2 skipped (10)
+   Start at  12:08:58
+   Duration  4.58s (tests 99%)
+

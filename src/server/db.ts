@@ -28,12 +28,26 @@ export async function assertRestrictedLogin(q: Queryable): Promise<void> {
   if (!row || Object.values(row).some(Boolean))
     throw new Error('Runtime login must not own tables, hold elevated database privileges or reach more than one application role.');
 }
-export function pooledDatabase(url: string, requireRestricted=false): Database {
-  const pool = new Pool({ connectionString: url, max: 10, connectionTimeoutMillis: 5000, statement_timeout: 10000 });
+// Since migration 023 a transaction of the intake path that stays open holds the counter row of its thread and every other message of that thread waits for it (55P03 after 5 seconds, each
+// time). So an idle transaction has to end by itself: every session of every pool starts with this timeout (a session parameter sent at connect, which a role default of 0 cannot undo), and a
+// pool for a runtime login reads it back before it serves anything (N1 of DELIVERY-016).
+export const IDLE_IN_TRANSACTION_TIMEOUT_MS = 30000;
+export async function assertSessionTimeouts(q: Queryable): Promise<void> {
+  const ms = Number((await q.query<{ ms: string }>("SELECT setting AS ms FROM pg_settings WHERE name='idle_in_transaction_session_timeout'")).rows[0]?.ms);
+  if (!Number.isInteger(ms) || ms < 1 || ms > IDLE_IN_TRANSACTION_TIMEOUT_MS)
+    throw new Error(`Runtime login must end an idle transaction by itself (idle_in_transaction_session_timeout between 1 ms and ${IDLE_IN_TRANSACTION_TIMEOUT_MS} ms).`);
+}
+export function pooledDatabase(url: string, requireRestricted=false, options: { idleInTransactionMs?: number } = {}): Database {
+  const pool = new Pool({ connectionString: url, max: 10, connectionTimeoutMillis: 5000, statement_timeout: 10000, idle_in_transaction_session_timeout: options.idleInTransactionMs ?? IDLE_IN_TRANSACTION_TIMEOUT_MS });
+  // An idle pooled connection that the server ends (a restart, a failover, pg_terminate_backend) raises 'error' on the pool; without a listener that error stops the process, and its
+  // dump would carry the client (host, port, user, database). Only a fixed event and the SQLSTATE are logged: never the message, never the client.
+  pool.on('error', e => console.error(JSON.stringify({ level: 'error', event: 'pool_idle_client_error', sqlstate: (e as { code?: string }).code ?? null })));
   let checked:Promise<void>|undefined;
   const check=()=>checked??=(async()=>{
     if(!requireRestricted) return;
-    await assertRestrictedLogin({ query: async <T>(sql: string, params?: unknown[]) => ({ rows: (await pool.query(sql, params)).rows as T[] }) });
+    const q: Queryable = { query: async <T>(sql: string, params?: unknown[]) => ({ rows: (await pool.query(sql, params)).rows as T[] }) };
+    await assertRestrictedLogin(q);
+    await assertSessionTimeouts(q);
   })();
   const queryOn = (client: PoolClient): Queryable => ({ query: async <T>(sql: string, params?: unknown[]) => ({ rows: (await client.query(sql, params)).rows as T[] }) });
   return {
@@ -41,8 +55,21 @@ export function pooledDatabase(url: string, requireRestricted=false): Database {
     async transaction(fn) {
       await check();
       const client = await pool.connect();
+      // The server ends a session that idles in a transaction past the timeout: the client then raises 'error' on itself, and with no listener that error would stop the process.
+      // The caller gets the error of its own statement; a rollback on a dead connection must not replace it, and the dead connection is dropped, not handed out again.
+      let broken: Error | undefined;
+      const onError = (e: Error) => { broken ??= e; };
+      client.on('error', onError);
       try { await client.query('BEGIN'); const result = await fn(queryOn(client)); await client.query('COMMIT'); return result; }
-      catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+      catch (error) {
+        try { if (!broken) await client.query('ROLLBACK'); } catch (rollbackError) { broken ??= rollbackError as Error; }
+        throw error;
+      } finally {
+        client.removeListener('error', onError);
+        // the cause of a dropped connection is not in the error the caller gets ("not queryable"): a fixed event with the SQLSTATE says it (25P03 is the idle timeout), never the message
+        if (broken) console.error(JSON.stringify({ level: 'error', event: 'db_session_ended', sqlstate: (broken as { code?: string }).code ?? null }));
+        client.release(broken);
+      }
     }, close: () => pool.end(),
   };
 }

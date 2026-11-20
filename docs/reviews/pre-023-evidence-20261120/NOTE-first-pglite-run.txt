@@ -1,0 +1,1 @@
+Run of the first PGlite pass: 5 failures, all 'Hook timed out'/'Test timed out' (30 s), 0 AssertionError, wall time 3768 s (the machine was stalled; load average 5.6 before the rerun). Rerun on the same tree: final-suite-pglite.txt (all green).

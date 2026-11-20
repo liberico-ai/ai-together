@@ -1,0 +1,124 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/session-timeouts.test.ts (7 tests | 6 failed) 11897ms
+   ❯ the application reads the idle-transaction timeout back with SHOW (PGlite and native) (2)
+     × a session without the timeout is refused with a fixed sentence, and nothing about the database is in it 513ms
+     × 30 seconds is accepted; one millisecond over it is refused; 1 ms is accepted 1ms
+   ❯ a held transaction ends by itself (native PostgreSQL) (5)
+     × every pool the application builds starts its sessions with the timeout, and SHOW says so 13ms
+     × a role-level default of 0 does not switch it off: the session parameter of the pool wins 13ms
+     × the holder of a lock is ended by the server, the waiting session gets the lock, nothing crashes, the holder gets its own error 8012ms
+     × the pool is usable after a session was ended: the dead connection is dropped, not handed out again 1517ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/session-timeouts.test.ts > the application reads the idle-transaction timeout back with SHOW (PGlite and native) > a session without the timeout is refused with a fixed sentence, and nothing about the database is in it
+TypeError: assertSessionTimeouts is not a function
+ ❯ tests/session-timeouts.test.ts:25:20
+     23|       const q:Queryable={query:(sql,params)=>pg.query(sql,params)};
+     24|       expect(await effectiveMs(q)).toBe(0);
+     25|       await expect(assertSessionTimeouts(q)).rejects.toThrow('Runtime …
+       |                    ^
+     26|     } finally {await pg.close();}
+     27|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/session-timeouts.test.ts > the application reads the idle-transaction timeout back with SHOW (PGlite and native) > 30 seconds is accepted; one millisecond over it is refused; 1 ms is accepted
+AssertionError: expected undefined to be 30000 // Object.is equality
+
+- Expected:
+30000
+
++ Received:
+undefined
+
+ ❯ tests/session-timeouts.test.ts:29:44
+     27|   });
+     28|   test('30 seconds is accepted; one millisecond over it is refused; 1 …
+     29|     expect(IDLE_IN_TRANSACTION_TIMEOUT_MS).toBe(30000);
+       |                                            ^
+     30|     const pg=await PGlite.create();
+     31|     try {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > every pool the application builds starts its sessions with the timeout, and SHOW says so
+AssertionError: expected +0 to be undefined // Object.is equality
+
+- Expected:
+undefined
+
++ Received:
+0
+
+ ❯ tests/session-timeouts.test.ts:46:37
+     44|     const db=pooledDatabase(url());
+     45|     try {
+     46|       expect(await effectiveMs(db)).toBe(IDLE_IN_TRANSACTION_TIMEOUT_M…
+       |                                     ^
+     47|       await expect(db.transaction(async tx=>effectiveMs(tx))).resolves…
+     48|       await expect(assertSessionTimeouts(db)).resolves.toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > a role-level default of 0 does not switch it off: the session parameter of the pool wins
+AssertionError: expected +0 to be undefined // Object.is equality
+
+- Expected:
+undefined
+
++ Received:
+0
+
+ ❯ tests/session-timeouts.test.ts:59:40
+     57|     } finally {await admin.end();}
+     58|     const db=pooledDatabase(url());
+     59|     try {expect(await effectiveMs(db)).toBe(IDLE_IN_TRANSACTION_TIMEOU…
+       |                                        ^
+     60|   });
+     61|   test('the holder of a lock is ended by the server, the waiting sessi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > the holder of a lock is ended by the server, the waiting session gets the lock, nothing crashes, the holder gets its own error
+Error: Timed out waiting for the waiting session.
+ ❯ tests/session-timeouts.test.ts:14:97
+     12| const latch=()=>{let open!:()=>void;const promise=new Promise<void>(r=…
+     13| // a case that waits for another connection must fail, not hang, when …
+     14| const within=<T>(p:Promise<T>,ms:number,what:string)=>Promise.race([p,…
+       |                                                                                                 ^
+     15| const url=()=>{const u=process.env.SLICE1_TEST_DATABASE_URL as string;…
+     16| // asks the server what it says about the session, the way the applica…
+ ❯ tests/session-timeouts.test.ts:74:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > the pool is usable after a session was ended: the dead connection is dropped, not handed out again
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ tests/session-timeouts.test.ts:85:121
+     83|     const db=pooledDatabase(url(),false,{idleInTransactionMs:500});
+     84|     try {
+     85|       await expect(db.transaction(async tx=>{await tx.query('SELECT 1'…
+       |                                                                                                                         ^
+     86|       for(let i=0;i<5;i++) await expect(db.query('SELECT 1 AS one')).r…
+     87|       await expect(db.transaction(async tx=>(await tx.query('SELECT 3 …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 1 passed (7)
+   Start at  11:57:55
+   Duration  12.00s (tests 100%)
+
