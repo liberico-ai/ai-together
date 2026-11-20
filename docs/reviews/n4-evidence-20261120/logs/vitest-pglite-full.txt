@@ -1,0 +1,19 @@
+# head=dfdd68c (working tree clean when this was run); sha256 of the files under test:
+#   5e5ac975745b0bf9…  deploy/restore-plan.py
+#   f44b29485b791488…  deploy/pre-restore.sql
+#   65b6ca43f64c14dc…  deploy/post-restore.sql
+#   122bca81f17b5d06…  deploy/install-user.py
+#   41593d3dce3c98b9…  deploy/install-d1.sh
+#
+# full suite on PGlite (no SLICE1_* variables)
+#
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  68 passed | 14 skipped (82)
+      Tests  1311 passed | 136 skipped (1447)
+   Start at  09:06:43
+   Duration  579.62s (tests 99%, import 1%)
+
+exit=0

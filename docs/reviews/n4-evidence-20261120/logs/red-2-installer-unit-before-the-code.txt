@@ -1,0 +1,152 @@
+.................EEEEEE........EEEEEEEE.
+======================================================================
+ERROR: test_u8_a_refusal_is_reported_by_its_code_only (tests.test_install_user.PostRestoreRunner.test_u8_a_refusal_is_reported_by_its_code_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 213, in test_u8_a_refusal_is_reported_by_its_code_only
+    with self.assertRaises(RuntimeError) as caught:installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql')
+                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'run_post_restore'
+
+======================================================================
+ERROR: test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure (tests.test_install_user.PostRestoreRunner.test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure) (out='')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 220, in test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure
+    with self.assertRaises(RuntimeError):installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql')
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'run_post_restore'
+
+======================================================================
+ERROR: test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure (tests.test_install_user.PostRestoreRunner.test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure) (out='not json\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 220, in test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure
+    with self.assertRaises(RuntimeError):installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql')
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'run_post_restore'
+
+======================================================================
+ERROR: test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure (tests.test_install_user.PostRestoreRunner.test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure) (out='{"postRestore" : "fail"}\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 220, in test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure
+    with self.assertRaises(RuntimeError):installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql')
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'run_post_restore'
+
+======================================================================
+ERROR: test_u8_the_answer_line_after_the_notices_is_the_result (tests.test_install_user.PostRestoreRunner.test_u8_the_answer_line_after_the_notices_is_the_result)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 223, in test_u8_the_answer_line_after_the_notices_is_the_result
+    self.assertEqual(installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql')['numberingTriggerWas'],'O')
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'run_post_restore'
+
+======================================================================
+ERROR: test_u8_what_the_installer_asks_psql_for (tests.test_install_user.PostRestoreRunner.test_u8_what_the_installer_asks_psql_for)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 229, in test_u8_what_the_installer_asks_psql_for
+    installer.run_post_restore([Path('/pg/bin/psql'),'-X','-q','-v','ON_ERROR_STOP=1'],{},'-- the file')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'run_post_restore'
+
+======================================================================
+ERROR: test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind (tests.test_install_user.RestoreSteps.test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind) (listing='CE SET public some_seq iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 178, in test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind
+    self.calls=[];self.steps(listing)
+                  ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 161, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'restore_data'. Did you mean: 'restore_plan'?
+
+======================================================================
+ERROR: test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind (tests.test_install_user.RestoreSteps.test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind) (listing='ic intake_thread_heads iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 178, in test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind
+    self.calls=[];self.steps(listing)
+                  ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 161, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'restore_data'. Did you mean: 'restore_plan'?
+
+======================================================================
+ERROR: test_u3_a_post_023_archive_is_loaded_and_checked_and_nothing_numbers_it_again (tests.test_install_user.RestoreSteps.test_u3_a_post_023_archive_is_loaded_and_checked_and_nothing_numbers_it_again)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 172, in test_u3_a_post_023_archive_is_loaded_and_checked_and_nothing_numbers_it_again
+    self.assertEqual(self.steps(DATA_ONLY_BEFORE_023+NUMBER_TABLES),['list','restore','post-restore'])
+                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 161, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'restore_data'. Did you mean: 'restore_plan'?
+
+======================================================================
+ERROR: test_u3_a_pre_023_archive_is_numbered_by_applying_023_again_before_the_check (tests.test_install_user.RestoreSteps.test_u3_a_pre_023_archive_is_numbered_by_applying_023_again_before_the_check)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 174, in test_u3_a_pre_023_archive_is_numbered_by_applying_023_again_before_the_check
+    self.assertEqual(self.steps(DATA_ONLY_BEFORE_023),['list','restore','apply-023','post-restore'])
+                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 161, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'restore_data'. Did you mean: 'restore_plan'?
+
+======================================================================
+ERROR: test_u3_an_archive_that_is_refused_loads_nothing (tests.test_install_user.RestoreSteps.test_u3_an_archive_that_is_refused_loads_nothing) (listing='1; 1259 1 TABLE public projects iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 185, in test_u3_an_archive_that_is_refused_loads_nothing
+    with self.assertRaises(RuntimeError):self.steps(listing)
+                                         ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 161, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'restore_data'. Did you mean: 'restore_plan'?
+
+======================================================================
+ERROR: test_u3_an_archive_that_is_refused_loads_nothing (tests.test_install_user.RestoreSteps.test_u3_an_archive_that_is_refused_loads_nothing) (listing='; Archive created\n1; 0 1 TABLE DATA public projects iptech\n2; 0 2 TABLE DATA public source_event_revisions iptech\n3; 0 3 SEQUENCE SET public some_seq iptech\n4; 0 4 TABLE DATA public source_revision_positions iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 185, in test_u3_an_archive_that_is_refused_loads_nothing
+    with self.assertRaises(RuntimeError):self.steps(listing)
+                                         ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 161, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'user_installer' has no attribute 'restore_data'. Did you mean: 'restore_plan'?
+
+======================================================================
+ERROR: test_u5_the_installer_checks_the_restore_before_it_creates_a_password_or_a_service (tests.test_install_user.RestoreSteps.test_u5_the_installer_checks_the_restore_before_it_creates_a_password_or_a_service)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 189, in test_u5_the_installer_checks_the_restore_before_it_creates_a_password_or_a_service
+    order=[finish.index(n) for n in ('restore_data(',"ALTER ROLE libetech_web","'enable','--now',UNIT_NAMES[1]")]
+           ~~~~~~~~~~~~^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u6_the_root_installer_loads_checks_and_only_then_starts_the_service (tests.test_install_user.RestoreSteps.test_u6_the_root_installer_loads_checks_and_only_then_starts_the_service)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 197, in test_u6_the_root_installer_loads_checks_and_only_then_starts_the_service
+    order=[at('restore-plan.py"'),at('--pg-restore-args'),at('023_thread_order.sql'),at('post-restore.sql'),at('systemctl enable')]
+           ~~^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 196, in <lambda>
+    at=lambda needle:next(i for i,l in enumerate(lines) if needle in l)
+                     ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+----------------------------------------------------------------------
+Ran 36 tests in 0.093s
+
+FAILED (errors=14)

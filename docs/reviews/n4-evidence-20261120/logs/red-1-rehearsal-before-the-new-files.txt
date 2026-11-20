@@ -1,0 +1,253 @@
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > what the installers did before N4 (the red of N4) > R1 the archive of a post-023 database lists the two number tables and the decision that was confirmed at a position that is no longer the last 45ms
+stdout | tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > what the installers did before N4 (the red of N4) > R2 the command of the installers before N4 cannot restore that archive: a trigger of 023 runs on rows that are history, and the transaction rolls back
+R2 old command, exit 1: pg_restore: error: COPY failed for table "draft_decisions": ERROR:  The thread of the candidate moved on
+
+ ✓ tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > what the installers did before N4 (the red of N4) > R2 the command of the installers before N4 cannot restore that archive: a trigger of 023 runs on rows that are history, and the transaction rolls back 285ms
+stdout | tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > what the installers did before N4 (the red of N4) > R2b with the decision table out of the way, the numbering trigger meets the number rows that the archive carries
+R2b old command without draft_decisions, exit 1: pg_restore: error: COPY failed for table "intake_thread_heads": ERROR:  duplicate key value violates unique constraint "intake_thread_heads_tenant_id_project_id_chat_id_thread_key_key"
+
+ ✓ tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > what the installers did before N4 (the red of N4) > R2b with the decision table out of the way, the numbering trigger meets the number rows that the archive carries 382ms
+ ✓ tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > what the installers did before N4 (the red of N4) > R3 a plain pg_restore --disable-triggers loads the archive, and leaves the numbering trigger enabled for the origin role only (O, no longer A): the gap that N4 and N12 name 361ms
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R4 the plan names the archive post-023; the load, then deploy/post-restore.sql as one command: A and O, the answer, and every table equal to the source 68ms
+   → expected { code: 2, out: '', …(1) } to match object { code: +0, out: 'post-023\n' }
+(1 matching property omitted from actual)
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R5 on the restored database the service goes on: a new message gets the next number, a confirmation at the new position is stored and one at the old position is refused (LTZ03); a loader in replica mode is numbered 220ms
+   → <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R6 the file is idempotent on the restored database: a second run finds the trigger at A and answers pass again 222ms
+   → <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R7 an archive of which one number table was left out at dump time is refused by the plan, and a full archive too 142ms
+   → expected '<python> to match /number tables/
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R8 a database restored with a revision that has no number stops the file at the first look, and the thread stays as the source had it (no number is made up) 592ms
+   → <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R9 the plan names it pre-023, and the command of before N4 fails on it for a reason that has nothing to do with 023: the document and its revision point at each other (the red of F0) 57ms
+   → expected { code: 2, out: '', …(1) } to match object { code: +0, out: 'pre-023\n' }
+(1 matching property omitted from actual)
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R10 loaded with --disable-triggers, numbered by applying 023 again, checked by the file: every revision has a number, and the numbers are the ones that an in-place upgrade of the source gives 224ms
+   → <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R11 the same archive into a database that has only migrations 001-022 (a backup rehearsed before 023 is applied): the load works, the file answers pass and says that 023 is not applied 222ms
+   → <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R12 an archive with a draft of a candidate that no person has decided: applying 023 again refuses, so the restore stops there and the service is not started 568ms
+   → <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+ × tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R13 the last word on D2: the source, upgraded in place by 023, has the numbers and counter rows of the copy that was restored and numbered by applying 023 again 0ms
+   → R10 runs first: expected undefined to be defined
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R4 the plan names the archive post-023; the load, then deploy/post-restore.sql as one command: A and O, the answer, and every table equal to the source
+AssertionError: expected { code: 2, out: '', …(1) } to match object { code: +0, out: 'post-023\n' }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "code": 0,
+-   "out": "post-023
+- ",
++   "code": 2,
++   "out": "",
+  }
+
+ ❯ tests/restore-rehearsal.test.ts:223:20
+    221|     test('R4 the plan names the archive post-023; the load, then deplo…
+    222|       const kind=await plan([],await listing(archive));
+    223|       expect(kind).toMatchObject({code:0,out:'post-023\n'});
+       |                    ^
+    224|       const target=await freshDatabase();
+    225|       const r=await tool(await newRestore(target.name),archive);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R5 on the restored database the service goes on: a new message gets the next number, a confirmation at the new position is stored and one at the old position is refused (LTZ03); a loader in replica mode is numbered
+AssertionError: <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 2
+
+ ❯ newRestore tests/restore-rehearsal.test.ts:149:66
+    147| /** The command after N4: the arguments are the ones that restore-plan…
+    148| async function newRestore(db:string):Promise<string[]>{
+    149|   const r=await plan(['--pg-restore-args']);expect(r.code,r.err).toBe(…
+       |                                                                  ^
+    150|   return ['pg_restore','-U',superuser,'-d',db,...r.out.trim().split(' …
+    151| }
+ ❯ tests/restore-rehearsal.test.ts:242:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R6 the file is idempotent on the restored database: a second run finds the trigger at A and answers pass again
+AssertionError: <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 2
+
+ ❯ newRestore tests/restore-rehearsal.test.ts:149:66
+    147| /** The command after N4: the arguments are the ones that restore-plan…
+    148| async function newRestore(db:string):Promise<string[]>{
+    149|   const r=await plan(['--pg-restore-args']);expect(r.code,r.err).toBe(…
+       |                                                                  ^
+    150|   return ['pg_restore','-U',superuser,'-d',db,...r.out.trim().split(' …
+    151| }
+ ❯ tests/restore-rehearsal.test.ts:268:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R7 an archive of which one number table was left out at dump time is refused by the plan, and a full archive too
+AssertionError: expected '<python> to match /number tables/
+
+- Expected:
+/number tables/
+
++ Received:
+"<python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+"
+
+ ❯ tests/restore-rehearsal.test.ts:278:21
+    276|       const r=await plan([],await listing(cut));
+    277|       expect(r.code).not.toBe(0);expect(r.out).toBe('');
+    278|       expect(r.err).toMatch(/number tables/);
+       |                     ^
+    279|     });
+    280|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R8 a database restored with a revision that has no number stops the file at the first look, and the thread stays as the source had it (no number is made up)
+AssertionError: <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 2
+
+ ❯ newRestore tests/restore-rehearsal.test.ts:149:66
+    147| /** The command after N4: the arguments are the ones that restore-plan…
+    148| async function newRestore(db:string):Promise<string[]>{
+    149|   const r=await plan(['--pg-restore-args']);expect(r.code,r.err).toBe(…
+       |                                                                  ^
+    150|   return ['pg_restore','-U',superuser,'-d',db,...r.out.trim().split(' …
+    151| }
+ ❯ tests/restore-rehearsal.test.ts:290:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R9 the plan names it pre-023, and the command of before N4 fails on it for a reason that has nothing to do with 023: the document and its revision point at each other (the red of F0)
+AssertionError: expected { code: 2, out: '', …(1) } to match object { code: +0, out: 'pre-023\n' }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "code": 0,
+-   "out": "pre-023
+- ",
++   "code": 2,
++   "out": "",
+  }
+
+ ❯ tests/restore-rehearsal.test.ts:311:56
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R10 loaded with --disable-triggers, numbered by applying 023 again, checked by the file: every revision has a number, and the numbers are the ones that an in-place upgrade of the source gives
+AssertionError: <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 2
+
+ ❯ newRestore tests/restore-rehearsal.test.ts:149:66
+    147| /** The command after N4: the arguments are the ones that restore-plan…
+    148| async function newRestore(db:string):Promise<string[]>{
+    149|   const r=await plan(['--pg-restore-args']);expect(r.code,r.err).toBe(…
+       |                                                                  ^
+    150|   return ['pg_restore','-U',superuser,'-d',db,...r.out.trim().split(' …
+    151| }
+ ❯ tests/restore-rehearsal.test.ts:321:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R11 the same archive into a database that has only migrations 001-022 (a backup rehearsed before 023 is applied): the load works, the file answers pass and says that 023 is not applied
+AssertionError: <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 2
+
+ ❯ newRestore tests/restore-rehearsal.test.ts:149:66
+    147| /** The command after N4: the arguments are the ones that restore-plan…
+    148| async function newRestore(db:string):Promise<string[]>{
+    149|   const r=await plan(['--pg-restore-args']);expect(r.code,r.err).toBe(…
+       |                                                                  ^
+    150|   return ['pg_restore','-U',superuser,'-d',db,...r.out.trim().split(' …
+    151| }
+ ❯ tests/restore-rehearsal.test.ts:339:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R12 an archive with a draft of a candidate that no person has decided: applying 023 again refuses, so the restore stops there and the service is not started
+AssertionError: <python>: can't open file '<repo>/deploy/restore-plan.py': [Errno 2] No such file or directory
+: expected 2 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 2
+
+ ❯ newRestore tests/restore-rehearsal.test.ts:149:66
+    147| /** The command after N4: the arguments are the ones that restore-plan…
+    148| async function newRestore(db:string):Promise<string[]>{
+    149|   const r=await plan(['--pg-restore-args']);expect(r.code,r.err).toBe(…
+       |                                                                  ^
+    150|   return ['pg_restore','-U',superuser,'-d',db,...r.out.trim().split(' …
+    151| }
+ ❯ tests/restore-rehearsal.test.ts:354:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R13 the last word on D2: the source, upgraded in place by 023, has the numbers and counter rows of the copy that was restored and numbered by applying 023 again
+AssertionError: R10 runs first: expected undefined to be defined
+ ❯ tests/restore-rehearsal.test.ts:362:53
+    360|
+    361|     test('R13 the last word on D2: the source, upgraded in place by 02…
+    362|       expect(restoredBeforeTarget,'R10 runs first').toBeDefined();
+       |                                                     ^
+    363|       await before.db.query(await forwardSql());
+    364|       const numbers=(db:Database)=>db.query('SELECT revision_id::text …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  10 failed | 4 passed (14)
+   Start at  07:19:03
+   Duration  5.04s (tests 99%, import 1%, transform 1%)
+

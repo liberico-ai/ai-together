@@ -1,0 +1,28 @@
+# head=dfdd68c (working tree clean when this was run); sha256 of the files under test:
+#   5e5ac975745b0bf9…  deploy/restore-plan.py
+#   f44b29485b791488…  deploy/pre-restore.sql
+#   65b6ca43f64c14dc…  deploy/post-restore.sql
+#   122bca81f17b5d06…  deploy/install-user.py
+#   41593d3dce3c98b9…  deploy/install-d1.sh
+#
+# 17 mutations of deploy/post-restore.sql; the cases that go red for each. 'probe-leaves-replica-mode' is a second line of defence: alone it turns nothing red, and with the first line also removed the cases that go red are the same as for 'probe-keeps-its-rows' (so the second line is not proven by a case of its own).
+#
+no-repair                          -> P1, P3, P4
+always_on-empty                    -> P1, P10, P10b, P13, P17, P2, P3, P4, P5, P5b, P8, P8b, P9
+probe-keeps-its-rows               -> P1, P10, P17, P2, P3, P9
+probe-leaves-replica-mode          -> NOTHING GOES RED
+done-flag-never-set                -> P1, P10, P14, P17, P2, P3, P9
+refusal-01-becomes-notice          -> P11, P11b, P12
+refusal-02-becomes-notice          -> P12, P6
+refusal-04-becomes-notice          -> P12, P7, P7b, P7c
+refusal-05-becomes-notice          -> P12, P4
+refusal-06-becomes-notice          -> P12, P5
+refusal-07-becomes-notice          -> P12, P5b
+refusal-08-becomes-notice          -> P12, P9
+refusal-09-becomes-notice          -> P12, P8, P8b
+refusal-10-becomes-notice          -> P10b, P12
+probe-keeps-rows-and-no-origin-check -> P1, P10, P17, P2, P3, P9
+check06-without-project-scope      -> P17
+block-keeps-its-lock-timeout       -> P1, P10, P12b, P14, P17, P2, P3, P9
+exit=0
+post-restore.sql restored identically
