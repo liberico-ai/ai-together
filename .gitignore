@@ -28,3 +28,6 @@ data/
 .claude/worktrees/
 # Agent workflow notes, briefs and review logs (local only; the repository is public). Security review M7.
 .superpowers/
+
+# vitest cache and result files (may carry local paths)
+.vitest/

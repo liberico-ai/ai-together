@@ -1,0 +1,290 @@
+
+ RUN  v5.1.0 <repo>
+
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P1 the numbering trigger that pg_restore --disable-triggers sets back to O is put back to A, and the answer says what it was 637ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P2 a second run changes nothing: the trigger was already A, and no table gains or loses a row 495ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P3 why the repair exists: at O a session with session_replication_role = replica writes a revision with no number; after the file it is numbered 461ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4 a revision that has no number stops the file and leaves the trigger as it was: nothing is repaired on the way to a refusal 474ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P5 a counter row that disagrees with the numbers of its thread stops the file 468ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P5b a number that does not belong to the thread of its source event stops the file, though the counter rows agree with the numbers 472ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P6 a numbering trigger of the right name that would not number (a WHEN condition, another event, another function) stops the file, and is not "repaired" to A 496ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P7 the confirmation trigger switched off, or gone, stops the file 470ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P7b any other trigger of the application schemas that is switched off, or replica-only, stops the file (the foreign key triggers too) 489ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the data that a restore loads > P8 a row that has no row to point at stops the file, though every trigger is back on (a restore with --disable-triggers checks no foreign key) 473ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the data that a restore loads > P9 a confirmed decision of a candidate draft that carries a position beyond the last of its thread stops the file 467ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the data that a restore loads > P10 the write that the file tries leaves no row anywhere, and no probe project 477ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the data that a restore loads > P11 a role that is not a superuser is refused before anything is read 458ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the file itself > P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data 457ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > the file itself > P13 after every migration only the numbering trigger of 023 is not enabled for the origin role alone: the constant of the file is the catalog (D7) 456ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ × tests/post-restore.test.ts > a database before 023 > P14 on a schema that has no 023 the checks of 023 are left out, the rest runs, and the answer says so (a backup taken before 023 is rehearsed into schema 022) 473ms
+   → ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 16 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P1 the numbering trigger that pg_restore --disable-triggers sets back to O is put back to A, and the answer says what it was
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ tests/post-restore.test.ts:106:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P2 a second run changes nothing: the trigger was already A, and no table gains or loses a row
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ tests/post-restore.test.ts:115:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P3 why the repair exists: at O a session with session_replication_role = replica writes a revision with no number; after the file it is numbered
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ tests/post-restore.test.ts:125:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4 a revision that has no number stops the file and leaves the trigger as it was: nothing is repaired on the way to a refusal
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ failsWith tests/post-restore.test.ts:68:11
+ ❯ tests/post-restore.test.ts:135:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P5 a counter row that disagrees with the numbers of its thread stops the file
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ failsWith tests/post-restore.test.ts:68:11
+ ❯ tests/post-restore.test.ts:142:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P5b a number that does not belong to the thread of its source event stops the file, though the counter rows agree with the numbers
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ failsWith tests/post-restore.test.ts:68:11
+ ❯ tests/post-restore.test.ts:152:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P6 a numbering trigger of the right name that would not number (a WHEN condition, another event, another function) stops the file, and is not "repaired" to A
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ failsWith tests/post-restore.test.ts:68:11
+ ❯ tests/post-restore.test.ts:164:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P7 the confirmation trigger switched off, or gone, stops the file
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ failsWith tests/post-restore.test.ts:68:11
+ ❯ tests/post-restore.test.ts:175:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P7b any other trigger of the application schemas that is switched off, or replica-only, stops the file (the foreign key triggers too)
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ failsWith tests/post-restore.test.ts:68:11
+ ❯ tests/post-restore.test.ts:186:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the data that a restore loads > P8 a row that has no row to point at stops the file, though every trigger is back on (a restore with --disable-triggers checks no foreign key)
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ failsWith tests/post-restore.test.ts:68:11
+ ❯ tests/post-restore.test.ts:198:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the data that a restore loads > P9 a confirmed decision of a candidate draft that carries a position beyond the last of its thread stops the file
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ tests/post-restore.test.ts:214:14
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the data that a restore loads > P10 the write that the file tries leaves no row anywhere, and no probe project
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ tests/post-restore.test.ts:222:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the data that a restore loads > P11 a role that is not a superuser is refused before anything is read
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ failsWith tests/post-restore.test.ts:68:11
+ ❯ tests/post-restore.test.ts:230:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the file itself > P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ tests/post-restore.test.ts:236:16
+    234| describe('the file itself',()=>{
+    235|   test('P12 text: no psql meta-command, no transaction control, every …
+    236|     const text=await sqlText();
+       |                ^
+    237|     const lines=text.split('\n');
+    238|     expect(lines.filter(l=>l.startsWith('\\')),'a meta-command: PGlite…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/16]⎯
+
+ FAIL  tests/post-restore.test.ts > the file itself > P13 after every migration only the numbering trigger of 023 is not enabled for the origin role alone: the constant of the file is the catalog (D7)
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ tests/post-restore.test.ts:252:12
+    250|     expect(odd).toEqual([{rel:'source_event_revisions',tgname:NUMBERIN…
+    251|     // and the file knows it: the one name that it expects at A is tha…
+    252|     expect(await sqlText()).toContain(`'${NUMBERING}'`);
+       |            ^
+    253|   });
+    254| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/16]⎯
+
+ FAIL  tests/post-restore.test.ts > a database before 023 > P14 on a schema that has no 023 the checks of 023 are left out, the rest runs, and the answer says so (a backup taken before 023 is rehearsed into schema 022)
+Error: ENOENT: no such file or directory, open '<repo>/deploy/post-restore.sql'
+ ❯ postRestore tests/post-restore.test.ts:55:26
+     53| /** The file as one session: the DO block, ANALYZE, then the row that …
+     54| async function postRestore(asRole?:string):Promise<Outcome>{
+     55|   const parts=statements(await sqlText());
+       |                          ^
+     56|   expect(parts.length,'DO, ANALYZE, SELECT').toBe(3);
+     57|   try{
+ ❯ tests/post-restore.test.ts:261:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -2, code: 'ENOENT', syscall: 'open', path: '<repo>/deploy/post-restore.sql' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/16]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  16 failed (16)
+   Start at  07:16:54
+   Duration  7.83s (tests 99%)
+

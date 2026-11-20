@@ -1,0 +1,41 @@
+# head=dfdd68c (working tree clean when this was run); sha256 of the files under test:
+#   5e5ac975745b0bf9…  deploy/restore-plan.py
+#   f44b29485b791488…  deploy/pre-restore.sql
+#   65b6ca43f64c14dc…  deploy/post-restore.sql
+#   122bca81f17b5d06…  deploy/install-user.py
+#   41593d3dce3c98b9…  deploy/install-d1.sh
+#
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P1 the numbering trigger that pg_restore --disable-triggers sets back to O is put back to A, and the answer says what it was 783ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P2 a second run changes nothing: the trigger was already A, and no table gains or loses a row 680ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P3 why the repair exists: at O a session with session_replication_role = replica writes a revision with no number; after the file it is numbered 590ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4 a revision that has no number stops the file and leaves the trigger as it was: nothing is repaired on the way to a refusal 517ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P5 a counter row that disagrees with the numbers of its thread stops the file 514ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P5b a number that does not belong to the thread of its source event stops the file, though the counter rows agree with the numbers 517ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P6 a numbering trigger of the right name that would not number (a WHEN condition, another event, another function) stops the file, and is not "repaired" to A 552ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P7 the confirmation trigger switched off, or gone, stops the file 539ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P7b any other trigger of the application schemas that is switched off, or replica-only, stops the file (the foreign key triggers too) 521ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P7c the triggers of the foreign keys that a failed or hand-made load left off stop the file too (the file does not read them as O because their table is fine) 518ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P17 two tenants and four projects that share a chat and a thread key each have their own counter row and numbers: a check that mixed them would call valid data wrong 574ms
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P8 a row that has no row to point at stops the file, though every trigger is back on (a restore with --disable-triggers checks no foreign key) 521ms
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P9 a confirmed decision of a candidate draft that carries a position beyond the last of its thread stops the file 579ms
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P10 the write that the file tries leaves no row anywhere, and no probe project 579ms
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P8b a foreign key of a match type that the file does not check (MATCH FULL) is refused, not passed over 514ms
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P10b a numbering trigger that has the right shape and state, whose function no longer numbers (the body was replaced), stops the file at the write that is undone 523ms
+ ↓ tests/post-restore.test.ts > the data that a restore loads > P10c a lock that another session holds is a lock error with its own code (98), never a failure of the write that is undone (10)
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P11 a role that is not a superuser is refused before anything is read 495ms
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P11b a session in replica mode is refused: in it the triggers that the file tests are not the ones that run 497ms
+ ✓ tests/post-restore.test.ts > the file itself > P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data 503ms
+ ✓ tests/post-restore.test.ts > the file itself > P12b scope: the search path and the replica mode live inside the block and for the transaction only; nothing sets a session value of the two; the lock comes before the first check 512ms
+ ✓ tests/post-restore.test.ts > the file itself > P13 after every migration only the numbering trigger of 023 is not enabled for the origin role alone: the constant of the file is the catalog (D7) 494ms
+ ✓ tests/post-restore.test.ts > the runbook > P16 the catalog query that the runbook gives for N12 on a database in service answers the two triggers of 023 with their state, and shows a numbering trigger that a restore left at O 496ms
+ ✓ tests/post-restore.test.ts > a database before 023 > P14 on a schema that has no 023 the checks of 023 are left out, the rest runs, and the answer says so (a backup taken before 023 is rehearsed into schema 022) 586ms
+
+ Test Files  1 passed (1)
+      Tests  23 passed | 1 skipped (24)
+   Start at  09:26:31
+   Duration  12.71s (tests 100%)
+
+exit=0

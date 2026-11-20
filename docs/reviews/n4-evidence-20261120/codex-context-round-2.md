@@ -1,0 +1,9 @@
+## Vòng 2 — điều đã đổi từ vòng 1 (`codex-round-1.md`: P0, P1, P2)
+
+- **P0** (`install-d1.sh` chạy `verify-bundle.py` từ bundle bằng root trước khi chụp): nay **không chạy gì từ bundle trước khi chép nó**. Việc đầu tiên với bundle là `cp -a` vào một thư mục chỉ root vào được; bộ kiểm nằm trong chính script (không đọc `verify-bundle.py`): digest của manifest tính lại từ các hash, hash từng tệp liệt kê, **cả cây** không có gì ngoài tệp liệt kê và hai manifest do đóng gói ghi (không symlink hay thư mục symlink, không bytecode hay `__pycache__`), bốn tệp phục hồi có trong manifest; digest bản phát hành `LIBETECH_BUNDLE_TREE_SHA256` là **bắt buộc** và phải bằng digest tính được. Mọi bước chạy bằng root/postgres đọc từ bản chụp. Ca `U6d` và `U6h` (bộ kiểm chạy trên cây thật, mười một trường hợp từ chối).
+- **P1** (lệnh nạp thủ công ở runbook dùng `$(…)`): lệnh nay gõ đủ năm tham số; ca `U2` giữ nó bằng danh sách của `restore-plan.py`.
+- **P2** (ô «xem bảng đo cuối» của biên nhận): các ô **chủ ý** chờ lượt đo cuối đang chạy lúc này trên chính cây này (typecheck, build, bộ test đầy đủ PGlite và PostgreSQL 16, các log xanh lập lại kèm `head` và băm tệp); chúng được điền sau cổng này.
+
+Ba review tầng 1 và một cổng thực tế (xem `docs/reviews/n4-evidence-20261120/gates/tier1-dispositions.md` và biên nhận) cũng đã đổi: `RESET`→`SET`, `ANALYZE` trước câu trả lời, khối trả lại `search_path`/`lock_timeout`, lỗi khoá ở lần ghi thử là `-98`, danh sách bảng rỗng bị từ chối, bản chép bản lưu bị xoá khi sai băm, `NOTICE` không mang mã.
+
+Đã nêu thật ở biên nhận mục «Còn mở và phần dư» (đừng coi là phát hiện mới, nhưng nói nếu cách ghi chưa đúng): bản lưu của lược đồ cũ hơn đích bị từ chối (phải dựng đích với các migration mà nguồn có); số đo trên dữ liệu tổng hợp nhỏ; `install-user.py` chưa đòi digest bản phát hành; `provision-server.py` có từ trước chạy không `-I` từ bản chụp đã kiểm.

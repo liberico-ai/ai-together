@@ -1,0 +1,107 @@
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P1 the numbering trigger that pg_restore --disable-triggers sets back to O is put back to A, and the answer says what it was 704ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P2 a second run changes nothing: the trigger was already A, and no table gains or loses a row 636ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P3 why the repair exists: at O a session with session_replication_role = replica writes a revision with no number; after the file it is numbered 532ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4 a revision that has no number stops the file and leaves the trigger as it was: nothing is repaired on the way to a refusal 502ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P5 a counter row that disagrees with the numbers of its thread stops the file 472ms
+ × tests/post-restore.test.ts > the state that a restore leaves, and the repair > P5b a number that does not belong to the thread of its source event stops the file, though the counter rows agree with the numbers 488ms
+   → expected 'POST-RESTORE-04 1 trigger(s) of the a…' to match /^POST-RESTORE-07/
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P6 a numbering trigger of the right name that would not number (a WHEN condition, another event, another function) stops the file, and is not "repaired" to A 480ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P7 the confirmation trigger switched off, or gone, stops the file 476ms
+ ✓ tests/post-restore.test.ts > the state that a restore leaves, and the repair > P7b any other trigger of the application schemas that is switched off, or replica-only, stops the file (the foreign key triggers too) 472ms
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P8 a row that has no row to point at stops the file, though every trigger is back on (a restore with --disable-triggers checks no foreign key) 518ms
+ × tests/post-restore.test.ts > the data that a restore loads > P9 a confirmed decision of a candidate draft that carries a position beyond the last of its thread stops the file 561ms
+   → duplicate key value violates unique constraint "draft_decisions_draft_id_key"
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P10 the write that the file tries leaves no row anywhere, and no probe project 542ms
+ ✓ tests/post-restore.test.ts > the data that a restore loads > P11 a role that is not a superuser is refused before anything is read 454ms
+ × tests/post-restore.test.ts > the file itself > P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data 458ms
+   → one block is the transaction: expected [ 'BEGIN', '      BEGIN', '    BEGIN' ] to deeply equal []
+ ✓ tests/post-restore.test.ts > the file itself > P13 after every migration only the numbering trigger of 023 is not enabled for the origin role alone: the constant of the file is the catalog (D7) 449ms
+ × tests/post-restore.test.ts > a database before 023 > P14 on a schema that has no 023 the checks of 023 are left out, the rest runs, and the answer says so (a backup taken before 023 is rehearsed into schema 022) 528ms
+   → {"ok":false,"error":"relation \"public.intake_thread_heads\" does not exist"}: expected false to be true // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P5b a number that does not belong to the thread of its source event stops the file, though the counter rows agree with the numbers
+AssertionError: expected 'POST-RESTORE-04 1 trigger(s) of the a…' to match /^POST-RESTORE-07/
+
+- Expected:
+/^POST-RESTORE-07/
+
++ Received:
+"POST-RESTORE-04 1 trigger(s) of the application schemas are not enabled as they should be (O; A for the numbering trigger)"
+
+ ❯ failsWith tests/post-restore.test.ts:70:27
+     68|   const r=await postRestore(asRole);
+     69|   expect(r.ok,'the file must stop').toBe(false);
+     70|   expect(r.ok?'':r.error).toMatch(new RegExp('^'+code));
+       |                           ^
+     71| };
+     72|
+ ❯ tests/post-restore.test.ts:152:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/post-restore.test.ts > the data that a restore loads > P9 a confirmed decision of a candidate draft that carries a position beyond the last of its thread stops the file
+error: duplicate key value violates unique constraint "draft_decisions_draft_id_key"
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 267, severity: 'ERROR', code: '23505', detail: 'Key (draft_id)=(9ac7da94-d0e0-4732-97eb-f8410938c7c9) already exists.', hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: undefined, schema: 'public', table: 'draft_decisions', dataType: undefined, constraint: 'draft_decisions_draft_id_key', file: 'nbtinsert.c', routine: '_bt_check_unique', query: 'INSERT INTO draft_decisions(tenant_id,project_id,draft_id,draft_value_hash,result,reason,decided_by,command_key,request_id,trace_id,subject_thread_seq)
+        VALUES($1,$2,$3,$4,'confirmed','',$5,$6,$7,$7,$8)', params: [ '10000000-0000-4000-8000-000000000001', '11000000-0000-4000-8000-000000000001', '9ac7da94-d0e0-4732-97eb-f8410938c7c9', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', '14000000-0000-4000-8000-000000000001', 'post-restore-4c535a7b-0192-4fbe-a0a9-9d189af4cb17', '7a867f83-0c49-490d-82c7-656bcd573326', 8 ], queryOptions: undefined }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/post-restore.test.ts > the file itself > P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data
+AssertionError: one block is the transaction: expected [ 'BEGIN', '      BEGIN', '    BEGIN' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "BEGIN",
++   "      BEGIN",
++   "    BEGIN",
++ ]
+
+ ❯ tests/post-restore.test.ts:239:120
+    237|     const lines=text.split('\n');
+    238|     expect(lines.filter(l=>l.startsWith('\\')),'a meta-command: PGlite…
+    239|     expect(lines.filter(l=>/^\s*(BEGIN|COMMIT|ROLLBACK|START TRANSACTI…
+       |                                                                                                                        ^
+    240|     const messages=[...text.matchAll(/RAISE (?:EXCEPTION|WARNING|NOTIC…
+    241|     expect(messages.length).toBeGreaterThan(10);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/post-restore.test.ts > a database before 023 > P14 on a schema that has no 023 the checks of 023 are left out, the rest runs, and the answer says so (a backup taken before 023 is rehearsed into schema 022)
+AssertionError: {"ok":false,"error":"relation \"public.intake_thread_heads\" does not exist"}: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/post-restore.test.ts:262:36
+    260|     expect(await q("SELECT to_regclass('public.intake_thread_heads')::…
+    261|     const r=await postRestore();
+    262|     expect(r.ok,JSON.stringify(r)).toBe(true);
+       |                                    ^
+    263|     expect(r.ok&&r.result).toMatchObject({postRestore:'pass',threadOrd…
+    264|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 12 passed (16)
+   Start at  07:27:06
+   Duration  8.39s (tests 99%)
+

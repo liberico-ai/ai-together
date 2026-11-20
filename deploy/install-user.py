@@ -5,8 +5,32 @@ contents inside a new, private directory. It never invokes dpkg/apt install or
 package maintainer scripts and never changes another PostgreSQL instance.
 """
 from __future__ import annotations
-import argparse,hashlib,json,os,platform,re,secrets,shutil,socket,stat,subprocess,time
+import argparse,hashlib,hmac,json,os,platform,re,secrets,shutil,socket,stat,subprocess,time
 from pathlib import Path
+
+_RESTORE_PLAN=None
+def load_restore_plan(manifest=None):
+    """The one rule for what an archive is and how it is loaded (deploy/restore-plan.py, N4 of DELIVERY-016); the shell installer and the rehearsal use the same file. It is read ONCE and
+    run from the bytes that were read; given the manifest of the verified bundle it must be the file that the manifest lists (it runs only after verify_bundle has passed: see inspect)."""
+    global _RESTORE_PLAN
+    import types
+    path=Path(__file__).with_name('restore-plan.py');data=path.read_bytes()
+    if manifest is not None:
+        expected=manifest['files'].get('deploy/restore-plan.py')
+        if not expected or hashlib.sha256(data).hexdigest()!=expected:raise RuntimeError('deploy/restore-plan.py is not the file that the bundle manifest lists')
+    module=types.ModuleType('restore_plan');module.__file__=str(path)
+    exec(compile(data,str(path),'exec'),module.__dict__)
+    _RESTORE_PLAN=module
+    return module
+
+def restore_plan_module():
+    return _RESTORE_PLAN or load_restore_plan()
+
+def __getattr__(name):
+    # restore_plan and validate_data_only_listing are looked up when something asks for them, not when this file is imported
+    if name=='restore_plan':return restore_plan_module()
+    if name=='validate_data_only_listing':return restore_plan_module().validate_data_only_listing
+    raise AttributeError(name)
 
 SCOPE=json.loads((Path(__file__).parent/'pilot-scope.json').read_text())
 TENANT=SCOPE['tenantId']
@@ -92,19 +116,23 @@ def inspect(bundle:Path,dump:Path,chats):
     if run(['loginctl','show-user','iptech','-p','Linger','--value'],quiet=True).strip()!='yes':raise RuntimeError('User service persistence unavailable')
     if run(['systemctl','--user','is-system-running'],quiet=True).strip()!='running':raise RuntimeError('User service manager unavailable')
     check_recipient(chats)
-    return verify_bundle(bundle)
+    manifest=verify_bundle(bundle);require_restore_files(manifest,bundle);load_restore_plan(manifest)
+    return manifest
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('archive',type=Path);parser.add_argument('--inspect-only',action='store_true');parser.add_argument('--resume-empty-db',action='store_true');args=parser.parse_args()
     bundle=Path(__file__).resolve().parents[1];dump=args.archive.resolve()
     chats=load_pilot_chats(os.environ.get(PILOT_CHATS_SETTING))
-    if args.resume_empty_db:resume_empty_database(bundle,dump,chats);return
+    expected=expected_archive_hash()  # N4: stop before anything is created when the hash recorded at dump time is missing
+    if args.resume_empty_db:resume_empty_database(bundle,dump,chats,expected);return
     manifest=inspect(bundle,dump,chats)
+    if archive_digest(dump)!=expected:raise RuntimeError('The archive does not match '+ARCHIVE_SHA_SETTING+'; nothing was created')
     if args.inspect_only:
         print(json.dumps({'preflight':'pass','sourceDigest':manifest['treeSha256'],'mode':'iptech-user-services','sudoRequired':False}));return
     os.umask(0o077);BASE.mkdir(mode=0o700)
     for d in ('config','logs','packages','pgroot','pgdata','socket','state'): (BASE/d).mkdir(mode=0o700)
-    exclusive(BASE/'installation.json',json.dumps({'sourceDigest':manifest['treeSha256'],'archiveHash':hashlib.sha256(dump.read_bytes()).hexdigest(),'mode':'user-services','startedAt':time.time(),'sharedGatewayRestarted':False}))
+    dump=hold_archive(dump,expected)
+    exclusive(BASE/'installation.json',json.dumps({'sourceDigest':manifest['treeSha256'],'archiveHash':expected,'mode':'user-services','startedAt':time.time(),'sharedGatewayRestarted':False}))
     shutil.copytree(bundle,BASE/'app',symlinks=False)
     shutil.copytree(NODE_SOURCE,BASE/'node',symlinks=True)
     print('Downloading verified Ubuntu package contents into private directory.',flush=True)
@@ -139,26 +167,106 @@ def main():
     finish_install(manifest,dump,chats)
 
 
-def validate_data_only_listing(listing):
-    import re
-    for line in listing.splitlines():
-        if not line or line.startswith(';'):continue
-        match=re.match(r'^\d+;\s+\d+\s+\d+\s+(.*)$',line)
-        if not match or not match.group(1).startswith(('TABLE DATA ','SEQUENCE SET ')):
-            raise RuntimeError('Archive must be created with pg_dump --data-only; full dumps have unsafe data order for pre-existing foreign keys')
-        if 'TABLE DATA public schema_migrations ' in line:raise RuntimeError('Archive must exclude schema_migrations data')
-
 def pg_environment():
     env=clean_env();env['LD_LIBRARY_PATH']=str(BASE/'pgroot/usr/lib/x86_64-linux-gnu')
     return env
+
+ARCHIVE_SHA_SETTING='LIBETECH_ARCHIVE_SHA256'
+RESTORE_FILES=('deploy/pre-restore.sql','deploy/post-restore.sql','deploy/restore-plan.py','migrations/023_thread_order.sql')
+
+def expected_archive_hash():
+    """The SHA-256 that was recorded when the archive was made, from the operator (an environment variable, like LIBETECH_PILOT_CHATS), never from beside the archive:
+    a file that has been changed can be given the hash of the change. It is integrity, not identity. The value is never printed."""
+    value=os.environ.get(ARCHIVE_SHA_SETTING,'').strip().lower()
+    if not re.fullmatch(r'[0-9a-f]{64}',value):raise RuntimeError(ARCHIVE_SHA_SETTING+' must be the SHA-256 (64 hex digits) recorded when the archive was made')
+    return value
+
+def archive_digest(path:Path)->str:
+    digest=hashlib.sha256()
+    with path.open('rb') as source:
+        for chunk in iter(lambda:source.read(1<<20),b''):digest.update(chunk)
+    return digest.hexdigest()
+
+def hold_archive(dump:Path,expected:str)->Path:
+    """The original is read to be hashed and copied (main() has hashed it once, before anything is created; this reads it again, hashing the bytes that it keeps); every later step (listing, classification, load) reads the copy.
+    The original lies where the account that the gateway shares can write it, and the load runs with the rights of a superuser. In this mode the copy is owned by that same account
+    (the shell installer's is root's): it fixes what was hashed, not who can change it afterwards. A copy that does not match is removed; one that matched is removed when the restore passed."""
+    held=BASE/'state/archive.dump'
+    digest=hashlib.sha256()
+    with dump.open('rb') as source:
+        out=os.fdopen(os.open(held,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'wb')
+        try:
+            with out:
+                for chunk in iter(lambda:source.read(1<<20),b''):
+                    digest.update(chunk);out.write(chunk)
+        except BaseException:
+            held.unlink(missing_ok=True);raise
+    if not hmac.compare_digest(digest.hexdigest(),expected):
+        held.unlink(missing_ok=True)
+        raise RuntimeError('The archive does not match '+ARCHIVE_SHA_SETTING+'; it was not loaded')
+    return held
+
+def require_restore_files(manifest,bundle:Path|None=None):
+    """verify_bundle checks the files that the manifest lists and no others: a file that runs with the rights of a superuser must be one of them (a release packaged since N4 lists them),
+    and with the bundle given, the migrations that will be applied are exactly the listed ones."""
+    for name in RESTORE_FILES:
+        if name not in manifest['files']:raise RuntimeError('Bundle manifest does not list '+name+'; package the release again')
+    if bundle is not None:
+        listed={n for n in manifest['files'] if re.fullmatch(r'migrations/[^/]+\.sql',n)}  # the migrations that are applied: the files of that directory, not of migrations/rollback
+        present={'migrations/'+p.name for p in (bundle/'migrations').glob('*.sql')}
+        if present!=listed:raise RuntimeError('The migrations of the bundle are not the ones that the manifest lists; package the release again')
+
+POST_RESTORE_CODE=re.compile(r'POST-RESTORE-[0-9]{2}')
+
+def run_post_restore(sql,env,text):
+    """deploy/post-restore.sql, run as the installing superuser. Passed only when psql exits 0 AND its last line is the JSON answer {"post_restore": "pass", ...}.
+    Of what psql says, only the codes POST-RESTORE-nn are shown: a PostgreSQL message can quote a row, and this log is read in a public repository."""
+    result=subprocess.run([str(a) for a in [*sql,'-v','VERBOSITY=terse','-v','SHOW_CONTEXT=never','-At','-d','libetech_ai_os']],env=env,input=text,text=True,capture_output=True,check=False)
+    answer=None
+    lines=result.stdout.strip().splitlines()
+    if lines:
+        try:answer=json.loads(lines[-1])
+        except ValueError:answer=None
+    if result.returncode or not isinstance(answer,dict) or answer.get('post_restore')!='pass':
+        codes=sorted(set(POST_RESTORE_CODE.findall(result.stderr)))
+        raise RuntimeError('Post-restore check failed'+(' ('+', '.join(codes)+'; see docs/RUNBOOK-RESTORE-AFTER-023.md)' if codes else '; no code was reported: inspect the new database, not this log'))
+    return answer
+
+PRE_RESTORE_CODE=re.compile(r'PRE-RESTORE-[0-9]{2}')
+
+def run_pre_restore(sql,env,text):
+    """deploy/pre-restore.sql: the target holds no rows. Only its codes are shown, as for run_post_restore."""
+    result=subprocess.run([str(a) for a in [*sql,'-v','VERBOSITY=terse','-v','SHOW_CONTEXT=never','-d','libetech_ai_os']],env=env,input=text,text=True,capture_output=True,check=False)
+    if result.returncode:
+        codes=sorted(set(PRE_RESTORE_CODE.findall(result.stderr)))
+        raise RuntimeError('Pre-restore check failed'+(' ('+', '.join(codes)+'; see docs/RUNBOOK-RESTORE-AFTER-023.md)' if codes else '; no code was reported: inspect the new database, not this log'))
+
+def restore_data(pgbin,pgenv,dump,sql):
+    """N4 of DELIVERY-016. Classify the archive and check that it covers the tables of the target (a refused one loads nothing), check that the target holds no rows, load the archive with
+    the arguments of deploy/restore-plan.py (one transaction, triggers off), number it again by applying migration 023 once more when it comes from before 023 (and carries no position that
+    such a numbering would unsay), and run the check that ends every restore. All of it before a password is made or a service started. Returns the answer of the check."""
+    plan=restore_plan_module()
+    psql=lambda query:run(sql+['-At','-d','libetech_ai_os','-c',query],env=pgenv,quiet=True)
+    listing=run([pgbin/'pg_restore','--list',dump],env=pgenv,quiet=True)
+    kind=plan.classify_archive(listing,psql(plan.TABLES_SQL).split())
+    run_pre_restore(sql,pgenv,(BASE/'app/deploy/pre-restore.sql').read_text())
+    run([pgbin/'pg_restore',*plan.PG_RESTORE_ARGS,'-h',BASE/'socket','-p','5547','-U','iptech','-d','libetech_ai_os',dump],env=pgenv,quiet=True)
+    if plan.numbers_after_load(kind):
+        if psql(plan.PRE_023_POSITIONS_SQL).strip()!='0':
+            raise RuntimeError('The archive was classified as from before 023 and yet carries thread positions, or they could not be counted: its number tables were cut out at dump time, and applying 023 again would unsay them. Do not go on with this archive')
+        try:run(sql+['-d','libetech_ai_os'],env=pgenv,stdin=(BASE/'app/migrations/023_thread_order.sql').read_text(),quiet=True)
+        except RuntimeError as exc:
+            raise RuntimeError('Applying migration 023 again after the load stopped ('+str(exc)+'); 023 refuses some archives (a draft of an intake candidate that nobody decided, a connected AI login, more than 250000 revisions without a number) and can stop for other reasons; see docs/RUNBOOK-RESTORE-AFTER-023.md and OQ-59') from None
+    answer=run_post_restore(sql,pgenv,(BASE/'app/deploy/post-restore.sql').read_text())
+    if answer.get('thread_order')!='checked':raise RuntimeError('The post-restore check ran without the checks of migration 023')
+    return answer
 
 def finish_install(manifest,dump,chats):
     units=Path('/home/iptech/.config/systemd/user')
     pgbin=BASE/'pgroot/usr/lib/postgresql/16/bin';pgenv=pg_environment()
     sql=[pgbin/'psql','-X','-q','-v','ON_ERROR_STOP=1','-h',BASE/'socket','-p','5547','-U','iptech']
-    listing=run([pgbin/'pg_restore','--list',dump],env=pgenv,quiet=True)
-    validate_data_only_listing(listing)
-    run([pgbin/'pg_restore','--exit-on-error','--single-transaction','--data-only','--no-owner','-h',BASE/'socket','-p','5547','-U','iptech','-d','libetech_ai_os',dump],env=pgenv,quiet=True)
+    restored=restore_data(pgbin,pgenv,dump,sql)
+    dump.unlink()  # the second copy of the pilot data is not kept after a restore that passed
     web,auth,key=(secrets.token_urlsafe(32) for _ in range(3))
     run(sql+['-d','libetech_ai_os'],env=pgenv,stdin=f"ALTER ROLE libetech_web PASSWORD '{web}';\nALTER ROLE libetech_auth PASSWORD '{auth}';\n",quiet=True)
     exclusive(BASE/'state/bridge.json',json.dumps({'key':key,'chatScopes':chat_scopes(chats)}))
@@ -182,10 +290,10 @@ def finish_install(manifest,dump,chats):
     if health.get('buildDigest')!=manifest['treeSha256']:raise RuntimeError('Runtime source digest mismatch')
     plugin_state=PROFILE/'runtime/libetech-ai-os';plugin_state.mkdir(mode=0o700)
     exclusive(plugin_state/'bridge.json',json.dumps({'key':key}))
-    receipt={'installedAt':time.time(),'host':socket.gethostname(),'mode':'iptech-user-services','health':health,'chatScopes':chat_scopes(chats),'gatewayRestarted':False,'botPluginInstalled':False,'telegramVerified':False,'linuxUserIsolation':'shared-iptech; database roles remain separated'}
+    receipt={'installedAt':time.time(),'host':socket.gethostname(),'mode':'iptech-user-services','health':health,'chatScopes':chat_scopes(chats),'gatewayRestarted':False,'restore':restored,'botPluginInstalled':False,'telegramVerified':False,'linuxUserIsolation':'shared-iptech; database roles remain separated'}
     exclusive(BASE/'runtime-receipt.json',json.dumps(receipt,indent=2));print(json.dumps({'status':'ready','version':'0.2.0','sourceDigest':manifest['treeSha256'],'botPluginInstalled':False}))
 
-def resume_empty_database(bundle,dump,chats):
+def resume_empty_database(bundle,dump,chats,expected):
     # Narrow recovery for the observed first attempt. Never a force reinstall.
     import re
     if socket.gethostname()!='d1-ai1' or os.getuid()!=1000:raise RuntimeError('Wrong recovery host or principal')
@@ -206,10 +314,12 @@ def resume_empty_database(bundle,dump,chats):
     for table in tables:
         if not re.fullmatch(r'[a-z_]+\.[a-z_]+',table):raise RuntimeError('Unexpected relation name')
         if run(sql+['SELECT count(*) FROM '+table],env=env,quiet=True).strip()!='0':raise RuntimeError('Target contains data; recovery will not overwrite it')
+    dump=hold_archive(dump,expected)  # N4: read once; the listing, the load and the receipt all rest on this copy
     validate_data_only_listing(run([pgbin/'pg_restore','--list',dump],env=env,quiet=True))
     (BASE/'app').rename(BASE/'app-before-data-restore-fix')
     shutil.copytree(bundle,BASE/'app',symlinks=False)
-    exclusive(BASE/'recovery.json',json.dumps({'previousSourceDigest':old['treeSha256'],'newSourceDigest':new['treeSha256'],'allTargetDataTablesEmpty':True,'preservedPreviousSource':True,'archiveHash':hashlib.sha256(dump.read_bytes()).hexdigest()}))
+    load_restore_plan(new)
+    exclusive(BASE/'recovery.json',json.dumps({'previousSourceDigest':old['treeSha256'],'newSourceDigest':new['treeSha256'],'allTargetDataTablesEmpty':True,'preservedPreviousSource':True,'archiveHash':expected}))
     finish_install(new,dump,chats)
 
 if __name__=='__main__':

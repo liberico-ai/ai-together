@@ -16,7 +16,7 @@ Observed on d1-ai1 on 2026-11-08: backend 0.2.0 and PostgreSQL are running. Brid
 2. Complete the first user's activation on the local pilot before creating the migration archive; password entry stays with the user.
 3. Compare local source to `BASELINE.json`, and installed priority1 hashes to the deployment receipt. Preserve unrelated team changes.
 4. Source archive must contain no `.runtime`, `.data`, `.env`, database archives or keys. The private DB archive is transferred separately over the authenticated admin channel with file permissions 0600.
-5. Archive PostgreSQL data with `pg_dump -Fc --data-only --exclude-table-data=public.schema_migrations`. Preserve the source database as rollback. The installer refuses existing target paths, ports or clusters.
+5. Archive PostgreSQL data with `pg_dump -Fc --data-only --exclude-table-data=public.schema_migrations`. Preserve the source database as rollback. The installer refuses existing target paths, ports or clusters. Record the SHA-256 of the archive when it is made. How an archive is loaded since N4 (every archive with `--disable-triggers`, then the check that ends every restore): `docs/RUNBOOK-RESTORE-AFTER-023.md`.
 
 ## Operator actions on d1-ai1
 
@@ -73,3 +73,7 @@ The backend installer also needed two operator fixes: define the user-unit direc
 A real user message using a separated mention returned `TELEGRAM_NOT_LINKED`; the backend recorded one authenticated request at 15:00:13.701144Z and the gateway sent the 19-character reply to LibeAI at 15:00:13.767Z. This verifies the unlinked-identity rejection path, not authorized record reading or cross-BU Telegram rejection. See TELEGRAM-CHECK-20261108T220013.json.
 
 The standard `/command@bot argument` syntax is currently affected by Hermes mention cleanup: the server adapter removes the mention and trailing whitespace, joining the command and first argument. The user did not enter an invalid command. The operational workaround is `/libetech_check @LiBeAiTogetherBot LBRC014 <full SHA>`; the space before the mention survives cleanup. No shared Hermes code was changed during this read-only check. The earlier three-line suggestion with `@bot` attached to the command does not fix this defect and should not be reused.
+
+## Restore after migration 023 (N4, 20/11/2026)
+
+The restore commands recorded above (`pg_restore --data-only --single-transaction`, without `--disable-triggers`) cannot restore an archive taken after migration 023, and, independently of 023, cannot restore any archive that holds a document: `document_records` and `document_revisions` point at each other, and no load order satisfies both foreign keys (measured on PostgreSQL 16.15, `docs/reviews/n4-evidence-20261120/`). Both installers now load every archive with `--disable-triggers` (arguments in `deploy/restore-plan.py`), number an archive from before 023 by applying 023 again, and run `deploy/post-restore.sql` before anything is started. The steps, the error codes and the rules for people who write into the database directly (N15): `docs/RUNBOOK-RESTORE-AFTER-023.md`. The installers cannot run end to end from this tree: `deploy/BUNDLE-MANIFEST.json` is the one of 0.2.0 (migrations 001-003, hashes of both installers already different), so the rehearsed path is the runbook; see `docs/DELIVERY-017-n4-restore-after-023-20261120.md`. Not deployed on d1-ai1.

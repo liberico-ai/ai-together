@@ -1,0 +1,13 @@
+# head=dfdd68c (working tree clean when this was run); sha256 of the files under test:
+#   5e5ac975745b0bf9…  deploy/restore-plan.py
+#   f44b29485b791488…  deploy/pre-restore.sql
+#   65b6ca43f64c14dc…  deploy/post-restore.sql
+#   122bca81f17b5d06…  deploy/install-user.py
+#   41593d3dce3c98b9…  deploy/install-d1.sh
+#
+# The first run of this step failed (exit 1) on a duplicate that iCloud sync made of a GENERATED file (.next/types/routes.d N.ts); those duplicates were removed and this is the run after. Not a code error.
+#
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
