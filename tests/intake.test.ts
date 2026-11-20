@@ -254,8 +254,15 @@ test('S10 a pointer_only revision\'s text is not written to any table and does n
 // OQ-30 decided 14/11/2026 (b): each revision is judged with the configuration current when it is written; it may loosen or tighten.
 const sha=(t:string)=>createHash('sha256').update(t).digest('hex');
 const editOf=(base:ReturnType<typeof ev>,text:string,minutes:number)=>({...base,text,contentHash:sha(text),editedAt:new Date(new Date(base.observedAt).getTime()+minutes*60000).toISOString()});
-const auditModes=async(id:string)=>(await h.operator.query<{payload:{revisionNo:number;contentMode:string}}>(
-  "SELECT payload FROM intake_events WHERE entity_id=$1 AND entity_type='source_event' ORDER BY created_at,id",[id])).rows.map(r=>r.payload);
+// The audit rows of a source event by revision, each written no earlier than the one before it. They are not read by time alone: two revisions ingested within
+// one tick of the clock (PGlite counts whole milliseconds) give two audit rows of one created_at, and those come by row id, which is random.
+const auditModes=async(id:string)=>{
+  const found=(await h.operator.query<{payload:{revisionNo:number;contentMode:string};not_earlier:boolean}>(
+    `SELECT payload, created_at>=coalesce(lag(created_at) OVER (ORDER BY (payload->>'revisionNo')::int,id),created_at) AS not_earlier
+     FROM intake_events WHERE entity_id=$1 AND entity_type='source_event' ORDER BY (payload->>'revisionNo')::int,id`,[id])).rows;
+  expect(found.map(r=>r.not_earlier)).toEqual(found.map(()=>true));
+  return found.map(r=>r.payload);
+};
 
 test('OQ-30 an edit after the group is flagged stores the excerpt on that revision only',async()=>{
   const base=ev({text:'bản gốc chưa bật cờ'});
