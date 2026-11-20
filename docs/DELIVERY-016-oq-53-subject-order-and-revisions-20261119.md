@@ -34,7 +34,7 @@ OQ-57 (Chairman chọn qua hộp chọn của phiên điều phối, 19/11/2026;
 
 **Cách làm của điểm 3 là của `planner`, không phải lời Chairman** (ánh xạ 7 của phiên điều phối, `docs/OPEN-QUESTIONS.md:975`): kế hoạch đo trên PostgreSQL 16.15 rằng `nextval` thuần có thể commit ngược thứ tự số (đo 1) và rằng một dòng đếm theo luồng bị khoá tới commit thì số đúng thứ tự commit (đo 2); khoá tư vấn bị loại vì không kiểm quyền (DB-9, S-1 của PR #22).
 
-## Cách hiểu chờ Chairman xác nhận (không phải lời Chairman)
+## Cách hiểu chờ Chairman xác nhận (không phải lời Chairman) — **đã xác nhận ngày 19/11/2026** («Xác nhận C1–C11»; `docs/OPEN-QUESTIONS.md`, khối cuối tệp)
 
 | # | Cách hiểu |
 |---|---|
@@ -163,17 +163,17 @@ Thời gian giữ khoá của lệnh xác nhận (từ lệnh ghi quyết địn
 
 ## Điều kiện
 
-**Trước khi áp 023 lên dữ liệu thật** (đường nhận tin đang chạy thật; đây không chỉ là điều kiện của Z4):
+**Trước khi áp 023 lên dữ liệu thật** (đường nhận tin đang chạy thật; đây không chỉ là điều kiện của Z4): **Chairman 19/11/2026: áp 023 cùng 022 trong một đợt riêng sau N1–N4; làm N4 trước; chưa có lệnh áp nào.** Kế hoạch triển khai của đợt đó phải có bản sao lưu đã thử phục hồi, cách rollback, danh sách bot bị ảnh hưởng, và tránh 08:30 ngày làm việc và 16:00 thứ Sáu.
 - **N1.** Login của đường nhận tin và login web có `idle_in_transaction_session_timeout` (đề xuất ≤ 30 giây; kiểm bằng `SHOW`): một giao dịch nhận tin bị để mở nay chặn mọi tin khác của luồng đó (`55P03` sau 5 giây mỗi lần). `libetech_runtime` có `SELECT` nên giữ được `LOCK TABLE … ACCESS SHARE` trên hai bảng mới — chỉ chặn DDL.
-- **N2.** Gateway gửi lại khi `/api/bridge` trả 5xx hay hết giờ (đọc từ mã: `bot-plugin/__init__.py:48-52`, `:188-210`; dòng 64 của chính tệp ghi «Not verified against the running gateway»): một `55P03` là một lần thử lại, không phải một tin mất — **chưa kiểm trên gateway chạy thật**. Hạng `answered` của gateway đếm tới `SPOOL_MAX_ATTEMPTS = 5` và 24 giờ rồi chuyển vào dead-letter, nên một luồng bị chặn lâu (N1) có thể dẫn tới đó; `HOOK_TIMEOUT = 2` giây đứng trước trần 5 giây của khoá nên thường là hạng `network`, không đếm (`bot-plugin/__init__.py:46-52`, `:59`, `:188-210`).
+- **N2.** Gateway gửi lại khi `/api/bridge` trả 5xx hay hết giờ (đọc từ mã: `bot-plugin/__init__.py:48-52`, `:188-210`; dòng 64 của chính tệp ghi «Not verified against the running gateway»): một `55P03` là một lần thử lại, không phải một tin mất — **chưa kiểm trên gateway chạy thật**. Hạng `answered` của gateway đếm tới `SPOOL_MAX_ATTEMPTS = 5` và 24 giờ rồi chuyển vào dead-letter, nên một luồng bị chặn lâu (N1) có thể dẫn tới đó; `HOOK_TIMEOUT = 2` giây đứng trước trần 5 giây của khoá nên thường là hạng `network`, không đếm (`bot-plugin/__init__.py:46-52`, `:59`, `:188-210`). **Chairman 19/11/2026: kiểm trên gateway thật cùng Quân.**
 - **N3.** Đếm bản trước khi áp; trần 250 000 chưa phải cam kết thời gian (review CSDL đo 6,65–10,16 giây ở 500 000 bản trong cấu hình xấu nhất; pool có `statement_timeout` 10 giây); đo trên bản sao dữ liệu thật; áp migration trước, mã sau.
-- **N4.** Phục hồi dữ liệu: bộ cài của chính repo nạp `pg_restore --data-only --single-transaction` không `--disable-triggers` (`deploy/install-user.py:161`, `deploy/install-d1.sh:43`, `docs/DEPLOY-002.md:19`); với 023, trigger nhận tin chạy khi nạp và trigger xác nhận chạy lại trên dòng quyết định lịch sử: **đo được (quét theo lớp, #fact)** rằng nạp `COPY draft_decisions` bị `LTZ03` và bản lưu sau 023 va `UNIQUE(revision_id)` của bảng số; `--disable-triggers` chạy được nhưng đặt trigger cấp số từ `ALWAYS` về `O` (đường `replica` mở lại cho tới khi áp lại 023 hoặc `ENABLE ALWAYS`). Cần chỉnh quy trình (bộ cài nằm ngoài PR) trước khi phục hồi một bản lưu sau 023.
+- **N4.** Phục hồi dữ liệu: bộ cài của chính repo nạp `pg_restore --data-only --single-transaction` không `--disable-triggers` (`deploy/install-user.py:161`, `deploy/install-d1.sh:43`, `docs/DEPLOY-002.md:19`); với 023, trigger nhận tin chạy khi nạp và trigger xác nhận chạy lại trên dòng quyết định lịch sử: **đo được (quét theo lớp, #fact)** rằng nạp `COPY draft_decisions` bị `LTZ03` và bản lưu sau 023 va `UNIQUE(revision_id)` của bảng số; `--disable-triggers` chạy được nhưng đặt trigger cấp số từ `ALWAYS` về `O` (đường `replica` mở lại cho tới khi áp lại 023 hoặc `ENABLE ALWAYS`). Cần chỉnh quy trình (bộ cài nằm ngoài PR) trước khi phục hồi một bản lưu sau 023. **Chairman 19/11/2026: làm N4 trước khi áp 023 (một phiên riêng).**
 - **N5.** Không có nháp ứng viên chưa quyết định lúc áp (023 tự kiểm).
 - **N10.** Chỉ lùi 023 khi đường ghi Z4 đã đóng và mọi lần chạy pipeline dở dang đã bị bỏ; sau khi áp lại, mọi ngữ cảnh dựng trước đó là cũ. Sau lần xác nhận đầu tiên, 023 chỉ còn forward-fix (tệp lùi từ chối khi còn dòng quyết định mang vị trí).
-- **N15 (mới, ngoài kế hoạch).** Một bản không có số (trigger bị tắt, `session_replication_role = replica`, phục hồi tắt trigger) làm **cả luồng bị giữ mãi** (luật 4) và cách gỡ duy nhất hôm nay là áp lại 023 — mà chính 023 từ chối khi còn nháp ứng viên chưa quyết định hoặc có login `libetech_ai` đang kết nối. Phiên bảo trì cố ý ghi một bản không số phải khoá `FOR UPDATE` dòng đếm của luồng trước (đo cả hai thứ tự: đóng kín). Cần một quy trình sửa có người chịu trách nhiệm trước khi bật Z4 (review code SV-C-2; số N15 do biên nhận này đặt, các số N1–N14 là của kế hoạch).
+- **N15 (mới, ngoài kế hoạch).** Một bản không có số (trigger bị tắt, `session_replication_role = replica`, phục hồi tắt trigger) làm **cả luồng bị giữ mãi** (luật 4) và cách gỡ duy nhất hôm nay là áp lại 023 — mà chính 023 từ chối khi còn nháp ứng viên chưa quyết định hoặc có login `libetech_ai` đang kết nối. Phiên bảo trì cố ý ghi một bản không số phải khoá `FOR UPDATE` dòng đếm của luồng trước (đo cả hai thứ tự: đóng kín). Cần một quy trình sửa có người chịu trách nhiệm trước khi bật Z4 (review code SV-C-2; số N15 do biên nhận này đặt, các số N1–N14 là của kế hoạch). **Chairman 19/11/2026: N15 trước khi bật Z4.**
 
 **Trước khi thêm tuyến đọc nháp hoặc bật Z4:**
-- **N6 (chặn, mức P1 nếu bỏ qua — theo ghế bảo mật).** `messageRevisions` hôm nay là lời khai của mô hình; văn bản tin (không tin cậy) có thể lái nó (ca đã chạy thật: nháp nêu số 2 khi ngữ cảnh hiện số 1, tin được sửa thành bản 2, nháp vẫn xác nhận được; hậu quả là một lần xác nhận lệch bản, không rò dữ liệu, không leo quyền). **Mã của pipeline, không phải mô hình, phải ghi trường này** từ chính ngữ cảnh nó đã đưa, đè lên giá trị mô hình trả về, trước `submitDraft`. Prompt dặn «chép, không suy» và eval có ca `injection`, nhưng đó không phải cơ chế.
+- **N6 (chặn, mức P1 nếu bỏ qua — theo ghế bảo mật).** `messageRevisions` hôm nay là lời khai của mô hình; văn bản tin (không tin cậy) có thể lái nó (ca đã chạy thật: nháp nêu số 2 khi ngữ cảnh hiện số 1, tin được sửa thành bản 2, nháp vẫn xác nhận được; hậu quả là một lần xác nhận lệch bản, không rò dữ liệu, không leo quyền). **Mã của pipeline, không phải mô hình, phải ghi trường này** từ chính ngữ cảnh nó đã đưa, đè lên giá trị mô hình trả về, trước `submitDraft`. Prompt dặn «chép, không suy» và eval có ca `injection`, nhưng đó không phải cơ chế. **Chairman đồng ý 19/11/2026: điều kiện chặn trước khi bật Z4.**
 - **N7.** `EXPLAIN` trên dữ liệu thật cho `threadFreshness`; luật 4 trên bảng vừa nạp **chưa có thống kê** đo được 3–4 giây (planner chọn nested loop quanh CTE luồng; hết sau `ANALYZE`; builder đo trên dữ liệu giả) — chạy `ANALYZE` sau khi nạp và cân việc viết luật 4 nối thẳng từ ứng viên.
 - **N8.** Tuyến đầu tiên gọi `decide` bọc `LTZ03` (nếu lọt thô), `55P03`, `40P01`, `40001` thành lỗi thử-lại-được không kèm `CONTEXT` của CSDL (mở rộng điều kiện 18 của PR #22).
 - **N9.** Điều kiện 21 của PR #22 (điểm 3 có quyết định, giữ chỗ được gỡ, mười hai ca đổi kỳ vọng) đóng khi PR này merge.
@@ -202,15 +202,15 @@ Thời gian giữ khoá của lệnh xác nhận (từ lệnh ghi quyết địn
 
 ## Điểm dừng — không làm, chờ Chairman
 
-(Merge PR: đã làm ngày 19/11/2026, `b978163`.) Còn lại: áp 023 lên dữ liệu thật · triển khai d1-ai1 · khởi động lại gateway chung · gửi tin vào nhóm thật · tuyến đọc/xác nhận nháp · login hay khoá cho role AI · bật Z4 · quyết N6 (và pipeline) · OQ-54, OQ-55 (b), OQ-56.
+(Merge PR: đã làm ngày 19/11/2026, `b978163`.) Còn lại: áp 023 (cùng 022, một đợt riêng sau N1–N4) lên dữ liệu thật · triển khai d1-ai1 · khởi động lại gateway chung · gửi tin vào nhóm thật · tuyến đọc/xác nhận nháp · login hay khoá cho role AI · bật Z4 · quyết N6 (và pipeline) · OQ-54, OQ-55 (b), OQ-56.
 
 ## Cần Chairman quyết hoặc xác nhận
 
-1. Merge PR: đã làm ngày 19/11/2026 (`b978163`). Còn lại: áp 023 (sau N1–N5).
-2. Xác nhận cách hiểu C1–C8, C10 và C11; đặc biệt C1 (số bản, không hash), C5 (đổi đường nhận tin ở tầng CSDL, `intake.ts` không đổi) và C7 (giữ oan được chấp nhận).
-3. N6: pipeline phải ghi `messageRevisions` từ ngữ cảnh — điều kiện chặn trước khi bật Z4.
-4. Quy trình sửa luồng bị giữ mãi (N15) và chỉnh quy trình phục hồi dữ liệu (N4).
-5. Hai chỗ R10-g còn nhắc nghĩa cũ ở hồ sơ lát trước (`docs/plans/slice-3-review-skills.md:992`, `docs/DELIVERY-012-review-skills-20261115.md:247`): không sửa tại chỗ; Chairman muốn ghi chú hay để nguyên.
+1. Merge PR: đã làm ngày 19/11/2026 (`b978163`). Áp 023: **đã quyết** — cùng 022 trong một đợt riêng sau N1–N4, N4 trước, N2 trên gateway thật cùng Quân (chưa có lệnh áp nào). Còn chờ lời Chairman cho chính đợt triển khai đó và kế hoạch của nó.
+2. Cách hiểu C1–C8, C10 và C11: **Chairman đã xác nhận ngày 19/11/2026** («Xác nhận C1–C11»); lời chép nguyên ở khối cuối `docs/OPEN-QUESTIONS.md`.
+3. N6: **đã đồng ý** — pipeline phải ghi `messageRevisions` từ ngữ cảnh; điều kiện chặn trước khi bật Z4 (chưa có pipeline).
+4. N15 trước khi bật Z4 và N4 làm trước tiên: **đã quyết**; cả hai còn là việc chưa làm (N4 là một phiên riêng). OQ-58: **đã quyết (a)**.
+5. R10-g: **đã quyết** ghi chú trỏ sang nghĩa mới, không sửa tại chỗ — đã làm ở PR #26 (cuối `docs/plans/slice-3-review-skills.md` và `docs/DELIVERY-012-review-skills-20261115.md`).
 
 ## Ngoài phạm vi (có từ trước hoặc không thuộc PR; không sửa)
 
