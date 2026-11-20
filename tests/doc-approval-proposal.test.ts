@@ -477,6 +477,9 @@ describe('propose',()=>{
     await setProjectRole(w,w.coordinator.id,T,'manager');
     const a=await propose(w,w.coordinator);
     const b=await propose(w,w.coordinator,{userId:reviewer.id});
+    // a is the older ballot by one minute, written here and not left to the clock: the list comes by (created_at, id), and two ballots proposed within one tick
+    // (PGlite counts whole milliseconds) share created_at and then come by id, which is random
+    await w.h.operator.query("UPDATE identity.account_approvals SET created_at=created_at-interval '1 minute' WHERE id=$1",[a.approvalId]);
     await propose(w,w.coManager,{userId:approver.id});                                  // someone else's
     const adminTarget=await newMember('admin-target');
     await w.accounts.command(w.admin,{kind:'propose_access_change',userId:adminTarget,expectedVersion:1,reason:'Quản trị trình phiếu thuần duyệt',grants:[g(S,'engineer',dp('design'))]});

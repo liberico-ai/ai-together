@@ -1,0 +1,12 @@
+# Full suite, PGlite (SLICE1_* variables set: 0), clock running, code at 0f4b123. Command: npx vitest run
+# load at start 5.77 6.80 6.42
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  67 passed | 13 skipped (80)
+      Tests  1288 passed | 118 skipped (1406)
+   Start at  10:28:54
+   Duration  528.54s (tests 99%, import 1%)
+
+EXIT=0

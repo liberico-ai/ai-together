@@ -1,0 +1,20 @@
+# Full suite on a local trial merge, never pushed: this branch (2227b0e; test change 0f4b123) merged with libetech-ai-os at 52b1e84, which moved there
+# (PR 28) after this branch was cut from 8c70088. PGlite (SLICE1_* variables set: 0), clock running. Command: npx vitest run
+# load at start 6.83 6.64 6.40
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  68 passed | 14 skipped (82)
+      Tests  1311 passed | 136 skipped (1447)
+   Start at  10:42:09
+   Duration  562.34s (tests 99%, import 1%)
+
+EXIT=0
+
+# Typecheck on the same trial merge. Command: npm run typecheck
+
+> libetech-ai-os@0.7.1 typecheck
+> tsc --noEmit
+
+exit code of npm run typecheck: 0

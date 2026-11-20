@@ -42,6 +42,20 @@ const dec=(w:W|Omit<W,'title'>,over:R={}):R=>({revisionId:w.revisionId,sourceHas
 const cmt=(w:W|Omit<W,'title'>,over:R={}):R=>({kind:'comment',revisionId:w.revisionId,anchor:'Mục 1',body:'Cần làm rõ phạm vi',...over});
 const decide=(p:Principal,w:W|Omit<W,'title'>,over:R={},key:string=k())=>svc().decide(p,w.docId,dec(w,over),key,k());
 const comment=(p:Principal,docId:string,raw:R,key:string=k())=>svc().comment(p,docId,raw,key,k());
+/** A comment sent through the service, and the comment that call wrote: found by the request id of the call, never by its place in the answer. The answer lists
+ * comments by (createdAt, id); two written within one tick of the clock (PGlite counts whole milliseconds) share createdAt and then come by id, which is random.
+ * What «the new comment is the last one» says without the clock is checked here: the list never goes back in time, and nothing in it is later than the new comment. */
+const wrote=async(p:Principal,docId:string,raw:R)=>{
+ const req=k(),view=await svc().comment(p,docId,raw,k(),req);
+ const made=await rows<{id:string}>('SELECT id FROM review_comments WHERE request_id=$1',[req]);
+ expect(made).toHaveLength(1);
+ const row=view.comments.find(c=>c.id===made[0].id)!;
+ expect(row,'the answer holds the comment this call wrote').toBeTruthy();
+ const at=view.comments.map(c=>c.createdAt);
+ expect(at).toEqual([...at].sort());
+ expect(row.createdAt).toBe(at.at(-1));
+ return {view,row};
+};
 const refused=async(p:Promise<unknown>,code:string,status:number)=>{
  const e=await p.then(()=>null,x=>x);
  expect(e,'expected a refusal').toBeTruthy();
@@ -428,10 +442,10 @@ describe('document review comments',()=>{
   // addressed: the author of the revision the comment sits on, or a project manager; nobody else
   await refused(comment(approver,w.docId,{kind:'addressed',parentId:rootId,body:'Đã sửa xong'}),'APPROVER_NOT_AUTHORIZED',403);
   await refused(comment(reviewer,w.docId,{kind:'addressed',parentId:rootId,body:'Đã sửa xong'}),'APPROVER_NOT_AUTHORIZED',403);
-  const a1=await comment(member,w.docId,{kind:'addressed',parentId:rootId,body:'Đã sửa xong'});
-  const a2=await comment(pm,w.docId,{kind:'addressed',parentId:rootId,body:'Điều phối ghi đã sửa'});
-  expect(a1.comments.at(-1)).toMatchObject({kind:'addressed',parentId:rootId,actorId:member.id,anchor:''});
-  expect(a2.comments.at(-1)).toMatchObject({kind:'addressed',actorId:pm.id});
+  const a1=await wrote(member,w.docId,{kind:'addressed',parentId:rootId,body:'Đã sửa xong'});
+  const a2=await wrote(pm,w.docId,{kind:'addressed',parentId:rootId,body:'Điều phối ghi đã sửa'});
+  expect(a1.row).toMatchObject({kind:'addressed',parentId:rootId,actorId:member.id,anchor:''});
+  expect(a2.row).toMatchObject({kind:'addressed',actorId:pm.id});
   // resolved: the writer of the root comment, or a holder of an authority for the type; not the author, not a bystander
   await refused(comment(member,w.docId,{kind:'resolved',parentId:rootId,body:'Tôi tự đóng'}),'APPROVER_NOT_AUTHORIZED',403);
   await refused(comment(pm,w.docId,{kind:'resolved',parentId:rootId,body:'Điều phối tự đóng'}),'APPROVER_NOT_AUTHORIZED',403);
@@ -457,10 +471,10 @@ describe('document review comments',()=>{
   const root=(await comment(reviewer,w.docId,cmt(w))).comments[0];
   const foreign=(await comment(reviewer,other.docId,cmt(other))).comments[0];
   await proposeRev(h,member,await docOf(w.docId));
-  const reply=await comment(member,w.docId,{kind:'addressed',parentId:root.id,body:'Đã sửa ở bản mới'});
-  expect(reply.comments.at(-1)).toMatchObject({kind:'addressed',revisionId:w.revisionId});
+  const reply=await wrote(member,w.docId,{kind:'addressed',parentId:root.id,body:'Đã sửa ở bản mới'});
+  expect(reply.row).toMatchObject({kind:'addressed',revisionId:w.revisionId});
   expect((await rows<{document_revision_id:string}>("SELECT document_revision_id FROM review_comments WHERE kind='addressed'"))[0].document_revision_id).toBe(w.revisionId);
-  const replyId=reply.comments.at(-1)!.id;
+  const replyId=reply.row.id;
   const before=await snap(w.docId);
   for(const parentId of [foreign.id,randomUUID(),replyId]) {
    const e=await refused(comment(member,w.docId,{kind:'addressed',parentId,body:'Đã sửa'}),'SCOPE_DENIED',404);
@@ -659,7 +673,7 @@ describe('a closed thread takes no follow-up',()=>{
   };
   const table:string[]=[];
   for(const [name,put] of Object.entries(state)) for(const p of [member,reviewer,pm,approver]) for(const kind of ['addressed','resolved'] as const) {
-   const root=(await comment(reviewer,w.docId,cmt(w))).comments.at(-1)!;
+   const root=(await wrote(reviewer,w.docId,cmt(w))).row;
    await put(root.id);
    const seen=(await svc().detail(p,w.docId)).comments.find(c=>c.id===root.id)!;
    const flag=kind==='addressed'?seen.canAddress:seen.canResolve;
