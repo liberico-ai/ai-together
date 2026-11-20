@@ -1,0 +1,18 @@
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (native PostgreSQL) > a failed statement that the callback catches before it returns: transaction() rejects with the fixed sentence, and the write made before the failure is not there 5ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (native PostgreSQL) > the callback keeps sending statements after the failure and swallows their errors too: the same rejection 4ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (native PostgreSQL) > the error says nothing the database said: no SQLSTATE, no table, no constraint, no cause 3ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (native PostgreSQL) > a callback whose statements all succeed still commits, and the caller gets its value 3ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (native PostgreSQL) > a failure that the callback heals with a savepoint is not an aborted transaction: the transaction commits (the outbox report depends on this) 4ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (native PostgreSQL) > an error that the callback throws itself still reaches the caller as it is, not as the fixed sentence 3ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (native PostgreSQL) > scoped() is a transaction too: the same rejection, and the caller does not see a success 9ms
+ ✓ tests/transaction-commit.test.ts > the connection after a COMMIT that answered ROLLBACK (native PostgreSQL) > premise: on this server COMMIT of an aborted transaction answers the command ROLLBACK and raises no error 6ms
+ ✓ tests/transaction-commit.test.ts > the connection after a COMMIT that answered ROLLBACK (native PostgreSQL) > the connection goes back to the pool idle and usable: same backend, no transaction left open, no dropped-session event, and the next transaction works 13ms
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  17:55:55
+   Duration  138ms (tests 75%, import 19%, transform 5%, worker 2%)
+

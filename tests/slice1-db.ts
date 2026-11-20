@@ -1,7 +1,7 @@
 import {PGlite} from '@electric-sql/pglite';
 import {readFile,readdir} from 'node:fs/promises';
 import path from 'node:path';
-import {pooledDatabase,type Database} from '../src/server/db';
+import {pgliteDatabase,pooledDatabase,type Database} from '../src/server/db';
 
 export type Harness={operator:Database;db:Database;native:boolean;exec(sql:string):Promise<void>;reset():Promise<void>;close():Promise<void>};
 export const native:boolean=Boolean(process.env.SLICE1_TEST_DATABASE_URL);
@@ -47,11 +47,7 @@ export async function openHarness():Promise<Harness>{
   }
   const pg=await PGlite.create();
   for(const file of await migrationFiles()) await pg.exec(await readMigration(file));
-  const operator:Database={
-    query:(sql,params)=>pg.query(sql,params),
-    transaction:fn=>pg.transaction(tx=>fn({query:(sql,params)=>tx.query(sql,params)})),
-    close:()=>pg.close(),
-  };
+  const operator:Database=pgliteDatabase(pg);
   return {operator,db:operator,native:false,exec:async sql=>{await pg.exec(sql);},reset:async()=>{},close:()=>operator.close()};
 }
 

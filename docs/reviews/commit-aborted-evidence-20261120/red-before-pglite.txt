@@ -1,0 +1,89 @@
+
+ RUN  v5.1.0 <repo>
+
+ × tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > a failed statement that the callback catches before it returns: transaction() rejects with the fixed sentence, and the write made before the failure is not there 5ms
+   → expected 'Transaction was rolled back instead o…' to be 'The transaction was rolled back and n…' // Object.is equality
+ × tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > the callback keeps sending statements after the failure and swallows their errors too: the same rejection 1ms
+   → expected 'Transaction was rolled back instead o…' to be 'The transaction was rolled back and n…' // Object.is equality
+ × tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > the error says nothing the database said: no SQLSTATE, no table, no constraint, no cause 1ms
+   → expected 'Transaction was rolled back instead o…' to be 'The transaction was rolled back and n…' // Object.is equality
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > a callback whose statements all succeed still commits, and the caller gets its value 1ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > a failure that the callback heals with a savepoint is not an aborted transaction: the transaction commits (the outbox report depends on this) 1ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > an error that the callback throws itself still reaches the caller as it is, not as the fixed sentence 1ms
+ × tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > scoped() is a transaction too: the same rejection, and the caller does not see a success 1ms
+   → expected 'Transaction was rolled back instead o…' to be 'The transaction was rolled back and n…' // Object.is equality
+ ↓ tests/transaction-commit.test.ts > the connection after a COMMIT that answered ROLLBACK (native PostgreSQL) > premise: on this server COMMIT of an aborted transaction answers the command ROLLBACK and raises no error
+ ↓ tests/transaction-commit.test.ts > the connection after a COMMIT that answered ROLLBACK (native PostgreSQL) > the connection goes back to the pool idle and usable: same backend, no transaction left open, no dropped-session event, and the next transaction works
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > a failed statement that the callback catches before it returns: transaction() rejects with the fixed sentence, and the write made before the failure is not there
+AssertionError: expected 'Transaction was rolled back instead o…' to be 'The transaction was rolled back and n…' // Object.is equality
+
+Expected: "The transaction was rolled back and nothing was written."
+Received: "Transaction was rolled back instead of committed"
+
+ ❯ tests/transaction-commit.test.ts:37:28
+     35|     }));
+     36|     expect(error,'the transaction resolved although nothing was writte…
+     37|     expect(error?.message).toBe(FIXED);
+       |                            ^
+     38|     expect(error?.name).toBe('TransactionNotCommittedError');
+     39|     expect(await noteIds(db)).toEqual([1]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > the callback keeps sending statements after the failure and swallows their errors too: the same rejection
+AssertionError: expected 'Transaction was rolled back instead o…' to be 'The transaction was rolled back and n…' // Object.is equality
+
+Expected: "The transaction was rolled back and nothing was written."
+Received: "Transaction was rolled back instead of committed"
+
+ ❯ tests/transaction-commit.test.ts:47:28
+     45|       return 'returned normally';
+     46|     }));
+     47|     expect(error?.message).toBe(FIXED);
+       |                            ^
+     48|     expect(await noteIds(db)).toEqual([1]);
+     49|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > the error says nothing the database said: no SQLSTATE, no table, no constraint, no cause
+AssertionError: expected 'Transaction was rolled back instead o…' to be 'The transaction was rolled back and n…' // Object.is equality
+
+Expected: "The transaction was rolled back and nothing was written."
+Received: "Transaction was rolled back instead of committed"
+
+ ❯ tests/transaction-commit.test.ts:52:28
+     50|   test('the error says nothing the database said: no SQLSTATE, no tabl…
+     51|     const error=await caught(db.transaction(async tx=>{try {await dupl…
+     52|     expect(error?.message).toBe(FIXED);
+       |                            ^
+     53|     expect(String(error?.message)).not.toMatch(/duplicate|violat|const…
+     54|     expect(error?.code).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > scoped() is a transaction too: the same rejection, and the caller does not see a success
+AssertionError: expected 'Transaction was rolled back instead o…' to be 'The transaction was rolled back and n…' // Object.is equality
+
+Expected: "The transaction was rolled back and nothing was written."
+Received: "Transaction was rolled back instead of committed"
+
+ ❯ tests/transaction-commit.test.ts:93:28
+     91|       return 'returned normally';
+     92|     }));
+     93|     expect(error?.message).toBe(FIXED);
+       |                            ^
+     94|   });
+     95| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 3 passed | 2 skipped (9)
+   Start at  17:55:33
+   Duration  735ms (tests 94%, import 3%, transform 2%)
+

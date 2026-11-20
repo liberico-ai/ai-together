@@ -1,0 +1,18 @@
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > a failed statement that the callback catches before it returns: transaction() rejects with the fixed sentence, and the write made before the failure is not there 3ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > the callback keeps sending statements after the failure and swallows their errors too: the same rejection 1ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > the error says nothing the database said: no SQLSTATE, no table, no constraint, no cause 1ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > a callback whose statements all succeed still commits, and the caller gets its value 1ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > a failure that the callback heals with a savepoint is not an aborted transaction: the transaction commits (the outbox report depends on this) 1ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > an error that the callback throws itself still reaches the caller as it is, not as the fixed sentence 1ms
+ ✓ tests/transaction-commit.test.ts > COMMIT of an aborted transaction (PGlite) > scoped() is a transaction too: the same rejection, and the caller does not see a success 1ms
+ ↓ tests/transaction-commit.test.ts > the connection after a COMMIT that answered ROLLBACK (native PostgreSQL) > premise: on this server COMMIT of an aborted transaction answers the command ROLLBACK and raises no error
+ ↓ tests/transaction-commit.test.ts > the connection after a COMMIT that answered ROLLBACK (native PostgreSQL) > the connection goes back to the pool idle and usable: same backend, no transaction left open, no dropped-session event, and the next transaction works
+
+ Test Files  1 passed (1)
+      Tests  7 passed | 2 skipped (9)
+   Start at  17:55:55
+   Duration  687ms (tests 96%, import 3%, transform 1%)
+
