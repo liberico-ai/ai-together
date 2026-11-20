@@ -1,0 +1,36 @@
+# Mutations of the three service files against the changed test files (code at 0f4b123). PGlite, clock running.
+# They show that the reworked cases still fail when the service's order or audit content is wrong. Each mutation is applied, the test file runs once,
+# and the source file is restored from a copy. A mutation counts as killed only by assertion failures; «timeouts» must read 0.
+# sha256 (first 16) of document-review.ts, doc-approval-proposals.ts, intake.ts before: 243622530ea7e3fc 861d8ba9d6e4f90b a9814e022bd9aeec 
+
+## M1
+src/server/document-review.ts — the comments of a document newest first (ORDER BY c.created_at DESC,c.id)
+Command: npx vitest run tests/document-review.test.ts
+ FAIL  tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters
+ FAIL  tests/document-review.test.ts > document review comments > a reply is stored on the revision of the comment it answers
+ FAIL  tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+ Test Files  1 failed (1)
+      Tests  3 failed | 29 passed (32)
+assertion failures: 3; other errors: 0; timeouts: 0
+restored: identical
+
+## M2
+src/server/doc-approval-proposals.ts — listOwn newest first (ORDER BY a.created_at DESC,a.id)
+Command: npx vitest run tests/doc-approval-proposal.test.ts
+ FAIL  tests/doc-approval-proposal.test.ts > propose > listOwn returns the caller's own open ballots of that project to a caller who is still a member, whatever the role
+ Test Files  1 failed (1)
+      Tests  1 failed | 32 passed (33)
+assertion failures: 1; other errors: 0; timeouts: 0
+restored: identical
+
+## M3
+src/server/intake.ts — the audit row of every revision says revisionNo 1
+Command: npx vitest run tests/intake.test.ts
+ FAIL  tests/intake.test.ts > OQ-30 an edit after the group is flagged stores the excerpt on that revision only
+ FAIL  tests/intake.test.ts > OQ-30 an edit after the project becomes IBS HI keeps pointer and hash only
+ Test Files  1 failed (1)
+      Tests  2 failed | 47 passed (49)
+assertion failures: 2; other errors: 0; timeouts: 0
+restored: identical
+
+sha256 (first 16) after: 243622530ea7e3fc 861d8ba9d6e4f90b a9814e022bd9aeec 

@@ -1,0 +1,291 @@
+# The same runs as red-held-clock-before.txt after the change: the three test files at 0f4b123, PGlite, the JavaScript clock held still while each case runs,
+# one file at a time, eight runs each, every run with a time limit.
+# Command per run: npx vitest run --config docs/reviews/f5-order-tie-evidence-20261118/probes/vitest.hold.config.mjs tests/<file>
+
+## tests/intake.test.ts — run 1 of 8 (load 5.89 7.17 6.99)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  09:58:56
+   Duration  24.16s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 2 of 8 (load 5.45 6.97 6.92)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  09:59:21
+   Duration  24.12s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 3 of 8 (load 5.63 6.89 6.89)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  09:59:47
+   Duration  24.79s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 4 of 8 (load 5.24 6.70 6.82)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  10:00:12
+   Duration  24.11s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 5 of 8 (load 4.70 6.46 6.73)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  10:00:37
+   Duration  24.32s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 6 of 8 (load 4.78 6.33 6.68)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  10:01:02
+   Duration  24.58s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 7 of 8 (load 5.67 6.43 6.70)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  10:01:28
+   Duration  26.63s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 8 of 8 (load 5.87 6.44 6.70)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  10:01:55
+   Duration  25.20s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 1 of 8 (load 5.76 6.39 6.67)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:02:21
+   Duration  17.68s (tests 99%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 2 of 8 (load 5.73 6.32 6.64)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:02:39
+   Duration  17.04s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 3 of 8 (load 4.96 6.10 6.55)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:02:58
+   Duration  17.28s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 4 of 8 (load 4.59 5.97 6.49)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:03:16
+   Duration  17.20s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 5 of 8 (load 4.56 5.87 6.45)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:03:34
+   Duration  17.26s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 6 of 8 (load 4.19 5.73 6.39)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:03:52
+   Duration  16.82s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 7 of 8 (load 3.48 5.47 6.28)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:04:09
+   Duration  17.77s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 8 of 8 (load 3.91 5.44 6.25)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:04:28
+   Duration  18.47s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 1 of 8 (load 4.44 5.48 6.25)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:04:47
+   Duration  17.63s (tests 99%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 2 of 8 (load 4.43 5.41 6.21)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:05:05
+   Duration  16.62s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 3 of 8 (load 4.32 5.34 6.17)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:05:22
+   Duration  16.59s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 4 of 8 (load 4.00 5.21 6.10)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:05:39
+   Duration  16.52s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 5 of 8 (load 3.88 5.11 6.05)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:05:57
+   Duration  16.88s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 6 of 8 (load 3.52 4.95 5.97)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:06:14
+   Duration  16.62s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 7 of 8 (load 3.04 4.77 5.88)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:06:31
+   Duration  16.73s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 8 of 8 (load 4.35 4.97 5.93)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:06:48
+   Duration  16.66s (tests 100%)
+
+EXIT=0

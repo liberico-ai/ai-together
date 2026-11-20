@@ -1,0 +1,118 @@
+# PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2), a throwaway container of this session (image postgres:16, synthetic data, loopback, removed afterwards) — not the shared container
+# libetech-slice1-pg, which was left alone. Only SLICE1_TEST_DATABASE_URL is set: the service runs on the operator's login with SET LOCAL ROLE
+# libetech_runtime, as on PGlite; there is no separate restricted web login in this run. Code at 0f4b123. Clock running (it is the server's clock).
+# The three changed files, one at a time, three times each. Command per run: npx vitest run tests/<file>
+
+## tests/intake.test.ts — run 1 of 3
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  10:38:12
+   Duration  15.20s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 2 of 3
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  10:38:27
+   Duration  14.87s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 3 of 3
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  10:38:42
+   Duration  14.85s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 1 of 3
+
+ RUN  v5.1.0 <repo>
+
+(node:36150) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:38:58
+   Duration  10.85s (tests 99%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 2 of 3
+
+ RUN  v5.1.0 <repo>
+
+(node:36302) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:39:09
+   Duration  10.90s (tests 99%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 3 of 3
+
+ RUN  v5.1.0 <repo>
+
+(node:36447) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  10:39:20
+   Duration  10.79s (tests 99%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 1 of 3
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:39:31
+   Duration  12.03s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 2 of 3
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:39:43
+   Duration  12.12s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 3 of 3
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  10:39:56
+   Duration  12.03s (tests 100%)
+
+EXIT=0

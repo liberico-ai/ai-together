@@ -1,0 +1,1029 @@
+# RED on purpose — the three test files as they are at 8c70088 (unchanged), PGlite, with the JavaScript clock held still while each case runs
+# (docs/reviews/f5-order-tie-evidence-20261118/probes/hold-clock.mts): every PGlite transaction of a case gets one now(), so every row a case writes has one created_at.
+# One file at a time, eight runs each, every run with a time limit. Rows of one instant come back by row id, which is random, so a case that
+# needs two rows to differ in time fails in some runs and passes in others; the count per case is in red-summary.txt.
+# Command per run: npx vitest run --config docs/reviews/f5-order-tie-evidence-20261118/probes/vitest.hold.config.mjs tests/<file>
+
+## tests/intake.test.ts — run 1 of 8 (load 6.74 6.74 6.26)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/intake.test.ts (49 tests | 1 failed) 25633ms
+   × OQ-30 an edit after the group is flagged stores the excerpt on that revision only 525ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/intake.test.ts > OQ-30 an edit after the group is flagged stores the excerpt on that revision only
+AssertionError: expected [ { revisionNo: 2, …(1) }, …(1) ] to deeply equal [ { revisionNo: 1, …(1) }, …(1) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "contentMode": "pointer_only",
+-     "revisionNo": 1,
+-   },
+-   {
+      "contentMode": "excerpt",
+      "revisionNo": 2,
++   },
++   {
++     "contentMode": "pointer_only",
++     "revisionNo": 1,
+    },
+  ]
+
+ ❯ tests/intake.test.ts:268:45
+    266|   expect(rows.map(r=>[r.revision_no,r.content_mode,r.text_excerpt])).t…
+    267|   for(const r of rows) expect(r.content_hash).toMatch(HASH);
+    268|   expect(await auditModes(a.sourceEventId)).toEqual([{revisionNo:1,con…
+       |                                             ^
+    269| });
+    270|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 48 passed (49)
+   Start at  09:49:13
+   Duration  25.83s (tests 99%)
+
+EXIT=1
+
+## tests/intake.test.ts — run 2 of 8 (load 7.92 7.01 6.38)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  09:49:39
+   Duration  25.05s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 3 of 8 (load 7.27 6.95 6.37)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/intake.test.ts (49 tests | 1 failed) 24358ms
+   × OQ-30 an edit after the group is flagged stores the excerpt on that revision only 489ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/intake.test.ts > OQ-30 an edit after the group is flagged stores the excerpt on that revision only
+AssertionError: expected [ { revisionNo: 2, …(1) }, …(1) ] to deeply equal [ { revisionNo: 1, …(1) }, …(1) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "contentMode": "pointer_only",
+-     "revisionNo": 1,
+-   },
+-   {
+      "contentMode": "excerpt",
+      "revisionNo": 2,
++   },
++   {
++     "contentMode": "pointer_only",
++     "revisionNo": 1,
+    },
+  ]
+
+ ❯ tests/intake.test.ts:268:45
+    266|   expect(rows.map(r=>[r.revision_no,r.content_mode,r.text_excerpt])).t…
+    267|   for(const r of rows) expect(r.content_hash).toMatch(HASH);
+    268|   expect(await auditModes(a.sourceEventId)).toEqual([{revisionNo:1,con…
+       |                                             ^
+    269| });
+    270|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 48 passed (49)
+   Start at  09:50:05
+   Duration  24.47s (tests 100%)
+
+EXIT=1
+
+## tests/intake.test.ts — run 4 of 8 (load 6.76 6.84 6.35)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/intake.test.ts (49 tests | 1 failed) 24462ms
+   × OQ-30 an edit after the group is flagged stores the excerpt on that revision only 488ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/intake.test.ts > OQ-30 an edit after the group is flagged stores the excerpt on that revision only
+AssertionError: expected [ { revisionNo: 2, …(1) }, …(1) ] to deeply equal [ { revisionNo: 1, …(1) }, …(1) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "contentMode": "pointer_only",
+-     "revisionNo": 1,
+-   },
+-   {
+      "contentMode": "excerpt",
+      "revisionNo": 2,
++   },
++   {
++     "contentMode": "pointer_only",
++     "revisionNo": 1,
+    },
+  ]
+
+ ❯ tests/intake.test.ts:268:45
+    266|   expect(rows.map(r=>[r.revision_no,r.content_mode,r.text_excerpt])).t…
+    267|   for(const r of rows) expect(r.content_hash).toMatch(HASH);
+    268|   expect(await auditModes(a.sourceEventId)).toEqual([{revisionNo:1,con…
+       |                                             ^
+    269| });
+    270|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 48 passed (49)
+   Start at  09:50:30
+   Duration  24.56s (tests 100%)
+
+EXIT=1
+
+## tests/intake.test.ts — run 5 of 8 (load 7.25 6.95 6.40)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  09:50:55
+   Duration  24.72s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 6 of 8 (load 7.62 7.10 6.47)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/intake.test.ts (49 tests | 2 failed) 25783ms
+   × OQ-30 an edit after the group is flagged stores the excerpt on that revision only 522ms
+   × OQ-30 an edit after the project becomes IBS HI keeps pointer and hash only 548ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/intake.test.ts > OQ-30 an edit after the group is flagged stores the excerpt on that revision only
+AssertionError: expected [ { revisionNo: 2, …(1) }, …(1) ] to deeply equal [ { revisionNo: 1, …(1) }, …(1) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "contentMode": "pointer_only",
+-     "revisionNo": 1,
+-   },
+-   {
+      "contentMode": "excerpt",
+      "revisionNo": 2,
++   },
++   {
++     "contentMode": "pointer_only",
++     "revisionNo": 1,
+    },
+  ]
+
+ ❯ tests/intake.test.ts:268:45
+    266|   expect(rows.map(r=>[r.revision_no,r.content_mode,r.text_excerpt])).t…
+    267|   for(const r of rows) expect(r.content_hash).toMatch(HASH);
+    268|   expect(await auditModes(a.sourceEventId)).toEqual([{revisionNo:1,con…
+       |                                             ^
+    269| });
+    270|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/intake.test.ts > OQ-30 an edit after the project becomes IBS HI keeps pointer and hash only
+AssertionError: expected [ { revisionNo: 2, …(1) }, …(1) ] to deeply equal [ { revisionNo: 1, …(1) }, …(1) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "contentMode": "excerpt",
+-     "revisionNo": 1,
+-   },
+-   {
+      "contentMode": "pointer_only",
+      "revisionNo": 2,
++   },
++   {
++     "contentMode": "excerpt",
++     "revisionNo": 1,
+    },
+  ]
+
+ ❯ tests/intake.test.ts:290:45
+    288|   const rows=await modeRows(a.sourceEventId);
+    289|   expect(rows.map(r=>[r.revision_no,r.content_mode,r.text_excerpt])).t…
+    290|   expect(await auditModes(a.sourceEventId)).toEqual([{revisionNo:1,con…
+       |                                             ^
+    291| });
+    292|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 47 passed (49)
+   Start at  09:51:20
+   Duration  25.89s (tests 100%)
+
+EXIT=1
+
+## tests/intake.test.ts — run 7 of 8 (load 9.45 7.57 6.66)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Start at  09:51:47
+   Duration  25.16s (tests 100%)
+
+EXIT=0
+
+## tests/intake.test.ts — run 8 of 8 (load 10.97 8.06 6.86)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/intake.test.ts (49 tests | 1 failed) 25887ms
+   × OQ-30 an edit after the project becomes IBS HI keeps pointer and hash only 504ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/intake.test.ts > OQ-30 an edit after the project becomes IBS HI keeps pointer and hash only
+AssertionError: expected [ { revisionNo: 2, …(1) }, …(1) ] to deeply equal [ { revisionNo: 1, …(1) }, …(1) ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "contentMode": "excerpt",
+-     "revisionNo": 1,
+-   },
+-   {
+      "contentMode": "pointer_only",
+      "revisionNo": 2,
++   },
++   {
++     "contentMode": "excerpt",
++     "revisionNo": 1,
+    },
+  ]
+
+ ❯ tests/intake.test.ts:290:45
+    288|   const rows=await modeRows(a.sourceEventId);
+    289|   expect(rows.map(r=>[r.revision_no,r.content_mode,r.text_excerpt])).t…
+    290|   expect(await auditModes(a.sourceEventId)).toEqual([{revisionNo:1,con…
+       |                                             ^
+    291| });
+    292|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 48 passed (49)
+   Start at  09:52:13
+   Duration  26.00s (tests 100%)
+
+EXIT=1
+
+## tests/doc-approval-proposal.test.ts — run 1 of 8 (load 11.95 8.46 7.03)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  09:52:39
+   Duration  18.50s (tests 99%, transform 1%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 2 of 8 (load 10.50 8.35 7.03)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  09:52:58
+   Duration  17.94s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 3 of 8 (load 9.94 8.36 7.06)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/doc-approval-proposal.test.ts (33 tests | 1 failed) 17669ms
+   ❯ propose (32)
+     × listOwn returns the caller's own open ballots of that project to a caller who is still a member, whatever the role 529ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/doc-approval-proposal.test.ts > propose > listOwn returns the caller's own open ballots of that project to a caller who is still a member, whatever the role
+AssertionError: expected [ [ …(5) ], [ …(5) ] ] to deeply equal [ [ …(5) ], [ …(5) ] ]
+
+- Expected
++ Received
+
+  [
+    [
+-     "d723f8aa-3f8d-4473-87ea-0f928832342b",
++     "c08c23d8-802d-4e34-8286-399cbe34a007",
+      "pending",
+-     "14000000-0000-4000-8000-000000000002",
++     "14000000-0000-4000-8000-000000000003",
+      "11000000-0000-4000-8000-000000000001",
+      false,
+    ],
+    [
+-     "c08c23d8-802d-4e34-8286-399cbe34a007",
++     "d723f8aa-3f8d-4473-87ea-0f928832342b",
+      "pending",
+-     "14000000-0000-4000-8000-000000000003",
++     "14000000-0000-4000-8000-000000000002",
+      "11000000-0000-4000-8000-000000000001",
+      false,
+    ],
+  ]
+
+ ❯ tests/doc-approval-proposal.test.ts:492:83
+    490|     const ofSales=async(p:Principal=w.coordinator)=>(await w.proposals…
+    491|     let listed=await ofSales();
+    492|     expect(listed.map(x=>[x.approvalId,x.state,x.userId,x.projectId,x.…
+       |                                                                                   ^
+    493|       [a.approvalId,'pending',w.subject.id,S,false],[b.approvalId,'pen…
+    494|     expect(listed[0].addedTypes).toEqual(['design']);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 32 passed (33)
+   Start at  09:53:17
+   Duration  17.80s (tests 100%)
+
+EXIT=1
+
+## tests/doc-approval-proposal.test.ts — run 4 of 8 (load 9.04 8.24 7.04)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  09:53:35
+   Duration  17.89s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 5 of 8 (load 9.22 8.33 7.10)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  09:53:53
+   Duration  17.32s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 6 of 8 (load 9.16 8.37 7.13)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  09:54:11
+   Duration  17.64s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 7 of 8 (load 9.80 8.56 7.23)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  09:54:29
+   Duration  18.08s (tests 100%)
+
+EXIT=0
+
+## tests/doc-approval-proposal.test.ts — run 8 of 8 (load 9.47 8.58 7.27)
+
+ RUN  v5.1.0 <repo>
+
+
+ Test Files  1 passed (1)
+      Tests  33 passed (33)
+   Start at  09:54:49
+   Duration  17.68s (tests 100%)
+
+EXIT=0
+
+## tests/document-review.test.ts — run 1 of 8 (load 9.19 8.60 7.31)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/document-review.test.ts (32 tests | 2 failed) 16944ms
+   ❯ document review comments (4)
+     × comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters 544ms
+   ❯ a closed thread takes no follow-up (3)
+     × the flags of detail() and the answers of comment() agree for every state of a thread 529ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(3) }
+(6 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "actorId": "14000000-0000-4000-8000-000000000002",
+-   "anchor": "",
+-   "kind": "addressed",
+-   "parentId": "e5281e7a-b02f-4b16-a869-349fe468570d",
++   "actorId": "14000000-0000-4000-8000-000000000003",
++   "anchor": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
++   "kind": "comment",
++   "parentId": null,
+  }
+
+ ❯ tests/document-review.test.ts:433:30
+    431|   const a1=await comment(member,w.docId,{kind:'addressed',parentId:roo…
+    432|   const a2=await comment(pm,w.docId,{kind:'addressed',parentId:rootId,…
+    433|   expect(a1.comments.at(-1)).toMatchObject({kind:'addressed',parentId:…
+       |                              ^
+    434|   expect(a2.comments.at(-1)).toMatchObject({kind:'addressed',actorId:p…
+    435|   // resolved: the writer of the root comment, or a holder of an autho…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+AssertionError: open/14000000-0000-4000-8000-000000000002/resolved: expected [ 'APPROVER_NOT_AUTHORIZED', …(1) ] to include 'SCOPE_DENIED'
+ ❯ tests/document-review.test.ts:669:109
+    667|    const out=await comment(p,w.docId,{kind,parentId:root.id,body:'Thử …
+    668|    const label=`${name}/${p.id}/${kind}`;
+    669|    if(flag) expect(out,label).toBe('ok'); else expect(['APPROVER_NOT_A…
+       |                                                                                                             ^
+    670|    if(name==='resolved') {
+    671|     expect(flag,label).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 30 passed (32)
+   Start at  09:55:07
+   Duration  17.08s (tests 99%)
+
+EXIT=1
+
+## tests/document-review.test.ts — run 2 of 8 (load 8.11 8.39 7.25)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/document-review.test.ts (32 tests | 3 failed) 16911ms
+   ❯ document review comments (4)
+     × comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters 516ms
+     × a reply is stored on the revision of the comment it answers 511ms
+   ❯ a closed thread takes no follow-up (3)
+     × the flags of detail() and the answers of comment() agree for every state of a thread 522ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(1) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "actorId": "14000000-0000-4000-8000-000000000001",
++   "actorId": "14000000-0000-4000-8000-000000000002",
+    "kind": "addressed",
+  }
+
+ ❯ tests/document-review.test.ts:434:30
+    432|   const a2=await comment(pm,w.docId,{kind:'addressed',parentId:rootId,…
+    433|   expect(a1.comments.at(-1)).toMatchObject({kind:'addressed',parentId:…
+    434|   expect(a2.comments.at(-1)).toMatchObject({kind:'addressed',actorId:p…
+       |                              ^
+    435|   // resolved: the writer of the root comment, or a holder of an autho…
+    436|   await refused(comment(member,w.docId,{kind:'resolved',parentId:rootI…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > a reply is stored on the revision of the comment it answers
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(1) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "kind": "addressed",
++   "kind": "comment",
+    "revisionId": "e19d36b6-cd8d-47e2-984c-1001b214a5e7",
+  }
+
+ ❯ tests/document-review.test.ts:461:33
+    459|   await proposeRev(h,member,await docOf(w.docId));
+    460|   const reply=await comment(member,w.docId,{kind:'addressed',parentId:…
+    461|   expect(reply.comments.at(-1)).toMatchObject({kind:'addressed',revisi…
+       |                                 ^
+    462|   expect((await rows<{document_revision_id:string}>("SELECT document_r…
+    463|   const replyId=reply.comments.at(-1)!.id;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+AssertionError: open/14000000-0000-4000-8000-000000000001/addressed: expected [ 'APPROVER_NOT_AUTHORIZED', …(1) ] to include 'SCOPE_DENIED'
+ ❯ tests/document-review.test.ts:669:109
+    667|    const out=await comment(p,w.docId,{kind,parentId:root.id,body:'Thử …
+    668|    const label=`${name}/${p.id}/${kind}`;
+    669|    if(flag) expect(out,label).toBe('ok'); else expect(['APPROVER_NOT_A…
+       |                                                                                                             ^
+    670|    if(name==='resolved') {
+    671|     expect(flag,label).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 29 passed (32)
+   Start at  09:55:25
+   Duration  17.02s (tests 100%)
+
+EXIT=1
+
+## tests/document-review.test.ts — run 3 of 8 (load 8.18 8.41 7.29)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/document-review.test.ts (32 tests | 2 failed) 17115ms
+   ❯ document review comments (4)
+     × comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters 516ms
+   ❯ a closed thread takes no follow-up (3)
+     × the flags of detail() and the answers of comment() agree for every state of a thread 540ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(1) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "actorId": "14000000-0000-4000-8000-000000000001",
++   "actorId": "14000000-0000-4000-8000-000000000002",
+    "kind": "addressed",
+  }
+
+ ❯ tests/document-review.test.ts:434:30
+    432|   const a2=await comment(pm,w.docId,{kind:'addressed',parentId:rootId,…
+    433|   expect(a1.comments.at(-1)).toMatchObject({kind:'addressed',parentId:…
+    434|   expect(a2.comments.at(-1)).toMatchObject({kind:'addressed',actorId:p…
+       |                              ^
+    435|   // resolved: the writer of the root comment, or a holder of an autho…
+    436|   await refused(comment(member,w.docId,{kind:'resolved',parentId:rootI…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+Error: Nhận xét này đã được xác nhận xử lý xong.
+ ❯ closedThread src/server/document-review.ts:119:28
+    117| /** The one rule for «this thread is closed», used by `detail()` (the …
+    118| export const threadClosed = (replyKinds: readonly string[]): boolean =…
+    119| const closedThread = () => new AppError('COMMENT_RESOLVED', 'Nhận xét …
+       |                            ^
+    120|
+    121| /** The caller's authority in one project, read inside the transaction…
+ ❯ src/server/document-review.ts:266:44
+ ❯ claimDocumentCommand src/server/document-commands.ts:25:18
+ ❯ src/server/document-review.ts:247:7
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 30 passed (32)
+   Start at  09:55:43
+   Duration  17.23s (tests 100%)
+
+EXIT=1
+
+## tests/document-review.test.ts — run 4 of 8 (load 7.53 8.26 7.25)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/document-review.test.ts (32 tests | 2 failed) 17266ms
+   ❯ document review comments (4)
+     × comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters 602ms
+   ❯ a closed thread takes no follow-up (3)
+     × the flags of detail() and the answers of comment() agree for every state of a thread 567ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(3) }
+(6 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "actorId": "14000000-0000-4000-8000-000000000002",
+-   "anchor": "",
+-   "kind": "addressed",
+-   "parentId": "7b93c862-995a-48f1-843f-a9ce28332faf",
++   "actorId": "14000000-0000-4000-8000-000000000003",
++   "anchor": "Mục 1",
++   "kind": "comment",
++   "parentId": null,
+  }
+
+ ❯ tests/document-review.test.ts:433:30
+    431|   const a1=await comment(member,w.docId,{kind:'addressed',parentId:roo…
+    432|   const a2=await comment(pm,w.docId,{kind:'addressed',parentId:rootId,…
+    433|   expect(a1.comments.at(-1)).toMatchObject({kind:'addressed',parentId:…
+       |                              ^
+    434|   expect(a2.comments.at(-1)).toMatchObject({kind:'addressed',actorId:p…
+    435|   // resolved: the writer of the root comment, or a holder of an autho…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+Error: Nhận xét này đã được xác nhận xử lý xong.
+ ❯ closedThread src/server/document-review.ts:119:28
+    117| /** The one rule for «this thread is closed», used by `detail()` (the …
+    118| export const threadClosed = (replyKinds: readonly string[]): boolean =…
+    119| const closedThread = () => new AppError('COMMENT_RESOLVED', 'Nhận xét …
+       |                            ^
+    120|
+    121| /** The caller's authority in one project, read inside the transaction…
+ ❯ src/server/document-review.ts:266:44
+ ❯ claimDocumentCommand src/server/document-commands.ts:25:18
+ ❯ src/server/document-review.ts:247:7
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 30 passed (32)
+   Start at  09:56:01
+   Duration  17.38s (tests 100%)
+
+EXIT=1
+
+## tests/document-review.test.ts — run 5 of 8 (load 6.83 8.05 7.20)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/document-review.test.ts (32 tests | 3 failed) 16699ms
+   ❯ document review comments (4)
+     × comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters 523ms
+     × a reply is stored on the revision of the comment it answers 511ms
+   ❯ a closed thread takes no follow-up (3)
+     × the flags of detail() and the answers of comment() agree for every state of a thread 544ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(3) }
+(6 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "actorId": "14000000-0000-4000-8000-000000000002",
+-   "anchor": "",
+-   "kind": "addressed",
+-   "parentId": "67c91651-7428-4142-85cb-d40b50030876",
++   "actorId": "14000000-0000-4000-8000-000000000003",
++   "anchor": "Mục 1",
++   "kind": "comment",
++   "parentId": null,
+  }
+
+ ❯ tests/document-review.test.ts:433:30
+    431|   const a1=await comment(member,w.docId,{kind:'addressed',parentId:roo…
+    432|   const a2=await comment(pm,w.docId,{kind:'addressed',parentId:rootId,…
+    433|   expect(a1.comments.at(-1)).toMatchObject({kind:'addressed',parentId:…
+       |                              ^
+    434|   expect(a2.comments.at(-1)).toMatchObject({kind:'addressed',actorId:p…
+    435|   // resolved: the writer of the root comment, or a holder of an autho…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > a reply is stored on the revision of the comment it answers
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(1) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "kind": "addressed",
++   "kind": "comment",
+    "revisionId": "6e19b3c9-6f5e-4759-83d8-0eda20c850d1",
+  }
+
+ ❯ tests/document-review.test.ts:461:33
+    459|   await proposeRev(h,member,await docOf(w.docId));
+    460|   const reply=await comment(member,w.docId,{kind:'addressed',parentId:…
+    461|   expect(reply.comments.at(-1)).toMatchObject({kind:'addressed',revisi…
+       |                                 ^
+    462|   expect((await rows<{document_revision_id:string}>("SELECT document_r…
+    463|   const replyId=reply.comments.at(-1)!.id;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+Error: Nhận xét này đã được xác nhận xử lý xong.
+ ❯ closedThread src/server/document-review.ts:119:28
+    117| /** The one rule for «this thread is closed», used by `detail()` (the …
+    118| export const threadClosed = (replyKinds: readonly string[]): boolean =…
+    119| const closedThread = () => new AppError('COMMENT_RESOLVED', 'Nhận xét …
+       |                            ^
+    120|
+    121| /** The caller's authority in one project, read inside the transaction…
+ ❯ src/server/document-review.ts:266:44
+ ❯ claimDocumentCommand src/server/document-commands.ts:25:18
+ ❯ src/server/document-review.ts:247:7
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 29 passed (32)
+   Start at  09:56:20
+   Duration  16.81s (tests 100%)
+
+EXIT=1
+
+## tests/document-review.test.ts — run 6 of 8 (load 6.98 8.00 7.20)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/document-review.test.ts (32 tests | 2 failed) 16846ms
+   ❯ document review comments (4)
+     × a reply is stored on the revision of the comment it answers 514ms
+   ❯ a closed thread takes no follow-up (3)
+     × the flags of detail() and the answers of comment() agree for every state of a thread 520ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > a reply is stored on the revision of the comment it answers
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(1) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "kind": "addressed",
++   "kind": "comment",
+    "revisionId": "2b54238a-67aa-4d39-b89e-fecb6861cf3d",
+  }
+
+ ❯ tests/document-review.test.ts:461:33
+    459|   await proposeRev(h,member,await docOf(w.docId));
+    460|   const reply=await comment(member,w.docId,{kind:'addressed',parentId:…
+    461|   expect(reply.comments.at(-1)).toMatchObject({kind:'addressed',revisi…
+       |                                 ^
+    462|   expect((await rows<{document_revision_id:string}>("SELECT document_r…
+    463|   const replyId=reply.comments.at(-1)!.id;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+AssertionError: open/14000000-0000-4000-8000-000000000002/resolved: expected [ 'APPROVER_NOT_AUTHORIZED', …(1) ] to include 'SCOPE_DENIED'
+ ❯ tests/document-review.test.ts:669:109
+    667|    const out=await comment(p,w.docId,{kind,parentId:root.id,body:'Thử …
+    668|    const label=`${name}/${p.id}/${kind}`;
+    669|    if(flag) expect(out,label).toBe('ok'); else expect(['APPROVER_NOT_A…
+       |                                                                                                             ^
+    670|    if(name==='resolved') {
+    671|     expect(flag,label).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 30 passed (32)
+   Start at  09:56:37
+   Duration  16.96s (tests 100%)
+
+EXIT=1
+
+## tests/document-review.test.ts — run 7 of 8 (load 7.21 8.00 7.21)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/document-review.test.ts (32 tests | 3 failed) 16930ms
+   ❯ document review comments (4)
+     × comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters 521ms
+     × a reply is stored on the revision of the comment it answers 516ms
+   ❯ a closed thread takes no follow-up (3)
+     × the flags of detail() and the answers of comment() agree for every state of a thread 538ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(3) }
+(6 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "actorId": "14000000-0000-4000-8000-000000000002",
+-   "anchor": "",
+-   "kind": "addressed",
+-   "parentId": "8675646c-30c0-40cf-91d3-c1de1bf11508",
++   "actorId": "14000000-0000-4000-8000-000000000003",
++   "anchor": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
++   "kind": "comment",
++   "parentId": null,
+  }
+
+ ❯ tests/document-review.test.ts:433:30
+    431|   const a1=await comment(member,w.docId,{kind:'addressed',parentId:roo…
+    432|   const a2=await comment(pm,w.docId,{kind:'addressed',parentId:rootId,…
+    433|   expect(a1.comments.at(-1)).toMatchObject({kind:'addressed',parentId:…
+       |                              ^
+    434|   expect(a2.comments.at(-1)).toMatchObject({kind:'addressed',actorId:p…
+    435|   // resolved: the writer of the root comment, or a holder of an autho…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > a reply is stored on the revision of the comment it answers
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(1) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "kind": "addressed",
++   "kind": "comment",
+    "revisionId": "237c44c1-36ff-4e10-855d-eaa30212d49e",
+  }
+
+ ❯ tests/document-review.test.ts:461:33
+    459|   await proposeRev(h,member,await docOf(w.docId));
+    460|   const reply=await comment(member,w.docId,{kind:'addressed',parentId:…
+    461|   expect(reply.comments.at(-1)).toMatchObject({kind:'addressed',revisi…
+       |                                 ^
+    462|   expect((await rows<{document_revision_id:string}>("SELECT document_r…
+    463|   const replyId=reply.comments.at(-1)!.id;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+AssertionError: open/14000000-0000-4000-8000-000000000001/addressed: expected [ 'APPROVER_NOT_AUTHORIZED', …(1) ] to include 'SCOPE_DENIED'
+ ❯ tests/document-review.test.ts:669:109
+    667|    const out=await comment(p,w.docId,{kind,parentId:root.id,body:'Thử …
+    668|    const label=`${name}/${p.id}/${kind}`;
+    669|    if(flag) expect(out,label).toBe('ok'); else expect(['APPROVER_NOT_A…
+       |                                                                                                             ^
+    670|    if(name==='resolved') {
+    671|     expect(flag,label).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 29 passed (32)
+   Start at  09:56:55
+   Duration  17.04s (tests 100%)
+
+EXIT=1
+
+## tests/document-review.test.ts — run 8 of 8 (load 6.22 7.72 7.13)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/document-review.test.ts (32 tests | 3 failed) 16646ms
+   ❯ document review comments (4)
+     × comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters 513ms
+     × a reply is stored on the revision of the comment it answers 511ms
+   ❯ a closed thread takes no follow-up (3)
+     × the flags of detail() and the answers of comment() agree for every state of a thread 535ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(3) }
+(6 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "actorId": "14000000-0000-4000-8000-000000000002",
+-   "anchor": "",
+-   "kind": "addressed",
+-   "parentId": "5bfa8871-979f-4e89-a024-e5aebd9f25c8",
++   "actorId": "14000000-0000-4000-8000-000000000003",
++   "anchor": "Mục 1",
++   "kind": "comment",
++   "parentId": null,
+  }
+
+ ❯ tests/document-review.test.ts:433:30
+    431|   const a1=await comment(member,w.docId,{kind:'addressed',parentId:roo…
+    432|   const a2=await comment(pm,w.docId,{kind:'addressed',parentId:rootId,…
+    433|   expect(a1.comments.at(-1)).toMatchObject({kind:'addressed',parentId:…
+       |                              ^
+    434|   expect(a2.comments.at(-1)).toMatchObject({kind:'addressed',actorId:p…
+    435|   // resolved: the writer of the root comment, or a holder of an autho…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/document-review.test.ts > document review comments > a reply is stored on the revision of the comment it answers
+AssertionError: expected { …(10) } to match object { kind: 'addressed', …(1) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "kind": "addressed",
++   "kind": "comment",
+    "revisionId": "6afa8463-b2ef-4840-83d8-5121b7bc856f",
+  }
+
+ ❯ tests/document-review.test.ts:461:33
+    459|   await proposeRev(h,member,await docOf(w.docId));
+    460|   const reply=await comment(member,w.docId,{kind:'addressed',parentId:…
+    461|   expect(reply.comments.at(-1)).toMatchObject({kind:'addressed',revisi…
+       |                                 ^
+    462|   expect((await rows<{document_revision_id:string}>("SELECT document_r…
+    463|   const replyId=reply.comments.at(-1)!.id;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+Error: Nhận xét này đã được xác nhận xử lý xong.
+ ❯ closedThread src/server/document-review.ts:119:28
+    117| /** The one rule for «this thread is closed», used by `detail()` (the …
+    118| export const threadClosed = (replyKinds: readonly string[]): boolean =…
+    119| const closedThread = () => new AppError('COMMENT_RESOLVED', 'Nhận xét …
+       |                            ^
+    120|
+    121| /** The caller's authority in one project, read inside the transaction…
+ ❯ src/server/document-review.ts:266:44
+ ❯ claimDocumentCommand src/server/document-commands.ts:25:18
+ ❯ src/server/document-review.ts:247:7
+ ❯ node_modules/@electric-sql/pglite/src/base.ts:515:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 29 passed (32)
+   Start at  09:57:13
+   Duration  16.75s (tests 100%)
+
+EXIT=1

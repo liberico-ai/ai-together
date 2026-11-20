@@ -1,0 +1,58 @@
+# Summary of red-held-clock-before.txt (test files unchanged at 8c70088, clock held, eight runs per file).
+# Made with grep/sort/uniq from that file; nothing here is typed by hand except these three comment lines.
+# A case fails only in the runs where the random row ids of its tied rows fall the wrong way, so a count below 8 is expected.
+
+## runs and their totals
+## tests/intake.test.ts — run 1 of 8 | Tests  1 failed | 48 passed (49) | EXIT=1
+## tests/intake.test.ts — run 2 of 8 | Tests  49 passed (49) | EXIT=0
+## tests/intake.test.ts — run 3 of 8 | Tests  1 failed | 48 passed (49) | EXIT=1
+## tests/intake.test.ts — run 4 of 8 | Tests  1 failed | 48 passed (49) | EXIT=1
+## tests/intake.test.ts — run 5 of 8 | Tests  49 passed (49) | EXIT=0
+## tests/intake.test.ts — run 6 of 8 | Tests  2 failed | 47 passed (49) | EXIT=1
+## tests/intake.test.ts — run 7 of 8 | Tests  49 passed (49) | EXIT=0
+## tests/intake.test.ts — run 8 of 8 | Tests  1 failed | 48 passed (49) | EXIT=1
+## tests/doc-approval-proposal.test.ts — run 1 of 8 | Tests  33 passed (33) | EXIT=0
+## tests/doc-approval-proposal.test.ts — run 2 of 8 | Tests  33 passed (33) | EXIT=0
+## tests/doc-approval-proposal.test.ts — run 3 of 8 | Tests  1 failed | 32 passed (33) | EXIT=1
+## tests/doc-approval-proposal.test.ts — run 4 of 8 | Tests  33 passed (33) | EXIT=0
+## tests/doc-approval-proposal.test.ts — run 5 of 8 | Tests  33 passed (33) | EXIT=0
+## tests/doc-approval-proposal.test.ts — run 6 of 8 | Tests  33 passed (33) | EXIT=0
+## tests/doc-approval-proposal.test.ts — run 7 of 8 | Tests  33 passed (33) | EXIT=0
+## tests/doc-approval-proposal.test.ts — run 8 of 8 | Tests  33 passed (33) | EXIT=0
+## tests/document-review.test.ts — run 1 of 8 | Tests  2 failed | 30 passed (32) | EXIT=1
+## tests/document-review.test.ts — run 2 of 8 | Tests  3 failed | 29 passed (32) | EXIT=1
+## tests/document-review.test.ts — run 3 of 8 | Tests  2 failed | 30 passed (32) | EXIT=1
+## tests/document-review.test.ts — run 4 of 8 | Tests  2 failed | 30 passed (32) | EXIT=1
+## tests/document-review.test.ts — run 5 of 8 | Tests  3 failed | 29 passed (32) | EXIT=1
+## tests/document-review.test.ts — run 6 of 8 | Tests  2 failed | 30 passed (32) | EXIT=1
+## tests/document-review.test.ts — run 7 of 8 | Tests  3 failed | 29 passed (32) | EXIT=1
+## tests/document-review.test.ts — run 8 of 8 | Tests  3 failed | 29 passed (32) | EXIT=1
+
+## failing cases: number of runs (of 8) in which each failed
+   1 tests/doc-approval-proposal.test.ts > propose > listOwn returns the caller's own open ballots of that project to a caller who is still a member, whatever the role
+   8 tests/document-review.test.ts > a closed thread takes no follow-up > the flags of detail() and the answers of comment() agree for every state of a thread
+   5 tests/document-review.test.ts > document review comments > a reply is stored on the revision of the comment it answers
+   7 tests/document-review.test.ts > document review comments > comments are tied to the latest revision; addressed and resolved follow their roles; bodies keep markup as plain text and reject 2001 characters
+   4 tests/intake.test.ts > OQ-30 an edit after the group is flagged stores the excerpt on that revision only
+   2 tests/intake.test.ts > OQ-30 an edit after the project becomes IBS HI keeps pointer and hash only
+
+## where they failed (file:line:column of the test file, number of times)
+   1 tests/doc-approval-proposal.test.ts:492:83
+   5 tests/document-review.test.ts:433:30
+   2 tests/document-review.test.ts:434:30
+   5 tests/document-review.test.ts:461:33
+   4 tests/document-review.test.ts:669:109
+   4 tests/intake.test.ts:268:45
+   2 tests/intake.test.ts:290:45
+
+## first lines of the failures, number of times
+   1 AssertionError: expected [ [ …(5) ], [ …(5) ] ] to deeply equal [ [ …(5) ], [ …(5) ] ]
+   6 AssertionError: expected [ { revisionNo: 2, …(1) }, …(1) ] to deeply equal [ { revisionNo: 1, …(1) }, …(1) ]
+   7 AssertionError: expected { …(10) } to match object { kind: 'addressed', …(1) }
+   5 AssertionError: expected { …(10) } to match object { kind: 'addressed', …(3) }
+   2 AssertionError: open/<person 01>/addressed: expected [ 'APPROVER_NOT_AUTHORIZED', …(1) ] to include 'SCOPE_DENIED'
+   2 AssertionError: open/<person 02>/resolved: expected [ 'APPROVER_NOT_AUTHORIZED', …(1) ] to include 'SCOPE_DENIED'
+   4 Error: Nhận xét này đã được xác nhận xử lý xong.
+
+## hygiene
+AssertionError lines: 23; other Error lines: 4; timeouts or closed database: 0; runs stopped by the time limit: 0; leftover workers removed: 0
