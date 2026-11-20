@@ -41,6 +41,7 @@ becomes IBS HI keeps pointer and hash only». The helper is one function, so the
 | `green-pglite.txt` | `npx vitest run`, PGlite: 67 files passed, 13 skipped; 1288 cases passed, 118 skipped; exit 0 |
 | `typecheck.txt`, `build.txt` | `npm run typecheck` exit 0; `rm -rf .next && npm run build` exit 0 |
 | `green-native.txt` | PostgreSQL 16.15, a throwaway container: the three files, 3 times each, 9 of 9 pass |
+| `green-pglite-on-52b1e84.txt` | The integration branch moved to `52b1e84` (PR 28) after this branch was cut. A local trial merge, never pushed: no conflict; `npx vitest run` 68 files passed, 14 skipped; 1311 cases passed, 136 skipped; exit 0; typecheck exit 0 |
 
 ## Limits
 
@@ -48,4 +49,6 @@ becomes IBS HI keeps pointer and hash only». The helper is one function, so the
   (case 2 failed in 1 run of 8). «Green after» is 0 failures in the same 24 runs.
 - The PostgreSQL 16 run used a throwaway container of this session, not `libetech-slice1-pg`, with only `SLICE1_TEST_DATABASE_URL` set: no separate
   restricted web login. The whole suite was not run on PostgreSQL 16.
+- On the trial merge with `52b1e84` the suite and the typecheck were run; the build, the held-clock runs and the PostgreSQL 16 run were not repeated
+  (that merge touches none of the three files, none of their fixtures and nothing under `src/server`).
 - Only these three files were run with the clock held. Other cases of the suite may have the same assumption.
