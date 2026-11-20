@@ -1,0 +1,45 @@
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/session-timeouts.test.ts > the application reads the idle-transaction timeout back with SHOW (PGlite and native) > a session without the timeout is refused with a fixed sentence, and nothing about the database is in it 469ms
+ ✓ tests/session-timeouts.test.ts > the application reads the idle-transaction timeout back with SHOW (PGlite and native) > 30 seconds is accepted; one millisecond over it is refused; 1 ms is accepted 367ms
+ ✓ tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > every pool the application builds starts its sessions with the timeout, and SHOW says so 15ms
+ ✓ tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > a role-level default of 0 does not switch it off: a fresh session of the same login sees 0, the pool sees 30 seconds 14ms
+stderr | tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > the holder is ended by the server, the waiting session gets the lock, nothing stops, and the caller gets the error of its own code, not one of the rollback
+{"level":"error","event":"db_session_ended","sqlstate":"25P03"}
+
+ ✓ tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > the holder is ended by the server, the waiting session gets the lock, nothing stops, and the caller gets the error of its own code, not one of the rollback 2011ms
+stderr | tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > a statement that the holder sends on the ended session fails with an error at once, it does not hang
+{"level":"error","event":"db_session_ended","sqlstate":"25P03"}
+
+ ✓ tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > a statement that the holder sends on the ended session fails with an error at once, it does not hang 2010ms
+stderr | tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > the pool is usable after a session was ended: the dead connection is dropped, not handed out again
+{"level":"error","event":"db_session_ended","sqlstate":"25P03"}
+
+ ✓ tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > the pool is usable after a session was ended: the dead connection is dropped, not handed out again 2526ms
+ ✓ tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > a transaction that keeps working is not cut: the timeout counts idle time, not total time 2430ms
+ ✓ tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > the listener that transaction() puts on a connection is taken off again: fifteen transactions on one pool raise no warning about listeners 77ms
+ ✓ tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > an idle pooled connection that the server ends does not stop the process, and the pool opens another one 74ms
+ ✓ tests/session-timeouts.test.ts > a held transaction ends by itself (native PostgreSQL) > the transaction that ended a session logs one fixed event with the SQLSTATE of the cause and nothing else 1510ms
+ ✓ tests/session-timeouts.test.ts > the pool of a restricted login reads the timeout back before it serves (native PostgreSQL, web login) > a pool whose sessions do not end an idle transaction is refused with the fixed sentence; the same login with the default is served 34ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C1 a database from before 023 with four old revisions: ready, with the counts, and 023 then runs and numbers all four 474ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C2 after 023 the revisions a trigger numbered are counted as numbered: ready, nothing to number, and applying 023 again runs 290ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C3 more unnumbered revisions than the cap: blocked with PRE-023-02 and the cap it read, and 023 refuses with its own words; at the cap it is ready and 023 runs 332ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C4 an undecided candidate draft while revisions have no number: blocked with PRE-023-03, 023 refuses; once decided it is ready and 023 runs; with every revision numbered it is not a reason 327ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C5 not a superuser: blocked with PRE-023-01 and nothing else read, not even a cap that is not a number (a login that cannot apply 023 reads only what it was given) 288ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C6 the file reads and writes nothing: it runs in a read-only transaction, and carries no statement that writes 280ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C7 the answer holds counts, booleans and fixed codes only: no id, chat, thread key, role or database name 307ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C8 a second run changes nothing and answers the same (the answer's timeouts are those of the session, which the case does not change) 283ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C9 the answer says the timeouts of the session that ran it, so the one that applies 023 is known: a session with statement_timeout 10 s says so 327ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C10 a cap that is not a number, for a superuser: the file stops with PRE-023-99 and the SQLSTATE, and the message does not carry the value 284ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C11 revisions that carry no number on a database that has 023 (a revision stored while the trigger was off): counted, ready, and 023 numbers it 292ms
+ ✓ tests/pre-023-check.test.ts > the count before 023 answers what 023 would answer > C12 the answer that stands in the session from an earlier run is not read as the answer of this one: the statement that answers needs the nonce of this run 280ms
+ ✓ tests/pre-023-check.test.ts > a database that is not at 023's starting point, and a session that is split > C13 an empty database: blocked with PRE-023-98 and no count; the work block alone, without the statement that sets the nonce, stops with PRE-023-97 800ms
+ ✓ tests/pre-023-check.test.ts > the count sees the other sessions of the database (native PostgreSQL) > C14 a login that can act as libetech_ai is connected: blocked with PRE-023-04, and 023 refuses; when it is gone, ready 303ms
+ ✓ tests/pre-023-check.test.ts > the count sees the other sessions of the database (native PostgreSQL) > C15 a session idle in a transaction that holds no conflicting lock is not a warning (it cannot make 023 wait); a writer in flight is, and 023 does wait for it 310ms
+
+ Test Files  2 passed (2)
+      Tests  27 passed (27)
+   Start at  12:50:39
+   Duration  16.90s (tests 100%)
+

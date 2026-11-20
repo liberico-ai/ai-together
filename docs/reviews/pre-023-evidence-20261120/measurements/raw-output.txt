@@ -1,0 +1,8 @@
+# raw output, PostgreSQL 16.15 (loopback test container, synthetic data); scripts beside this file read the connection string from SLICE1_TEST_DATABASE_URL
+## nolistener.cjs  (idle_in_transaction_session_timeout=500 ms, no 'error' listener on the checked-out client: the code before this change)
+UNCAUGHT (process would stop): 25P03 terminating connection due to idle-in-transaction timeout
+## oldrollback.cjs  (the old transaction() catch: a bare ROLLBACK on the ended connection; what the caller would get instead of its own error)
+old code: caller would get: Client has encountered a connection error and is not queryab
+## tablelock.cjs  (a session holds SHARE ROW EXCLUSIVE on public.source_event_revisions; an INSERT waits for the table lock under (a) statement_timeout only, (b) lock_timeout only)
+statement_timeout 1 s, no lock_timeout -> 57014 after 1 s
+lock_timeout 1 s -> 55P03 after 1 s
