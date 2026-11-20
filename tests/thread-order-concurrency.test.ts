@@ -162,6 +162,7 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
       ['two rows, INSERT … SELECT',`${REV} SELECT $1::uuid,v.p,v.e,2,v.k,$2::text,'pointer_only' FROM (VALUES($3::uuid,$4::uuid,$5::text),($6::uuid,$7::uuid,$8::text)) v(p,e,k)`,[ids.tenant,hex('8'),ids.sales,sales,hex('7'),ids.transport,transport,hex('6')]],
     ];
     const answers:{name:string;message:string;code?:string}[]=[];
+    const refusedAndRolledBack=new Error('the refused statement ends its transaction');
     const positionsBefore=await count('source_revision_positions');
     let waiting=-1;
     // the thread of the other project and the thread in scope are both held by writers that have not committed (these callbacks run inside their transactions)
@@ -170,10 +171,14 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
       await h.operator.transaction(async holderB=>{
         await writeIn(holderB,chatSales,mine.thread,'9112');
         for(const [name,sql,params] of forms){
+          // A refused statement aborts its transaction. This callback used to swallow the error and return, and COMMIT of the aborted transaction answered ROLLBACK without an error; that now
+          // rejects (TransactionNotCommittedError). So the rollback this case means is made explicit: record the answer, end the transaction by throwing, and take that throw here.
+          // A statement that is NOT refused is stored and committed as before, so the count of numbers below still shows it.
           await asIntake([ids.sales],async tx=>{
             const e=await tx.query(sql,params).then(()=>null,x=>x as Error&{code?:string});
             answers.push({name,message:e?.message??'stored',code:e?.code});
-          });
+            if(e) throw refusedAndRolledBack;
+          }).catch(x=>{if(x!==refusedAndRolledBack) throw x;});
         }
         // nobody waited for a lock while the answers were given
         waiting=(await q<{n:number}>("SELECT count(*)::int n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock'"))[0].n;

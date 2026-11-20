@@ -1,4 +1,4 @@
-import { PGlite } from '@electric-sql/pglite';
+import { PGlite, TransactionAbortedError } from '@electric-sql/pglite';
 import { Pool, type PoolClient } from 'pg';
 import { readFile, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -6,10 +6,29 @@ import type { Principal } from './types';
 import { AppError } from './errors';
 export interface Queryable { query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[] }> }
 export interface Database extends Queryable { transaction<T>(fn: (tx: Queryable) => Promise<T>): Promise<T>; close(): Promise<void> }
+/**
+ * The transaction ended in ROLLBACK although the callback returned: a statement inside it failed, the callback caught the error and went on, and COMMIT of an aborted transaction is
+ * answered with the command ROLLBACK and no error. Nothing was written, so the caller must not see a success. The sentence is fixed: it carries nothing the database said (no table,
+ * no constraint, no SQLSTATE), because it ends up in logs and in answers.
+ */
+export class TransactionNotCommittedError extends Error {
+  constructor() { super('The transaction was rolled back and nothing was written.'); this.name = 'TransactionNotCommittedError'; }
+}
+/** PGlite as a Database. PGlite notices a COMMIT that answered ROLLBACK itself and throws its own error; the caller gets the same fixed error as from the pooled database. */
+export function pgliteDatabase(pg: PGlite): Database {
+  return {
+    query: (sql, params) => pg.query(sql, params),
+    async transaction(fn) {
+      try { return await pg.transaction(tx => fn({ query: (sql, params) => tx.query(sql, params) })); }
+      catch (error) { throw error instanceof TransactionAbortedError ? new TransactionNotCommittedError() : error; }
+    },
+    close: () => pg.close(),
+  };
+}
 export async function embeddedDatabase(dataDir?: string): Promise<Database> {
   const pg = await PGlite.create(dataDir);
   for (const file of (await readdir(path.join(process.cwd(),'migrations'))).filter(f=>/^\d+.*\.sql$/.test(f)).sort()) await pg.exec(await readFile(path.join(process.cwd(),'migrations',file),'utf8'));
-  return { query: (sql, params) => pg.query(sql, params), transaction: fn => pg.transaction(tx => fn({ query: (sql, params) => tx.query(sql, params) })), close: () => pg.close() };
+  return pgliteDatabase(pg);
 }
 /**
  * Refuses a login that owns tables, holds an elevated attribute, can reach more than one of the application roles, or can reach
@@ -60,9 +79,19 @@ export function pooledDatabase(url: string, requireRestricted=false, options: { 
       let broken: Error | undefined;
       const onError = (e: Error) => { broken ??= e; };
       client.on('error', onError);
-      try { await client.query('BEGIN'); const result = await fn(queryOn(client)); await client.query('COMMIT'); return result; }
+      // COMMIT of an aborted transaction raises no error: the server answers with the command ROLLBACK. That happens when a statement of the callback failed and the callback caught the error and
+      // returned. Nothing was written, so the caller gets a fixed error and not the callback's value. The session is idle again after that answer, so it goes back to the pool (no second ROLLBACK).
+      let open = true;
+      try {
+        await client.query('BEGIN');
+        const result = await fn(queryOn(client));
+        const committed = await client.query('COMMIT');
+        open = false;
+        if (committed.command !== 'COMMIT') throw new TransactionNotCommittedError();
+        return result;
+      }
       catch (error) {
-        try { if (!broken) await client.query('ROLLBACK'); } catch (rollbackError) { broken ??= rollbackError as Error; }
+        try { if (!broken && open) await client.query('ROLLBACK'); } catch (rollbackError) { broken ??= rollbackError as Error; }
         throw error;
       } finally {
         client.removeListener('error', onError);

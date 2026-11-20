@@ -1,0 +1,24 @@
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N5 the intake role scoped to another project is answered at once while the thread is held
+TransactionNotCommittedError: The transaction was rolled back and nothing was written.
+ ❯ Object.transaction src/server/db.ts:90:51
+     88|         const committed = await client.query('COMMIT');
+     89|         open = false;
+     90|         if (committed.command !== 'COMMIT') throw new TransactionNotCo…
+       |                                                   ^
+     91|         return result;
+     92|       }
+ ❯ tests/thread-order-concurrency.test.ts:173:11
+ ❯ Object.transaction src/server/db.ts:87:24
+ ❯ tests/thread-order-concurrency.test.ts:170:7
+ ❯ Object.transaction src/server/db.ts:87:24
+ ❯ tests/thread-order-concurrency.test.ts:168:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 83 passed | 1 skipped (85)
+      Tests  1 failed | 1465 passed | 17 skipped (1483)
+   Start at  17:36:53
+   Duration  507.00s (tests 99%, import 1%)
