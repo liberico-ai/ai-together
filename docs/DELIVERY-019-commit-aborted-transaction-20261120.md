@@ -1,6 +1,6 @@
 # Giao dịch đã huỷ không được báo «thành công» — `COMMIT` trả `ROLLBACK` không lỗi · 20/11/2026
 
-PR riêng vào `libetech-ai-os` (không vào `main`; số PR ghi ở roadmap). Việc này là phát hiện **P3 (có từ trước)** của review bảo mật tầng 1 cho PR #31 (N1–N3), ghi ở `docs/DELIVERY-018-pre-023-n1-n3-20261120.md` (bảng «Review», dòng P3 thứ hai) và ở `docs/RUNBOOK-PRE-023-N1-N3.md` mục 1, việc còn lại (b): «một lần ghi có thể thành công mà không ghi gì». Làm sau khi PR #31 đã merge (`a4a3542`); xây trên bản `transaction()` của #31.
+PR riêng vào `libetech-ai-os` (không vào `main`): [liberico-ai/ai-together#32](https://github.com/liberico-ai/ai-together/pull/32). Việc này là phát hiện **P3 (có từ trước)** của review bảo mật tầng 1 cho PR #31 (N1–N3), ghi ở `docs/DELIVERY-018-pre-023-n1-n3-20261120.md` (bảng «Review», dòng P3 thứ hai) và ở `docs/RUNBOOK-PRE-023-N1-N3.md` mục 1, việc còn lại (b): «một lần ghi có thể thành công mà không ghi gì». Làm sau khi PR #31 đã merge (`a4a3542`); xây trên bản `transaction()` của #31.
 
 **Z4 chưa bật và không được bật bởi PR này. 022 và 023 chưa áp ở đâu ngoài CSDL thử. Không triển khai d1-ai1, không chạm gateway thật, không chạy gì trên dữ liệu thật, không gửi tin vào nhóm thật.**
 
