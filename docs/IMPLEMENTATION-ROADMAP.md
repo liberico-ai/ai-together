@@ -148,3 +148,8 @@ Foundation tập trung vào nghiệp vụ LibeTech. Khi nối thông báo thật
 - SSO/MFA nếu tổ chức chọn, kiểm thử xâm nhập độc lập và kiểm thử tải.
 
 Các hạng mục này được giao theo lát và có điều kiện nghiệm thu riêng.
+
+## Bản phát hành 0.8.0 và 0.9.0 (ghi 22/11/2026)
+
+- **0.8.0 chạy production từ 18/11/2026.** Nguồn: giao việc của Cowork điều phối ngày 22/11/2026 và `docs/DEPLOY-004-pm-intake-hotfix-20261118.md` (Codex ghi ngày 18/11/2026: «AI OS web release remains `0.8.0-8e0e5c41163b`», cầu nối 0.3.2). Bản đó dựng từ nhánh `codex/libetech-pm-release-20261118` (gốc `4f12a3c`, migration tới 021), không qua `libetech-ai-os`. Phiên điều phối không vào được d1-ai1 nên không kiểm độc lập điều này.
+- **0.9.0 hợp nhất bản đang chạy vào `libetech-ai-os`.** Bảy commit của nhánh trên được cherry-pick đúng thứ tự (hai commit docs cuối gộp làm một vì commit giữa mang một chat id thật); web 0.9.0, cầu nối giữ 0.3.2. So với 0.8.0, bản này thêm toàn bộ việc đã merge vào `libetech-ai-os` sau `4f12a3c`, trong đó có migration **022** và **023**. Căn cứ: chỉ đạo của Chairman ngày 22/11/2026 08:10, chép nguyên: «Không cần thử, các dự án đang chạy có thể sửa. Chạy chính là thử nghiệm. Bạn xem lại phương án đi, golive và merge luôn và thử trên thực tế». Biên nhận: `docs/DELIVERY-020-release-0.9.0-20261122.md`.
