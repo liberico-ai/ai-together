@@ -1,0 +1,18 @@
+
+ RUN  v5.1.0 <repo>
+
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ Test Files  85 passed (85)
+      Tests  1495 passed (1495)
+   Start at  21:21:20
+   Duration  514.81s (tests 99%, import 1%)
+

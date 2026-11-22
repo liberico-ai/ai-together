@@ -1,0 +1,153 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/post-restore.test.ts (30 tests | 6 failed | 1 skipped) 15001ms
+   ❯ the state that a restore leaves, and the repair (17)
+     × P4 a revision that has no number does not stop the file: it is counted in the answer, its thread stays held, nothing is numbered, and the trigger is put back 570ms
+     × P4e the kind of the archive is required: none, or one that the file does not know, stops it at 01 before anything is repaired 539ms
+     × P4f an archive of before 023 that still has a revision without a number after 023 was applied again is refused at 05, and the trigger is left as it was; the same revision is only counted for an archive of after 023 549ms
+     × P4g an archive of before 023 whose revisions all have a number passes with kind pre-023, and the answer says which kind it was told 540ms
+   ❯ the file itself (3)
+     × P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data 459ms
+   ❯ a database before 023 (1)
+     × P14 on a schema that has no 023 the checks of 023 are left out, the rest runs, and the answer says so (a backup taken before 023 is rehearsed into schema 022) 540ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4 a revision that has no number does not stop the file: it is counted in the answer, its thread stays held, nothing is numbered, and the trigger is put back
+AssertionError: expected { post_restore: 'pass', …(8) } to match object { post_restore: 'pass', …(6) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+@@ -1,7 +1,6 @@
+  {
+-   "archive_kind": "post-023",
+    "held_by_project": [
+      {
+        "project_no": 1,
+        "revisions": 1,
+        "threads": 1,
+
+ ❯ tests/post-restore.test.ts:175:28
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4e the kind of the archive is required: none, or one that the file does not know, stops it at 01 before anything is repaired
+AssertionError: the file must stop: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ failsWith tests/post-restore.test.ts:82:37
+     80| const failsWith=async(code:string,asRole?:string,replica=false,kind:st…
+     81|   const r=await postRestore(asRole,replica,kind);
+     82|   expect(r.ok,'the file must stop').toBe(false);
+       |                                     ^
+     83|   expect(r.ok?'':r.error).toMatch(new RegExp('^'+code));
+     84| };
+ ❯ tests/post-restore.test.ts:225:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4f an archive of before 023 that still has a revision without a number after 023 was applied again is refused at 05, and the trigger is left as it was; the same revision is only counted for an archive of after 023
+AssertionError: the file must stop: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ failsWith tests/post-restore.test.ts:82:37
+     80| const failsWith=async(code:string,asRole?:string,replica=false,kind:st…
+     81|   const r=await postRestore(asRole,replica,kind);
+     82|   expect(r.ok,'the file must stop').toBe(false);
+       |                                     ^
+     83|   expect(r.ok?'':r.error).toMatch(new RegExp('^'+code));
+     84| };
+ ❯ tests/post-restore.test.ts:234:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4g an archive of before 023 whose revisions all have a number passes with kind pre-023, and the answer says which kind it was told
+AssertionError: expected { post_restore: 'pass', …(8) } to match object { post_restore: 'pass', …(4) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "archive_kind": "pre-023",
+    "held_by_project": [],
+    "held_threads": 0,
+    "post_restore": "pass",
+    "unnumbered_revisions": 0,
+  }
+
+ ❯ tests/post-restore.test.ts:248:28
+    246|     const r=await postRestore(undefined,false,'pre-023');
+    247|     expect(r.ok,JSON.stringify(r)).toBe(true);
+    248|     expect(r.ok&&r.result).toMatchObject({post_restore:'pass',archive_…
+       |                            ^
+    249|   });
+    250|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/post-restore.test.ts > the file itself > P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data
+AssertionError: expected 3 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 3
+
+ ❯ tests/post-restore.test.ts:428:28
+    426|     const notices=[...text.matchAll(/RAISE NOTICE\s+'((?:[^']|'')*)'/g…
+    427|     // the repair of the trigger, and the count of revisions that have…
+    428|     expect(notices.length).toBe(2);
+       |                            ^
+    429|     // the file does not guess what an archive was from its data: "hel…
+    430|     for(const m of notices) expect(m,m).not.toMatch(/at the source/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  tests/post-restore.test.ts > a database before 023 > P14 on a schema that has no 023 the checks of 023 are left out, the rest runs, and the answer says so (a backup taken before 023 is rehearsed into schema 022)
+AssertionError: expected { post_restore: 'pass', …(8) } to match object { post_restore: 'pass', …(5) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+@@ -1,7 +1,6 @@
+  {
+-   "archive_kind": "pre-023",
+    "held_by_project": null,
+    "held_threads": null,
+    "post_restore": "pass",
+    "thread_order": "023 not applied",
+    "unnumbered_revisions": null,
+
+ ❯ tests/post-restore.test.ts:485:30
+    483|       const r=await postRestore(undefined,false,kind);
+    484|       expect(r.ok,JSON.stringify(r)).toBe(true);
+    485|       expect(r.ok&&r.result).toMatchObject({post_restore:'pass',thread…
+       |                              ^
+    486|     }
+    487|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 23 passed | 1 skipped (30)
+   Start at  20:20:19
+   Duration  15.14s (tests 99%)
+

@@ -1,0 +1,54 @@
+### S1 step 05 raises again (the behaviour of N4 before this change)
+      Tests  3 failed | 23 passed | 1 skipped (27)
+AssertionError lines: 3  timeouts: 0
+     × P4 a revision that has no number does not stop the file: it is
+     × P4b the count is per project, in the order of the project ids,
+     × P4c a held thread does not hide what a later check finds: with
+
+### S2 threads counted by thread key alone (chat ignored)
+      Tests  1 failed | 25 passed | 1 skipped (27)
+AssertionError lines: 1  timeouts: 0
+     × P4b the count is per project, in the order of the project ids,
+
+### S3 the project id in the per-project list
+      Tests  15 failed | 11 passed | 1 skipped (27)
+AssertionError lines: 15  timeouts: 0
+     × P1 the numbering trigger that pg_restore --disable-triggers se
+     × P10 the write that the file tries leaves no row anywhere, and 
+     × P10b a numbering trigger that has the right shape and state, w
+     × P17 two tenants and four projects that share a chat and a thre
+     × P2 a second run changes nothing: the trigger was already A, an
+     × P3 why the repair exists: at O a session with session_replicat
+     × P4 a revision that has no number does not stop the file: it is
+     × P4b the count is per project, in the order of the project ids,
+     × P4c a held thread does not hide what a later check finds: with
+     × P4d a database in which every revision has a number reports no
+     × P5 a counter row that disagrees with the numbers of its thread
+     × P5b a number that does not belong to the thread of its source 
+     × P8 a row that has no row to point at stops the file, though ev
+     × P8b a foreign key of a match type that the file does not check
+     × P9 a confirmed decision of a candidate draft that carries a po
+
+### S4 the count of revisions left out of the answer
+      Tests  5 failed | 21 passed | 1 skipped (27)
+AssertionError lines: 5  timeouts: 0
+     × P14 on a schema that has no 023 the checks of 023 are left out
+     × P2 a second run changes nothing: the trigger was already A, an
+     × P4 a revision that has no number does not stop the file: it is
+     × P4b the count is per project, in the order of the project ids,
+     × P4d a database in which every revision has a number reports no
+
+### S5 a database without 023 answers zero, not null
+      Tests  1 failed | 25 passed | 1 skipped (27)
+AssertionError lines: 1  timeouts: 0
+     × P14 on a schema that has no 023 the checks of 023 are left out
+
+### S6 no ordinal: every project is project 1
+      Tests  1 failed | 25 passed | 1 skipped (27)
+AssertionError lines: 1  timeouts: 0
+     × P4b the count is per project, in the order of the project ids,
+
+### S7 the closer notice dropped (second notice)
+      Tests  26 passed | 1 skipped (27)
+AssertionError lines: 0  timeouts: 0
+

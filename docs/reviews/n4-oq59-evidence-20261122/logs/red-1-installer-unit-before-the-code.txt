@@ -1,0 +1,504 @@
+.................................................FF.FFFFFFFFFFFFEEEEEEEEEEEEEEEEEEEEEEFEEEE.....................
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='not json', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='not json', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='a list', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='a list', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='post_restore fail', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='post_restore fail', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='023 not applied', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='023 not applied', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='no count', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='no count', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='no thread count', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='no thread count', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='negative', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='negative', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='boolean', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='boolean', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='string', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='string', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='float', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='float', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='empty', kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass) (label='empty', kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 452, in test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass
+    r=self.read_answer(kind,text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing) (kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 434, in test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing
+    r=self.read_answer(kind,json.dumps(self.OK_ANSWER));self.assertEqual((r.returncode,r.stdout,r.stderr),(0,'',''))
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing) (kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 434, in test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing
+    r=self.read_answer(kind,json.dumps(self.OK_ANSWER));self.assertEqual((r.returncode,r.stdout,r.stderr),(0,'',''))
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_many_in_counts_only (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_many_in_counts_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 436, in test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_many_in_counts_only
+    r=self.read_answer('post-023',json.dumps({**self.OK_ANSWER,'unnumbered_revisions':3,'held_threads':2,'held_by_project':[{'project_no':1,'revisions':3,'threads':2}]}))
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+ERROR: test_u12_the_root_installer_refuses_a_pre_023_archive_that_is_still_without_numbers_after_023_was_applied_again (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_refuses_a_pre_023_archive_that_is_still_without_numbers_after_023_was_applied_again)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 441, in test_u12_the_root_installer_refuses_a_pre_023_archive_that_is_still_without_numbers_after_023_was_applied_again
+    r=self.read_answer('pre-023',json.dumps({**self.OK_ANSWER,'unnumbered_revisions':3,'held_threads':2}))
+  File "<repo>/tests/test_install_user.py", line 429, in read_answer
+    return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+                                                                      ~~~~~~~~~~~~~~~~~~^^
+  File "<repo>/tests/test_install_user.py", line 426, in answer_reader
+    start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+          ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: substring not found
+
+======================================================================
+FAIL: test_u11_a_post_023_archive_whose_source_held_threads_is_restored_to_the_end_and_the_count_is_shown (tests.test_install_user.RestoreSteps.test_u11_a_post_023_archive_whose_source_held_threads_is_restored_to_the_end_and_the_count_is_shown)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 274, in test_u11_a_post_023_archive_whose_source_held_threads_is_restored_to_the_end_and_the_count_is_shown
+    for fragment in ('3 revision(s)','2 thread(s)','stay held','OQ-59','RUNBOOK-RESTORE-AFTER-023'):self.assertIn(fragment,shown)
+                                                                                                    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: '3 revision(s)' not found in ''
+
+======================================================================
+FAIL: test_u11_a_pre_023_archive_that_still_has_revisions_without_a_number_after_023_was_applied_again_is_refused (tests.test_install_user.RestoreSteps.test_u11_a_pre_023_archive_that_still_has_revisions_without_a_number_after_023_was_applied_again_is_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 283, in test_u11_a_pre_023_archive_that_still_has_revisions_without_a_number_after_023_was_applied_again_is_refused
+    with self.assertRaisesRegex(RuntimeError,'from before 023.*still have no thread number'):self.steps(self.FULL)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='no count at all', kind='nt_revisions iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='no count at all', kind='thread_heads iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='no thread count', kind='nt_revisions iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='no thread count', kind='thread_heads iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='a negative count', kind='nt_revisions iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='a negative count', kind='thread_heads iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='a boolean', kind='nt_revisions iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='a boolean', kind='thread_heads iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='a string', kind='nt_revisions iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='a string', kind='thread_heads iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='a float', kind='nt_revisions iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass (tests.test_install_user.RestoreSteps.test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass) (label='a float', kind='thread_heads iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 292, in test_u11_the_count_must_be_in_the_answer_as_whole_numbers_or_the_check_is_not_a_pass
+    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: RuntimeError not raised
+
+======================================================================
+FAIL: test_u12_the_root_installer_hands_the_reader_the_kind_and_the_last_line_of_the_answer_and_stops_the_install_when_it_fails (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_hands_the_reader_the_kind_and_the_last_line_of_the_answer_and_stops_the_install_when_it_fails)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 455, in test_u12_the_root_installer_hands_the_reader_the_kind_and_the_last_line_of_the_answer_and_stops_the_install_when_it_fails
+    self.assertRegex(text,r'answer=\$\(printf \'%s\\n\' "\$post" \| tail -n 1\)')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Regex didn't match: 'answer=\\$\\(printf \\\'%s\\\\n\\\' "\\$post" \\| tail -n 1\\)' not found in 'set -euo pipefail\numask 077\n[[ $(id -u) == 0 ]] || { echo \'Run this reviewed installer with sudo on d1-ai1.\' >&2; exit 1; }\n[[ $(hostname) == d1-ai1 ]] || { echo \'Wrong host; expected d1-ai1.\' >&2; exit 1; }\nbundle=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)\ndump=${1:?Provide the private pilot data archive as the first argument}\n[[ -f "$dump" && ! -L "$dump" ]] || { echo \'Missing regular pilot archive.\' >&2; exit 1; }\n[[ ! -e /opt/libetech-ai-os && ! -e /var/lib/libetech-ai-os && ! -e /etc/libetech-ai-os ]] || { echo \'Existing installation found. Use a reviewed upgrade, never overwrite it.\' >&2; exit 1; }\n[[ ! -e /home/iptech/.hermes/profiles/libetech/plugins/libetech-ai-os-bridge ]] || { echo \'Bridge already exists; reconcile before installing.\' >&2; exit 1; }\nnode_source=/home/iptech/.hermes/tools/node-26.12.1-linux-x64\n[[ -x "$node_source/bin/node" && -f "$node_source/lib/node_modules/npm/bin/npm-cli.js" ]] || { echo \'Verified Node distribution is missing; stop for review.\' >&2; exit 1; }\nif ss -ltnH | awk \'{print $4}\' | grep -Eq \':(3148|5547)$\'; then echo \'A target port is occupied; stop for review.\' >&2; exit 1; fi\nrelease_sha=${LIBETECH_BUNDLE_TREE_SHA256:-}\n[[ "$release_sha" =~ ^[0-9a-f]{64}$ ]] || { echo \'Pass the digest of the release (64 lowercase hex digits; the sourceTree that scripts/package-release.py printed) as LIBETECH_BUNDLE_TREE_SHA256.\' >&2; exit 1; }\nwork=$(mktemp -d /root/.libetech-restore.XXXXXX)\nheld="$work/archive.dump"\nsnap="$work/bundle"\ntrap \'rm -f "$held"; rm -rf -- "$snap"; rmdir "$work" 2>/dev/null || true\' EXIT\ncheck_bundle() {\n python3 -I - "$1" <<\'PY\'\nimport hashlib,json,os,sys\nroot=os.path.realpath(sys.argv[1])\nmanifest=json.load(open(root+"/deploy/BUNDLE-MANIFEST.json"))\nfiles=manifest["files"]\ntree=hashlib.sha256(json.dumps(files,sort_keys=True,separators=(",",":")).encode()).hexdigest()\nif tree!=manifest["treeSha256"]:sys.exit("manifest digest mismatch")\nfor name,expected in files.items():\n    path=os.path.join(root,name)\n    if os.path.islink(path) or not os.path.realpath(path).startswith(root+os.sep) or not os.path.isfile(path):sys.exit("invalid bundle path")\n    if hashlib.sha256(open(path,"rb").read()).hexdigest()!=expected:sys.exit("bundle content mismatch")\npresent=set()\nfor directory,dirs,names in os.walk(root):\n    for d in dirs:\n        if os.path.islink(os.path.join(directory,d)) or d=="__pycache__":sys.exit("symlinked directory or bytecode cache in bundle")\n    for n in names:\n        path=os.path.join(directory,n)\n        if os.path.islink(path) or n.endswith((".pyc",".pyo")):sys.exit("symlink or bytecode in bundle")\n        present.add(os.path.relpath(path,root))\nif present-(set(files)|{"deploy/BUNDLE-MANIFEST.json","docs/SOURCE-MANIFEST.json"}):sys.exit("unlisted file in bundle")\nfor need in ("deploy/pre-restore.sql","deploy/post-restore.sql","deploy/restore-plan.py","migrations/023_thread_order.sql"):\n    if need not in files:sys.exit("restore file not listed")\nprint(tree)\nPY\n}\nmkdir "$snap"\ncp -a "$bundle/." "$snap/"\ntree=$(check_bundle "$snap") || { echo \'The bundle does not pass the checks of the installer (manifest, hashes, unlisted files, restore files); package the release again. Nothing was installed.\' >&2; exit 1; }\n[[ "$tree" == "$release_sha" ]] || { echo \'The bundle is not the release that LIBETECH_BUNDLE_TREE_SHA256 names; nothing was installed.\' >&2; exit 1; }\npython3 "$snap/deploy/provision-server.py" --preflight\narchive_sha=${LIBETECH_ARCHIVE_SHA256:-}\n[[ "$archive_sha" =~ ^[0-9a-f]{64}$ ]] || { echo \'Pass the SHA-256 (64 lowercase hex digits) recorded when the archive was made as LIBETECH_ARCHIVE_SHA256.\' >&2; exit 1; }\ncat -- "$dump" > "$held"\n[[ $(sha256sum "$held" | cut -d\' \' -f1) == "$archive_sha" ]] || { echo \'The archive does not match LIBETECH_ARCHIVE_SHA256; nothing was loaded.\' >&2; exit 1; }\nif ! command -v pg_createcluster >/dev/null; then\n apt-get update\n DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql\nfi\nmajor=$(pg_lsclusters -h | awk \'{print $1}\' | sort -nu | tail -1)\n[[ "$major" =~ ^[0-9]+$ && "$major" -ge 16 ]] || { echo \'PostgreSQL 16 or newer is required.\' >&2; exit 1; }\nif pg_lsclusters -h | awk \'{print $2}\' | grep -qx \'libetech-ai-os\'; then echo \'Cluster already exists; stop for review.\' >&2; exit 1; fi\ngetent passwd libetech-os >/dev/null || useradd --system --home-dir /var/lib/libetech-ai-os --shell /usr/sbin/nologin libetech-os\ninstall -d -o root -g root -m 755 /opt/libetech-ai-os\ninstall -d -o libetech-os -g libetech-os -m 700 /var/lib/libetech-ai-os\ninstall -d -o root -g root -m 700 /etc/libetech-ai-os\ncp -a "$node_source" /opt/libetech-ai-os/node\ninstall -d -o libetech-os -g libetech-os -m 755 /opt/libetech-ai-os/app\ncp -a "$snap/." /opt/libetech-ai-os/app/\nchown -R libetech-os:libetech-os /opt/libetech-ai-os/app\nrunuser -u libetech-os -- env PATH=/opt/libetech-ai-os/node/bin:/usr/bin:/bin bash -c \'cd /opt/libetech-ai-os/app && npm ci --ignore-scripts && npm run build\'\nchown -R root:root /opt/libetech-ai-os/app /opt/libetech-ai-os/node\nchmod -R a+rX /opt/libetech-ai-os/app /opt/libetech-ai-os/node\nchmod -R go-w /opt/libetech-ai-os/app /opt/libetech-ai-os/node\npg_createcluster "$major" libetech-ai-os --port 5547 --start\nrunuser -u postgres -- createdb -p 5547 libetech_ai_os\nfor migration in "$snap"/migrations/*.sql; do\n runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -p 5547 -d libetech_ai_os < "$migration"\ndone\ntables_sql=$(python3 -I "$snap/deploy/restore-plan.py" --tables-sql)\ntables=$(runuser -u postgres -- psql -X -q -At -p 5547 -d libetech_ai_os -c "$tables_sql")\n[[ -n "$tables_sql" && -n "$tables" ]] || { echo \'The tables of the target could not be read; nothing was checked and nothing was loaded.\' >&2; exit 1; }\nkind=$(runuser -u postgres -- pg_restore --list < "$held" | python3 -I "$snap/deploy/restore-plan.py" --tables "$tables")\nrunuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never -p 5547 -d libetech_ai_os < "$snap/deploy/pre-restore.sql"\nrestore_args=$(python3 -I "$snap/deploy/restore-plan.py" --pg-restore-args)\nfor flag in --exit-on-error --single-transaction --data-only --no-owner --disable-triggers; do\n [[ " $restore_args " == *" $flag "* ]] || { echo \'The arguments of the load are not whole; nothing was loaded.\' >&2; exit 1; }\ndone\nread -ra restore_args <<< "$restore_args"\nif ! runuser -u postgres -- pg_restore "${restore_args[@]}" -p 5547 -d libetech_ai_os < "$held" 2> "$work/restore.err"; then\n echo "The load failed and was rolled back. Its message can quote a row, so it is not shown: it is in $work/restore.err (root only). Read it on this server; do not paste it anywhere." >&2; exit 1\nfi\nif [[ "$kind" == pre-023 ]]; then\n positions=$(runuser -u postgres -- psql -X -q -At -p 5547 -d libetech_ai_os -c "$(python3 -I "$snap/deploy/restore-plan.py" --pre-023-check-sql)")\n [[ "$positions" == 0 ]] || { echo \'The archive carries thread positions but not the number tables, or they could not be counted; do not go on with it.\' >&2; exit 1; }\n runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never -p 5547 -d libetech_ai_os < "$snap/migrations/023_thread_order.sql"\nfi\npost=$(runuser -u postgres -- psql -X -q -At -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never -p 5547 -d libetech_ai_os < "$snap/deploy/post-restore.sql")\nprintf \'%s\\n\' "$post" | tail -n 1 | python3 -I -c \'import json,sys; a=json.loads(sys.stdin.read()); sys.exit(0 if a.get("post_restore")=="pass" and a.get("thread_order")=="checked" else 1)\' \\\n || { echo \'The post-restore check did not pass; nothing was started. See docs/RUNBOOK-RESTORE-AFTER-023.md.\' >&2; exit 1; }\nrm -f "$held" "$work/restore.err"\npython3 "$snap/deploy/provision-server.py"\ninstall -m 644 "$snap/deploy/libetech-ai-os.service" /etc/systemd/system/libetech-ai-os.service\nsystemctl daemon-reload\nsystemctl enable --now libetech-ai-os.service\ncurl --fail --retry 10 --retry-delay 1 --retry-connrefused --silent http://127.0.0.1:3148/api/health\necho\necho \'Backend is private on 127.0.0.1:3148. Existing gateway was not restarted.\'\necho \'Installing the independent bridge through the standard Hermes scanner; answer any scanner consent prompt yourself.\'\nrunuser -u iptech -- env HERMES_HOME=/home/iptech/.hermes/profiles/libetech /home/iptech/.local/bin/hermes plugins install /opt/libetech-ai-os/app/bot-plugin\necho \'Record the activation receipt. If it requests a shared gateway restart, stop for explicit approval.\''
+
+----------------------------------------------------------------------
+Ran 79 tests in 0.482s
+
+FAILED (failures=15, errors=26)

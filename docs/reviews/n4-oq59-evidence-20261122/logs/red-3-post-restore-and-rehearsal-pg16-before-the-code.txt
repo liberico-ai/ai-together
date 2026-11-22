@@ -1,0 +1,213 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/restore-rehearsal.test.ts (17 tests | 2 failed) 12388ms
+   ❯ N4 restore rehearsal with the real pg_dump and pg_restore (17)
+     ❯ the restore after N4, from the archive of a post-023 database (8)
+       × R8 a database restored with a revision that has no number: the file passes and reports it, the thread stays as the source had it (no number is made up), and the database takes new intake 918ms
+     ❯ an archive taken before 023 (F0 and D2 of the plan) (5)
+       × R10 loaded with --disable-triggers, numbered by applying 023 again, checked by the file: every revision has a number, and the numbers are the ones that an in-place upgrade of the source gives 424ms
+ ❯ tests/post-restore.test.ts (27 tests | 7 failed) 12637ms
+   ❯ the state that a restore leaves, and the repair (14)
+     × P2 a second run changes nothing: the trigger was already A, and no table gains or loses a row 615ms
+     × P4 a revision that has no number does not stop the file: it is counted in the answer, its thread stays held, nothing is numbered, and the trigger is put back 498ms
+     × P4b the count is per project, in the order of the project ids, with an ordinal and no id; a thread is counted once however many of its revisions have no number 462ms
+     × P4c a held thread does not hide what a later check finds: with a revision that has no number, a counter row that disagrees (06) and a row with nothing to point at (09) still stop the file 446ms
+     × P4d a database in which every revision has a number reports none held: the count is a zero and an empty list, not an absence 521ms
+   ❯ the file itself (3)
+     × P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data 281ms
+   ❯ a database before 023 (1)
+     × P14 on a schema that has no 023 the checks of 023 are left out, the rest runs, and the answer says so (a backup taken before 023 is rehearsed into schema 022) 447ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P2 a second run changes nothing: the trigger was already A, and no table gains or loses a row
+AssertionError: expected { post_restore: 'pass', …(5) } to match object { post_restore: 'pass', …(5) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "held_by_project": [],
+-   "held_threads": 0,
+    "numbering_trigger_was": "A",
+    "post_restore": "pass",
+    "thread_order": "checked",
+-   "unnumbered_revisions": 0,
+  }
+
+ ❯ tests/post-restore.test.ts:139:38
+    137|     const first=await postRestore();expect(first.ok,JSON.stringify(fir…
+    138|     const second=await postRestore();
+    139|     expect(second.ok&&second.result).toMatchObject({post_restore:'pass…
+       |                                      ^
+    140|     expect(await counts()).toEqual(before);
+    141|     expect(await numbering()).toBe('A');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4 a revision that has no number does not stop the file: it is counted in the answer, its thread stays held, nothing is numbered, and the trigger is put back
+AssertionError: {"ok":false,"error":"POST-RESTORE-05 1 revision(s) have no thread number; their threads stay held (DELIVERY-016 N15, OQ-59); see docs/RUNBOOK-RESTORE-AFTER-023.md section 7"}: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/post-restore.test.ts:168:36
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4b the count is per project, in the order of the project ids, with an ordinal and no id; a thread is counted once however many of its revisions have no number
+AssertionError: {"ok":false,"error":"POST-RESTORE-05 5 revision(s) have no thread number; their threads stay held (DELIVERY-016 N15, OQ-59); see docs/RUNBOOK-RESTORE-AFTER-023.md section 7"}: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/post-restore.test.ts:190:36
+    188|     const ordered=[...mine.keys()].sort();
+    189|     const r=await postRestore();
+    190|     expect(r.ok,JSON.stringify(r)).toBe(true);
+       |                                    ^
+    191|     expect(r.ok&&r.result).toMatchObject({post_restore:'pass',unnumber…
+    192|       held_by_project:ordered.map((p,i)=>({project_no:i+1,...mine.get(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4c a held thread does not hide what a later check finds: with a revision that has no number, a counter row that disagrees (06) and a row with nothing to point at (09) still stop the file
+AssertionError: the held thread alone passes: {"ok":false,"error":"POST-RESTORE-05 1 revision(s) have no thread number; their threads stay held (DELIVERY-016 N15, OQ-59); see docs/RUNBOOK-RESTORE-AFTER-023.md section 7"}: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/post-restore.test.ts:200:100
+    198|     const {thread}=await someThreads();
+    199|     await unnumberedRevision(ids.sales,thread);
+    200|     const ok=await postRestore();expect(ok.ok,'the held thread alone p…
+       |                                                                                                    ^
+    201|     await q('UPDATE intake_thread_heads SET last_seq = last_seq + 3');
+    202|     await failsWith('POST-RESTORE-06');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4d a database in which every revision has a number reports none held: the count is a zero and an empty list, not an absence
+AssertionError: expected { post_restore: 'pass', …(5) } to match object { unnumbered_revisions: +0, …(2) }
+(6 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "held_by_project": [],
+-   "held_threads": 0,
+-   "unnumbered_revisions": 0,
++   "foreign_keys": 106,
++   "numbering_trigger_was": "A",
++   "post_restore": "pass",
++   "revisions": 4,
++   "thread_order": "checked",
++   "threads": 2,
+  }
+
+ ❯ tests/post-restore.test.ts:214:28
+    212|     const r=await postRestore();
+    213|     expect(r.ok,JSON.stringify(r)).toBe(true);
+    214|     expect(r.ok&&r.result).toMatchObject({unnumbered_revisions:0,held_…
+       |                            ^
+    215|   });
+    216|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  tests/post-restore.test.ts > the file itself > P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data
+AssertionError: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ tests/post-restore.test.ts:387:28
+    385|     const notices=[...text.matchAll(/RAISE NOTICE\s+'((?:[^']|'')*)'/g…
+    386|     // the repair of the trigger, and the count of revisions that have…
+    387|     expect(notices.length).toBe(2);
+       |                            ^
+    388|     for(const m of notices) expect(m,m).not.toMatch(/POST-RESTORE|PRE-…
+    389|     for(const m of [...messages,...notices]) expect(m,m).not.toMatch(/…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  tests/post-restore.test.ts > a database before 023 > P14 on a schema that has no 023 the checks of 023 are left out, the rest runs, and the answer says so (a backup taken before 023 is rehearsed into schema 022)
+AssertionError: expected { post_restore: 'pass', …(5) } to match object { post_restore: 'pass', …(4) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "held_by_project": null,
+-   "held_threads": null,
+    "post_restore": "pass",
+    "thread_order": "023 not applied",
+-   "unnumbered_revisions": null,
+  }
+
+ ❯ tests/post-restore.test.ts:440:28
+    438|     const r=await postRestore();
+    439|     expect(r.ok,JSON.stringify(r)).toBe(true);
+    440|     expect(r.ok&&r.result).toMatchObject({post_restore:'pass',thread_o…
+       |                            ^
+    441|   });
+    442| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > the restore after N4, from the archive of a post-023 database > R8 a database restored with a revision that has no number: the file passes and reports it, the thread stays as the source had it (no number is made up), and the database takes new intake
+AssertionError: NOTICE:  the numbering trigger stood at O and is put back to A (kept only if every check that follows passes): expected 3 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 3
+
+ ❯ tests/restore-rehearsal.test.ts:342:35
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R10 loaded with --disable-triggers, numbered by applying 023 again, checked by the file: every revision has a number, and the numbers are the ones that an in-place upgrade of the source gives
+AssertionError: NOTICE:  the numbering trigger stood at O and is put back to A (kept only if every check that follows passes): expected 3 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 3
+
+ ❯ tests/restore-rehearsal.test.ts:385:43
+    383|       expect((await target.db.query<{n:number}>('SELECT count(*)::int …
+    384|       const early=await psqlFile(target.name,await postRestoreSql());
+    385|       expect(early.code,first(early.err)).toBe(0);
+       |                                           ^
+    386|       expect(answer(early)).toMatchObject({post_restore:'pass',unnumbe…
+    387|       // an archive from before 023 carries no position: the numbering…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  9 failed | 35 passed (44)
+   Start at  19:58:40
+   Duration  25.26s (tests 100%)
+

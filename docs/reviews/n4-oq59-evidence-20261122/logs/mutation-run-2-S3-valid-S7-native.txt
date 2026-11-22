@@ -1,0 +1,11 @@
+### S3 the project id in the per-project list (valid form: the column is exposed by the subquery)
+      Tests  2 failed | 24 passed | 1 skipped (27)
+AssertionError lines: 2  timeouts: 0
+     × P4 a revision that has no number does not stop the file: it is
+     × P4b the count is per project, in the order of the project ids,
+
+### S7 the closer notice dropped (native rehearsal)
+      Tests  1 failed | 16 passed (17)
+AssertionError lines: 1  timeouts: 0
+       × R10 loaded with --disable-triggers, numbered by applying 023
+

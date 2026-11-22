@@ -1,0 +1,59 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/restore-rehearsal.test.ts (17 tests | 1 failed) 8895ms
+   ❯ N4 restore rehearsal with the real pg_dump and pg_restore (17)
+     ❯ an archive taken before 023 (F0 and D2 of the plan) (5)
+       × R10 loaded with --disable-triggers, numbered by applying 023 again, checked by the file: every revision has a number, and the numbers are the ones that an in-place upgrade of the source gives 370ms
+ ❯ tests/post-restore.test.ts (27 tests | 1 failed) 9300ms
+   ❯ the file itself (3)
+     × P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data 272ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/post-restore.test.ts > the file itself > P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data
+AssertionError: expected 2 to be 3 // Object.is equality
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ tests/post-restore.test.ts:390:28
+    388|     // the repair of the trigger, the count of revisions that have no …
+    389|     // case that no revision has a number at all (an archive of before…
+    390|     expect(notices.length).toBe(3);
+       |                            ^
+    391|     // "held as at the source" is not true of an archive from before 0…
+    392|     for(const m of notices) expect(m,m).not.toMatch(/at the source/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/restore-rehearsal.test.ts > N4 restore rehearsal with the real pg_dump and pg_restore > an archive taken before 023 (F0 and D2 of the plan) > R10 loaded with --disable-triggers, numbered by applying 023 again, checked by the file: every revision has a number, and the numbers are the ones that an in-place upgrade of the source gives
+AssertionError: expected 'NOTICE:  the numbering trigger stood …' to match /no revision has a number/
+
+- Expected:
+/no revision has a number/
+
++ Received:
+"NOTICE:  the numbering trigger stood at O and is put back to A (kept only if every check that follows passes)
+NOTICE:  6 revision(s) in 2 thread(s) have no thread number; those threads stay held as they were at the source and nothing here numbers them (OQ-59 (b) (1); docs/RUNBOOK-RESTORE-AFTER-023.md section 7)
+"
+
+ ❯ tests/restore-rehearsal.test.ts:399:25
+    397|       expect(answer(early)).toMatchObject({post_restore:'pass',unnumbe…
+    398|       // and it says what such an answer usually means: no revision at…
+    399|       expect(early.err).toMatch(/no revision has a number/);
+       |                         ^
+    400|       // an archive from before 023 carries no position: the numbering…
+    401|       expect(Number((await planQuery('--pre-023-check-sql',target.name…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 42 passed (44)
+   Start at  20:10:12
+   Duration  18.44s (tests 99%)
+

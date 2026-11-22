@@ -1,0 +1,34 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/post-restore.test.ts (31 tests | 1 failed | 1 skipped) 15338ms
+   ❯ the state that a restore leaves, and the repair (18)
+     × P4h a default of the database that gives the kind does not count as being told it: the file refuses with the kind, and without 474ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4h a default of the database that gives the kind does not count as being told it: the file refuses with the kind, and without
+AssertionError: kind null: expected 'POST-RESTORE-01 give the kind of the …' to match /^POST-RESTORE-01 a default of the dat…/
+
+- Expected:
+/^POST-RESTORE-01 a default of the database or of a role gives the kind/
+
++ Received:
+"POST-RESTORE-01 give the kind of the archive first: SET libetech.archive_kind = 'post-023' or 'pre-023', the word that deploy/restore-plan.py printed for it"
+
+ ❯ tests/post-restore.test.ts:241:62
+    239|       const r=await postRestore(undefined,false,kind);
+    240|       expect(r.ok,`kind ${JSON.stringify(kind)}: the file must stop`).…
+    241|       expect(r.ok?'':r.error,`kind ${JSON.stringify(kind)}`).toMatch(/…
+       |                                                              ^
+    242|     }
+    243|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 29 passed | 1 skipped (31)
+   Start at  20:30:38
+   Duration  15.46s (tests 100%)
+

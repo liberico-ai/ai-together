@@ -1,0 +1,10 @@
+### N1 a total over the projects, under a name that no blacklist knows, joins the answer
+      Tests  1 failed | 32 passed | 1 skipped (34)
+AssertionError lines: 1  timeouts: 0
+     × P4i the answer has exactly these keys, so no figure can join it 
+
+### N2 the kind is asked for after the repair (PGlite: source-order test only)
+      Tests  1 failed | 32 passed | 1 skipped (34)
+AssertionError lines: 1  timeouts: 0
+     × P12c the file asks for the kind of the archive, and refuses a de
+

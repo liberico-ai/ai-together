@@ -1,0 +1,69 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/post-restore.test.ts (32 tests | 3 failed | 1 skipped) 15775ms
+   ❯ the state that a restore leaves, and the repair (19)
+     × P4b the count is per project, in the order of the project ids, with an ordinal and no id; a thread is counted once however many of its revisions have no number 529ms
+     × P4f an archive of before 023 that still has a revision without a number after 023 was applied again is refused at 05, and the trigger is left as it was; the same revision is only counted for an archive of after 023 479ms
+     × P4j only a default that applies to THIS session counts: a default of another role in this database does not stop the file, a default of the role that runs it does 468ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4b the count is per project, in the order of the project ids, with an ordinal and no id; a thread is counted once however many of its revisions have no number
+AssertionError: unnumbered_revisions is not a key of the answer: expected { post_restore: 'pass', …(9) } to not have property "unnumbered_revisions"
+
+- Expected:
+undefined
+
++ Received:
+6
+
+ ❯ tests/post-restore.test.ts:202:128
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4f an archive of before 023 that still has a revision without a number after 023 was applied again is refused at 05, and the trigger is left as it was; the same revision is only counted for an archive of after 023
+AssertionError: the refusal carries no count: a figure over every project is not given: expected 'POST-RESTORE-05 1 revision(s) have no…' to match /^POST-RESTORE-05 revisions have no th…/
+
+- Expected:
+/^POST-RESTORE-05 revisions have no thread number/
+
++ Received:
+"POST-RESTORE-05 1 revision(s) have no thread number although the archive is of before 023: apply migration 023 again (docs/RUNBOOK-RESTORE-AFTER-023.md section 3, step 6) before this check"
+
+ ❯ tests/post-restore.test.ts:255:88
+    253|     const r=await failsWithMessage('pre-023');
+    254|     for(const leak of [chatSales,thread,ids.tenant,ids.sales]) expect(…
+    255|     expect(r,'the refusal carries no count: a figure over every projec…
+       |                                                                                        ^
+    256|     const post=await postRestore(undefined,false,'post-023');
+    257|     expect(post.ok,JSON.stringify(post)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4j only a default that applies to THIS session counts: a default of another role in this database does not stop the file, a default of the role that runs it does
+AssertionError: a default of a role that does not run the file: {"ok":false,"error":"POST-RESTORE-01 a default of the database or of a role gives the kind of the archive; remove it: the kind is told for each run, with SET libetech.archive_kind"}: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/post-restore.test.ts:277:95
+    275|     await set('libetech_runtime');undo.push(reset('libetech_runtime'));
+    276|     const other=await postRestore();
+    277|     expect(other.ok,'a default of a role that does not run the file: '…
+       |                                                                                               ^
+    278|     await set(me);undo.push(reset(me));
+    279|     for(const kind of [null,'post-023']){
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 28 passed | 1 skipped (32)
+   Start at  20:38:53
+   Duration  15.89s (tests 100%)
+
