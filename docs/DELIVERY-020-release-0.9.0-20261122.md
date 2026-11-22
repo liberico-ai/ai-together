@@ -99,11 +99,21 @@ Giao việc nói chỉ P0 chặn merge; P0 này được cho đi tiếp vì khô
 
 ## Bốn mức
 
-- **Đã có mã:** có — nhánh này, merge vào `libetech-ai-os` theo mục «Sau merge».
+- **Đã có mã:** có — đã merge vào `libetech-ai-os` (mục «Sau merge»).
 - **Đã triển khai:** phần 0.8.0 có, theo `DEPLOY-004` (Codex ghi). Bản 0.9.0 chưa; Codex làm.
 - **Đã dùng thật:** phần 0.8.0 có một lần nghiệm thu tiếp nhận thật (`PMTEST-084`, `DEPLOY-004`). Phần thêm của 0.9.0 (PR #22–#32, trong đó có 022, 023 và N1) chưa.
 - **Đã nghiệm thu:** chưa.
 
 ## Sau merge
 
-Điền sau merge bằng một PR docs bổ sung: commit đã merge, đường dẫn gói, băm gói. Chúng không thể nằm trong chính PR này vì gói dựng từ commit đã merge.
+Ghi ngày 22/11/2026 bằng một PR docs bổ sung (các số dưới đây không thể nằm trong chính PR phát hành, vì gói dựng từ commit đã merge). Không triển khai, không chạm d1-ai1.
+
+- **PR phát hành** [liberico-ai/ai-together#35](https://github.com/liberico-ai/ai-together/pull/35): merge `0c79878`, đầu PR `ce82dd5`, 22/11/2026 01:49 UTC (cha thứ nhất `e1a96be`). Cây của commit merge bằng cây của đầu PR.
+- **PR #34** (`hermes.libetech.vn`): merge `a60e8a1`, đầu PR `46c4828`, 22/11/2026 01:49 UTC. Bản plugin đó được kiểm ở PR #34 (đỏ rồi xanh, 15 ca), không ở PR phát hành; plugin cài qua Hermes Git admission nên không nằm trong gói.
+- **Đầu `libetech-ai-os` lúc đóng gói:** `a60e8a1`. `main` vẫn `d23e516` và nhánh mặc định vẫn `main`; không chạm.
+- **Gói:** dựng từ cây sạch của `a60e8a1` bằng `scripts/package-release.py`, trong thư mục tạm của máy phát hành (thư mục tạm có thể bị xoá khi khởi động lại; Codex lấy gói trước đó).
+  - Đường dẫn: `/private/tmp/libetech-ai-os-0.9.0-20261122.tar.gz`, 988 825 byte.
+  - **SHA-256 của gói: `dba029d38067f855cb5e921b4b65f66146960ee7d3c14b922ed706585cdf14f7`** (tính lại độc lập bằng `shasum -a 256`, trùng với số của kịch bản).
+  - `treeSha256` của manifest: `a1dcf6da8650bea394a9b9b2f7577ac13294d4ab1753d405ea0b48bfa2ec1343`; 342 tệp, hai manifest trong gói (`docs/SOURCE-MANIFEST.json`, `deploy/BUNDLE-MANIFEST.json`) giống hệt nhau. Manifest ghi `kind: source-tree-digest-not-git-commit`: nó là băm của cây nguồn, không phải mã commit.
+- **Đã kiểm lại gói** (tập lệnh Python chạy sau khi dựng): băm của từng tệp trong 342 tệp trùng manifest, và nội dung từng tệp trùng blob của `a60e8a1` (0 lệch, 0 tệp không có trong commit); `treeSha256` tính lại trùng; không có mục nào dưới `data/`; không có tên tệp dạng `.env` hay khoá; có migration 022 và 023, 11 tệp rollback, cầu nối 0.3.2, hai tệp unit outbox; không có `dashboard-plugin/`. Đây là kiểm nội dung gói, không phải kiểm gói chạy được trên d1-ai1.
+- **Việc cho Codex ở bước go-live** (đã nêu ở trên): xác nhận unit outbox là unit user hay unit hệ thống (P0 chưa xác nhận); áp 022 và 023 còn là bước riêng, chưa đo thời gian giữ khoá của 023 (ngưỡng Chairman nêu ngày 22/11/2026: dưới 500 ms) và chưa chạy `deploy/pre-023-check.sql`.
