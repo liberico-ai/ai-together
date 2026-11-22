@@ -13,8 +13,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
 router = APIRouter()
-ORIGIN = "https://hermes.btnet.vn"
-HOST = "hermes.btnet.vn"
+HOST = "hermes.libetech.vn"
+ORIGIN = f"https://{HOST}"
 EXPECTED_HOME = Path("/home/iptech/.hermes").resolve()
 BACKEND = "http://127.0.0.1:3148"
 COOKIE = "libetech_session"
