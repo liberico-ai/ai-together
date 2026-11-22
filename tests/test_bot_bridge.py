@@ -1,4 +1,8 @@
 import importlib.util
+import asyncio
+import hashlib
+import inspect
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -157,7 +161,7 @@ def fitted(number,text='Nhờ kiểm tra báo cáo tuần',**fields):
 def hook_of(home):
     _,hooks=register_with(home,register_hook=True)
     (_,hook),=hooks
-    return hook
+    return lambda *args,**kwargs: asyncio.run(hook(*args,**kwargs))
 
 def tg_event(text='Nhờ kiểm tra báo cáo tuần',source=None,**fields):
     values=dict(platform=SimpleNamespace(value='telegram'),profile='libetech',user_id=SENDER,chat_id=GROUP,chat_type='supergroup',message_id='41')
@@ -167,6 +171,58 @@ def tg_event(text='Nhờ kiểm tra báo cáo tuần',source=None,**fields):
 def take(event):
     # The hook always passes the gateway allowlist from intake.json; a direct call must name it too (T11).
     return bridge.intake_event(event,chats=[GROUP])
+
+def test_gateway_normalized_file_message_is_not_lost():
+    """Hermes MessageEvent exposes media_urls, not the draft's attachment field."""
+    event=tg_event('',media_urls=['/tmp/hermes-cached-document'],media_types=['application/pdf'],
+                   media_text_inlined=[False],raw_message=SimpleNamespace(document=SimpleNamespace(file_name='spec.pdf')))
+    assert take(event) is not None
+
+def test_gateway_telegram_fields_keep_forward_edit_album_and_addressing():
+    from datetime import datetime, timezone
+    edit=datetime(2026,11,18,4,5,6,tzinfo=timezone.utc)
+    event=tg_event('Xin kiểm tra',reply_expected=True,reply_to_is_own_message=True,
+                   raw_message=SimpleNamespace(forward_origin=object(),edit_date=edit,media_group_id='album_123'))
+    payload=take(event)
+    assert payload['addressed'] is True
+    assert payload['forwarded'] is True
+    assert payload['editedAt']=='2026-11-18T04:05:06.000Z'
+    assert payload['context']['mediaGroupId']=='album_123'
+
+def test_gateway_cached_file_is_copied_only_from_the_active_profile_cache(tmp_path):
+    from unittest.mock import patch
+    home=tmp_path/'libetech';cached=home/'cache/documents/doc_a_spec.pdf'
+    cached.parent.mkdir(parents=True)
+    cached.write_bytes(b'%PDF-1.7\nsource')
+    runtime=home/'runtime/libetech-ai-os';runtime.mkdir(parents=True)
+    event=tg_event('',media_urls=[str(cached)],media_types=['application/pdf'],
+                   raw_message=SimpleNamespace(document=SimpleNamespace(file_name='spec.pdf')))
+    with patch.object(bridge,'EXPECTED_HOME',home):
+        result=bridge.store_cached_media(home,event)
+        assert result['state']=='stored'
+        assert (runtime/'attachments'/result['sha256']).read_bytes()==b'%PDF-1.7\nsource'
+        outside=tmp_path/'outside.pdf';outside.write_bytes(b'%PDF-1.7\nsecret')
+        event.media_urls=[str(outside)]
+        assert bridge.store_cached_media(home,event)['reasonCode']=='CACHE_UNAVAILABLE'
+        linked=home/'cache/documents/doc_b_spec.pdf';linked.symlink_to(outside)
+        event.media_urls=[str(linked)]
+        assert bridge.store_cached_media(home,event)['reasonCode']=='CACHE_UNAVAILABLE'
+
+def test_gateway_file_only_event_reaches_intake_with_stable_hash():
+    from unittest.mock import patch
+    with profile_home(**HOOK_ON) as home:
+        cached=home/'cache/documents/doc_a_spec.pdf';cached.parent.mkdir(parents=True)
+        cached.write_bytes(b'%PDF-1.7\nsource')
+        event=tg_event('',media_urls=[str(cached)],media_types=['application/pdf'],
+                       raw_message=SimpleNamespace(document=SimpleNamespace(file_name='spec.pdf')))
+        _,hooks=register_with(home,register_hook=True)
+        assert inspect.iscoroutinefunction(hooks[0][1].func)
+        posted=[]
+        with patch.object(bridge,'call_backend',side_effect=lambda _home,payload,**_kw:(posted.append(payload),dict(ACK))[1]):
+            assert hook_of(home)(event=event) is None
+        assert len(posted)==1
+        assert posted[0]['attachment']['state']=='stored'
+        assert posted[0]['attachment']['sha256']==hashlib.sha256(b'%PDF-1.7\nsource').hexdigest()
 
 def encoded(payload):
     return json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode()
@@ -186,6 +242,42 @@ class FakeOpener:
     def open(self,request,timeout):
         self.requests.append(request)
         return FakeResponse(b'{"data":{"ok":true},"error":null}')
+
+def test_real_telegram_sender_preserves_topic_and_reply_anchor():
+    from unittest.mock import patch
+    class TelegramResponse:
+        def __enter__(self):return self
+        def __exit__(self,*_args):return False
+        def read(self,_limit):return b'{"ok":true,"result":{"message_id":123}}'
+    class Opener:
+        def __init__(self):self.requests=[]
+        def open(self,request,timeout):
+            self.requests.append((request,timeout));return TelegramResponse()
+    opener=Opener()
+    with patch.object(bridge.urllib.request,'build_opener',return_value=opener):
+        send=bridge.telegram_sender('123456:'+'a'*24)
+        assert send(GROUP,'55','41','Đã ghi nhận')==123
+        assert send(GROUP,'1','42','Đã ghi nhận')==123
+    first=json.loads(opener.requests[0][0].data)
+    assert first=={'chat_id':GROUP,'text':'Đã ghi nhận','disable_web_page_preview':True,
+                   'message_thread_id':55,'reply_parameters':{'message_id':41,'allow_sending_without_reply':False}}
+    second=json.loads(opener.requests[1][0].data)
+    assert 'message_thread_id' not in second
+    assert opener.requests[0][1]==25
+
+def test_outbox_worker_reads_only_the_active_private_profile_token(tmp_path):
+    from unittest.mock import patch
+    home=tmp_path/'libetech';home.mkdir()
+    env=home/'.env';env.write_text('OTHER_SECRET=not-used\nTELEGRAM_BOT_TOKEN="123456:'+('a'*24)+'"\n')
+    env.chmod(0o600)
+    (home/'runtime/libetech-ai-os').mkdir(parents=True)
+    with patch.object(bridge,'EXPECTED_HOME',home),patch.dict(bridge.os.environ,{'HERMES_HOME':str(home)}),\
+         patch.object(bridge,'drain_outbox',return_value={'ok':True}) as drain:
+        assert bridge.outbox_worker_once(home)=={'ok':True}
+        assert callable(drain.call_args.args[1])
+        env.chmod(0o644)
+        with pytest.raises(ValueError,match='RUNTIME_FILE_PERMISSIONS'):
+            bridge.outbox_worker_once(home)
 
 def delivery(outbox_id,lease,attempt=1,template='intake.received',params=None,audience='group',chat=GROUP,topic='',reply='41'):
     return {'outboxId':outbox_id,'attemptNo':attempt,'leaseToken':lease,'audience':audience,'chatId':chat,'topicId':topic,'replyToMessageId':reply,
@@ -328,6 +420,63 @@ class IntakeAdapterTests(unittest.TestCase):
         self.assertIsNone(take(tg_event(text,is_bot=True)))
         self.assertIsNone(take(None))
         self.assertIsNone(take(SimpleNamespace(text=text)))
+
+    def test_intake_recovers_sender_only_from_matching_raw_telegram_message(self):
+        raw=SimpleNamespace(chat=SimpleNamespace(id=int(GROUP)),message_id=41,
+                            from_user=SimpleNamespace(id=int(SENDER),is_bot=False),sender_chat=None,
+                            text='@LiBeAiTogetherBot PMTEST-082: ghi nhận thử')
+        event=tg_event('[Phuong|123]\nPMTEST-082: ghi nhận thử',source=dict(user_id=''),
+                       raw_message=raw,reply_expected=True)
+        payload=take(event)
+        self.assertEqual(payload['context']['telegramId'],SENDER)
+        self.assertEqual(payload['text'],raw.text)
+        self.assertEqual(payload['contentHash'],hashlib.sha256(raw.text.encode()).hexdigest())
+        self.assertTrue(payload['addressed'])
+        self.assertIsNone(take(tg_event(source=dict(user_id=''))))
+        for changed in (dict(chat=SimpleNamespace(id=-100998)),dict(message_id=42),
+                        dict(from_user=SimpleNamespace(id=int(SENDER),is_bot=True)),
+                        dict(sender_chat=SimpleNamespace(id=int(GROUP)))):
+            self.assertIsNone(take(tg_event(source=dict(user_id=''),raw_message=SimpleNamespace(**(vars(raw)|changed)))))
+        self.assertIsNone(bridge.intake_event(event,chats=['-100998']))
+
+    def test_telegram_mention_removed_by_gateway_still_queues_receipt(self):
+        mention=SimpleNamespace(type='mention')
+        raw=SimpleNamespace(chat=SimpleNamespace(id=int(GROUP)),message_id=41,
+                            from_user=SimpleNamespace(id=int(SENDER),is_bot=False),sender_chat=None,
+                            text='@LiBeAiTogetherBot PMTEST-083: ghi nhận thử',entities=[mention],
+                            caption_entities=None,reply_to_message=None,
+                            get_bot=lambda:SimpleNamespace(id=777,username='LiBeAiTogetherBot'),
+                            parse_entity=lambda entity:'@LiBeAiTogetherBot')
+        event=tg_event('PMTEST-083: ghi nhận thử',source=dict(user_id=''),raw_message=raw)
+        payload=take(event)
+        self.assertTrue(payload['addressed'])
+        self.assertEqual(payload['text'],raw.text)
+        raw.parse_entity=lambda entity:'@AnotherBot'
+        self.assertFalse(take(event)['addressed'])
+        raw.entities=[]
+        self.assertFalse(take(event)['addressed'])
+        raw.reply_to_message=SimpleNamespace(from_user=SimpleNamespace(id=777))
+        self.assertTrue(take(event)['addressed'])
+        raw.reply_to_message=None
+        raw.entities=[SimpleNamespace(type='text_mention',user=SimpleNamespace(id=777))]
+        self.assertTrue(take(event)['addressed'])
+        raw.get_bot=lambda:SimpleNamespace(id=778,username='AnotherBot')
+        self.assertFalse(take(event)['addressed'])
+        self.assertIsNone(bridge.intake_event(event,chats=['-100998']))
+
+    def test_real_telegram_message_entity_survives_gateway_cleaning(self):
+        telegram=pytest.importorskip('telegram')
+        bot=telegram.Bot('123456:synthetic-test-token')
+        bot._bot_user=telegram.User(id=777,first_name='Bot',is_bot=True,username='LiBeAiTogetherBot')
+        raw=telegram.Message(message_id=41,date=datetime.now(timezone.utc),
+                             chat=telegram.Chat(int(GROUP),'supergroup'),
+                             from_user=telegram.User(id=int(SENDER),first_name='Reporter',is_bot=False),
+                             text='😀 @LiBeAiTogetherBot PMTEST-083',
+                             entities=[telegram.MessageEntity(type='mention',offset=3,length=18)])
+        raw.set_bot(bot)
+        payload=take(tg_event('PMTEST-083',source=dict(user_id=''),raw_message=raw))
+        self.assertTrue(payload['addressed'])
+        self.assertEqual(payload['contentHash'],hashlib.sha256(raw.text.encode()).hexdigest())
 
     def test_reply_topic_album_edit_and_forward_are_carried(self):
         edited=datetime(2026,11,14,2,3,4,tzinfo=timezone.utc)
@@ -1562,7 +1711,7 @@ class IntakeAnswerTests(unittest.TestCase):
     def test_read_and_outbox_paths_answer_these_2xx_bodies_as_before_and_never_classify_them(self):
         # The intake check lives in submit_event's post; call_backend and the read, pull and receipt paths are unchanged.
         empty_pull=encoded({'data':{'deliveries':[],'reconcile':[]},'error':None})
-        cases=[(b'{"data":null,"error":null}','{"ok": true, "data": null, "bridgeVersion": "0.3.0"}','OUTBOX_RESPONSE_INVALID','RECEIPT_RESPONSE_INVALID'),
+        cases=[(b'{"data":null,"error":null}',json.dumps({'ok':True,'data':None,'bridgeVersion':bridge.VERSION}),'OUTBOX_RESPONSE_INVALID','RECEIPT_RESPONSE_INVALID'),
                (b'{}','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE'),
                (b'<html>ok</html>','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE','BRIDGE_UNAVAILABLE')]
         for body,read_answer,pull_error,receipt_error in cases:
