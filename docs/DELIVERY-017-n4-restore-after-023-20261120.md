@@ -73,7 +73,7 @@ PR riêng vào `libetech-ai-os` (không vào `main`), việc N4 của `docs/DELI
 7. Một trigger **bị gỡ** (ngoài hai trigger của 023) hay một mặc định `session_replication_role` đặt sau này không bị câu catalog của runbook mục 8 bắt; phép kiểm lúc khởi động của dịch vụ (nửa sau N12) chưa có.
 8. `pre-restore.sql` kiểm đích rỗng rồi bộ cài nạp: không có bên ghi nào giữa hai bước (cụm PostgreSQL do bộ cài vừa tạo, loopback, role web và auth chưa có mật khẩu); `install-d1.sh` cũng vậy.
 9. Tên bảng có dấu cách làm phép kiểm «bản lưu phủ mọi bảng» từ chối nhầm (không có tên như vậy; từ chối là phía an toàn).
-10. **OQ-59** (a) gỡ luồng bị giữ, (b) bản lưu sau 023 mà nguồn đã có luồng bị giữ, (c) bản lưu trước 023 có nháp ứng viên chưa quyết định: chưa có quyết định; hành vi tạm của N4 là dừng.
+10. **OQ-59** (a) gỡ luồng bị giữ, (b) bản lưu sau 023 mà nguồn đã có luồng bị giữ, (c) bản lưu trước 023 có nháp ứng viên chưa quyết định: chưa có quyết định; hành vi tạm của N4 là dừng. **Cập nhật 22/11/2026:** Chairman đã quyết (a) (1) tới khi bật Z4, (2) trước khi bật Z4; (b) (1); (c) (1) — lời chép nguyên ở khối cuối `docs/OPEN-QUESTIONS.md`. Câu (b) (1) khác hành vi của mã này (dừng ở `POST-RESTORE-05`); mã chưa đổi.
 11. **Bản lưu của lược đồ cũ hơn đích bị từ chối** (phép «phủ mọi bảng»): bản lưu pilot 08/11 (lược đồ 003) hay một bản lưu của bản đang chạy (0.7.1) vào đích 001–023 bị từ chối kèm danh sách bảng thiếu. Cách đúng: tạo đích chỉ với các migration mà nguồn đã có, phục hồi, rồi áp các migration sau tại chỗ (runbook mục 3, bước 1, và mục 5). Bản lưu thật của d1-ai1 chưa được diễn tập theo cách đó.
 12. **Phạm vi của số đo:** diễn tập dùng một bộ dữ liệu tổng hợp nhỏ (6 bản, 2 luồng, một tài liệu); chưa đo thời gian ở khối lượng thật; ví dụ `FOR UPDATE` của runbook mục 6 không có ca nào chạy trong PR này (số đo «cả hai thứ tự» là của PR #24, `DELIVERY-016` mục N15).
 13. **Gốc tin của bundle:** `install-d1.sh` chạy từ bundle do người vận hành duyệt (chính script); từ đó bộ kiểm nằm trong script và digest của bản phát hành là bắt buộc; `install-user.py` chưa đòi digest ấy. `provision-server.py` (có từ trước) chạy không `-I` từ bản chụp đã kiểm (cả cây sạch) và **đọc** digest từ manifest dưới `/opt` (dữ liệu, không chạy); bản chép dưới `/opt` không được N4 kiểm lại.
@@ -81,7 +81,7 @@ PR riêng vào `libetech-ai-os` (không vào `main`), việc N4 của `docs/DELI
 
 ## Cần Chairman quyết hoặc xác nhận
 
-1. **OQ-59** (ba câu), trước khi bật Z4 (lời Chairman 19/11/2026: «N15 trước khi bật Z4»).
+1. **OQ-59** (ba câu), trước khi bật Z4 (lời Chairman 19/11/2026: «N15 trước khi bật Z4»). **Đã quyết 22/11/2026** — xem điểm 10 của mục «Còn mở và phần dư» ở trên.
 2. Chấp nhận `LIBETECH_ARCHIVE_SHA256` bắt buộc cho cả hai bộ cài (và vì thế mỗi bản lưu phải được ghi băm lúc dump ở một kênh khác tệp).
 3. Có đòi thêm phép kiểm sau nạp cho bất biến của guard 019/021/022 không («Còn mở» 3).
 4. Ai đóng gói lại bản phát hành và diễn tập bộ cài trọn bộ trước d1-ai1 («Còn mở» 1).
