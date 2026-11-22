@@ -1,0 +1,17 @@
+Checks on release/ai-os-0.9.0 at eb1da6f (22/11/2026). Raw logs are not committed; the checkout path is scrubbed.
+
+npm ci: exit 0
+npm run typecheck: exit 0 (tsc --noEmit)
+npm run build: exit 0
+✓ Compiled successfully in 1044ms
+npm run test:
+ Test Files  71 passed | 14 skipped (85)
+      Tests  1333 passed | 150 skipped (1483)
+   Duration  558.21s (tests 99%, import 1%)
+python3 -m pytest -q tests/test_bot_bridge.py:
+76 passed, 69 subtests passed in 5.69s
+python3 -m pytest -q tests/test_install_user.py:
+70 passed, 55 subtests passed in 0.49s
+dashboard-plugin unittest:
+Ran 14 tests in 0.491s
+OK
