@@ -43,6 +43,11 @@ class PortalTests(unittest.TestCase):
         return self.client.get('/api/plugins/libetech-ai-os-web/'+action, headers=self.headers, **kw)
     def post(self, action, **kw):
         return self.client.post('/api/plugins/libetech-ai-os-web/'+action, headers=self.headers, **kw)
+    def test_canonical_hermes_origin(self):
+        self.assertEqual(portal.HOST, "hermes.libetech.vn")
+        self.assertEqual(portal.ORIGIN, "https://hermes.libetech.vn")
+        self.assertEqual(self.get("health").status_code, 200)
+        self.assertEqual(self.calls[0].headers["host"], portal.HOST)
     def test_hermes_auth_required(self):
         self.headers = {}; self.assertEqual(self.get('health').status_code, 401); self.assertFalse(self.calls)
     def test_secondary_profile_denied_before_network(self):
