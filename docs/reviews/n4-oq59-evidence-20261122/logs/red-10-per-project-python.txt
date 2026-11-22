@@ -1,0 +1,247 @@
+..................................................EE.EE....FF.FEEEE..E....E..........
+======================================================================
+ERROR: test_u11_a_post_023_archive_whose_source_held_threads_is_restored_to_the_end_and_the_count_is_shown (tests.test_install_user.RestoreSteps.test_u11_a_post_023_archive_whose_source_held_threads_is_restored_to_the_end_and_the_count_is_shown)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 277, in test_u11_a_post_023_archive_whose_source_held_threads_is_restored_to_the_end_and_the_count_is_shown
+    steps,shown=self.restore_shown(self.FULL+NUMBER_TABLES)
+                ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 273, in restore_shown
+    with contextlib.redirect_stdout(out):steps=self.steps(listing)
+                                               ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 211, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+ERROR: test_u11_an_archive_with_no_held_thread_prints_nothing_about_it (tests.test_install_user.RestoreSteps.test_u11_an_archive_with_no_held_thread_prints_nothing_about_it)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 285, in test_u11_an_archive_with_no_held_thread_prints_nothing_about_it
+    self.assertEqual(self.restore_shown(self.FULL+NUMBER_TABLES)[1],'')
+                     ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 273, in restore_shown
+    with contextlib.redirect_stdout(out):steps=self.steps(listing)
+                                               ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 211, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+ERROR: test_u11_the_check_is_told_the_kind_of_the_archive_that_the_plan_named (tests.test_install_user.RestoreSteps.test_u11_the_check_is_told_the_kind_of_the_archive_that_the_plan_named) (kind='pre-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 291, in test_u11_the_check_is_told_the_kind_of_the_archive_that_the_plan_named
+    self.calls=[];self.steps(listing)
+                  ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 211, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+ERROR: test_u11_the_check_is_told_the_kind_of_the_archive_that_the_plan_named (tests.test_install_user.RestoreSteps.test_u11_the_check_is_told_the_kind_of_the_archive_that_the_plan_named) (kind='post-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 291, in test_u11_the_check_is_told_the_kind_of_the_archive_that_the_plan_named
+    self.calls=[];self.steps(listing)
+                  ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 211, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+ERROR: test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind (tests.test_install_user.RestoreSteps.test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind) (listing='source_event_revisions iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 232, in test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind
+    self.calls=[];self.steps(listing)
+                  ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 211, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+ERROR: test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind (tests.test_install_user.RestoreSteps.test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind) (listing='ic intake_thread_heads iptech\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 232, in test_u2_the_load_is_one_transaction_with_triggers_off_for_either_kind
+    self.calls=[];self.steps(listing)
+                  ~~~~~~~~~~^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 211, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+ERROR: test_u3_a_post_023_archive_is_loaded_and_checked_and_nothing_numbers_it_again (tests.test_install_user.RestoreSteps.test_u3_a_post_023_archive_is_loaded_and_checked_and_nothing_numbers_it_again)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 226, in test_u3_a_post_023_archive_is_loaded_and_checked_and_nothing_numbers_it_again
+    self.assertEqual(self.steps(self.FULL+NUMBER_TABLES),['list','tables','pre-restore','restore','post-restore'])
+                     ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 211, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+ERROR: test_u3_a_pre_023_archive_is_numbered_by_applying_023_again_before_the_check (tests.test_install_user.RestoreSteps.test_u3_a_pre_023_archive_is_numbered_by_applying_023_again_before_the_check)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 228, in test_u3_a_pre_023_archive_is_numbered_by_applying_023_again_before_the_check
+    self.assertEqual(self.steps(self.FULL),['list','tables','pre-restore','restore','position-check','apply-023','post-restore'])
+                     ~~~~~~~~~~^^^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 211, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+ERROR: test_u3_the_target_must_be_empty_before_anything_is_loaded (tests.test_install_user.RestoreSteps.test_u3_the_target_must_be_empty_before_anything_is_loaded)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 243, in test_u3_the_target_must_be_empty_before_anything_is_loaded
+    self.assertLess(self.steps(self.FULL).index('pre-restore'),self.steps(self.FULL).index('restore'))
+                    ~~~~~~~~~~^^^^^^^^^^^
+  File "<repo>/tests/test_install_user.py", line 211, in steps
+    installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+ERROR: test_u3b_the_answer_of_the_check_is_what_the_restore_returns (tests.test_install_user.RestoreSteps.test_u3b_the_answer_of_the_check_is_what_the_restore_returns)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 263, in test_u3b_the_answer_of_the_check_is_what_the_restore_returns
+    self.listing=self.FULL;self.assertEqual(installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q']),{**self.answer,'archive_kind':'pre-023'})
+                                            ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 282, in restore_data
+    check_held_threads(answer,kind)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "<repo>/deploy/install-user.py", line 252, in check_held_threads
+    if any(type(v) is not int or v<0 for v in (revisions,threads)):raise RuntimeError('The post-restore check ran without the count of revisions that have no thread number')
+                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: The post-restore check ran without the count of revisions that have no thread number
+
+======================================================================
+FAIL: test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 451, in test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing
+    r=self.read_answer(json.dumps(self.OK_ANSWER));self.assertEqual((r.returncode,r.stdout,r.stderr),(0,'',''))
+                                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (1, '', '') != (0, '', '')
+
+First differing element 0:
+1
+0
+
+- (1, '', '')
+?  ^
+
++ (0, '', '')
+?  ^
+
+
+======================================================================
+FAIL: test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_many_per_project_in_counts_only (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_many_per_project_in_counts_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 455, in test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_many_per_project_in_counts_only
+    self.assertEqual((r.returncode,r.stderr),(0,''))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (1, '') != (0, '')
+
+First differing element 0:
+1
+0
+
+- (1, '')
+?  ^
+
++ (0, '')
+?  ^
+
+
+======================================================================
+FAIL: test_u12_the_shell_stops_where_the_reader_says_stop_and_goes_on_where_it_says_go (tests.test_install_user.RestoreSteps.test_u12_the_shell_stops_where_the_reader_says_stop_and_goes_on_where_it_says_go)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 468, in test_u12_the_shell_stops_where_the_reader_says_stop_and_goes_on_where_it_says_go
+    r=self.run_shell_block(ok);self.assertEqual((r.returncode,r.stdout,r.stderr),(0,'CONTINUED\n',''))
+                               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (1, '', 'The post-restore check did not pa[62 chars].\n') != (0, 'CONTINUED\n', '')
+
+First differing element 0:
+1
+0
+
++ (0, 'CONTINUED\n', '')
+- (1,
+-  '',
+-  'The post-restore check did not pass; nothing was started. See '
+-  'docs/RUNBOOK-RESTORE-AFTER-023.md.\n')
+
+----------------------------------------------------------------------
+Ran 83 tests in 0.877s
+
+FAILED (failures=3, errors=10)

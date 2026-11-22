@@ -1,0 +1,40 @@
+### T1 the default guard looks at every role again (the P2 of run 3)
+      Tests  1 failed | 30 passed | 1 skipped (32)
+AssertionError lines: 1  timeouts: 0
+     × P4j only a default that applies to THIS session counts: a defaul
+
+### T2 the default guard ignores the default of the role that runs the file
+      Tests  1 failed | 30 passed | 1 skipped (32)
+AssertionError lines: 1  timeouts: 0
+     × P4j only a default that applies to THIS session counts: a defaul
+
+### T3 a total across projects is put back into the answer (the P1 of run 3)
+      Tests  1 failed | 30 passed | 1 skipped (32)
+AssertionError lines: 1  timeouts: 0
+     × P4b the count is per project, in the order of the project ids, w
+
+### T4 install-user prints a line that adds the projects up
+Python: FAILED (failures=3)  AssertionError lines: 3  other errors: 0
+FAIL: test_u11_a_post_023_archive_whose_source_held_threads_is_restored_to_the_end_and_the_count_is_
+FAIL: test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_man
+FAIL: test_u12_the_shell_stops_where_the_reader_says_stop_and_goes_on_where_it_says_go
+
+### T5 install-user says every counted thread stays held (the P2 of run 3)
+Python: FAILED (failures=2)  AssertionError lines: 2  other errors: 0
+FAIL: test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_man
+FAIL: test_u12_the_shell_stops_where_the_reader_says_stop_and_goes_on_where_it_says_go
+
+### T6 install-d1 accepts a held_by_project that is not a list of whole numbers
+Python: FAILED (failures=5)  AssertionError lines: 5  other errors: 0
+FAIL: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass 
+
+### T7 install-d1 prints no per-project line
+Python: FAILED (failures=2)  AssertionError lines: 2  other errors: 0
+FAIL: test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_man
+FAIL: test_u12_the_shell_stops_where_the_reader_says_stop_and_goes_on_where_it_says_go
+
+### T8 install-user accepts any held_by_project
+Python: FAILED (failures=14, errors=8)  AssertionError lines: 14  other errors: 8
+ERROR: test_u11_the_counts_must_be_in_the_answer_per_project_as_whole_numbers_or_the_check_is_not_a_
+FAIL: test_u11_the_counts_must_be_in_the_answer_per_project_as_whole_numbers_or_the_check_is_not_a_p
+

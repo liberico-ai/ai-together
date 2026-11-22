@@ -100,6 +100,8 @@ tables_sql=$(python3 -I "$snap/deploy/restore-plan.py" --tables-sql)
 tables=$(runuser -u postgres -- psql -X -q -At -p 5547 -d libetech_ai_os -c "$tables_sql")
 [[ -n "$tables_sql" && -n "$tables" ]] || { echo 'The tables of the target could not be read; nothing was checked and nothing was loaded.' >&2; exit 1; }
 kind=$(runuser -u postgres -- pg_restore --list < "$held" | python3 -I "$snap/deploy/restore-plan.py" --tables "$tables")
+# The word is one of the two that the post-restore check knows before it reaches a command line (an empty or any other word means the plan did not say what the archive is).
+[[ "$kind" == post-023 || "$kind" == pre-023 ]] || { echo 'The kind of the archive could not be read from the plan; nothing was loaded.' >&2; exit 1; }
 # The target holds no rows: a load with triggers off puts rows beside whatever is there without a guard to say so.
 runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never -p 5547 -d libetech_ai_os < "$snap/deploy/pre-restore.sql"
 # The arguments are a fixed list printed by restore-plan.py: one transaction, triggers off (the schema has foreign keys that no load order satisfies). If the list is not whole the load does not start.
@@ -120,9 +122,30 @@ if [[ "$kind" == pre-023 ]]; then
  runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never -p 5547 -d libetech_ai_os < "$snap/migrations/023_thread_order.sql"
 fi
 # The check that ends every restore. It passed only if psql exits 0 and its last line is the JSON answer, with the checks of 023 made; nothing that writes to the database starts before it.
-post=$(runuser -u postgres -- psql -X -q -At -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never -p 5547 -d libetech_ai_os < "$snap/deploy/post-restore.sql")
-printf '%s\n' "$post" | tail -n 1 | python3 -I -c 'import json,sys; a=json.loads(sys.stdin.read()); sys.exit(0 if a.get("post_restore")=="pass" and a.get("thread_order")=="checked" else 1)' \
- || { echo 'The post-restore check did not pass; nothing was started. See docs/RUNBOOK-RESTORE-AFTER-023.md.' >&2; exit 1; }
+# OQ-59 (b) (1), the Chairman's answer of 22/11/2026: revisions that have no number are not a reason to stop for an archive of after 023. The restore keeps the source as it was, the service is started, and
+# those threads stay held (rule 4 of the service, the guard of 023). The check is TOLD the kind of the archive first (-c, in the same session as the file; the file requires it) and refuses an archive
+# of before 023 that is still without numbers after 023 was applied again (POST-RESTORE-05): one rule, in one place. This script only requires the counts in the answer as whole numbers (or it is not a
+# pass), that the answer echoes the kind it was told (a check that did not see it has not applied the rule for it), and says how many revisions have no number, PER PROJECT and counts only (no total over the
+# projects; the same words as install-user.py).
+# The reader is part of this reviewed script.
+post=$(runuser -u postgres -- psql -X -q -At -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never -p 5547 -d libetech_ai_os -c "SET libetech.archive_kind = '$kind'" -f - < "$snap/deploy/post-restore.sql")
+answer=$(printf '%s\n' "$post" | tail -n 1)
+report=$(python3 -I - "$kind" "$answer" <<'PY'
+import json,sys
+kind,text=sys.argv[1],sys.argv[2]
+try:a=json.loads(text)
+except ValueError:sys.exit(1)
+if not isinstance(a,dict) or not (a.get("post_restore")=="pass" and a.get("thread_order")=="checked"):sys.exit(1)
+if kind not in ("pre-023","post-023") or a.get("archive_kind")!=kind:sys.exit(1)
+held=a.get("held_by_project")
+if not isinstance(held,list) or not all(isinstance(p,dict) and all(type(p.get(k)) is int for k in ("project_no","revisions","threads")) and p["project_no"]>=1 and p["revisions"]>=0 and p["threads"]>=0 for p in held):sys.exit(1)
+for p in held:
+    n,r,t=p["project_no"],p["revisions"],p["threads"]
+    print(f"project {n}: {r} revision(s) in {t} thread(s) have no thread number.")
+if held:print("A thread with such a revision is held as it was at the source: no confirmation of a draft of its candidate goes through, and nothing here numbers it (OQ-59 (b) (1)); see docs/RUNBOOK-RESTORE-AFTER-023.md section 7.")
+PY
+) || { echo 'The post-restore check did not pass; nothing was started. See docs/RUNBOOK-RESTORE-AFTER-023.md.' >&2; exit 1; }
+[[ -z "$report" ]] || echo "$report"
 # The second copy of the pilot data is not kept after a restore that passed.
 rm -f "$held" "$work/restore.err"
 python3 "$snap/deploy/provision-server.py"

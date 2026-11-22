@@ -1,0 +1,60 @@
+.................................................3 revision(s) in 2 thread(s) have no thread number. The restore keeps them as the source had them: those threads stay held and nothing here numbers them (OQ-59 (b) (1)); see docs/RUNBOOK-RESTORE-AFTER-023.md section 7.
+......FFFFF..F......................
+======================================================================
+FAIL: test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other) (kind='')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 454, in test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other
+    self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other) (kind='other')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 454, in test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other
+    self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other) (kind='POST-023')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 454, in test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other
+    self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other) (kind='pre-023 ')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 454, in test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other
+    self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other) (kind='post-023\n')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 454, in test_u12_the_root_installer_names_the_kinds_it_knows_and_refuses_any_other
+    self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0
+
+======================================================================
+FAIL: test_u12_the_root_installer_refuses_a_pre_023_archive_that_is_still_without_numbers_after_023_was_applied_again (tests.test_install_user.RestoreSteps.test_u12_the_root_installer_refuses_a_pre_023_archive_that_is_still_without_numbers_after_023_was_applied_again)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo>/tests/test_install_user.py", line 447, in test_u12_the_root_installer_refuses_a_pre_023_archive_that_is_still_without_numbers_after_023_was_applied_again
+    self.assertIn('from before 023',r.stderr);self.assertIn('3 revision(s)',r.stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'from before 023' not found in ''
+
+----------------------------------------------------------------------
+Ran 81 tests in 1.099s
+
+FAILED (failures=6)

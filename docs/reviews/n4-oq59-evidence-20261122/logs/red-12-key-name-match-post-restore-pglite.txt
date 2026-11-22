@@ -1,0 +1,34 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/post-restore.test.ts (35 tests | 1 failed | 1 skipped) 18604ms
+   ❯ the state that a restore leaves, and the repair (21)
+     × P4k only the setting libetech.archive_kind itself counts as a default of the kind, not another one whose name contains it 484ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/post-restore.test.ts > the state that a restore leaves, and the repair > P4k only the setting libetech.archive_kind itself counts as a default of the kind, not another one whose name contains it
+AssertionError: settings of other names do not stop the file: {"ok":false,"error":"POST-RESTORE-01 a default of the database or of the role that runs this file gives the kind of the archive; remove it: the kind is told for each run, with SET libetech.archive_kind"}: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/post-restore.test.ts:319:101
+    317|     for(const name of ['libetech.archive_kind_hint','libetech.not_arch…
+    318|     const unrelated=await postRestore();
+    319|     expect(unrelated.ok,'settings of other names do not stop the file:…
+       |                                                                                                     ^
+    320|     await set('libetech.archive_kind');undo.push(reset('libetech.archi…
+    321|     const real=await postRestore();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 33 passed | 1 skipped (35)
+   Start at  21:20:19
+   Duration  18.73s (tests 100%)
+

@@ -157,7 +157,12 @@ async function newRestore(db:string):Promise<string[]>{
 }
 /** A file of SQL through psql, as the installers feed it (stdin), ON_ERROR_STOP, no psql variable. */
 const psqlFile=(db:string,sql:string)=>tool(['psql','-U',superuser,'-X','-q','-At','-v','ON_ERROR_STOP=1','-v','VERBOSITY=terse','-v','SHOW_CONTEXT=never','-d',db],sql);
-const postRestoreSql=()=>readFile(path.join(process.cwd(),'deploy/post-restore.sql'),'utf8');
+/**
+ * post-restore.sql as the installers run it: `psql ... -c "SET libetech.archive_kind = '<kind>'" -f -` with the file on stdin (the kind is the word that restore-plan.py prints for the archive at step 3, and
+ * the file requires it). `kind` null: not given (no -c).
+ */
+const postRestoreRun=async(db:string,kind:string|null='post-023')=>tool(['psql','-U',superuser,'-X','-q','-At','-v','ON_ERROR_STOP=1','-v','VERBOSITY=terse','-v','SHOW_CONTEXT=never','-d',db,
+  ...(kind===null?[]:['-c',`SET libetech.archive_kind = '${kind}'`]),'-f','-'],await readFile(path.join(process.cwd(),'deploy/post-restore.sql'),'utf8'));
 const preRestoreSql=()=>readFile(path.join(process.cwd(),'deploy/pre-restore.sql'),'utf8');
 /** A query that the installers run against the target, as restore-plan.py prints it. */
 async function planQuery(flag:string,db:string):Promise<string>{
@@ -246,7 +251,7 @@ describe.skipIf(!enabled)('N4 restore rehearsal with the real pg_dump and pg_res
       expect(r.code,first(r.err)).toBe(0);
       // between the load and the file the trigger stands at O: this is the state that the file exists to end
       expect(await triggerStates(target.db)).toEqual({[NUMBERING]:'O',[GUARD]:'O'});
-      const p=await psqlFile(target.name,await postRestoreSql());
+      const p=await postRestoreRun(target.name);
       expect(p.code,first(p.err)).toBe(0);
       said('R4 post-restore',p.out.toString());
       expect(answer(p)).toMatchObject({post_restore:'pass',numbering_trigger_was:'O',thread_order:'checked'});
@@ -271,7 +276,7 @@ describe.skipIf(!enabled)('N4 restore rehearsal with the real pg_dump and pg_res
     test('R5 on the restored database the service goes on: a new message gets the next number, a confirmation at the new position is stored and one at the old position is refused (LTZ03); a loader in replica mode is numbered',async()=>{
       const target=await freshDatabase();
       expect((await tool(await newRestore(target.name),archive)).code).toBe(0);
-      expect((await psqlFile(target.name,await postRestoreSql())).code).toBe(0);
+      expect((await postRestoreRun(target.name)).code).toBe(0);
       const db=target.db;
       const last=async()=>(await db.query<{s:number}>('SELECT last_seq::int s FROM intake_thread_heads WHERE thread_key=$1',[sourceThreads.thread2])).rows[0].s;
       const before=await last();
@@ -297,8 +302,8 @@ describe.skipIf(!enabled)('N4 restore rehearsal with the real pg_dump and pg_res
     test('R6 the file is idempotent on the restored database: a second run finds the trigger at A and answers pass again',async()=>{
       const target=await freshDatabase();
       expect((await tool(await newRestore(target.name),archive)).code).toBe(0);
-      expect(answer(await psqlFile(target.name,await postRestoreSql()))).toMatchObject({post_restore:'pass',numbering_trigger_was:'O'});
-      expect(answer(await psqlFile(target.name,await postRestoreSql()))).toMatchObject({post_restore:'pass',numbering_trigger_was:'A'});
+      expect(answer(await postRestoreRun(target.name))).toMatchObject({post_restore:'pass',numbering_trigger_was:'O'});
+      expect(answer(await postRestoreRun(target.name))).toMatchObject({post_restore:'pass',numbering_trigger_was:'A'});
       expect(await fingerprint(target.db)).toEqual(await fingerprint(source.operator));
     });
 
@@ -325,23 +330,62 @@ describe.skipIf(!enabled)('N4 restore rehearsal with the real pg_dump and pg_res
       expect(r.err).toContain('analytics.reconciliations');
     });
 
-    test('R8 a database restored with a revision that has no number stops the file at the first look, and the thread stays as the source had it (no number is made up)',async()=>{
+    // OQ-59 (b) (1), the Chairman's answer of 22/11/2026: the restore keeps the source as it was. The file reports the revision that has no number and passes; the thread stays held and no
+    // number is made up; the database takes new intake.
+    test('R8 a database restored with a revision that has no number: the file passes and reports it, the thread stays as the source had it (no number is made up), and the database takes new intake',async()=>{
       const held=await freshDatabase();
-      await writeRehearsalData(held.db,true);
+      const sourceOfHeld=await writeRehearsalData(held.db,true);
       await held.db.query(`ALTER TABLE public.source_event_revisions DISABLE TRIGGER ${NUMBERING}`);
-      const ev=(await held.db.query<{id:string}>('SELECT id FROM source_events LIMIT 1')).rows[0].id;
-      await held.db.query(`INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,content_mode) VALUES($1,$2,$3,9,$4,$5,'pointer_only')`,[ids.tenant,ids.sales,ev,hex('9'),hex('a')]);
+      const heldEvent=(await held.db.query<{id:string;thread_key:string}>('SELECT id,thread_key FROM source_events ORDER BY created_at,id LIMIT 1')).rows[0];
+      await held.db.query(`INSERT INTO source_event_revisions(tenant_id,project_id,source_event_id,revision_no,revision_key,content_hash,content_mode) VALUES($1,$2,$3,9,$4,$5,'pointer_only')`,[ids.tenant,ids.sales,heldEvent.id,hex('9'),hex('a')]);
       await held.db.query(`ALTER TABLE public.source_event_revisions ENABLE ALWAYS TRIGGER ${NUMBERING}`);
       const heldArchive=await dump(held.name);
+      const sourcePositions=(await held.db.query<{n:number}>('SELECT count(*)::int n FROM source_revision_positions')).rows[0].n;
       const target=await freshDatabase();
       expect((await tool(await newRestore(target.name),heldArchive)).code).toBe(0);
-      const p=await psqlFile(target.name,await postRestoreSql());
-      expect(p.code).not.toBe(0);
-      said('R8 held thread, exit '+p.code,p.err);
-      expect(errLines(p.err)).toMatch(/POST-RESTORE-05/);
-      expect(p.err,'the answer names no chat and no thread of the data').not.toContain(chatSales);
+      const p=await postRestoreRun(target.name);
+      expect(p.code,first(p.err)).toBe(0);
+      said('R8 held thread, exit '+p.code,p.out.toString());
+      expect(answer(p)).toMatchObject({post_restore:'pass',numbering_trigger_was:'O',thread_order:'checked',archive_kind:'post-023',held_by_project:[{project_no:1,revisions:1,threads:1}]});
+      for(const [label,text] of [['stdout',p.out.toString()],['stderr',p.err]]) for(const leak of [chatSales,heldEvent.thread_key,ids.tenant,ids.sales]) expect(text,'the '+label+' names no chat, thread, tenant or project of the data').not.toContain(leak);
+      expect(await triggerStates(target.db)).toEqual({[NUMBERING]:'A',[GUARD]:'O'});
+      const unnumbered=()=>target.db.query<{n:number}>('SELECT count(*)::int n FROM source_event_revisions r WHERE NOT EXISTS (SELECT 1 FROM source_revision_positions p WHERE p.revision_id=r.id)').then(r=>r.rows[0].n);
+      expect(await unnumbered()).toBe(1);
+      expect((await target.db.query<{n:number}>('SELECT count(*)::int n FROM source_revision_positions')).rows[0].n,'no number was made up').toBe(sourcePositions);
+      // the thread is held, not just reported: the guard of 023 refuses to confirm a draft of its candidate AT THE POSITION THE THREAD STANDS AT (so the revision without a number is the only thing that
+      // can refuse it), and the same confirmation of a thread that is not held goes through
+      expect(heldEvent.thread_key).toBe(sourceOfHeld.thread1);
+      const confirmNow=async(thread:string)=>{
+        const draft=await draftOf(target.db,await candidateOf(target.db,thread));
+        const seq=(await target.db.query<{s:number}>('SELECT last_seq::int s FROM intake_thread_heads WHERE thread_key=$1',[thread])).rows[0].s;
+        return decideAsRuntime(target.db,draft,{subject_thread_seq:seq});
+      };
+      await expect(confirmNow(heldEvent.thread_key)).rejects.toMatchObject({code:'LTZ03'});
+      await expect(confirmNow(sourceOfHeld.thread2),'control: the same confirmation of a thread that is not held').resolves.toBeDefined();
+      // the service can start: a message that arrives in the held thread is stored and numbered after the thread's counter, and the revision that had no number still has none
+      const head=async()=>(await target.db.query<{s:number}>('SELECT last_seq::int s FROM intake_thread_heads WHERE thread_key=$1',[heldEvent.thread_key])).rows[0].s;
+      const was=await head();
+      await svcOf(target.db).ingest(messageEvent({context:{replyToMessageId:heldEvent.thread_key.slice(2)}}));
+      expect(await head()).toBe(was+1);
+      expect(await unnumbered()).toBe(1);
+    });
+
+    test('R8b the kind of the archive is required, and the file asks for it before it reads or repairs anything: without it, with real psql, it refuses at 01 and says nothing of the repair',async()=>{
+      const target=await freshDatabase();
+      expect((await tool(await newRestore(target.name),archive)).code).toBe(0);
       expect(await triggerStates(target.db)).toEqual({[NUMBERING]:'O',[GUARD]:'O'});
-      expect((await target.db.query<{n:number}>('SELECT count(*)::int n FROM source_event_revisions r WHERE NOT EXISTS (SELECT 1 FROM source_revision_positions p WHERE p.revision_id=r.id)')).rows[0].n).toBe(1);
+      for(const kind of [null,'other']){
+        const p=await postRestoreRun(target.name,kind);
+        expect(p.code,'kind '+JSON.stringify(kind)).not.toBe(0);
+        expect(errLines(p.err)).toMatch(/POST-RESTORE-01 give the kind of the archive/);
+        // the numbering trigger stood at O after the load; a file that repaired it first would say so before it refused (the block is atomic, so the state alone would not show the order)
+        expect(p.err,'the repair was not reached').not.toMatch(/put back to A/);
+        expect(p.out.toString(),'no answer line').not.toMatch(/post_restore/);
+      }
+      expect(await triggerStates(target.db)).toEqual({[NUMBERING]:'O',[GUARD]:'O'});
+      const told=await postRestoreRun(target.name,'post-023');
+      expect(told.code,first(told.err)).toBe(0);
+      expect(answer(told)).toMatchObject({post_restore:'pass',archive_kind:'post-023',numbering_trigger_was:'O'});
     });
   });
 
@@ -367,17 +411,19 @@ describe.skipIf(!enabled)('N4 restore rehearsal with the real pg_dump and pg_res
       const target=await freshDatabase();
       const r=await tool(await newRestore(target.name),oldArchive);
       expect(r.code,first(r.err)).toBe(0);
-      // loaded with the numbering trigger off: no number yet, the file refuses (the reason for the step that comes first)
+      // loaded with the numbering trigger off: no number yet. For an archive of this kind (the file is told so: `pre-023`) a revision without a number is NOT a thread that the source held: 023 numbers
+      // them all, so the file refuses until it has (OQ-59 (b) (1) is about an archive of after 023). The same file with the kind `post-023` would only report them.
       expect((await target.db.query<{n:number}>('SELECT count(*)::int n FROM source_revision_positions')).rows[0].n).toBe(0);
-      const early=await psqlFile(target.name,await postRestoreSql());
+      const early=await postRestoreRun(target.name,'pre-023');
       expect(early.code).not.toBe(0);expect(errLines(early.err)).toMatch(/POST-RESTORE-05/);
+      expect(early.err,'the refusal names no chat and no thread').not.toContain(chatSales);
       // an archive from before 023 carries no position: the numbering that 023 gives is the first
       expect(Number((await planQuery('--pre-023-check-sql',target.name)).trim())).toBe(0);
       const again=await psqlFile(target.name,await forwardSql());
       expect(again.code,first(again.err)).toBe(0);
-      const p=await psqlFile(target.name,await postRestoreSql());
+      const p=await postRestoreRun(target.name,'pre-023');
       expect(p.code,first(p.err)).toBe(0);
-      expect(answer(p)).toMatchObject({post_restore:'pass',numbering_trigger_was:'A',thread_order:'checked'});
+      expect(answer(p)).toMatchObject({post_restore:'pass',numbering_trigger_was:'A',thread_order:'checked',archive_kind:'pre-023',held_by_project:[]});
       expect(await triggerStates(target.db)).toEqual({[NUMBERING]:'A',[GUARD]:'O'});
       expect(await fingerprint(target.db,Object.keys(await fingerprint(before.db)))).toEqual(await fingerprint(before.db));
     });
@@ -386,9 +432,9 @@ describe.skipIf(!enabled)('N4 restore rehearsal with the real pg_dump and pg_res
       const target=await freshDatabase('022');
       const r=await tool(await newRestore(target.name),oldArchive);
       expect(r.code,first(r.err)).toBe(0);
-      const p=await psqlFile(target.name,await postRestoreSql());
+      const p=await postRestoreRun(target.name,'pre-023');
       expect(p.code,first(p.err)).toBe(0);
-      expect(answer(p)).toMatchObject({post_restore:'pass',thread_order:'023 not applied'});
+      expect(answer(p)).toMatchObject({post_restore:'pass',thread_order:'023 not applied',archive_kind:'pre-023',held_by_project:null});
       expect(await fingerprint(target.db)).toEqual(await fingerprint(before.db));
     });
 

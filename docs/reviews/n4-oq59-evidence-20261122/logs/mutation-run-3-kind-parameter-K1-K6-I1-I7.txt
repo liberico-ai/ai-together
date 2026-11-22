@@ -1,0 +1,68 @@
+### K1 the kind is not required (no refusal for a missing or unknown word)
+      Tests  1 failed | 29 passed | 1 skipped (31)
+AssertionError lines: 1  timeouts: 0
+     × P4e the kind of the archive is required: none, or one that the f
+
+### K2 pre-023 no longer refuses a revision without a number
+      Tests  1 failed | 29 passed | 1 skipped (31)
+AssertionError lines: 1  timeouts: 0
+     × P4f an archive of before 023 that still has a revision without a
+
+### K3 a default of the kind is not looked at
+      Tests  1 failed | 29 passed | 1 skipped (31)
+AssertionError lines: 1  timeouts: 0
+     × P4h a default of the database that gives the kind does not count
+
+### K4 post-023 refuses too (the old behaviour of N4, for every kind)
+      Tests  4 failed | 26 passed | 1 skipped (31)
+AssertionError lines: 4  timeouts: 0
+     × P4 a revision that has no number does not stop the file: it is c
+     × P4b the count is per project, in the order of the project ids, w
+     × P4c a held thread does not hide what a later check finds: with a
+     × P4f an archive of before 023 that still has a revision without a
+
+### K5 the answer does not say the kind
+      Tests  4 failed | 26 passed | 1 skipped (31)
+AssertionError lines: 4  timeouts: 0
+     × P14 on a schema that has no 023 the checks of 023 are left out, 
+     × P4 a revision that has no number does not stop the file: it is c
+     × P4f an archive of before 023 that still has a revision without a
+     × P4g an archive of before 023 whose revisions all have a number p
+
+### K6 (native) the kind is asked for after the repair, not before
+      Tests  1 failed | 17 skipped (18)
+AssertionError lines: 1  timeouts: 0
+       × R8b the kind of the archive is required, and the file asks for
+
+### I1 install-user: the echo of the kind is not checked
+Python: FAILED (failures=4)  AssertionError lines: 4  other errors: 0
+FAIL: test_u11_the_answer_must_say_the_kind_that_the_check_was_told_or_it_is_not_a_pass 
+
+### I2 install-user: any word is passed to the file
+Python: FAILED (failures=6)  AssertionError lines: 6  other errors: 0
+FAIL: test_u8_a_kind_that_is_not_one_of_the_two_words_is_refused_before_psql_is_run
+FAIL: test_u8_a_kind_that_is_not_one_of_the_two_words_is_refused_before_psql_is_run 
+
+### I3 install-user: the kind is not handed to the file (no -c)
+Python: FAILED (errors=1)  AssertionError lines: 0  other errors: 1
+ERROR: test_u8_what_the_installer_asks_psql_for
+
+### I4 install-d1: the echo of the kind is not checked by the reader
+Python: FAILED (failures=7)  AssertionError lines: 7  other errors: 0
+FAIL: test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass 
+FAIL: test_u12_the_shell_stops_where_the_reader_says_stop_and_goes_on_where_it_says_go 
+
+### I5 install-d1: the shell guard lets any non-empty word through
+Python: FAILED (failures=8)  AssertionError lines: 8  other errors: 0
+FAIL: test_u12_the_root_installer_names_the_kind_of_the_archive_to_the_check_and_only_one_of_the_two
+FAIL: test_u12_the_shell_guard_of_the_kind_lets_two_words_through_and_stops_the_install_for_any_othe
+
+### I6 install-d1: the kind is not handed to the file (no -c)
+Python: FAILED (failures=1)  AssertionError lines: 1  other errors: 0
+FAIL: test_u12_the_root_installer_names_the_kind_of_the_archive_to_the_check_and_only_one_of_the_two
+
+### I7 install-d1: the report is not echoed
+Python: FAILED (failures=1, errors=1)  AssertionError lines: 1  other errors: 1
+ERROR: test_u12_the_shell_stops_where_the_reader_says_stop_and_goes_on_where_it_says_go
+FAIL: test_u12_the_root_installer_hands_the_reader_the_last_line_of_the_answer_and_stops_the_install
+
