@@ -3,15 +3,17 @@
 -- same time as an application of 023: the checks hold ACCESS SHARE locks on what they read until the end of the block (no table is locked against writes while it only reads: a revision and
 -- its number commit together, so each check sees whole rows), the write of step 10 asks for ROW EXCLUSIVE on the revision table first (the first lock of 023) and is undone, and a repair
 -- (step 2) asks for SHARE ROW EXCLUSIVE on that table under lock_timeout 1 s, so that it never holds up an intake for long.
---   psql -X -q -At -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never -d <database> -f deploy/post-restore.sql
--- Run it with psql -f (or stdin), never with psql -1 or -c. It succeeded only if the exit code is 0 AND the last line it prints is {"post_restore" : "pass", ...}. Without ON_ERROR_STOP an
+--   psql -X -q -At -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never -d <database> -c "SET libetech.archive_kind = '<kind>'" -f - < deploy/post-restore.sql
+-- <kind> is the word that deploy/restore-plan.py printed for the archive at step 3 of the runbook: post-023 or pre-023. It is REQUIRED (POST-RESTORE-01 without it, or with another word): the file cannot
+-- tell from the data an archive of before 023 that was not numbered from a source that held threads (OQ-59 (b) (1)), so it is told, and for pre-023 a revision without a number is a refusal (05).
+-- Run it with psql -f (or stdin), never with psql -1, and never with its text in -c (-c is for the SET of the kind only). It succeeded only if the exit code is 0 AND the last line it prints is {"post_restore" : "pass", ...}. Without ON_ERROR_STOP an
 -- error does not change the exit code; the missing line is what says it failed.
 -- Pure SQL, no psql meta-command and no transaction control, so that the tests can run it in PGlite and through a pool as well as through psql. The work is ONE DO block: whatever runs it,
 -- the block is atomic, so a refusal undoes the repair of step 2 with it; the block leaves search_path and lock_timeout as it found them, and ANALYZE and the answer follow it. A refusal has a
 -- fixed code, POST-RESTORE-nn, and a count at most: never an id, a chat, a thread key or a value of the data, and an error of PostgreSQL's own (which can quote a row) is turned into
 -- POST-RESTORE-98 (a lock) or -99 with its SQLSTATE and nothing else. The installers print the codes and nothing else of what psql says.
 -- What it does: (1) says who may run it, and in what kind of session; (2) puts back the one thing a restore is known to break; (3) reads the catalog: every trigger of the application schemas
--- is enabled as it should be; (4) the numbers of migration 023 are whole and agree with the revisions, the events and the decisions; (5) no row points at a row that is not there; (6) a
+-- is enabled as it should be; (4) the numbers of migration 023 agree with the revisions, the events and the decisions, and the revisions that have no number are COUNTED PER PROJECT for an archive of after 023 (a report, not a refusal: OQ-59 (b) (1)) and REFUSED for one of before 023 (step 05); (5) no row points at a row that is not there; (6) a
 -- write that is undone shows that a revision stored now is numbered, by an ordinary session and by one in replica mode; (7) ANALYZE, then the answer. A database that has no 023 (a backup of
 -- before 023 rehearsed into schema 022) skips what is of 023 and says so.
 -- The repair of step 2 is DDL outside a migration (E-DB-04): a deliberate exception, because it restores a state that a restore took away and changes no schema.
@@ -24,6 +26,10 @@ DECLARE
   has023 boolean; old_path text; old_lock_timeout text;
   was "char";
   n bigint; skewed bigint; f record; broken integer := 0; fks integer := 0; revisions bigint; threads bigint;
+  -- step 05: what the source held, per project. held_projects is NULL where it is not looked at (a database that has no 023), so that the answer never says "none" for a check that did not run.
+  unnumbered boolean; held_projects pg_catalog.json;
+  -- what the archive was, as the caller says (the plan's word): post-023 or pre-023
+  kind text;
   tenant uuid := pg_catalog.gen_random_uuid(); proj uuid := pg_catalog.gen_random_uuid(); ev uuid := pg_catalog.gen_random_uuid();
   thread text := 'post-restore-probe-' || pg_catalog.gen_random_uuid()::text; rev uuid; got bigint; head bigint;
 BEGIN
@@ -42,6 +48,23 @@ BEGIN
          WHERE d.setdatabase IN (0, (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database()))
            AND pg_catalog.array_to_string(d.setconfig, ',') LIKE '%session_replication_role%') THEN
       RAISE EXCEPTION 'POST-RESTORE-01 run this file in a session with session_replication_role = origin, and with no default of the database or of a role that says otherwise';
+    END IF;
+
+    -- The kind of the archive is a parameter, read from a setting of this session that the installers (or the person) set first. Not a secret and not an authorization: a word that decides whether a revision
+    -- without a number is a refusal (pre-023) or a count (post-023). Missing, or any other word, is a refusal before anything is read or repaired.
+    -- A default (ALTER DATABASE / ALTER ROLE ... SET) that applies to THIS session would be read by current_setting as if the caller had said it: nobody told the file about this archive. Refused. Only the
+    -- defaults that apply to the session are looked at (the database or none, the role that connected or none; Codex gate, run 3): another role's default is not this run's business. pg_settings has no row
+    -- for a placeholder, so the catalog of defaults is read, and only the setting of that exact name counts (Codex gate, run 4: a substring match refused another setting whose name merely contains it).
+    -- PGOPTIONS is the caller telling it; postgresql.conf is not covered.
+    IF EXISTS (SELECT 1 FROM pg_catalog.pg_db_role_setting d
+         WHERE d.setdatabase IN (0, (SELECT oid FROM pg_catalog.pg_database WHERE datname = pg_catalog.current_database()))
+           AND d.setrole IN (0, (SELECT r.oid FROM pg_catalog.pg_roles r WHERE r.rolname = session_user))
+           AND EXISTS (SELECT 1 FROM pg_catalog.unnest(d.setconfig) AS c(setting) WHERE pg_catalog.lower(pg_catalog.split_part(c.setting, '=', 1)) = 'libetech.archive_kind')) THEN
+      RAISE EXCEPTION 'POST-RESTORE-01 a default of the database or of the role that runs this file gives the kind of the archive; remove it: the kind is told for each run, with SET libetech.archive_kind';
+    END IF;
+    kind := pg_catalog.current_setting('libetech.archive_kind', true);
+    IF kind IS NULL OR kind NOT IN ('post-023', 'pre-023') THEN
+      RAISE EXCEPTION 'POST-RESTORE-01 give the kind of the archive first: SET libetech.archive_kind = ''post-023'' or ''pre-023'', the word that deploy/restore-plan.py printed for it';
     END IF;
 
     has023 := pg_catalog.to_regclass('public.intake_thread_heads') IS NOT NULL;
@@ -85,10 +108,30 @@ BEGIN
     END IF;
 
     IF has023 THEN
-      -- 05 (N4, N15): every revision has a number. One that has none holds its whole thread (rule 4 of the service, the guard of 023): a restore does not make one up and does not hide one.
-      SELECT count(*) INTO n FROM public.source_event_revisions r WHERE NOT EXISTS (SELECT 1 FROM public.source_revision_positions p WHERE p.revision_id = r.id);
-      IF n > 0 THEN
-        RAISE EXCEPTION 'POST-RESTORE-05 % revision(s) have no thread number; their threads stay held (DELIVERY-016 N15, OQ-59); see docs/RUNBOOK-RESTORE-AFTER-023.md section 7', n;
+      -- 05 (N4, N15; OQ-59 (b) (1), the Chairman's answer of 22/11/2026): for an archive of AFTER 023 a revision that has no number is REPORTED, not refused. One that has none holds its whole thread (rule 4 of
+      -- the service, the guard of 023), and it did at the source: a restore keeps the source as it was, does not make a number up (that is the numbering of 023, applied again with the Chairman's approval,
+      -- OQ-59 (a)), and does not hide the revision either: the count goes into the answer PER PROJECT (an ordinal in the order of the project ids, as docs/RUNBOOK-RESTORE-AFTER-023.md section 7 numbers
+      -- them), counts only. No TOTAL of these revisions over the projects is given (Codex gate, run 3; AGENTS.md: reports never aggregate across reporting domains, and a project belongs to one): not in the answer, not in a message.
+      -- (The older whole-database figures `revisions`, `threads` and `foreign_keys` of the answer are from N4 and count rows of the database, not revisions without a number.)
+      -- project_no ranks only the projects that have such a revision (the WHERE runs first): it names a project within THIS run, and is not comparable with the ordinal of another run; the runbook section 7 query numbers them the same way.
+      -- Every check that follows still refuses. For an archive of BEFORE 023 the same revisions are a refusal (below): the kind is told to this file, not guessed from the data.
+      -- `threads` of a project counts every thread (chat and key) that has such a revision, with or without a candidate: where there is no candidate there is no draft to hold, so it is an upper bound.
+      SELECT coalesce(pg_catalog.json_agg(pg_catalog.json_build_object('project_no', g.project_no, 'revisions', g.revisions, 'threads', g.threads) ORDER BY g.project_no), '[]'::pg_catalog.json)
+        INTO held_projects
+        FROM (SELECT pg_catalog.dense_rank() OVER (ORDER BY r.project_id) AS project_no, count(*) AS revisions, count(DISTINCT (e.chat_id, e.thread_key)) AS threads
+                FROM public.source_event_revisions r
+                LEFT JOIN public.source_events e ON e.id = r.source_event_id AND e.tenant_id = r.tenant_id AND e.project_id = r.project_id
+               WHERE NOT EXISTS (SELECT 1 FROM public.source_revision_positions p WHERE p.revision_id = r.id)
+               GROUP BY r.project_id) g;
+      unnumbered := pg_catalog.json_array_length(held_projects) > 0;
+      IF unnumbered AND kind = 'pre-023' THEN
+        -- An archive of before 023 has no number at all until 023 has been applied again, and that numbers every revision: one left without a number is a numbering that did not run or did not finish
+        -- (runbook step 6), not a thread that a source held. The refusal that N4 had, kept for exactly this kind, with no count (a count over every project is not given).
+        RAISE EXCEPTION 'POST-RESTORE-05 revisions have no thread number although the archive is of before 023: apply migration 023 again (docs/RUNBOOK-RESTORE-AFTER-023.md section 3, step 6) before this check';
+      END IF;
+      IF unnumbered THEN
+        -- a notice, as for the trigger above: it has no code (an installer that shows the codes it finds must not show one for a check that did not refuse), and no value of the data
+        RAISE NOTICE 'revisions have no thread number (the counts, per project, are held_by_project in the answer); a thread with such a revision is held and nothing here numbers it (OQ-59 (b) (1); docs/RUNBOOK-RESTORE-AFTER-023.md section 7)';
       END IF;
       -- 06: the counter row of a thread says how many numbers it has and which is the last; no number belongs to a thread without a counter row.
       SELECT count(*) INTO skewed FROM public.intake_thread_heads h
@@ -201,7 +244,8 @@ BEGIN
   PERFORM pg_catalog.set_config('search_path', old_path, true);
   PERFORM pg_catalog.set_config('lock_timeout', old_lock_timeout, true);
   PERFORM pg_catalog.set_config('libetech.post_restore_answer', pg_catalog.json_build_object('post_restore', 'pass', 'numbering_trigger_was', nullif(was::text, ''),
-    'thread_order', CASE WHEN has023 THEN 'checked' ELSE '023 not applied' END, 'revisions', revisions, 'threads', threads, 'foreign_keys', fks)::text, false);
+    'archive_kind', kind, 'thread_order', CASE WHEN has023 THEN 'checked' ELSE '023 not applied' END, 'revisions', revisions, 'threads', threads, 'foreign_keys', fks,
+    'held_by_project', held_projects)::text, false);
   PERFORM pg_catalog.set_config('libetech.post_restore_done', 'on', false);
 END
 $post_restore$;

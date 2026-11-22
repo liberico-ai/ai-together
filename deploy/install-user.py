@@ -218,10 +218,15 @@ def require_restore_files(manifest,bundle:Path|None=None):
 
 POST_RESTORE_CODE=re.compile(r'POST-RESTORE-[0-9]{2}')
 
-def run_post_restore(sql,env,text):
+ARCHIVE_KINDS=('post-023','pre-023')
+
+def run_post_restore(sql,env,text,kind):
     """deploy/post-restore.sql, run as the installing superuser. Passed only when psql exits 0 AND its last line is the JSON answer {"post_restore": "pass", ...}.
-    Of what psql says, only the codes POST-RESTORE-nn are shown: a PostgreSQL message can quote a row, and this log is read in a public repository."""
-    result=subprocess.run([str(a) for a in [*sql,'-v','VERBOSITY=terse','-v','SHOW_CONTEXT=never','-At','-d','libetech_ai_os']],env=env,input=text,text=True,capture_output=True,check=False)
+    Of what psql says, only the codes POST-RESTORE-nn are shown: a PostgreSQL message can quote a row, and this log is read in a public repository.
+    The file is told the kind of the archive first, in the same session (psql runs -c and -f in the order given): the word that the plan printed, one of two. It decides whether a revision without a number is
+    counted (post-023, OQ-59 (b) (1)) or refused (pre-023). Any other word is refused here, before psql runs: it is put on a command line."""
+    if kind not in ARCHIVE_KINDS:raise RuntimeError('The kind of the archive is not one that the post-restore check knows')
+    result=subprocess.run([str(a) for a in [*sql,'-v','VERBOSITY=terse','-v','SHOW_CONTEXT=never','-At','-d','libetech_ai_os','-c',f"SET libetech.archive_kind = '{kind}'",'-f','-']],env=env,input=text,text=True,capture_output=True,check=False)
     answer=None
     lines=result.stdout.strip().splitlines()
     if lines:
@@ -231,6 +236,28 @@ def run_post_restore(sql,env,text):
         codes=sorted(set(POST_RESTORE_CODE.findall(result.stderr)))
         raise RuntimeError('Post-restore check failed'+(' ('+', '.join(codes)+'; see docs/RUNBOOK-RESTORE-AFTER-023.md)' if codes else '; no code was reported: inspect the new database, not this log'))
     return answer
+
+def held_lines(held_by_project):
+    """What an installer says when the source of the archive already held threads (OQ-59 (b) (1)): one line for each project, then one sentence. Counts only, never a chat, a thread or an id, and
+    no total of the revisions over the projects (reports never aggregate across reporting domains; a project belongs to one). install-d1.sh says the same words; a test holds the two together. A thread that is counted
+    may have no candidate (then there is no draft to hold): the sentence says what is held, not that every counted thread is."""
+    lines=[f"project {p['project_no']}: {p['revisions']} revision(s) in {p['threads']} thread(s) have no thread number." for p in held_by_project]
+    return lines+['A thread with such a revision is held as it was at the source: no confirmation of a draft of its candidate goes through, and nothing here numbers it (OQ-59 (b) (1)); see docs/RUNBOOK-RESTORE-AFTER-023.md section 7.']
+
+def valid_held_by_project(held):
+    return isinstance(held,list) and all(isinstance(p,dict) and all(type(p.get(k)) is int for k in ('project_no','revisions','threads')) and p['project_no']>=1 and p['revisions']>=0 and p['threads']>=0 for p in held)
+
+def check_held_threads(answer,kind):
+    """OQ-59 (b) (1), the Chairman's answer of 22/11/2026: revisions that have no number are not a reason to stop. The restore keeps the source as it was, the service is started, and the threads stay held
+    (rule 4 of the service, the guard of 023); releasing them is the operator's separate step (OQ-59 (a)). The answer must carry the counts per project as whole numbers, or it is not a pass (a check that cannot
+    say how many were held has not looked), and must say the kind it was told. The installer does not judge the kind of the archive: deploy/post-restore.sql is told it (run_post_restore) and refuses an
+    archive of before 023 that still has revisions without a number (POST-RESTORE-05), so that there is one rule, in one place, for the two installers and for a person who runs the file by hand."""
+    # the file echoes the kind that it was told: an answer that does not has not applied the rule for it (an old file, a skewed pair of installer and file)
+    if answer.get('archive_kind')!=kind:raise RuntimeError('The post-restore check did not say the kind of the archive that it was told')
+    held=answer.get('held_by_project')
+    if not valid_held_by_project(held):raise RuntimeError('The post-restore check ran without the count of revisions per project that have no thread number')
+    if held:
+        for line in held_lines(held):print(line,flush=True)
 
 PRE_RESTORE_CODE=re.compile(r'PRE-RESTORE-[0-9]{2}')
 
@@ -257,8 +284,9 @@ def restore_data(pgbin,pgenv,dump,sql):
         try:run(sql+['-d','libetech_ai_os'],env=pgenv,stdin=(BASE/'app/migrations/023_thread_order.sql').read_text(),quiet=True)
         except RuntimeError as exc:
             raise RuntimeError('Applying migration 023 again after the load stopped ('+str(exc)+'); 023 refuses some archives (a draft of an intake candidate that nobody decided, a connected AI login, more than 250000 revisions without a number) and can stop for other reasons; see docs/RUNBOOK-RESTORE-AFTER-023.md and OQ-59') from None
-    answer=run_post_restore(sql,pgenv,(BASE/'app/deploy/post-restore.sql').read_text())
+    answer=run_post_restore(sql,pgenv,(BASE/'app/deploy/post-restore.sql').read_text(),kind)
     if answer.get('thread_order')!='checked':raise RuntimeError('The post-restore check ran without the checks of migration 023')
+    check_held_threads(answer,kind)
     return answer
 
 def finish_install(manifest,dump,chats):

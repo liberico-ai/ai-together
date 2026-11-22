@@ -1,5 +1,5 @@
 """Regression guards for restoring a data archive into an existing schema."""
-import hashlib,importlib.util,json,re,subprocess,sys,tempfile,unittest
+import contextlib,hashlib,importlib.util,io,json,re,subprocess,sys,tempfile,unittest
 from pathlib import Path
 sys.dont_write_bytecode=True
 spec=importlib.util.spec_from_file_location('user_installer',Path(__file__).resolve().parents[1]/'deploy/install-user.py')
@@ -183,7 +183,7 @@ class RestoreSteps(unittest.TestCase):
     """N4: what the two installers do with an archive, and in which order. They cannot run end to end from this tree (the bundle manifest is the one of 0.2.0), so the steps are pinned here."""
     TARGET_TABLES='public.projects\npublic.source_event_revisions\npublic.schema_migrations\npublic.source_revision_positions\npublic.intake_thread_heads\n'
     def setUp(self):
-        self.calls=[];self.positions='0';self.answer={'post_restore':'pass','thread_order':'checked'};self.fail_on=None
+        self.silent_about_kind=False;self.calls=[];self.positions='0';self.answer={'post_restore':'pass','thread_order':'checked','held_by_project':[]};self.fail_on=None
         self.saved=(installer.run,installer.run_post_restore,installer.run_pre_restore,installer.BASE)
         def fake_run(args,*,env=None,cwd=None,stdin=None,quiet=False):
             args=[str(a) for a in args];self.calls.append(('run',args,stdin))
@@ -194,8 +194,10 @@ class RestoreSteps(unittest.TestCase):
             return ''
         installer.run=fake_run
         installer.run_pre_restore=lambda sql,env,text:self.calls.append(('pre-restore',text))
-        def fake_post(sql,env,text):
-            self.calls.append(('post-restore',text));return self.answer
+        def fake_post(sql,env,text,kind):
+            self.calls.append(('post-restore',text,kind))
+            # the real file echoes the kind that it was told (archive_kind); a case can say that it did not, or that it said another
+            return dict(self.answer) if self.silent_about_kind else {'archive_kind':kind,**self.answer}
         installer.run_post_restore=fake_post
         self.tmp=tempfile.TemporaryDirectory();root=Path(self.tmp.name)
         (root/'app/migrations').mkdir(parents=True);(root/'app/deploy').mkdir(parents=True)
@@ -258,7 +260,64 @@ class RestoreSteps(unittest.TestCase):
         self.answer={'post_restore':'pass','thread_order':'023 not applied'}
         with self.assertRaisesRegex(RuntimeError,'without the checks of migration 023'):self.steps(self.FULL)
     def test_u3b_the_answer_of_the_check_is_what_the_restore_returns(self):
-        self.listing=self.FULL;self.assertEqual(installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q']),self.answer)
+        self.listing=self.FULL;self.assertEqual(installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q']),{**self.answer,'archive_kind':'pre-023'})
+    # OQ-59 (b) (1), the Chairman's answer of 22/11/2026: an archive of a source that already held threads (revisions without a number) is restored as it is, the service is started, and
+    # the threads stay held. Until then the installers stopped at POST-RESTORE-05; that code is no longer a refusal.
+    # (the two stray keys are not in the real answer; they are here so that the assertions that the installer prints no chat and no thread can fail)
+    STRAY={'chat_id':'stray-chat-value','thread_key':'stray-thread-value'}
+    # two projects, so that a figure that adds them up (Codex gate, run 3: reports never aggregate across reporting domains) would show: the answer is per project and so is what the installers print
+    HELD={'post_restore':'pass','thread_order':'checked','held_by_project':[{'project_no':1,'revisions':3,'threads':2},{'project_no':2,'revisions':1,'threads':1}],**STRAY}
+    def restore_shown(self,listing):
+        """The steps the installer took, and what it printed while it took them."""
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):steps=self.steps(listing)
+        return steps,out.getvalue()
+    def test_u11_a_post_023_archive_whose_source_held_threads_is_restored_to_the_end_and_the_count_is_shown(self):
+        self.answer=dict(self.HELD)
+        steps,shown=self.restore_shown(self.FULL+NUMBER_TABLES)
+        self.assertEqual(steps,['list','tables','pre-restore','restore','post-restore'],'nothing numbers it, nothing stops it')
+        for fragment in ('project 1: 3 revision(s) in 2 thread(s)','project 2: 1 revision(s) in 1 thread(s)','OQ-59','RUNBOOK-RESTORE-AFTER-023'):self.assertIn(fragment,shown)
+        for leaked in ('chat','project_no','-100','stray-chat-value','stray-thread-value'):self.assertNotIn(leaked,shown,'counts only')
+        self.assertEqual(shown,'\n'.join(installer.held_lines(self.HELD['held_by_project']))+'\n','exactly one line for each project and one sentence: no total over the projects')
+        self.listing=self.FULL+NUMBER_TABLES
+        with contextlib.redirect_stdout(io.StringIO()):restored=installer.restore_data(Path('/pg/bin'),{},Path('/archive.dump'),[Path('/pg/bin/psql'),'-q'])
+        self.assertEqual(restored,{**self.HELD,'archive_kind':'post-023'},'the answer goes into the receipt as it is')
+    def test_u11_an_archive_with_no_held_thread_prints_nothing_about_it(self):
+        self.assertEqual(self.restore_shown(self.FULL+NUMBER_TABLES)[1],'')
+    def test_u11_the_two_kind_words_are_the_same_in_every_place_that_names_them(self):
+        # five places name the words of the archive kind (the plan, the SQL file, the installer's list, the shell guard, the shell reader); each fails closed alone, and this ties them together
+        words={'post-023','pre-023'};plan=installer.restore_plan
+        self.assertEqual(set(installer.ARCHIVE_KINDS),words)
+        self.assertEqual({plan.classify_archive(DATA_ONLY_BEFORE_023+'6; 0 6 TABLE DATA public source_event_revisions iptech\n'+NUMBER_TABLES),plan.classify_archive(DATA_ONLY_BEFORE_023+'6; 0 6 TABLE DATA public source_event_revisions iptech\n')},words)
+        sql=(DEPLOY/'post-restore.sql').read_text();shell=(DEPLOY/'install-d1.sh').read_text()
+        self.assertEqual(set(re.findall(r"IN \('([a-z0-9-]+)', '([a-z0-9-]+)'\)",sql)[0]),words)
+        self.assertEqual(set(re.search(r'\[\[ "\$kind" == (\S+) \|\| "\$kind" == (\S+) \]\]',shell).groups()),words)
+        self.assertEqual(set(re.search(r'kind not in \("([a-z0-9-]+)","([a-z0-9-]+)"\)',shell).groups()),words)
+    def test_u11_the_check_is_told_the_kind_of_the_archive_that_the_plan_named(self):
+        # Codex gate, round 1: the file cannot tell an archive of before 023 that was not numbered from a source that held threads, so it is TOLD (`pre-023` / `post-023`, the word that restore-plan.py
+        # printed at step 3) and refuses the first (POST-RESTORE-05). One rule, in one place: the installers do not judge the count themselves.
+        for listing,kind in ((self.FULL,'pre-023'),(self.FULL+NUMBER_TABLES,'post-023')):
+            with self.subTest(kind=kind):
+                self.calls=[];self.steps(listing)
+                self.assertEqual([c[2] for c in self.calls if c[0]=='post-restore'],[kind])
+    BAD_HELD=(('no key at all',None),('null',None),('not a list','x'),('an entry that is not an object',[1]),
+              ('a negative count',[{'project_no':1,'revisions':-1,'threads':1}]),('a boolean',[{'project_no':1,'revisions':True,'threads':1}]),
+              ('a string',[{'project_no':1,'revisions':'3','threads':1}]),('a float',[{'project_no':1,'revisions':1.5,'threads':1}]),
+              ('no thread count',[{'project_no':1,'revisions':1}]),('no project number',[{'revisions':1,'threads':1}]),('project number zero',[{'project_no':0,'revisions':1,'threads':1}]))
+    def test_u11_the_counts_must_be_in_the_answer_per_project_as_whole_numbers_or_the_check_is_not_a_pass(self):
+        for label,value in self.BAD_HELD:
+            for listing in (self.FULL,self.FULL+NUMBER_TABLES):
+                with self.subTest(label=label,kind=listing[-20:]):
+                    self.calls=[];self.answer={**self.HELD,'held_by_project':value}
+                    if label=='no key at all':del self.answer['held_by_project']
+                    with self.assertRaisesRegex(RuntimeError,'count of revisions'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
+    def test_u11_the_answer_must_say_the_kind_that_the_check_was_told_or_it_is_not_a_pass(self):
+        # a check that did not see the kind (an old file, a skewed pair of installer and file) has not applied the rule for it
+        for listing,other in ((self.FULL,'post-023'),(self.FULL+NUMBER_TABLES,'pre-023')):
+            for label,says in (('another kind',other),('no kind',None)):
+                with self.subTest(label=label,told=listing[-20:]):
+                    self.calls=[];self.answer={**self.HELD,'archive_kind':says} if says else dict(self.HELD);self.silent_about_kind=True
+                    with self.assertRaisesRegex(RuntimeError,'did not say the kind'),contextlib.redirect_stdout(io.StringIO()):self.steps(listing)
     def test_u3b_applying_023_again_that_stops_names_a_reason_among_several_and_the_exit_only(self):
         self.fail_on=lambda args,stdin:stdin=='-- migration 023'
         with self.assertRaises(RuntimeError) as caught:self.steps(self.FULL)
@@ -387,6 +446,82 @@ class RestoreSteps(unittest.TestCase):
         self.assertLess(text.index('post_restore'),text.rindex('rm -f "$held"'))
         self.assertIn('/root/.libetech-restore.',text)
         self.assertIn('a.get("thread_order")=="checked"',text)
+    # OQ-59 (b) (1): the root installer reads the count of revisions that have no number out of the answer, as install-user.py does: it passes an answer that carries the counts, and says how many threads
+    # are held. It does not judge the kind of the archive: the file is told the kind (`SET libetech.archive_kind`, the word that restore-plan.py printed) and refuses an archive of before 023 that is still
+    # without numbers (05): one rule, in one place. The reader is part of the reviewed script, run with python3 -I, and prints counts only.
+    @staticmethod
+    def answer_reader():
+        text=(DEPLOY/'install-d1.sh').read_text();marker="<<'PY'\n"
+        start=text.index(marker,text.index(marker)+1)+len(marker)  # the second heredoc of the script; the first is the bundle checker
+        return text[start:text.index('\nPY\n',start)]
+    def read_answer(self,answer,kind='post-023'):
+        return subprocess.run([sys.executable,'-I','-',kind,answer],input=self.answer_reader(),text=True,capture_output=True)
+    OK_ANSWER={'post_restore':'pass','thread_order':'checked','archive_kind':'post-023','held_by_project':[]}
+    def test_u12_the_root_installer_passes_an_answer_with_nothing_held_and_prints_nothing(self):
+        r=self.read_answer(json.dumps(self.OK_ANSWER));self.assertEqual((r.returncode,r.stdout,r.stderr),(0,'',''))
+    HELD_PROJECTS=[{'project_no':1,'revisions':3,'threads':2},{'project_no':2,'revisions':1,'threads':1}]
+    def test_u12_the_root_installer_passes_an_archive_that_held_threads_at_its_source_and_says_how_many_per_project_in_counts_only(self):
+        r=self.read_answer(json.dumps({**self.OK_ANSWER,'held_by_project':self.HELD_PROJECTS,**self.STRAY}))
+        self.assertEqual((r.returncode,r.stderr),(0,''))
+        for fragment in ('project 1: 3 revision(s) in 2 thread(s)','project 2: 1 revision(s) in 1 thread(s)','OQ-59','RUNBOOK-RESTORE-AFTER-023'):self.assertIn(fragment,r.stdout)
+        for leaked in ('chat','project_no','-100','{','stray-chat-value','stray-thread-value'):self.assertNotIn(leaked,r.stdout)
+        self.assertNotRegex(r.stdout,r'\b4 revision|\b3 thread','no total over the projects')
+        self.assertEqual(r.stdout,'\n'.join(installer.held_lines(self.HELD_PROJECTS))+'\n','the two installers say the same words')
+    def run_shell_block(self,post,kind='post-023'):
+        """The lines of install-d1.sh that read the answer, from the variable `answer` to the echo of the report, run by bash under set -euo pipefail with `post` (what psql printed) and `kind` as the script
+        has them, then a line that only a script that went on would print."""
+        text=(DEPLOY/'install-d1.sh').read_text();last='[[ -z "$report" ]] || echo "$report"'
+        script='set -euo pipefail\npost="$1"; kind="$2"\n'+text[text.index('answer=$(printf'):text.index(last)+len(last)]+'\necho CONTINUED\n'
+        return subprocess.run(['bash','-c',script,'bash',post,kind],capture_output=True,text=True)
+    def test_u12_the_shell_stops_where_the_reader_says_stop_and_goes_on_where_it_says_go(self):
+        ok=json.dumps(self.OK_ANSWER);held=json.dumps({**self.OK_ANSWER,'held_by_project':self.HELD_PROJECTS,**self.STRAY})
+        r=self.run_shell_block(ok);self.assertEqual((r.returncode,r.stdout,r.stderr),(0,'CONTINUED\n',''))
+        # what psql printed before its last line (a notice that reached stdout, an empty line) does not matter: the answer is the last line
+        r=self.run_shell_block('NOTICE: something\n'+held);self.assertEqual((r.returncode,r.stderr),(0,''))
+        self.assertEqual(r.stdout,'\n'.join(installer.held_lines(self.HELD_PROJECTS))+'\nCONTINUED\n')
+        for label,post in (('no answer line',''),('not json','not json'),('a check that did not pass',json.dumps({**self.OK_ANSWER,'post_restore':'fail'})),
+                           ('no count',json.dumps({k:v for k,v in self.OK_ANSWER.items() if k!='held_by_project'})),('another kind than the one it was told',json.dumps({**self.OK_ANSWER,'archive_kind':'pre-023'}))):
+            with self.subTest(label=label):
+                r=self.run_shell_block(post)
+                self.assertEqual(r.returncode,1);self.assertNotIn('CONTINUED',r.stdout);self.assertIn('The post-restore check did not pass; nothing was started.',r.stderr)
+    def test_u12_the_root_installer_does_not_take_what_it_cannot_read_for_a_pass(self):
+        ok=self.OK_ANSWER
+        cases={'not json':'not json','a list':'[1]','post_restore fail':json.dumps({**ok,'post_restore':'fail'}),'023 not applied':json.dumps({**ok,'thread_order':'023 not applied'}),
+               'empty':'','another kind':json.dumps({**ok,'archive_kind':'pre-023'}),'no kind':json.dumps({k:v for k,v in ok.items() if k!='archive_kind'}),
+               'kind of another case':json.dumps({**ok,'archive_kind':'POST-023'})}
+        for label,value in self.BAD_HELD:
+            cases['counts: '+label]=json.dumps({k:v for k,v in ok.items() if k!='held_by_project'} if label=='no key at all' else {**ok,'held_by_project':value})
+        for label,text in cases.items():
+            with self.subTest(label=label):
+                r=self.read_answer(text);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+        # and the kind that the script hands over is itself one of the two words (an unexpected word with a matching echo is not a pass)
+        for kind in ('','other','post-023 '):
+            with self.subTest(kind=kind):
+                r=self.read_answer(json.dumps({**ok,'archive_kind':kind}),kind);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
+    def test_u12_the_root_installer_hands_the_reader_the_last_line_of_the_answer_and_stops_the_install_when_it_fails(self):
+        lines=self.shell_lines();text='\n'.join(lines)
+        self.assertRegex(text,r'answer=\$\(printf \'%s\\n\' "\$post" \| tail -n 1\)')
+        self.assertRegex(text,r'report=\$\(python3 -I - "\$kind" "\$answer" <<\'PY\'')
+        self.assertIn('The post-restore check did not pass; nothing was started.',text)
+        self.assertIn('[[ -z "$report" ]] || echo "$report"',text,'what the reader says is shown, not dropped')
+        at=lambda needle:next(i for i,l in enumerate(lines) if needle in l)
+        self.assertLess(at('report=$(python3'),at('echo "$report"'))
+        self.assertLess(at('< "$snap/deploy/post-restore.sql"'),at('answer=$(printf'));self.assertLess(at('answer=$(printf'),at('rm -f "$held" "$work/restore.err"'))
+    def test_u12_the_shell_guard_of_the_kind_lets_two_words_through_and_stops_the_install_for_any_other(self):
+        guard=next(l for l in self.shell_lines() if l.startswith('[[ "$kind" == post-023'))
+        for kind,passes in (('post-023',True),('pre-023',True),('',False),('other',False),('post-023 ',False),(' pre-023',False),('PRE-023',False),('post-0*',False),("post-023'; id; '",False),('post-023\n',False)):
+            with self.subTest(kind=kind):
+                r=subprocess.run(['bash','-c','set -euo pipefail\nkind="$1"\n'+guard+'\necho CONTINUED\n','bash',kind],capture_output=True,text=True)
+                self.assertEqual((r.returncode,r.stdout),(0,'CONTINUED\n') if passes else (1,''),r.stderr)
+                if not passes:self.assertIn('nothing was loaded',r.stderr)
+    def test_u12_the_root_installer_names_the_kind_of_the_archive_to_the_check_and_only_one_of_the_two_words(self):
+        lines=self.shell_lines();text='\n'.join(lines)
+        at=lambda needle:next(i for i,l in enumerate(lines) if needle in l)
+        # the word is read from the plan, is one of the two that the file knows before it reaches a command line, and is handed to the file first (the file requires it: POST-RESTORE-01)
+        self.assertRegex(text,r'\[\[ "\$kind" == post-023 \|\| "\$kind" == pre-023 \]\]')
+        self.assertLess(at('kind=$(runuser'),at('[[ "$kind" == post-023'));self.assertLess(at('[[ "$kind" == post-023'),at('< "$snap/deploy/pre-restore.sql"'))
+        post=lines[at('< "$snap/deploy/post-restore.sql"')]
+        self.assertIn("-c \"SET libetech.archive_kind = '$kind'\"",post);self.assertIn('-f -',post)
 
 class ArchiveIntegrity(unittest.TestCase):
     """D8 (security gate of the plan): the archive is loaded with the rights of a superuser and every guard of the database off, so it is read once, from a private copy, against the
@@ -482,32 +617,43 @@ class PostRestoreRunner(unittest.TestCase):
         installer.subprocess.run=lambda *a,**k:subprocess.CompletedProcess(a[0],code,out,err)
         self.addCleanup(lambda:setattr(installer.subprocess,'run',saved))
     def test_u8_a_refusal_is_reported_by_its_code_only(self):
-        self.fake(3,'','psql:post-restore.sql:1: ERROR:  POST-RESTORE-05 3 revision(s) have no thread number\nDETAIL:  Key (chat_id)=(-10012345) is not present\nCONTEXT:  PL/pgSQL function')
-        with self.assertRaises(RuntimeError) as caught:installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql')
-        self.assertIn('POST-RESTORE-05',str(caught.exception))
-        for leaked in ('10012345','chat_id','revision(s)','DETAIL'):self.assertNotIn(leaked,str(caught.exception))
+        # (POST-RESTORE-05 is no longer a refusal: a revision without a number is counted in the answer, OQ-59 (b) (1))
+        self.fake(3,'','psql:post-restore.sql:1: ERROR:  POST-RESTORE-06 3 counter row(s) disagree with the numbers of their thread\nDETAIL:  Key (chat_id)=(-10012345) is not present\nCONTEXT:  PL/pgSQL function')
+        with self.assertRaises(RuntimeError) as caught:installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql','post-023')
+        self.assertIn('POST-RESTORE-06',str(caught.exception))
+        for leaked in ('10012345','chat_id','counter row(s)','DETAIL'):self.assertNotIn(leaked,str(caught.exception))
     def test_u8_an_exit_code_of_zero_without_the_answer_line_is_a_failure(self):
         for out in ('','not json\n','{"post_restore" : "fail"}\n'):
             with self.subTest(out=out):
                 self.fake(0,out,'')
-                with self.assertRaises(RuntimeError):installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql')
+                with self.assertRaises(RuntimeError):installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql','post-023')
     def test_u8_the_answer_line_after_the_notices_is_the_result(self):
         self.fake(0,'{"post_restore" : "pass", "numbering_trigger_was" : "O"}\n','psql:x:1: NOTICE:  POST-RESTORE-00 the numbering trigger stood at O')
-        self.assertEqual(installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql')['numbering_trigger_was'],'O')
+        self.assertEqual(installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql','post-023')['numbering_trigger_was'],'O')
     def test_u8_a_refusal_of_the_check_before_the_load_is_reported_by_its_code_only(self):
         self.fake(3,'','psql:pre-restore.sql:1: ERROR:  PRE-RESTORE-02 17 table(s) of the target already hold rows\nDETAIL:  Key (chat_id)=(-10012345)')
         with self.assertRaises(RuntimeError) as caught:installer.run_pre_restore([Path('/pg/bin/psql')],{},'-- sql')
         self.assertIn('PRE-RESTORE-02',str(caught.exception))
         for leaked in ('10012345','chat_id','table(s)','DETAIL'):self.assertNotIn(leaked,str(caught.exception))
         self.fake(0,'','');installer.run_pre_restore([Path('/pg/bin/psql')],{},'-- sql')
+    def test_u8_a_kind_that_is_not_one_of_the_two_words_is_refused_before_psql_is_run(self):
+        ran=[]
+        saved=installer.subprocess.run
+        installer.subprocess.run=lambda *a,**k:ran.append(a) or subprocess.CompletedProcess(a[0],0,'{"post_restore" : "pass"}\n','')
+        self.addCleanup(lambda:setattr(installer.subprocess,'run',saved))
+        for kind in ('',"post-023'; DROP SCHEMA public; --",'POST-023','other',None):
+            with self.subTest(kind=kind),self.assertRaises(RuntimeError):installer.run_post_restore([Path('/pg/bin/psql')],{},'-- sql',kind)
+        self.assertEqual(ran,[])
     def test_u8_what_the_installer_asks_psql_for(self):
         seen=[]
         saved=installer.subprocess.run
         def capture(args,**kw):seen.append((args,kw));return subprocess.CompletedProcess(args,0,'{"post_restore" : "pass"}\n','')
         installer.subprocess.run=capture;self.addCleanup(lambda:setattr(installer.subprocess,'run',saved))
-        installer.run_post_restore([Path('/pg/bin/psql'),'-X','-q','-v','ON_ERROR_STOP=1'],{},'-- the file')
+        installer.run_post_restore([Path('/pg/bin/psql'),'-X','-q','-v','ON_ERROR_STOP=1'],{},'-- the file','pre-023')
         args,kw=seen[0]
         self.assertIn('ON_ERROR_STOP=1',args);self.assertIn('-At',args);self.assertEqual(kw['input'],'-- the file');self.assertTrue(kw['capture_output'])
+        # the kind of the archive goes in first, in the same session as the file (psql runs -c and -f in the order given), and the file is read from stdin
+        self.assertEqual(args[args.index('-c'):args.index('-c')+4],['-c',"SET libetech.archive_kind = 'pre-023'",'-f','-'])
         # PostgreSQL's own messages carry DETAIL and CONTEXT, which can quote a row of the data
         for setting in ('VERBOSITY=terse','SHOW_CONTEXT=never'):self.assertIn(setting,args)
 

@@ -6,6 +6,7 @@ import {native,openHarness,type Harness} from './slice1-db';
 import {pm,seedSlice1} from './slice1-fixtures';
 import {ids} from '../src/server/identities';
 import {IntakeService} from '../src/server/intake';
+import {threadFreshness} from '../src/server/source-text';
 import {bridgeConfig,chatSales,intakePrincipalId,messageEvent} from './slice2-fixtures';
 
 // deploy/post-restore.sql (N4 and N12 of DELIVERY-016): the step that follows every restore. The cases run it as the harness runs everything else (PGlite, and native PostgreSQL when
@@ -26,7 +27,15 @@ const statements=(sql:string)=>sql.split(/\n(?=SET |DO \$|ANALYZE;|SELECT )/).fi
 let h:Harness;
 let needsForward=false;
 let undo:string[]=[];
-beforeEach(async()=>{needsForward=false;undo=[];h=await openHarness();await h.reset();await seedSlice1(h);});
+/** P4h and P4j set a default of `libetech.archive_kind` on the database and on two roles in it and undo it in afterEach; a process that died in between would leave it and turn every later case red with
+ * POST-RESTORE-01 until someone reset it by hand. So every case starts by removing such a default (RESET of a setting that is not set is not an error). */
+const CLEAR_KIND_DEFAULTS=`DO $$ DECLARE r text; BEGIN
+  EXECUTE format('ALTER DATABASE %I RESET libetech.archive_kind', current_database());
+  FOR r IN SELECT rolname FROM pg_roles WHERE rolname IN ('libetech_runtime', session_user) LOOP
+    EXECUTE format('ALTER ROLE %I IN DATABASE %I RESET libetech.archive_kind', r, current_database());
+  END LOOP;
+END $$`;
+beforeEach(async()=>{needsForward=false;undo=[];h=await openHarness();await h.exec(CLEAR_KIND_DEFAULTS);await h.reset();await seedSlice1(h);});
 afterEach(async()=>{
   await h.exec('ROLLBACK').catch(()=>{});
   try{
@@ -50,14 +59,18 @@ async function counts():Promise<Record<string,number>>{
 }
 
 type Outcome={ok:true;result:Record<string,unknown>}|{ok:false;error:string};
-/** The file as one session: the DO block, ANALYZE, then the row that says it finished. A failure rolls the whole transaction back, as it does for psql with ON_ERROR_STOP. */
-async function postRestore(asRole?:string,replica=false):Promise<Outcome>{
+/**
+ * The file as one session: the DO block, ANALYZE, then the row that says it finished. A failure rolls the whole transaction back, as it does for psql with ON_ERROR_STOP.
+ * `kind` is what the installers hand the file first (`SET libetech.archive_kind = ...`): the word that restore-plan.py prints for the archive, `post-023` or `pre-023`. The file requires it.
+ */
+async function postRestore(asRole?:string,replica=false,kind:string|null='post-023'):Promise<Outcome>{
   const parts=statements(await sqlText());
   expect(parts.map(p=>p.split(/\s/)[0]),'SET, DO, ANALYZE, SELECT').toEqual(['SET','DO','ANALYZE;','SELECT']);
   try{
     const rows=await h.operator.transaction(async tx=>{
       if(asRole) await tx.query(`SET LOCAL ROLE ${asRole}`);
       if(replica) await tx.query('SET LOCAL session_replication_role = replica');
+      if(kind!==null) await tx.query("SELECT set_config('libetech.archive_kind',$1,true)",[kind]);
       const found={path:(await tx.query<{search_path:string}>('SHOW search_path')).rows[0],lock:(await tx.query<{lock_timeout:string}>('SHOW lock_timeout')).rows[0]};
       await tx.query(parts[0]);await tx.query(parts[1]);
       // when a pool runs the text as one transaction, what follows the block must not run under the path and the lock timeout that the block pinned
@@ -72,11 +85,13 @@ async function postRestore(asRole?:string,replica=false):Promise<Outcome>{
     return {ok:true,result:JSON.parse(rows[0].result)};
   }catch(e){return {ok:false,error:(e as Error).message};}
 }
-const failsWith=async(code:string,asRole?:string,replica=false)=>{
-  const r=await postRestore(asRole,replica);
+const failsWith=async(code:string,asRole?:string,replica=false,kind:string|null='post-023')=>{
+  const r=await postRestore(asRole,replica,kind);
   expect(r.ok,'the file must stop').toBe(false);
   expect(r.ok?'':r.error).toMatch(new RegExp('^'+code));
 };
+/** The text with which the file refuses (the whole of what an installer or a person is shown of it). */
+const failsWithMessage=async(kind:string)=>{const r=await postRestore(undefined,false,kind);expect(r.ok,'the file must stop').toBe(false);return r.ok?'':r.error;};
 
 // --- data, written as the service writes it, or raw where a case needs a state that the service never leaves ---
 async function someThreads(){
@@ -106,6 +121,19 @@ async function replicaWrite():Promise<number|null>{
   return seen;
 }
 
+/**
+ * A revision that the numbering trigger never saw: written in `thread` while the trigger is off (a loader of its own, a maintenance session, a source that already held the thread).
+ * The trigger is left at D, as such a session leaves it; the file is the step that puts it back. Returns the source event.
+ */
+async function unnumberedRevision(project:string,thread:string,revisionNo=1,event?:string,chat=chatSales):Promise<string>{
+  await h.exec(`ALTER TABLE public.source_event_revisions DISABLE TRIGGER ${NUMBERING}`);
+  const m=String(++rawSeq);
+  const ev=event??(await q<{id:string}>(eventSql,[ids.tenant,project,'gw-'+m,chat,m,thread,randomUUID()]))[0].id;
+  await q(revSql,[ids.tenant,project,ev,revisionNo,hex(String(revisionNo)),hex('a')]);
+  return ev;
+}
+const UUID_SHAPE=/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
+
 describe('the state that a restore leaves, and the repair',()=>{
   test('P1 the numbering trigger that pg_restore --disable-triggers sets back to O is put back to A, and the answer says what it was',async()=>{
     await someThreads();
@@ -122,7 +150,7 @@ describe('the state that a restore leaves, and the repair',()=>{
     const before=await counts();
     const first=await postRestore();expect(first.ok,JSON.stringify(first)).toBe(true);
     const second=await postRestore();
-    expect(second.ok&&second.result).toMatchObject({post_restore:'pass',numbering_trigger_was:'A',thread_order:'checked'});
+    expect(second.ok&&second.result).toMatchObject({post_restore:'pass',numbering_trigger_was:'A',thread_order:'checked',held_by_project:[]});
     expect(await counts()).toEqual(before);
     expect(await numbering()).toBe('A');
   });
@@ -134,14 +162,172 @@ describe('the state that a restore leaves, and the repair',()=>{
     expect(await replicaWrite(),'at A it is numbered').toBe(1);
   });
 
-  test('P4 a revision that has no number stops the file and leaves the trigger as it was: nothing is repaired on the way to a refusal',async()=>{
-    await someThreads();
-    await h.exec(`ALTER TABLE public.source_event_revisions DISABLE TRIGGER ${NUMBERING}`);
-    const ev=await rawEvent();
-    await q(revSql,[ids.tenant,ids.sales,ev,1,hex('1'),hex('a')]);
+  // OQ-59 (b) (1), the Chairman's answer of 22/11/2026: a restore keeps what the source had. A revision with no number is not a refusal: it is counted, its thread stays held (rule 4 of
+  // the service, the guard of 023), and nothing here numbers it.
+  test('P4 a revision that has no number does not stop the file: it is counted in the answer, its thread stays held, nothing is numbered, and the trigger is put back',async()=>{
+    const root=messageEvent({});await svc().ingest(root);
+    const reply=messageEvent({context:{replyToMessageId:root.context.messageId}});await svc().ingest(reply);
+    const thread='m:'+root.context.messageId;
+    const eventOf=async(m:string)=>(await q<{id:string}>('SELECT id FROM source_events WHERE chat_id=$1 AND message_id=$2',[chatSales,m]))[0].id;
+    const [rootEvent,replyEvent]=[await eventOf(root.context.messageId),await eventOf(reply.context.messageId)];
+    const candidate=(await q<{id:string}>('SELECT id FROM intake_candidates WHERE thread_key=$1',[thread]))[0].id;
+    // the check of rule 4 of the service, as a draft that read the whole thread would make it
+    const fresh=()=>threadFreshness(h.operator,ids.sales,candidate,[rootEvent,replyEvent],[{id:rootEvent,revisionNo:1},{id:replyEvent,revisionNo:1}]);
+    expect(await fresh(),'control: a thread whose revisions are all numbered is not held').toEqual({hasBaseline:true,changed:false,position:'2'});
+    await unnumberedRevision(ids.sales,thread);
     expect(await numbering()).toBe('D');
-    await failsWith('POST-RESTORE-05');
+    const state=async()=>({positions:await q('SELECT revision_id::text r,thread_seq::int s FROM source_revision_positions ORDER BY 1'),heads:await q('SELECT thread_key,last_seq::int s FROM intake_thread_heads ORDER BY 1'),counts:await counts()});
+    const before=await state();
+    const r=await postRestore();
+    expect(r.ok,JSON.stringify(r)).toBe(true);
+    expect(r.ok&&r.result).toMatchObject({post_restore:'pass',thread_order:'checked',archive_kind:'post-023',numbering_trigger_was:'D',held_by_project:[{project_no:1,revisions:1,threads:1}]});
+    expect(await numbering(),'the repair is kept now that the file passes').toBe('A');
+    expect(await state(),'no number is made up, no counter row moves, no row is added or lost').toEqual(before);
+    const said=JSON.stringify(r.ok&&r.result);
+    for(const leak of [chatSales,thread,ids.tenant,ids.sales]) expect(said,'the answer names no chat, thread, tenant or project').not.toContain(leak);
+    expect(said).not.toMatch(UUID_SHAPE);
+    expect(await fresh(),'the thread stays held: rule 4 of the service still reads the revision without a number as a change').toEqual({hasBaseline:true,changed:true,position:'2'});
+  });
+
+  test('P4b the count is per project, in the order of the project ids, with an ordinal and no id; a thread is counted once however many of its revisions have no number',async()=>{
+    const other=randomUUID();
+    await q('INSERT INTO projects(id,tenant_id,name,bu) VALUES($1,$2,$3,$4)',[other,ids.tenant,'Dự án thứ hai','BU 2']);
+    // the sales project: one thread with two revisions of one message and a revision of another message, a second thread with one, and a thread of the SAME KEY in another chat (a thread is
+    // a chat and a key: the guard and rule 4 say so); the other project: one thread, one revision
+    const first=await unnumberedRevision(ids.sales,'m:9101');
+    await unnumberedRevision(ids.sales,'m:9101',2,first);
+    await unnumberedRevision(ids.sales,'m:9101');
+    await unnumberedRevision(ids.sales,'m:9102');
+    await unnumberedRevision(ids.sales,'m:9101',1,undefined,chatSales+'9');
+    await unnumberedRevision(other,'m:9103');
+    const mine=new Map([[ids.sales,{revisions:5,threads:3}],[other,{revisions:1,threads:1}]]);
+    const ordered=[...mine.keys()].sort();
+    const r=await postRestore();
+    expect(r.ok,JSON.stringify(r)).toBe(true);
+    expect(r.ok&&r.result).toMatchObject({post_restore:'pass',held_by_project:ordered.map((p,i)=>({project_no:i+1,...mine.get(p)!}))});
+    // Codex gate, run 3 (P1, AGENTS.md: reports never aggregate across reporting domains): the answer is counted PER PROJECT, and no total of the revisions that have no number adds the projects up (a project belongs to one domain; two
+    // projects of two domains must not meet in one number). The totals that the first version of this change added are gone from the answer; `revisions` and `threads` are the older whole-database figures.
+    for(const total of ['unnumbered_revisions','held_threads']) expect(r.ok&&r.result,total+' is not a key of the answer').not.toHaveProperty(total);
+    const said=JSON.stringify(r.ok&&r.result);
+    expect(said).not.toMatch(UUID_SHAPE);for(const leak of [chatSales,chatSales+'9','m:9101','m:9102','m:9103',ids.sales,other]) expect(said).not.toContain(leak);
+  });
+
+  // Reality check of the last review: the no-total rule was pinned by two blacklisted names, so a total under any other name would pass. The answer is a contract: exactly these keys.
+  test('P4i the answer has exactly these keys, so no figure can join it unseen: the kind, the whole-database figures of N4, and held_by_project (per project, no total of the revisions that have no number)',async()=>{
+    const {thread}=await someThreads();
+    const keys=['archive_kind','foreign_keys','held_by_project','numbering_trigger_was','post_restore','revisions','thread_order','threads'];
+    // nothing is held: the same keys, an empty list
+    const clean=await postRestore(undefined,false,'pre-023');
+    expect(clean.ok,JSON.stringify(clean)).toBe(true);
+    expect(Object.keys(clean.ok?clean.result:{}).sort()).toEqual(keys);
+    // a thread is held (the kind is now post-023: for pre-023 the same revision is a refusal): the same keys again
+    await unnumberedRevision(ids.sales,thread);
+    const held=await postRestore();
+    expect(held.ok,JSON.stringify(held)).toBe(true);
+    expect(Object.keys(held.ok?held.result:{}).sort()).toEqual(keys);
+    // the entries of the list carry a number for the project and its two counts, and nothing else
+    expect((held.ok?held.result.held_by_project as Record<string,unknown>[]:[]).map(e=>Object.keys(e).sort())).toEqual([['project_no','revisions','threads']]);
+  });
+
+  test('P4c a held thread does not hide what a later check finds: with a revision that has no number, a counter row that disagrees (06) and a row with nothing to point at (09) still stop the file',async()=>{
+    const {thread}=await someThreads();
+    await unnumberedRevision(ids.sales,thread);
+    const ok=await postRestore();expect(ok.ok,'the held thread alone passes: '+JSON.stringify(ok)).toBe(true);
+    await q('UPDATE intake_thread_heads SET last_seq = last_seq + 3');
+    await failsWith('POST-RESTORE-06');
+    await q('UPDATE intake_thread_heads SET last_seq = last_seq - 3');
+    await h.exec('ALTER TABLE public.source_events DISABLE TRIGGER ALL');
+    await q(eventSql,[ids.tenant,randomUUID(),'gw-orphan',chatSales,'9999','m:9999',randomUUID()]);
+    await h.exec('ALTER TABLE public.source_events ENABLE TRIGGER ALL');
+    await failsWith('POST-RESTORE-09');
+  });
+
+  // Codex gate, round 1 (P1/P2): a person who runs the file by hand on an archive of before 023 and skips the numbering (runbook step 6) used to be stopped by 05 and, after OQ-59 (b) (1), got a pass.
+  // The file cannot tell the two from the data (a source that had 023 with its numbering trigger off looks the same), so it is TOLD: the kind of the archive, as restore-plan.py names it, is required,
+  // and for `pre-023` the same revisions are a refusal. OQ-59 (b) (1) is about an archive of after 023 and changes nothing here.
+  test('P4e the kind of the archive is required: none, or one that the file does not know, stops it at 01 with its own sentence (the order against the repair is shown with real psql, R8b)',async()=>{
+    await someThreads();
+    await h.exec(`ALTER TABLE public.source_event_revisions ENABLE TRIGGER ${NUMBERING}`);
+    for(const kind of [null,'','other','POST-023','post-023 ','pre-023;']){
+      const r=await postRestore(undefined,false,kind);
+      expect(r.ok,`kind ${JSON.stringify(kind)}: the file must stop`).toBe(false);
+      expect(r.ok?'':r.error,`kind ${JSON.stringify(kind)}`).toMatch(/^POST-RESTORE-01 give the kind of the archive first/);
+      expect(await numbering()).toBe('O');
+    }
+  });
+
+  // Database review and security review of the kind parameter, both: `current_setting` reads a default that ALTER DATABASE / ALTER ROLE ... SET gave, so a hand run with no SET would be "told" by a
+  // default that nobody gave it for this archive. The file already refuses a default of session_replication_role the same way (it reads pg_db_role_setting).
+  test('P4h a default of the database that gives the kind does not count as being told it: the file refuses with the kind, and without',async()=>{
+    await someThreads();
+    await h.exec(`DO $$ BEGIN EXECUTE format('ALTER DATABASE %I SET libetech.archive_kind = %L', current_database(), 'post-023'); END $$`);
+    undo.push(`DO $$ BEGIN EXECUTE format('ALTER DATABASE %I RESET libetech.archive_kind', current_database()); END $$`);
+    for(const kind of [null,'post-023','pre-023']){
+      const r=await postRestore(undefined,false,kind);
+      expect(r.ok,`kind ${JSON.stringify(kind)}: the file must stop`).toBe(false);
+      expect(r.ok?'':r.error,`kind ${JSON.stringify(kind)}`).toMatch(/^POST-RESTORE-01 a default of the database or of the role that runs this file gives the kind/);
+    }
+  });
+
+  test('P4f an archive of before 023 that still has a revision without a number after 023 was applied again is refused at 05, and the trigger is left as it was; the same revision is only counted for an archive of after 023',async()=>{
+    const {thread}=await someThreads();
+    await unnumberedRevision(ids.sales,thread);
+    expect(await numbering()).toBe('D');
+    await failsWith('POST-RESTORE-05',undefined,false,'pre-023');
     expect(await numbering(),'one block, one transaction: the repair is undone with the refusal').toBe('D');
+    const r=await failsWithMessage('pre-023');
+    for(const leak of [chatSales,thread,ids.tenant,ids.sales]) expect(r,'the refusal names no chat, thread, tenant or project').not.toContain(leak);
+    expect(r,'the refusal carries no count: a figure over every project is not given').toMatch(/^POST-RESTORE-05 revisions have no thread number/);
+    const post=await postRestore(undefined,false,'post-023');
+    expect(post.ok,JSON.stringify(post)).toBe(true);
+    expect(post.ok&&post.result).toMatchObject({archive_kind:'post-023',held_by_project:[{project_no:1,revisions:1,threads:1}]});
+  });
+
+  test('P4g an archive of before 023 whose revisions all have a number passes with kind pre-023, and the answer says which kind it was told',async()=>{
+    await someThreads();
+    const r=await postRestore(undefined,false,'pre-023');
+    expect(r.ok,JSON.stringify(r)).toBe(true);
+    expect(r.ok&&r.result).toMatchObject({post_restore:'pass',archive_kind:'pre-023',held_by_project:[]});
+  });
+
+  // Codex gate, run 3 (P2): a default that belongs to a role that does not run the file is no reason to stop it. The settings that apply to a session are those of the database and of the role that
+  // connected (pg_db_role_setting: setdatabase this database or none, setrole this session's role or none).
+  test('P4j only a default that applies to THIS session counts: a default of another role in this database does not stop the file, a default of the role that runs it does',async()=>{
+    await someThreads();
+    const db=(await q<{d:string}>('SELECT current_database() d'))[0].d,me=(await q<{u:string}>('SELECT session_user u'))[0].u;
+    const set=(role:string)=>h.exec(`DO $$ BEGIN EXECUTE format('ALTER ROLE %I IN DATABASE %I SET libetech.archive_kind = %L', '${role}', '${db}', 'post-023'); END $$`);
+    const reset=(role:string)=>`DO $$ BEGIN EXECUTE format('ALTER ROLE %I IN DATABASE %I RESET libetech.archive_kind', '${role}', '${db}'); END $$`;
+    await set('libetech_runtime');undo.push(reset('libetech_runtime'));
+    const other=await postRestore();
+    expect(other.ok,'a default of a role that does not run the file: '+JSON.stringify(other)).toBe(true);
+    await set(me);undo.push(reset(me));
+    for(const kind of [null,'post-023']){
+      const r=await postRestore(undefined,false,kind);
+      expect(r.ok,`kind ${JSON.stringify(kind)}: a default of the role that runs the file`).toBe(false);
+      expect(r.ok?'':r.error).toMatch(/^POST-RESTORE-01 a default of the database or of the role that runs this file gives the kind/);
+    }
+  });
+
+  // Codex gate, run 4 (P2): the guard matched the NAME as a substring, so another default whose name merely contains the key's (a hint, a longer name) stopped a restore for nothing.
+  test('P4k only the setting libetech.archive_kind itself counts as a default of the kind, not another one whose name contains it',async()=>{
+    await someThreads();
+    const db=(await q<{d:string}>('SELECT current_database() d'))[0].d,me=(await q<{u:string}>('SELECT session_user u'))[0].u;
+    const set=(name:string)=>h.exec(`DO $$ BEGIN EXECUTE format('ALTER ROLE %I IN DATABASE %I SET ${name} = %L', '${me}', '${db}', 'post-023'); END $$`);
+    const reset=(name:string)=>`DO $$ BEGIN EXECUTE format('ALTER ROLE %I IN DATABASE %I RESET ${name}', '${me}', '${db}'); END $$`;
+    for(const name of ['libetech.archive_kind_hint','libetech.not_archive_kind','libetech.archive_kinds']){await set(name);undo.push(reset(name));}
+    const unrelated=await postRestore();
+    expect(unrelated.ok,'settings of other names do not stop the file: '+JSON.stringify(unrelated)).toBe(true);
+    await set('libetech.archive_kind');undo.push(reset('libetech.archive_kind'));
+    const real=await postRestore();
+    expect(real.ok,'the setting itself still does').toBe(false);
+    expect(real.ok?'':real.error).toMatch(/^POST-RESTORE-01 a default of the database or of the role that runs this file gives the kind/);
+  });
+
+  test('P4d a database in which every revision has a number reports none held: the count is a zero and an empty list, not an absence',async()=>{
+    await someThreads();
+    const r=await postRestore();
+    expect(r.ok,JSON.stringify(r)).toBe(true);
+    expect(r.ok&&r.result).toMatchObject({held_by_project:[]});
   });
 
   test('P5 a counter row that disagrees with the numbers of its thread stops the file',async()=>{
@@ -302,6 +488,16 @@ describe('the data that a restore loads',()=>{
 });
 
 describe('the file itself',()=>{
+  test('P12c the file asks for the kind of the archive, and refuses a default of it, BEFORE its first repair (source order; the behaviour with real psql is R8b, which needs the native tools)',async()=>{
+    const text=await sqlText();
+    const at=(needle:string)=>{const i=text.indexOf(needle);expect(i,needle).toBeGreaterThan(-1);return i;};
+    const guard=at("current_setting('libetech.archive_kind', true)"),defaults=at("= 'libetech.archive_kind')) THEN"),refusal=at("POST-RESTORE-01 give the kind of the archive first");
+    const repair=at('ENABLE ALWAYS TRIGGER source_event_revisions_thread_position');
+    for(const [name,i] of [['the default guard',defaults],['the read of the kind',guard],['the refusal for a missing kind',refusal]] as const) expect(i,name+' comes before the repair').toBeLessThan(repair);
+    // and the superuser and replica checks stay first of all
+    expect(at("current_setting('is_superuser')")).toBeLessThan(defaults);
+  });
+
   test('P12 text: no psql meta-command, no transaction control, every refusal carries a code and no id, chat or thread key of the data',async()=>{
     const text=await sqlText();
     const lines=text.split('\n');
@@ -313,7 +509,10 @@ describe('the file itself',()=>{
     for(const m of messages) expect(m,m).toMatch(/^POST-RESTORE-\d\d\b/);
     // a notice has no code (an installer that shows the codes it finds must not show one for a state that a refusal undoes), and no value of the data either
     const notices=[...text.matchAll(/RAISE NOTICE\s+'((?:[^']|'')*)'/g)].map(m=>m[1]);
-    expect(notices.length).toBe(1);
+    // the repair of the trigger, and the count of revisions that have no number (OQ-59 (b) (1): a report, not a refusal, so no code of the family that the installers show for a failure)
+    expect(notices.length).toBe(2);
+    // the file does not guess what an archive was from its data: "held as at the source" is said by nobody here (the kind is given, and for `pre-023` the same revisions are refused, step 05)
+    for(const m of notices) expect(m,m).not.toMatch(/at the source/);
     for(const m of notices) expect(m,m).not.toMatch(/POST-RESTORE|PRE-RESTORE/);
     for(const m of [...messages,...notices]) expect(m,m).not.toMatch(/chat_id|thread_key|message_id|%s|%L/);
     expect(statements(text).map(s=>s.split(/\s/)[0])).toEqual(['SET','DO','ANALYZE;','SELECT']);
@@ -364,8 +563,11 @@ describe('a database before 023',()=>{
     needsForward=true;
     await h.exec(await rollbackSql());
     expect(await q("SELECT to_regclass('public.intake_thread_heads')::text r")).toEqual([{r:null}]);
-    const r=await postRestore();
-    expect(r.ok,JSON.stringify(r)).toBe(true);
-    expect(r.ok&&r.result).toMatchObject({post_restore:'pass',thread_order:'023 not applied'});
+    // a backup of before 023 rehearsed into schema 022 is told `pre-023`; the file has nothing of 023 to look at for either word, and says null (not zero) for what it did not count
+    for(const kind of ['pre-023','post-023']){
+      const r=await postRestore(undefined,false,kind);
+      expect(r.ok,JSON.stringify(r)).toBe(true);
+      expect(r.ok&&r.result).toMatchObject({post_restore:'pass',thread_order:'023 not applied',archive_kind:kind,held_by_project:null});
+    }
   });
 });
