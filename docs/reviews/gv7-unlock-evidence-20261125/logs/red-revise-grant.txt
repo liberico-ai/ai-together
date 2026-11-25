@@ -1,0 +1,37 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/unlock-092.test.ts (35 tests | 1 failed | 34 skipped) 698ms
+   ❯ Sau soát · phạm vi, quyền cấp và chạy lại (11)
+     × revise a coordinator makes a roster member with no membership the assignee of a new revision: the grant is written and traced 697ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > revise a coordinator makes a roster member with no membership the assignee of a new revision: the grant is written and traced
+AssertionError: expected { ok: false, code: 'P0001', …(2) } to match object { ok: true, value: { work: { …(1) } } }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "work": {
+-       "assignee_id": "14000000-0000-4000-8000-000000000086",
+-     },
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:457:21
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 34 skipped (35)
+   Start at  19:33:14
+   Duration  834ms (tests 89%, import 6%, transform 5%)
+
