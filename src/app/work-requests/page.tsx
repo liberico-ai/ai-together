@@ -16,7 +16,7 @@ export default async function WorkRequestsPage() {
   const db = await database();
   const requests = new WorkRequestService(db);
   const initial = publicPage(await requests.list(principal, {}), principal.id);
-  // the projects where this person decides (every project for a BoM Tech), their services and seats: the decider picks a service and the people
+  // the person's projects and those where a request waits for their decision (for a BoM Tech, only those), their services and seats: the decider picks a service and the people
   const ctx = await requests.context(principal);
   const demo = process.env.LIBETECH_DEMO === '1';
   const people = demo

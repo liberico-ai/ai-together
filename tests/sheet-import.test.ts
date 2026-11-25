@@ -778,3 +778,24 @@ test('(17) per target project: a manager of X who is not a manager of Y and not 
   expect(only.receipt.results.map(shape)).toEqual([['needs_reconciliation','NOT_A_FILER']]);
   expect(await n('work_requests')).toBe(2);
 });
+
+// ---------- approving a whole batch (M7) ----------
+test('M7 a whole import batch is approved in one call: each request keeps its own event and decider; the same call again answers the same and writes nothing',async()=>{
+  const {receipt}=await go(pm,[row8({stt:'1',title:'Việc lô thứ nhất TEST701'}),row8({stt:'2',title:'Việc lô thứ hai TEST702'}),row8({stt:'3',title:'Việc lô thứ ba TEST703'})],
+    {projects:mapping({LBRC:ids.sales})});
+  expect(receipt.results.map(r=>r.result)).toEqual(['imported','imported','imported']);
+  const wr=new WorkRequestService(h.db);
+  const body={batchId:receipt.id,note:'Đã xem cả lô và đồng ý tạo việc.',assigneeId:member.id};
+  const key=newKey();
+  const out=await wr.decideMany(reviewer,body,key);
+  expect(out.results.map(r=>r.ok)).toEqual([true,true,true]);
+  const requests=await rows<{id:string;state:string;decided_by:string}>(`SELECT r.id,r.state,r.decided_by FROM work_import_rows k JOIN work_requests r ON r.id=k.request_id
+    WHERE k.batch_id=$1 ORDER BY k.source_row`,[receipt.id]);
+  expect(requests.map(r=>[r.state,r.decided_by])).toEqual([['approved',reviewer.id],['approved',reviewer.id],['approved',reviewer.id]]);
+  expect(out.results.map(r=>r.id)).toEqual(requests.map(r=>r.id));
+  for(const r of requests) expect(await rows("SELECT actor_id FROM work_request_events WHERE request_id=$1 AND kind='approved'",[r.id])).toEqual([{actor_id:reviewer.id}]);
+  const works=await n('work_items');
+  const again=await wr.decideMany(reviewer,body,key);
+  expect(again.results).toEqual(out.results);
+  expect(await n('work_items')).toBe(works);
+});

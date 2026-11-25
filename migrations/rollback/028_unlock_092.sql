@@ -2,7 +2,8 @@
 -- Refuses while a later migration is recorded, while a BoM Tech row or a work access grant exists, while a batch carries a file name, and while a 3/3 ballot names
 -- the source row of a request: those rows are history (who was BoM Tech, who was given which work by whom, which file was imported, which ballot relied on which
 -- source) and this file does not delete history. The source rows of approved requests are pointers the forward file derives again from work_requests; they go.
--- It restores the 024 bodies of work_request_seat and tech_project_catalog. No CASCADE. It runs again once 028 is gone (a second run), and after 024 or 027 is gone.
+-- It restores the 024 bodies of work_request_seat and tech_project_catalog, the 024 request policies and the 025 body of intake_link_allowed. No CASCADE.
+-- It runs again once 028 is gone (a second run), and after 024, 025 or 027 is gone.
 BEGIN;
 -- A login that row level security binds would count 0 rows and drop history: with row_security off it errors instead.
 SET LOCAL row_security = off;
@@ -23,20 +24,27 @@ DO $$ DECLARE n bigint; BEGIN
     IF n > 0 THEN RAISE EXCEPTION 'work_import_batches holds a file name: 028 only goes forward once a named file was imported.'; END IF;
   END IF;
   IF to_regclass('public.bom_proposals') IS NOT NULL THEN
-    EXECUTE $q$SELECT count(*) FROM public.bom_proposals WHERE source_ref LIKE 'work_request:%'$q$ INTO n;
+    EXECUTE $q$SELECT count(*) FROM public.bom_proposals WHERE starts_with(source_ref,'work_request:')$q$ INTO n;
     IF n > 0 THEN RAISE EXCEPTION 'bom_proposals names the source row of a work request: 028 only goes forward once such a ballot exists.'; END IF;
   END IF;
 END $$;
 
 DROP TRIGGER IF EXISTS bom_sources_request_guard ON bom_sources;
-DELETE FROM bom_sources WHERE source_ref LIKE 'work_request:%';
+DELETE FROM bom_sources WHERE starts_with(source_ref,'work_request:');
 REVOKE INSERT ON bom_sources FROM libetech_runtime;
 DROP FUNCTION IF EXISTS public.bom_sources_request_guard();
 
+-- the sign-in's read of live grants goes first: these policies name work_access_grants
+DROP POLICY IF EXISTS identity_live_grant ON work_items;
+DROP POLICY IF EXISTS identity_live_grant ON bom_receipts;
+DROP POLICY IF EXISTS identity_live_grant ON bom_proposals;
+REVOKE SELECT (id,tenant_id,assignee_id) ON work_items FROM libetech_identity;
+REVOKE SELECT (tenant_id,proposal_id,work_id,work_version) ON bom_receipts FROM libetech_identity;
+REVOKE SELECT (id,tenant_id,work_id,proposed_assignment) ON bom_proposals FROM libetech_identity;
 DROP TABLE IF EXISTS work_access_grants;
 DROP FUNCTION IF EXISTS public.work_access_grants_guard();
 
--- the 024 bodies, only where 024 still stands (CREATE OR REPLACE keeps the owner and the grants)
+-- the 024 and 025 bodies, only where that migration still stands (CREATE OR REPLACE keeps the owner and the grants)
 DO $$ BEGIN
   IF to_regprocedure('public.work_request_seat(uuid)') IS NOT NULL THEN
     EXECUTE $f$CREATE OR REPLACE FUNCTION public.work_request_seat(target_project uuid) RETURNS boolean
@@ -59,10 +67,39 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $b$
  ORDER BY p.name,p.id
 $b$ $f$;
   END IF;
+  IF to_regprocedure('public.intake_link_allowed(uuid)') IS NOT NULL THEN
+    EXECUTE $f$CREATE OR REPLACE FUNCTION public.intake_link_allowed(target_project uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $b$
+ SELECT EXISTS (SELECT 1 FROM identity.memberships m JOIN identity.users u ON u.id=m.user_id AND u.tenant_id=m.tenant_id
+   WHERE m.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND m.project_id=target_project
+    AND m.user_id=nullif(current_setting('app.person_id',true),'')::uuid AND m.project_role<>'viewer' AND u.active AND u.password_hash IS NOT NULL)
+  OR public.work_request_seat(target_project)
+$b$ $f$;
+  END IF;
+  -- the 024 request policies: a seat decides only a project of the actor's scope, asked outside the function too
+  IF to_regclass('public.work_requests') IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE work_requests ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'ALTER TABLE work_requests FORCE ROW LEVEL SECURITY';
+    EXECUTE 'DROP POLICY IF EXISTS request_read ON work_requests';
+    EXECUTE $p$CREATE POLICY request_read ON work_requests FOR SELECT TO libetech_runtime
+ USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid
+  AND (requester_id=nullif(current_setting('app.person_id',true),'')::uuid
+   OR decided_by=nullif(current_setting('app.person_id',true),'')::uuid
+   OR (project_id=ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+    AND public.work_request_seat(project_id))))$p$;
+    EXECUTE 'DROP POLICY IF EXISTS request_decide ON work_requests';
+    EXECUTE $p$CREATE POLICY request_decide ON work_requests FOR UPDATE TO libetech_runtime
+ USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid
+  AND project_id=ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+  AND public.work_request_seat(project_id))
+ WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid
+  AND project_id=ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+  AND public.work_request_seat(project_id))$p$;
+  END IF;
 END $$;
+DROP FUNCTION IF EXISTS public.work_request_project_seat(uuid);
 DROP FUNCTION IF EXISTS public.tech_performers_named(text[]);
 DROP FUNCTION IF EXISTS public.tech_performers_among(uuid[], boolean);
-DROP FUNCTION IF EXISTS public.tech_bom_projects();
 DROP FUNCTION IF EXISTS public.tech_bom_standing(boolean);
 DROP FUNCTION IF EXISTS public.app_actor_is_tech_bom();
 

@@ -75,18 +75,25 @@ type People = Record<typeof SLOTS[number], string | null>;
 
 /**
  * The transaction of the work-request flow: the runtime role, the tenant, the caller's projects and app.person_id from the session (the convention of inbox.ts run()).
- * A Team Tech member who holds no project grant still gets one (they file and read their own requests, M6): the policies show them nothing else. For one of the three
- * BoM Tech the scope is every project of the tenant, as the database answers it (tech_bom_projects, migration 028): a BoM Tech decides in every project (M5).
+ * A Team Tech member who holds no project grant still gets one (they file and read their own requests, M6): the policies show them nothing else. A BoM Tech reads
+ * and decides requests of every project through the request policies (work_request_seat, migration 028); their scope stays that of their memberships.
  */
 export async function requestScope<T>(db: Database, p: Principal, fn: (tx: Queryable) => Promise<T>): Promise<T> {
   if (!p?.id || !p.tenantId) throw new AppError('UNAUTHENTICATED', 'Cần đăng nhập để tiếp tục.', 401);
   return db.transaction(async tx => {
     await tx.query('SET LOCAL ROLE libetech_runtime');
     await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.person_id',$3,true)", [p.tenantId, p.projectIds.join(','), p.id]);
-    const wide = (await tx.query<{ ids: string | null }>("SELECT string_agg(t.id::text, ',' ORDER BY t.id) AS ids FROM public.tech_bom_projects() AS t(id)")).rows[0]?.ids;
-    if (wide) await tx.query("SELECT set_config('app.project_ids',$1,true)", [wide]);
     return fn(tx);
   });
+}
+/**
+ * Add to this transaction's scope the projects where the caller decides a request now (a BoM Tech holds no membership there): the decision reads the services, seats
+ * and people of that project and writes its work there. Nothing else of the project opens, and only for this transaction.
+ */
+async function decidingIn(tx: Queryable, p: Principal, projects: string[]): Promise<string[]> {
+  const scope = [...new Set([...p.projectIds, ...projects])];
+  if (scope.length !== p.projectIds.length) await tx.query("SELECT set_config('app.project_ids',$1,true)", [scope.join(',')]);
+  return scope;
 }
 
 export type SubmitInput = z.infer<typeof submitSchema>;
@@ -145,14 +152,19 @@ export class WorkRequestService {
     });
   }
 
-  /** What the screen needs to decide: the projects of the decider's scope, their services, and the seats of each enabled scope (a seat may take the work, M1). */
+  /**
+   * What the screen needs to decide: the caller's projects and the projects of the requests waiting for their decision, the services of those projects, and the seats
+   * of each enabled scope among them (a seat may take the work, M1). For a BoM Tech that is only where a request waits for them, never the whole tenant.
+   */
   async context(p: Principal): Promise<DecideContext> {
     invariant(p && p.role !== 'bot', 'READ_ONLY', READ_ONLY, 403);
     return this.run(p, async tx => {
-      const raw = (await tx.query<{ ids: string | null }>("SELECT current_setting('app.project_ids',true) AS ids")).rows[0].ids;
-      const services = (await tx.query<DecideContext['services'][number]>('SELECT id,project_id,name FROM services ORDER BY name,id')).rows;
-      const seats = (await tx.query<{ project_id: string; seat_ids: string[] }>('SELECT project_id,seat_ids FROM bom_scopes WHERE enabled')).rows;
-      return { projectIds: raw ? raw.split(',').filter(Boolean) : [], services, seats: Object.fromEntries(seats.map(s => [s.project_id, s.seat_ids])) };
+      const waiting = (await tx.query<{ project_id: string }>(`SELECT DISTINCT project_id FROM work_requests
+        WHERE state='pending' AND requester_id<>$1 AND public.work_request_seat(project_id) ORDER BY project_id`, [p.id])).rows.map(r => r.project_id);
+      const projectIds = await decidingIn(tx, p, waiting);
+      const services = (await tx.query<DecideContext['services'][number]>('SELECT id,project_id,name FROM services WHERE project_id=ANY($1::uuid[]) ORDER BY name,id', [projectIds])).rows;
+      const seats = (await tx.query<{ project_id: string; seat_ids: string[] }>('SELECT project_id,seat_ids FROM bom_scopes WHERE enabled AND project_id=ANY($1::uuid[])', [projectIds])).rows;
+      return { projectIds, services, seats: Object.fromEntries(seats.map(s => [s.project_id, s.seat_ids])) };
     });
   }
 
@@ -192,7 +204,8 @@ export class WorkRequestService {
 
   /**
    * Approve many requests in one go (M7): each request in its own transaction, with its own event and its own decider, so a row that fails is answered on its own
-   * line and does not stop the others. The key of the call gives each request a key of its own; calling again with the same key and body writes nothing new.
+   * line and does not stop the others. The key of the call gives each request a key of its own; calling again with the same key and body writes nothing new:
+   * a batch is read again with the requests this caller already decided, and each request's replay is matched on what the client sent, never on values read since.
    */
   async decideMany(p: Principal, raw: unknown, key: string): Promise<{ results: BulkResult[] }> {
     invariant(p && p.role !== 'bot', 'READ_ONLY', READ_ONLY, 403);
@@ -200,13 +213,15 @@ export class WorkRequestService {
     const input = manySchema.parse(raw);
     const view = await this.run(p, async tx => {
       const named = input.requestIds ?? (await tx.query<{ request_id: string }>(`SELECT k.request_id FROM work_import_rows k JOIN work_requests r ON r.id=k.request_id
-        WHERE k.batch_id=$1 AND r.state='pending' ORDER BY k.source_row,k.request_id`, [input.batchId])).rows.map(r => r.request_id);
+        WHERE k.batch_id=$1 AND (r.state='pending' OR r.decided_by=$2) ORDER BY k.source_row,k.request_id`, [input.batchId, p.id])).rows.map(r => r.request_id);
       const ids = [...new Set(named)];
       invariant(ids.length <= BULK_CAP, 'TOO_MANY', `Một lượt duyệt tối đa ${BULK_CAP} yêu cầu. Chọn bớt rồi duyệt tiếp.`, 422);
       const requests = (await tx.query<Pick<WorkRequest, 'id' | 'project_id' | 'version' | 'assignee_id' | 'technical_id' | 'business_id'>>(
         'SELECT id,project_id,version,assignee_id,technical_id,business_id FROM work_requests WHERE id=ANY($1::uuid[])', [ids])).rows;
-      const services = (await tx.query<{ id: string; project_id: string }>('SELECT id,project_id FROM services WHERE project_id=ANY($1::uuid[]) ORDER BY name,id',
-        [[...new Set(requests.map(r => r.project_id))]])).rows;
+      // the services of the projects where the caller decides these requests, read for this call only
+      const deciding = (await tx.query<{ project_id: string }>('SELECT DISTINCT project_id FROM work_requests WHERE id=ANY($1::uuid[]) AND public.work_request_seat(project_id)', [ids])).rows.map(r => r.project_id);
+      await decidingIn(tx, p, deciding);
+      const services = (await tx.query<{ id: string; project_id: string }>('SELECT id,project_id FROM services WHERE project_id=ANY($1::uuid[]) ORDER BY name,id', [deciding])).rows;
       return { ids, requests, services };
     });
     const results: BulkResult[] = [];
@@ -219,8 +234,10 @@ export class WorkRequestService {
       const people: People = { assigneeId: request.assignee_id ? null : input.assigneeId, technicalId: request.technical_id ? null : input.technicalId, businessId: request.business_id ? null : input.businessId };
       const one: DecisionInput = { decision: 'approve', expectedVersion: request.version, serviceId, code: null, note: input.note, ...people };
       try {
-        // the version read just now is checked inside, but left out of the replay hash: the same call again gets the stored answer of each request
-        const out = await this.decideIn(p, id, one, sha256(key + ':' + id), { bulk: { id, serviceId, note: input.note, ...people } });
+        // the replay hash holds what the client sent for this request (the version, the service and the people read here are checked inside, not hashed):
+        // the same call again gets the stored answer of each request even when a service or a person of the project changed in between
+        const sent = { services: input.services, note: input.note, assigneeId: input.assigneeId, technicalId: input.technicalId, businessId: input.businessId };
+        const out = await this.decideIn(p, id, one, sha256(key + ':' + id), { bulk: { id, ...sent } });
         results.push({ id, ok: true, workId: out.work?.id ?? null });
       } catch (e) {
         if (e instanceof AppError) { results.push({ id, ok: false, code: e.code, message: e.message }); continue; }
@@ -242,6 +259,8 @@ export class WorkRequestService {
       const project = request.project_id;
       // the standing is read under share locks (the BoM Tech row; the scope row, then users and memberships, as the 3/3 vote does): a change waits for this decision
       const bomTech = (await tx.query<{ ok: boolean }>('SELECT public.tech_bom_standing(true) AS ok')).rows[0].ok === true;
+      // a BoM Tech decides in a project they hold no membership in: this transaction alone reads and writes that one project
+      if (bomTech) await decidingIn(tx, p, [project]);
       const scope = (await tx.query<{ seat_ids: string[]; enabled: boolean }>('SELECT seat_ids,enabled FROM bom_scopes WHERE project_id=$1 FOR SHARE', [project])).rows[0];
       const named = input.decision === 'approve' ? [request.assignee_id, request.technical_id, request.business_id, input.assigneeId, input.technicalId, input.businessId].filter((x): x is string => x !== null) : [];
       const eligible = (await tx.query<{ user_id: string; project_role: string; linked: boolean }>('SELECT * FROM bom_eligible_members($1,$2,true)',
@@ -274,6 +293,10 @@ export class WorkRequestService {
             'Người thực hiện phải là thành viên Team Tech, người thực hiện (engineer) hoặc ghế BoM của dự án. Chọn người khác.', 422);
           for (const [who, role] of [[final.technicalId, 'technical'], [final.businessId, 'business']] as const)
             if (who) invariant(eligible.some(m => m.user_id === who && m.project_role === role), 'INVALID_ASSIGNMENT', 'Người nghiệm thu phải giữ đúng vai nghiệm thu trong dự án. Chọn người khác.', 422);
+          // a Team Tech member who holds no membership in the project gets a traced grant (M2); a member works with the grant they hold.
+          // Nobody opens a project to themselves: a decider with no membership there gives the work to another member of Team Tech.
+          if (performers.has(a) && !eligible.some(m => m.user_id === a)) grantTo = a;
+          invariant(grantTo !== p.id, 'SELF_GRANT', 'Bạn chưa có membership ở dự án này nên không tự nhận việc ở đây được. Nhờ một BoM Tech khác hoặc một ghế BoM của dự án giao việc này cho bạn.', 403);
           const workCode = input.code ?? request.code ?? 'WR-' + request.id.slice(0, 8).toUpperCase();
           work = (await tx.query<Work>(`INSERT INTO work_items(tenant_id,project_id,service_id,code,title,priority,due_at,assignee_id,technical_id,business_id,criteria,spec_url,source_sha)
             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL) ON CONFLICT (tenant_id,project_id,code) DO NOTHING RETURNING *`,
@@ -282,8 +305,6 @@ export class WorkRequestService {
           record = { ...final, proposed, final, filledBySeat, changedBySeat };
           await append(tx, p, work, 'created', { title: work.title, revision: 1, sourceSha: null, requestId: request.id, requestedBy: request.requester_id,
             requesterName: request.requester_name, approvedBy: p.id, origin: request.origin, sourceRef: request.source_ref, proposed, final, filledBySeat, changedBySeat });
-          // a Team Tech member who holds no membership in the project gets a traced grant (M2); a member works with the grant they hold
-          if (performers.has(a) && !eligible.some(m => m.user_id === a)) grantTo = a;
         }
         const state = input.decision === 'approve' ? 'approved' : 'rejected';
         const updated = (await tx.query<WorkRequest>(`UPDATE work_requests SET state=$1,decided_by=$2,decider_name=$3,decided_at=now(),decision_note=$4,work_id=$5,version=version+1,updated_at=now()

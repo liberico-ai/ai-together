@@ -8,9 +8,12 @@
 --    One of them, other than the requester, may decide a work request in any project of the tenant, with or without a Telegram link (M5).
 -- 2. public.work_request_seat(project) is redefined: a BoM Tech (any project of the tenant), or a BoM seat of the project who is an active, activated member of it.
 --    The Telegram link is no longer required to decide a request on the web. The 3/3 ballot (bom.ts) keeps its own seat conditions, Telegram included.
+--    The request policies (read, decide) ask that function alone. A BoM Tech's scope is not widened: the decision adds the one project it writes in, nothing else.
+--    Linking a message to existing work (intake_link_allowed) keeps the 025 rule: being a BoM Tech adds nothing there.
 -- 3. public.work_access_grants: append-only. When a Team Tech member (roster or BoM Tech) who holds no membership in the project is given work — by the approval of
---    a request, by an applied 3/3 ballot, or by a new revision — one row records who granted it and from which source. The sign-in adds the project to that member's
---    scope as 'viewer'; the work service lets the assignee do the performer's steps (M2). Nobody off the roster gets a row (the guard asks the database again).
+--    a request, by an applied 3/3 ballot, or by a new revision — one row records who granted it and from which source. While the member still holds that work, the
+--    sign-in adds the project to their scope as 'viewer'; the work service lets the assignee do the performer's steps (M2). Nobody off the roster gets a row, and
+--    nobody grants themselves one (the guard asks the database again).
 -- 4. public.bom_sources: the runtime may write the one source row of a work item it created from an approved request ('work_request:<id>', the request hash, valid
 --    for ever), so the 3/3 ballot can reassign that work (M4). Such a row never changes or goes away. Work approved under 0.9.1 gets its row here (backfill).
 -- 5. work_import_batches.file_name: the name of the file the PM chose at preview (OQ-62 câu 6), next to the hash and the time already recorded.
@@ -77,13 +80,6 @@ BEGIN
  END IF;
  RETURN public.app_actor_is_tech_bom();
 END $$;
--- Every project of the tenant, for a BoM Tech only (the work-request service widens its scope to them: a BoM Tech decides in every project). Empty for anybody else.
-CREATE OR REPLACE FUNCTION public.tech_bom_projects() RETURNS SETOF uuid
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
- SELECT p.id FROM public.projects p
- WHERE p.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND public.app_actor_is_tech_bom()
- ORDER BY p.id
-$$;
 -- Who of the candidates may perform work in any project of the tenant: an active, activated Team Tech member (roster) or BoM Tech. The id and the account name only.
 CREATE OR REPLACE FUNCTION public.tech_performers_among(candidates uuid[], lock_rows boolean DEFAULT false) RETURNS TABLE(user_id uuid, name text)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
@@ -118,28 +114,56 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
  WHERE p.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND (public.app_actor_is_tech_member() OR public.app_actor_is_tech_bom())
  ORDER BY p.name,p.id
 $$;
--- The actor may decide a request of the project: a BoM Tech (any project of the tenant), or one of the three seats of an enabled scope of that project who is an
--- active, activated member of it holding it in scope. No Telegram link is asked for: the web decision does not need one (M5).
+-- The actor is one of the three seats of an enabled scope of the project, an active, activated member of it who holds it in scope. No Telegram link is asked for:
+-- the web decision does not need one (M5). The 3/3 ballot (bom.ts) keeps its own seat conditions, Telegram included.
+CREATE OR REPLACE FUNCTION public.work_request_project_seat(target_project uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+ SELECT EXISTS (SELECT 1 FROM public.bom_scopes s
+   JOIN identity.memberships m ON m.tenant_id=s.tenant_id AND m.project_id=s.project_id
+   JOIN identity.users u ON u.id=m.user_id AND u.tenant_id=m.tenant_id
+  WHERE s.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND s.project_id=target_project AND s.enabled
+   AND target_project=ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+   AND u.id=nullif(current_setting('app.person_id',true),'')::uuid AND u.id=ANY(s.seat_ids)
+   AND u.active AND u.password_hash IS NOT NULL)
+$$;
+-- The actor may decide a request of the project: a BoM Tech (any project of the tenant), or a seat of the project as above. This answers for the request only: the
+-- scope of a BoM Tech is not widened by it (their other reads stay those of their memberships; the decision itself adds the one project it writes in).
 CREATE OR REPLACE FUNCTION public.work_request_seat(target_project uuid) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
  SELECT EXISTS (SELECT 1 FROM public.projects p WHERE p.id=target_project AND p.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid)
-  AND (public.app_actor_is_tech_bom()
-   OR EXISTS (SELECT 1 FROM public.bom_scopes s
-     JOIN identity.memberships m ON m.tenant_id=s.tenant_id AND m.project_id=s.project_id
-     JOIN identity.users u ON u.id=m.user_id AND u.tenant_id=m.tenant_id
-    WHERE s.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND s.project_id=target_project AND s.enabled
-     AND target_project=ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
-     AND u.id=nullif(current_setting('app.person_id',true),'')::uuid AND u.id=ANY(s.seat_ids)
-     AND u.active AND u.password_hash IS NOT NULL))
+  AND (public.app_actor_is_tech_bom() OR public.work_request_project_seat(target_project))
+$$;
+-- Linking a message to existing work stays where it was (025): a member other than viewer, or a seat of the project. Being a BoM Tech adds nothing here.
+CREATE OR REPLACE FUNCTION public.intake_link_allowed(target_project uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+ SELECT EXISTS (SELECT 1 FROM identity.memberships m JOIN identity.users u ON u.id=m.user_id AND u.tenant_id=m.tenant_id
+   WHERE m.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND m.project_id=target_project
+    AND m.user_id=nullif(current_setting('app.person_id',true),'')::uuid AND m.project_role<>'viewer' AND u.active AND u.password_hash IS NOT NULL)
+  OR public.work_request_project_seat(target_project)
 $$;
 DO $$ DECLARE f text; BEGIN
- FOREACH f IN ARRAY ARRAY['public.app_actor_is_tech_bom()','public.tech_bom_standing(boolean)','public.tech_bom_projects()','public.tech_performers_among(uuid[],boolean)',
-   'public.tech_performers_named(text[])','public.tech_project_catalog()','public.work_request_seat(uuid)'] LOOP
+ FOREACH f IN ARRAY ARRAY['public.app_actor_is_tech_bom()','public.tech_bom_standing(boolean)','public.tech_performers_among(uuid[],boolean)',
+   'public.tech_performers_named(text[])','public.tech_project_catalog()','public.work_request_project_seat(uuid)','public.work_request_seat(uuid)',
+   'public.intake_link_allowed(uuid)'] LOOP
   EXECUTE format('ALTER FUNCTION %s OWNER TO libetech_identity',f);
   EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC',f);
   EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO libetech_runtime',f);
  END LOOP;
 END $$;
+-- A request is read and decided where work_request_seat answers yes: the seat branch already asks for the project in scope, the BoM Tech branch is the tenant.
+-- (024 also asked for the project in scope outside the function, which a BoM Tech holding no membership would never meet.)
+ALTER TABLE work_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE work_requests FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS request_read ON work_requests;
+CREATE POLICY request_read ON work_requests FOR SELECT TO libetech_runtime
+ USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid
+  AND (requester_id=nullif(current_setting('app.person_id',true),'')::uuid
+   OR decided_by=nullif(current_setting('app.person_id',true),'')::uuid
+   OR public.work_request_seat(project_id)));
+DROP POLICY IF EXISTS request_decide ON work_requests;
+CREATE POLICY request_decide ON work_requests FOR UPDATE TO libetech_runtime
+ USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND public.work_request_seat(project_id))
+ WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND public.work_request_seat(project_id));
 
 CREATE TABLE IF NOT EXISTS work_access_grants (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL, project_id uuid NOT NULL, work_id uuid NOT NULL,
@@ -158,7 +182,8 @@ CREATE INDEX IF NOT EXISTS work_access_grants_created_idx ON work_access_grants(
 DROP TRIGGER IF EXISTS immutable_history ON work_access_grants;
 CREATE TRIGGER immutable_history BEFORE UPDATE OR DELETE ON work_access_grants
  FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
--- A grant is written by the person who gave the work, in the transaction that gave it, to a Team Tech member who now holds it:
+-- A grant is written by the person who gave the work, in the transaction that gave it (the decision, receipt or revision carries this transaction's now()), to a
+-- Team Tech member who now holds it, never to the granter:
 -- · work_request: the approved request created this work, its decider is the granter, and the member is the assignee;
 -- · bom_allocation: the 3/3 receipt of this proposal exists, the granter voted on it, and the member is the lead or a part owner it names;
 -- · revise: the granter opened this revision of this work (audit row), and the member is the assignee.
@@ -168,21 +193,24 @@ BEGIN
  IF NEW.granted_by IS DISTINCT FROM nullif(current_setting('app.person_id',true),'')::uuid THEN
   RAISE EXCEPTION 'A work access grant is written by the person who gives the work.';
  END IF;
+ IF NEW.user_id=NEW.granted_by THEN
+  RAISE EXCEPTION 'Nobody grants themselves access to a project.';
+ END IF;
  IF NOT EXISTS (SELECT 1 FROM public.tech_performers_among(ARRAY[NEW.user_id]) t) THEN
   RAISE EXCEPTION 'A work access grant goes to a Team Tech member only.';
  END IF;
  IF NOT (
   (NEW.source_kind='work_request' AND EXISTS (SELECT 1 FROM public.work_requests r JOIN public.work_items w ON w.id=r.work_id
     WHERE r.id=NEW.source_id AND r.work_id=NEW.work_id AND r.tenant_id=NEW.tenant_id AND r.project_id=NEW.project_id AND r.state='approved'
-     AND r.decided_by=NEW.granted_by AND w.assignee_id=NEW.user_id))
+     AND r.decided_by=NEW.granted_by AND r.decided_at=now() AND w.assignee_id=NEW.user_id))
   OR (NEW.source_kind='bom_allocation' AND EXISTS (SELECT 1 FROM public.bom_proposals b JOIN public.bom_receipts rc ON rc.proposal_id=b.id
-    WHERE b.id=NEW.source_id AND b.work_id=NEW.work_id AND b.tenant_id=NEW.tenant_id AND b.project_id=NEW.project_id
+    WHERE b.id=NEW.source_id AND b.work_id=NEW.work_id AND b.tenant_id=NEW.tenant_id AND b.project_id=NEW.project_id AND rc.created_at=now()
      AND EXISTS (SELECT 1 FROM public.bom_votes v WHERE v.proposal_id=b.id AND v.voter_id=NEW.granted_by)
      AND (b.proposed_assignment->>'lead_id'=NEW.user_id::text
       OR EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(b.proposed_assignment->'parts','[]'::jsonb)) part WHERE part->>'owner_id'=NEW.user_id::text))))
   OR (NEW.source_kind='revise' AND EXISTS (SELECT 1 FROM public.audit_events a JOIN public.work_items w ON w.id=a.work_id
     WHERE a.id=NEW.source_id AND a.work_id=NEW.work_id AND a.tenant_id=NEW.tenant_id AND a.project_id=NEW.project_id AND a.kind='revise'
-     AND a.actor_id=NEW.granted_by AND w.assignee_id=NEW.user_id))
+     AND a.actor_id=NEW.granted_by AND a.created_at=now() AND w.assignee_id=NEW.user_id))
  ) THEN
   RAISE EXCEPTION 'A work access grant points at the decision that gave this work to this member.';
  END IF;
@@ -208,7 +236,27 @@ DROP POLICY IF EXISTS identity_grant_read ON work_access_grants;
 CREATE POLICY identity_grant_read ON work_access_grants FOR SELECT TO libetech_identity
  USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid);
 GRANT SELECT, INSERT ON work_access_grants TO libetech_runtime;
-GRANT SELECT (tenant_id,project_id,user_id) ON work_access_grants TO libetech_identity;
+GRANT SELECT (tenant_id,project_id,work_id,user_id) ON work_access_grants TO libetech_identity;
+-- A grant counts at sign-in only while its member still holds the work: the assignee, or a part owner of the latest applied 3/3 receipt (the parts the work
+-- service lets act). The sign-in reads those few columns, of work items that carry a grant, and nothing else of them.
+ALTER TABLE work_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE work_items FORCE ROW LEVEL SECURITY;
+ALTER TABLE bom_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bom_receipts FORCE ROW LEVEL SECURITY;
+ALTER TABLE bom_proposals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bom_proposals FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS identity_live_grant ON work_items;
+CREATE POLICY identity_live_grant ON work_items FOR SELECT TO libetech_identity
+ USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT 1 FROM work_access_grants g WHERE g.work_id=work_items.id));
+DROP POLICY IF EXISTS identity_live_grant ON bom_receipts;
+CREATE POLICY identity_live_grant ON bom_receipts FOR SELECT TO libetech_identity
+ USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT 1 FROM work_access_grants g WHERE g.work_id=bom_receipts.work_id));
+DROP POLICY IF EXISTS identity_live_grant ON bom_proposals;
+CREATE POLICY identity_live_grant ON bom_proposals FOR SELECT TO libetech_identity
+ USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT 1 FROM work_access_grants g WHERE g.work_id=bom_proposals.work_id));
+GRANT SELECT (id,tenant_id,assignee_id) ON work_items TO libetech_identity;
+GRANT SELECT (tenant_id,proposal_id,work_id,work_version) ON bom_receipts TO libetech_identity;
+GRANT SELECT (id,tenant_id,work_id,proposed_assignment) ON bom_proposals TO libetech_identity;
 
 -- The source row of work created from an approved request: written by the runtime in the approving transaction (or by the backfill below), it names that request
 -- and its hash and never expires. It never changes or goes away. The runtime writes no other source row: those stay the operator's importer's.
@@ -216,18 +264,19 @@ CREATE OR REPLACE FUNCTION public.bom_sources_request_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
 BEGIN
  IF TG_OP='INSERT' THEN
-  IF NEW.source_ref LIKE 'work_request:%' THEN
+  IF starts_with(NEW.source_ref,'work_request:') THEN
    IF NEW.valid_until<>'infinity'::timestamptz OR NOT EXISTS (SELECT 1 FROM public.work_requests r
      WHERE r.work_id=NEW.work_id AND r.tenant_id=NEW.tenant_id AND r.project_id=NEW.project_id AND r.state='approved'
       AND NEW.source_ref='work_request:'||r.id::text AND r.request_hash=NEW.fingerprint) THEN
     RAISE EXCEPTION 'A source row of a work request names that approved request and its hash.';
    END IF;
-  ELSIF current_user='libetech_runtime' THEN
+  -- the runtime role, or any login that holds its privileges without SET ROLE; the operator (a superuser) is not one of them
+  ELSIF pg_has_role(current_user,'libetech_runtime','USAGE') AND NOT (SELECT r.rolsuper FROM pg_catalog.pg_roles r WHERE r.rolname=current_user) THEN
    RAISE EXCEPTION 'The runtime writes only the source row of an approved work request.';
   END IF;
   RETURN NEW;
  END IF;
- IF OLD.source_ref LIKE 'work_request:%' THEN
+ IF starts_with(OLD.source_ref,'work_request:') THEN
   IF TG_OP='DELETE' THEN RAISE EXCEPTION 'The source row of a work request does not go away.'; END IF;
   IF (NEW.work_id,NEW.tenant_id,NEW.project_id,NEW.source_ref,NEW.fingerprint,NEW.checked_at,NEW.valid_until)
      IS DISTINCT FROM (OLD.work_id,OLD.tenant_id,OLD.project_id,OLD.source_ref,OLD.fingerprint,OLD.checked_at,OLD.valid_until) THEN

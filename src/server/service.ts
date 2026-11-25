@@ -180,9 +180,12 @@ export class WorkService {
         const updated = (await tx.query<Work>('UPDATE work_items SET state=$1,revision=$2,version=version+1,updated_at=now() WHERE id=$3 RETURNING *',[state,revision,id])).rows[0];
         const audit = await append(tx,p,updated,cmd.kind,payload);
         // a Team Tech member made assignee by this revision, with no membership in the project, gets a traced grant (M2); one kept as assignee holds theirs already
-        if (cmd.kind==='revise' && performer && cmd.assigneeId!==work.assignee_id && !(await this.member(tx,cmd.assigneeId,work.project_id)))
+        if (cmd.kind==='revise' && performer && cmd.assigneeId!==work.assignee_id && !(await this.member(tx,cmd.assigneeId,work.project_id))) {
+          // the grant is written as its granter (migration 028 checks app.person_id against granted_by); the work transaction sets no person otherwise
+          await tx.query("SELECT set_config('app.person_id',$1,true)",[p.id]);
           await tx.query(`INSERT INTO work_access_grants(tenant_id,project_id,work_id,user_id,source_kind,source_id,granted_by) VALUES($1,$2,$3,$4,'revise',$5,$6)`,
             [p.tenantId,work.project_id,id,cmd.assigneeId,audit,p.id]);
+        }
         await projectWorkSummary(tx,p.tenantId,work.project_id);
         return detail(tx,updated);
       });

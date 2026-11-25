@@ -186,7 +186,8 @@ type Access = { tech: boolean; managed: string[]; catalog: ProjectInfo[] };
 export class SheetImportService {
   constructor(private db: Database, private people: PeopleSource = defaultPeople) {}
   private run<T>(p: Principal, fn: (tx: Queryable) => Promise<T>, readOnly = false): Promise<T> {
-    // the scope of the work-request flow: a Team Tech member with no project yet still imports (M6), a BoM Tech reads the notes of every project (M5)
+    // the scope of the work-request flow: a Team Tech member with no project yet still imports (M6); a BoM Tech reads the import rows of the requests they decide
+    // through the row policy (work_request_seat), never through a wider scope
     return requestScope(this.db, p, async tx => {
       if (readOnly) await tx.query('SET TRANSACTION READ ONLY');
       return fn(tx);

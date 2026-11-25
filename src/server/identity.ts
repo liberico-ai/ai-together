@@ -62,10 +62,15 @@ export class IdentityService {
   const techMember=(await tx.query('SELECT 1 FROM identity.tech_roster WHERE user_id=$1',[id])).rows.length>0;
   const techBom=(await tx.query('SELECT 1 FROM identity.tech_bom WHERE user_id=$1',[id])).rows.length>0;
   // A Team Tech member given work in a project they are not a member of reads that project (M2, 0.9.2): each such project comes from a traced grant
-  // (work_access_grants: who gave it, from which request or ballot) and is read with the viewer role; the work services let the assignee act on their own work.
-  // The grant counts only while the person is on Team Tech. Anybody else gets exactly their memberships.
+  // (work_access_grants: who gave it, from which request, ballot or revision) and is read with the viewer role; the work services let the assignee act on their own work.
+  // A grant counts only while the person is on Team Tech and still holds that work: its assignee, or a part owner of the latest applied 3/3 receipt (the parts the
+  // work service lets act). A grant whose work went to somebody else stays as history and opens nothing. Anybody else gets exactly their memberships.
   if(techMember||techBom){
-   const given=(await tx.query<{project_id:string}>('SELECT DISTINCT project_id FROM public.work_access_grants WHERE user_id=$1 ORDER BY project_id',[id])).rows;
+   const given=(await tx.query<{project_id:string}>(`SELECT DISTINCT g.project_id FROM public.work_access_grants g JOIN public.work_items w ON w.id=g.work_id
+     WHERE g.user_id=$1 AND (w.assignee_id=g.user_id OR EXISTS (SELECT 1 FROM public.bom_receipts rc JOIN public.bom_proposals b ON b.id=rc.proposal_id
+      WHERE rc.work_id=w.id AND rc.work_version=(SELECT max(x.work_version) FROM public.bom_receipts x WHERE x.work_id=w.id)
+       AND EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(b.proposed_assignment->'parts','[]'::jsonb)) part WHERE part->>'owner_id'=g.user_id::text)))
+     ORDER BY g.project_id`,[id])).rows;
    for(const row of given) if(!grants.some(g=>g.projectId===row.project_id)) grants.push({projectId:row.project_id,role:'viewer',reportPermissions:[]});
   }
   // a Team Tech member with no project yet still signs in: they see the project list, file requests and read their own (M6)

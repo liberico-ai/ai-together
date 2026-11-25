@@ -908,7 +908,7 @@ test('rollback 027 refuses while a later migration is recorded or a batch or key
 });
 
 // ---- 028: 0.9.2 «mở khoá» (self-contained block) ----
-test('rollback 028 refuses while a later migration, a BoM Tech row, a work grant, a named batch or a ballot on a request source exists; it drops what 028 made and restores the 024 bodies; 028 backfills the source row of work approved under 0.9.1; applying 028 twice is fine',async()=>{
+test('rollback 028 refuses while a later migration, a BoM Tech row, a work grant, a named batch or a ballot on a request source exists; it drops what 028 made and restores the 024 bodies and policies and the 025 link rule; 028 backfills the source row of work approved under 0.9.1; applying 028 twice is fine',async()=>{
   const h=await openHarness();
   const forward=await readFile(dir('migrations/028_unlock_092.sql'),'utf8');
   const rollback=await readFile(dir('migrations/rollback/028_unlock_092.sql'),'utf8');
@@ -918,7 +918,11 @@ test('rollback 028 refuses while a later migration, a BoM Tech row, a work grant
   const present=async()=>(await q<{t:string|null}>("SELECT to_regclass(n)::text t FROM unnest(ARRAY['identity.tech_bom','public.work_access_grants']) n")).map(r=>r.t);
   const full=['identity.tech_bom','work_access_grants'];
   const functions=async()=>(await q<{n:string}>(`SELECT p.proname n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace
-    WHERE s.nspname='public' AND p.proname IN ('app_actor_is_tech_bom','tech_bom_standing','tech_bom_projects','tech_performers_among','tech_performers_named','work_access_grants_guard','bom_sources_request_guard') ORDER BY 1`)).map(r=>r.n);
+    WHERE s.nspname='public' AND p.proname IN ('app_actor_is_tech_bom','tech_bom_standing','work_request_project_seat','tech_performers_among','tech_performers_named','work_access_grants_guard','bom_sources_request_guard') ORDER BY 1`)).map(r=>r.n);
+  // the sign-in's read of live grants, the 024 request policy (asks for the project in scope outside the seat function) and the 025 link rule
+  const livePolicies=async()=>(await q<{n:number}>("SELECT count(*)::int n FROM pg_policies WHERE policyname='identity_live_grant'"))[0].n;
+  const readQual=async()=>(await q<{qual:string}>("SELECT qual FROM pg_policies WHERE tablename='work_requests' AND policyname='request_read'"))[0].qual;
+  const linkBody=async()=>(await q<{d:string}>("SELECT pg_get_functiondef('public.intake_link_allowed(uuid)'::regprocedure) d"))[0].d;
   const seatBody=async()=>(await q<{d:string}>("SELECT pg_get_functiondef('public.work_request_seat(uuid)'::regprocedure) d"))[0].d;
   const fileName=async()=>(await q("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='work_import_batches' AND column_name='file_name'")).length;
   const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='028'")).length;
@@ -930,7 +934,7 @@ test('rollback 028 refuses while a later migration, a BoM Tech row, a work grant
     await h.reset();await seedSlice1(h);await seedMembers(h);
     later=(await from013()).filter(f=>num(f)>28);
     for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
-    expect(await present()).toEqual(full);expect(await functions()).toHaveLength(7);expect(await fileName()).toBe(1);
+    expect(await present()).toEqual(full);expect(await functions()).toHaveLength(7);expect(await fileName()).toBe(1);expect(await livePolicies()).toBe(3);
     // 1. a later version recorded
     await q("INSERT INTO schema_migrations(version) VALUES('029')");
     try { await refused(/later/i); } finally { await q("DELETE FROM schema_migrations WHERE version='029'"); }
@@ -962,6 +966,7 @@ test('rollback 028 refuses while a later migration, a BoM Tech row, a work grant
     await h.exec(rollback);
     expect(await present()).toEqual([null,null]);expect(await functions()).toEqual([]);expect(await fileName()).toBe(0);expect(await applied()).toBe(0);
     expect(await seatBody()).toMatch(/telegram_links/);
+    expect(await livePolicies()).toBe(0);expect(await readQual()).toMatch(/app\.project_ids/);expect(await linkBody()).not.toMatch(/work_request_project_seat/);
     await h.exec(rollback);
     // 7. work approved under the 027 shape (0.9.1) gets its source row when 028 comes: it names the request and its hash, and never expires
     const work=randomUUID(),request=randomUUID(),hash='9'.repeat(64);
@@ -974,6 +979,7 @@ test('rollback 028 refuses while a later migration, a BoM Tech row, a work grant
     expect(await q("SELECT source_ref,fingerprint,valid_until='infinity'::timestamptz AS forever FROM bom_sources WHERE work_id=$1",[work])).toEqual([{source_ref:'work_request:'+request,fingerprint:hash,forever:true}]);
     expect(await present()).toEqual(full);expect(await functions()).toHaveLength(7);expect(await fileName()).toBe(1);expect(await applied()).toBe(1);
     expect(await seatBody()).not.toMatch(/telegram_links/);
+    expect(await livePolicies()).toBe(3);expect(await readQual()).not.toMatch(/app\.project_ids/);expect(await linkBody()).toMatch(/work_request_project_seat/);
     // 8. the rollback takes the derived source row away again, and leaves the request and its work
     await h.exec(rollback);
     expect(await q('SELECT 1 FROM bom_sources WHERE work_id=$1',[work])).toEqual([]);

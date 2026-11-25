@@ -5,12 +5,12 @@ import path from 'node:path';
 import {openHarness,type Harness} from './slice1-db';
 import {member,pm,seedSlice1} from './slice1-fixtures';
 import {approver,mapDomain,reviewer,seedMembers} from './slice3-fixtures';
-import {WorkRequestService} from '../src/server/work-requests';
+import {WorkRequestService,requestScope} from '../src/server/work-requests';
 import {WorkService} from '../src/server/service';
 import {BomService} from '../src/server/bom';
 import {IdentityService,digest,secret} from '../src/server/identity';
 import {scoped} from '../src/server/db';
-import {ids} from '../src/server/identities';
+import {demoProfiles,ids} from '../src/server/identities';
 import {projectRole} from '../src/server/types';
 import type {Principal} from '../src/server/types';
 
@@ -246,11 +246,15 @@ describe('M5 · no request waits forever',()=>{
     const r=await file({projectId:ids.transport});
     expect(await approve(bomC,r.id,{serviceId:ids.transportService,assigneeId:tech.id})).toMatchObject({ok:false,code:'NOT_FOUND'});
   });
-  test('M5 the operator script sets exactly three BoM Tech, idempotently, with the source on each event',async()=>{
-    let sql=await readFile(path.join(process.cwd(),'deploy/tech-bom.sql'),'utf8');
-    const vars={tenant_id:ids.tenant,user_ids:`${bomB.id},${bomA.id},${rosterTechnical.id}`,source:'bien-ban-thu-nghiem-gv7'};
-    for(const [key,v] of Object.entries(vars)) sql=sql.replaceAll(`:'${key}'`,"'"+v.replaceAll("'","''")+"'");
-    sql=sql.split('\n').filter(l=>!l.startsWith('\\')).join('\n');
+  test('M5 the operator script sets zero to three BoM Tech, idempotently, with the source on each event',async()=>{
+    const script=await readFile(path.join(process.cwd(),'deploy/tech-bom.sql'),'utf8');
+    const fill=(userIds:string)=>{
+      let sql=script;
+      const vars={tenant_id:ids.tenant,user_ids:userIds,source:'bien-ban-thu-nghiem-gv7'};
+      for(const [key,v] of Object.entries(vars)) sql=sql.replaceAll(`:'${key}'`,"'"+v.replaceAll("'","''")+"'");
+      return sql.split('\n').filter(l=>!l.startsWith('\\')).join('\n');
+    };
+    const sql=fill(`${bomB.id},${bomA.id},${rosterTechnical.id}`);
     const baseline=(await rows<{id:string}>('SELECT id FROM identity.events')).map(r=>r.id);
     await h.exec(sql);
     expect((await rows<{user_id:string}>('SELECT user_id FROM identity.tech_bom WHERE tenant_id=$1 ORDER BY seat',[ids.tenant])).map(r=>r.user_id)).toEqual([bomB.id,bomA.id,rosterTechnical.id]);
@@ -260,6 +264,17 @@ describe('M5 · no request waits forever',()=>{
     const after=(await rows<{id:string}>('SELECT id FROM identity.events')).map(r=>r.id);
     await h.exec(sql);
     expect((await rows('SELECT 1 FROM identity.events WHERE NOT (id=ANY($1::uuid[]))',[after]))).toEqual([]);
+    // fewer than three while a seat is not yet named, and none at all, are accepted; four, a repeated id or a missing account are not
+    const seats=async()=>(await rows<{user_id:string}>('SELECT user_id FROM identity.tech_bom WHERE tenant_id=$1 ORDER BY seat',[ids.tenant])).map(r=>r.user_id);
+    expect(await attempt(()=>h.exec(fill(`${bomC.id},${bomA.id}`)))).toMatchObject({ok:true});
+    expect(await seats()).toEqual([bomC.id,bomA.id]);
+    expect(await attempt(()=>h.exec(fill('')))).toMatchObject({ok:true});
+    expect(await seats()).toEqual([]);
+    for(const bad of [`${bomA.id},${bomB.id},${bomC.id},${rosterTechnical.id}`,`${bomA.id},${bomA.id}`,`${bomA.id},${person(99)}`]) {
+      expect(await attempt(()=>h.exec(fill(bad))),bad).toMatchObject({ok:false});
+      await h.exec('ROLLBACK').catch(()=>{});
+    }
+    expect(await seats()).toEqual([]);
   });
 });
 
@@ -361,5 +376,142 @@ describe('IBS HI · M2 and M5 in an IBS HI project',()=>{
     // the person off the roster still holds nothing in the IBS HI project
     const other=((await sessionOf(offRoster.id)) as {value:Principal}).value;
     expect(other.projectIds).not.toContain(ibs.project);
+  });
+});
+
+// After the two sweeps and the automated review (before the Codex gate): the scope a BoM Tech reads, who may be granted, which grants count, and replays.
+describe('Sau soát · phạm vi, quyền cấp và chạy lại',()=>{
+  const count=(who:Principal,table:string)=>requestScope(h.db,who,async tx=>(await tx.query<{n:number}>(`SELECT count(*)::int n FROM ${table}`)).rows[0].n);
+  test('F6 a BoM Tech reads no work, service or audit row of a project outside their memberships, before or after deciding there',async()=>{
+    for(const t of ['work_items','services','audit_events','bom_scopes']) expect(await count(bomA,t),t).toBe(0);
+    const r=await file({projectId:ids.transport});
+    expect(await approve(bomA,r.id,{serviceId:ids.transportService,assigneeId:tech.id})).toMatchObject({ok:true});
+    for(const t of ['work_items','services','audit_events','bom_scopes']) expect(await count(bomA,t),t).toBe(0);
+    // the request they decided stays readable to them
+    expect((await svc().list(bomA,{})).items.map(i=>i.id)).toContain(r.id);
+  });
+  test('F6 the decision screen of a BoM Tech holds only the projects of the requests waiting for them',async()=>{
+    expect(await svc().context(bomA)).toMatchObject({projectIds:[],services:[],seats:{}});
+    await file({projectId:ids.transport});
+    const ctx=await svc().context(bomA);
+    expect(ctx.projectIds).toEqual([ids.transport]);
+    expect(ctx.services.map(s=>s.project_id)).toEqual(expect.arrayContaining([ids.transport]));
+    expect(ctx.services.every(s=>s.project_id===ids.transport)).toBe(true);
+    expect(ctx.seats).toEqual({});
+  });
+  test('F6 being a BoM Tech does not let a person link a message to work in a project outside their memberships',async()=>{
+    const linked=await requestScope(h.db,bomA,async tx=>(await tx.query<{ok:boolean}>('SELECT public.intake_link_allowed($1) AS ok',[ids.transport])).rows[0].ok);
+    expect(linked).toBe(false);
+    // a seat of the project still links there
+    expect(await requestScope(h.db,reviewer,async tx=>(await tx.query<{ok:boolean}>('SELECT public.intake_link_allowed($1) AS ok',[ids.sales])).rows[0].ok)).toBe(true);
+  });
+  test('SELF_GRANT a BoM Tech with no membership does not take the work they approve; they give it to another member of Team Tech',async()=>{
+    const r=await file({projectId:ids.transport});
+    const refused=await approve(bomA,r.id,{serviceId:ids.transportService,assigneeId:bomA.id});
+    expect(refused).toMatchObject({ok:false,code:'SELF_GRANT',status:403});
+    expect((refused as {message:string}).message).toMatch(/Nhờ/);
+    expect((refused as {message:string}).message).not.toMatch(/Vận tải|IBS/);
+    expect((await rows('SELECT state FROM work_requests WHERE id=$1',[r.id]))[0]).toEqual({state:'pending'});
+    expect(await rows('SELECT 1 FROM work_access_grants')).toEqual([]);
+    const given=await approve(bomA,r.id,{serviceId:ids.transportService,assigneeId:bomB.id});
+    expect(given).toMatchObject({ok:true,value:{work:{assignee_id:bomB.id}}});
+    const w=(given as {value:{work:{id:string}}}).value.work;
+    expect(await grants(w.id)).toEqual([{user_id:bomB.id,granted_by:bomA.id,source_kind:'work_request',source_id:r.id,project_id:ids.transport}]);
+  });
+  test('SELF_GRANT the database refuses a grant to its own granter, even in the transaction of a decision',async()=>{
+    const r=await file({projectId:ids.transport});
+    const forged=await attempt(()=>h.db.transaction(async tx=>{
+      await tx.query('SET LOCAL ROLE libetech_runtime');
+      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.person_id',$3,true)",[ids.tenant,ids.transport,bomA.id]);
+      const w=(await tx.query<{id:string}>(`INSERT INTO work_items(tenant_id,project_id,service_id,code,title,priority,assignee_id,criteria) VALUES($1,$2,$3,'GV7-SELF','Việc tự cấp thử','normal',$4,'') RETURNING id`,
+        [ids.tenant,ids.transport,ids.transportService,bomA.id])).rows[0];
+      await tx.query(`INSERT INTO audit_events(tenant_id,project_id,work_id,actor_id,kind,payload) VALUES($1,$2,$3,$4,'created',$5)`,[ids.tenant,ids.transport,w.id,bomA.id,JSON.stringify({requestId:r.id})]);
+      await tx.query(`UPDATE work_requests SET state='approved',decided_by=$1,decider_name='BoM Tech thử A',decided_at=now(),decision_note='Tự duyệt thử.',work_id=$2,version=version+1 WHERE id=$3`,[bomA.id,w.id,r.id]);
+      await tx.query(`INSERT INTO work_access_grants(tenant_id,project_id,work_id,user_id,source_kind,source_id,granted_by) VALUES($1,$2,$3,$4,'work_request',$5,$4)`,[ids.tenant,ids.transport,w.id,bomA.id,r.id]);
+    }));
+    expect(forged).toMatchObject({ok:false});
+    expect((forged as {message:string}).message).toMatch(/themselves/);
+    expect(await rows('SELECT 1 FROM work_access_grants')).toEqual([]);
+  });
+  test('grant a grant is written only in the transaction of the decision that gave the work',async()=>{
+    const r=await file({projectId:ids.transport});
+    const done=await approve(bomA,r.id,{serviceId:ids.transportService,assigneeId:bomB.id});
+    const w=(done as {value:{work:{id:string}}}).value.work;
+    // a later transaction of the same decider, naming the same decision: the guard refuses it before the unique key is reached (PGlite's clock is whole milliseconds)
+    await new Promise(resolve=>setTimeout(resolve,5));
+    const late=await attempt(()=>h.db.transaction(async tx=>{
+      await tx.query('SET LOCAL ROLE libetech_runtime');
+      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true),set_config('app.person_id',$3,true)",[ids.tenant,ids.transport,bomA.id]);
+      await tx.query(`INSERT INTO work_access_grants(tenant_id,project_id,work_id,user_id,source_kind,source_id,granted_by) VALUES($1,$2,$3,$4,'work_request',$5,$6)`,[ids.tenant,ids.transport,w.id,bomB.id,r.id,bomA.id]);
+    }));
+    expect(late).toMatchObject({ok:false});
+    expect((late as {message:string}).message).toMatch(/points at the decision/);
+    expect(await grants(w.id)).toHaveLength(1);
+  });
+  test('revise a coordinator makes a roster member with no membership the assignee of a new revision: the grant is written and traced',async()=>{
+    // a project outside BoM control (the 3/3 ballot would own the assignee otherwise): sales with its scope switched off, and its two demo acceptors
+    await h.operator.query('UPDATE bom_scopes SET enabled=false WHERE project_id=$1',[ids.sales]);
+    const before=(await rows<{version:number}>('SELECT version FROM work_items WHERE id=$1',[ids.pilot]))[0];
+    const revised=await attempt(()=>work().command(pm,ids.pilot,{kind:'revise',expectedVersion:before.version,sourceSha:SHA,criteria:'Đạt khi có biên bản kiểm thử.',
+      specUrl:'https://example.com/spec/gv7-revise',dueAt:null,assigneeId:rosterNoGrant,technicalId:demoProfiles.technical.id,businessId:demoProfiles.business.id,note:'Giao lại cho thành viên Team Tech.'},k()));
+    expect(revised).toMatchObject({ok:true,value:{work:{assignee_id:rosterNoGrant}}});
+    const audit=(await rows<{id:string}>("SELECT id FROM audit_events WHERE work_id=$1 AND kind='revise'",[ids.pilot]))[0];
+    expect(await grants(ids.pilot)).toEqual([{user_id:rosterNoGrant,granted_by:pm.id,source_kind:'revise',source_id:audit?.id,project_id:ids.sales}]);
+    const me=await sessionOf(rosterNoGrant);
+    expect((me as {value:Principal}).value.projectIds).toEqual([ids.sales]);
+  });
+  test('live a grant counts at sign-in only while its member holds the work: the 3/3 ballot moving the work away takes the project away',async()=>{
+    const r=await file();
+    const done=await approve(pm,r.id,{assigneeId:tech.id});
+    const w=(done as {value:{work:{id:string;version:number}}}).value.work;
+    expect(((await sessionOf(tech.id)) as {value:Principal}).value.projectIds).toEqual(expect.arrayContaining([ids.transport,ids.sales]));
+    const bom=new BomService(h.db);
+    const part={owner_id:tech.id,output:'Phần kiểm thử',criteria:'Có biên bản kiểm thử.',dueAt:null,dependency:''};
+    // a part owner of the applied receipt still holds the work
+    const kept=await attempt(()=>bom.command(pm,{action:'propose',workId:w.id,expectedVersion:w.version,allocation:{lead_id:member.id,parts:[part]},reason:'Chia phần cho thành viên Team Tech.'},k()));
+    const keptId=(kept as {value:{proposal:{id:string}}}).value.proposal.id;
+    for(const seat of [pm,reviewer,approver]) expect(await attempt(()=>bom.command(seat,{action:'vote',proposalId:keptId,choice:'agree',note:'Đồng ý chia phần.'},k())),seat.name).toMatchObject({ok:true});
+    expect((await rows('SELECT assignee_id FROM work_items WHERE id=$1',[w.id]))[0]).toEqual({assignee_id:member.id});
+    expect(((await sessionOf(tech.id)) as {value:Principal}).value.projectIds).toContain(ids.sales);
+    // the next ballot gives the work to the member alone: the grant stays as history and no longer opens the project
+    const v=(await rows<{version:number}>('SELECT version FROM work_items WHERE id=$1',[w.id]))[0].version;
+    const moved=await attempt(()=>bom.command(pm,{action:'propose',workId:w.id,expectedVersion:v,allocation:{lead_id:member.id,parts:[]},reason:'Thu lại phần đã chia.'},k()));
+    const movedId=(moved as {value:{proposal:{id:string}}}).value.proposal.id;
+    for(const seat of [pm,reviewer,approver]) expect(await attempt(()=>bom.command(seat,{action:'vote',proposalId:movedId,choice:'agree',note:'Đồng ý thu lại.'},k())),seat.name).toMatchObject({ok:true});
+    expect(await grants(w.id)).not.toHaveLength(0);
+    const after=((await sessionOf(tech.id)) as {value:Principal}).value;
+    expect(after.projectIds).toEqual([ids.transport]);
+  });
+  test('M4 a source row is a request row only by its literal prefix: an operator source whose name merely looks alike is the operator\'s',async()=>{
+    expect(await attempt(()=>rows("INSERT INTO bom_sources(work_id,tenant_id,project_id,source_ref,fingerprint,checked_at,valid_until) VALUES($1,$2,$3,'workXrequest:made-up',$4,now(),now()+interval '1 day')",
+      [ids.pilot,ids.tenant,ids.sales,'d'.repeat(64)]))).toMatchObject({ok:true});
+    expect(await attempt(()=>rows("UPDATE bom_sources SET checked_at=now() WHERE work_id=$1",[ids.pilot]))).toMatchObject({ok:true});
+    expect(await attempt(()=>rows('DELETE FROM bom_sources WHERE work_id=$1',[ids.pilot]))).toMatchObject({ok:true});
+  });
+  test('M4 a login holding the runtime privileges without SET ROLE writes no other source row either',async()=>{
+    const role='gv7_inherits_'+randomUUID().slice(0,8).replace(/-/g,'');
+    let message='';
+    await h.operator.transaction(async tx=>{
+      await tx.query(`CREATE ROLE ${role} NOLOGIN INHERIT`);
+      await tx.query(`GRANT libetech_runtime TO ${role}`);
+      await tx.query(`SET LOCAL ROLE ${role}`);
+      await tx.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.project_ids',$2,true)",[ids.tenant,ids.sales]);
+      await tx.query('SAVEPOINT probe');
+      try {
+        await tx.query("INSERT INTO bom_sources(work_id,tenant_id,project_id,source_ref,fingerprint,checked_at,valid_until) VALUES($1,$2,$3,'importer:made-up',$4,now(),'infinity')",[ids.pilot,ids.tenant,ids.sales,'d'.repeat(64)]);
+        message='written';
+      } catch(e) { message=(e as Error).message; await tx.query('ROLLBACK TO SAVEPOINT probe'); }
+      throw new Error('rollback-sentinel');
+    }).catch(e=>{ if(!/rollback-sentinel/.test(String(e))) throw e; });
+    expect(message).toMatch(/runtime writes only/);
+    expect(await rows('SELECT 1 FROM bom_sources WHERE work_id=$1',[ids.pilot])).toEqual([]);
+  });
+  test('M7 the same bulk call again gets the stored answers even when the services of the project changed in between',async()=>{
+    const a=await file({assigneeId:member.id},pm);
+    const body={requestIds:[a.id],services:[],note:NOTE};
+    const key=k();
+    expect(await attempt(()=>svc().decideMany(reviewer,body,key))).toMatchObject({ok:true,value:{results:[{id:a.id,ok:true}]}});
+    await h.operator.query(`INSERT INTO services(tenant_id,project_id,name,owner,repository,environment) VALUES($1,$2,'Hệ thống thứ hai','Đội thử','demo/second','Môi trường thử')`,[ids.tenant,ids.sales]);
+    expect(await attempt(()=>svc().decideMany(reviewer,body,key))).toMatchObject({ok:true,value:{results:[{id:a.id,ok:true}]}});
   });
 });

@@ -1248,16 +1248,28 @@ Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech 
       - (1) giữ như 0.9.2;
       - (2) điền chỗ trống là giao lần đầu, còn đổi người đã đề xuất thì cần phiếu 3/3.
   - **Q-GV7-2. Quyền đọc của người nhận việc ngoài membership.**
-    - Dòng cấp quyền chỉ thêm, không thu hồi. Người được cấp đọc cả dự án với vai `viewer`, không chỉ việc của mình.
-    - Quyền còn sau khi việc được chia lại cho người khác, chừng nào người đó còn trong danh sách Team Tech hoặc BoM Tech. Ra khỏi danh sách thì mất quyền.
+    - Dòng cấp quyền chỉ thêm, không xoá: đó là lịch sử ai giao việc gì cho ai.
+    - Lúc đăng nhập, một dòng chỉ mở dự án khi người đó còn giữ việc: là người thực hiện, hoặc nhận một phần trong phiếu 3/3 đã áp gần nhất. Việc chia lại cho người khác thì dự án đóng lại với họ; dòng cấp quyền vẫn còn.
+    - Người được cấp đọc cả dự án với vai `viewer`, không chỉ việc của mình. Ra khỏi danh sách Team Tech hoặc BoM Tech thì mất quyền.
+    - Quyền này không đi theo membership: người bị gỡ membership mà vẫn giữ việc và vẫn trong Team Tech thì vẫn đọc được dự án đó.
+    - Không ai tự mở dự án cho mình. BoM Tech không có membership ở một dự án thì không tự nhận việc mình duyệt ở đó (mã `SELF_GRANT`); họ giao cho một thành viên Team Tech khác. Cơ sở dữ liệu cũng từ chối dòng cấp quyền cho chính người cấp.
     - Phương án:
       - (1) giữ;
       - (2) chỉ đọc việc của mình;
-      - (3) thu hồi khi việc đổi người, có sự kiện riêng.
+      - (3) thêm sự kiện riêng khi dự án đóng lại với người đó.
   - **Q-GV7-3. Duyệt hàng loạt chỉ điền chỗ trống.**
     - Duyệt nhiều yêu cầu một lượt không đổi người đã đề xuất. Muốn đổi người thì duyệt từng yêu cầu.
     - Phương án: (1) giữ; (2) cho đổi người cả ở lượt duyệt nhiều yêu cầu.
   - **Q-GV7-4. Phạm vi của BoM Tech.**
-    - BoM Tech thấy yêu cầu của mọi dự án trong tenant, kể cả IBS HI, chỉ ở luồng yêu cầu (danh sách, duyệt). Họ không đọc việc, tài liệu hay báo cáo của dự án mà họ không có membership.
+    - BoM Tech thấy và duyệt yêu cầu của mọi dự án trong tenant, kể cả IBS HI, chỉ ở luồng yêu cầu (danh sách, duyệt).
+    - Phạm vi của họ không nới ra cả tenant. Khi duyệt một yêu cầu, giao dịch đó mở đúng một dự án của yêu cầu, để đọc hệ thống, ghế và người của dự án rồi ghi việc vào đó.
+    - Màn hình duyệt chỉ liệt kê dự án đang có yêu cầu chờ họ. Họ không đọc việc, tài liệu hay báo cáo của dự án mà họ không có membership.
+    - Gắn tin nhắn vào việc có sẵn vẫn theo luật cũ (thành viên không phải viewer, hoặc ghế của dự án); là BoM Tech không thêm quyền gì ở đó.
+    - Số tổng ở danh sách yêu cầu đếm đúng những yêu cầu người đó đọc được; với BoM Tech là yêu cầu của mọi dự án. Giữ nguyên.
     - Báo cáo vẫn không gộp các miền với nhau. Câu báo lỗi không nêu tên dự án.
     - Phương án: (1) giữ; (2) cho BoM Tech đọc cả việc của mọi dự án.
+  - **Q-GV7-5. Ghi chú vận hành sau hai lượt soát (trước cổng Codex).**
+    - Dòng nguồn của việc duyệt dưới 0.9.1 được bổ sung khi chạy 028. Việc nào đã có dòng nguồn khác (của bộ nhập) thì giữ dòng đó, không thêm; phiếu 3/3 đọc dòng sẵn có.
+    - Kịch bản `deploy/tech-bom.sql` nhận từ 0 đến 3 BoM Tech: ít hơn ba khi chưa chọn đủ người, danh sách rỗng để gỡ hết. Mỗi thay đổi vẫn ghi một sự kiện.
+    - Duyệt cả lô gọi lại với cùng mã thao tác thì nhận lại đúng kết quả cũ của từng dòng, kể cả khi hệ thống hoặc người của dự án đã đổi giữa hai lần gọi.
+    - Phương án: (1) giữ.
