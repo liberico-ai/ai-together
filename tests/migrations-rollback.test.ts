@@ -682,3 +682,63 @@ test('rollback 023 refuses while a later migration is recorded or a decision car
     await h.reset();await h.close();
   }
 });
+
+test('rollback 024 refuses while a later migration is recorded or a request or roster row exists; it drops what 024 made; applying 024 twice is fine',async()=>{
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/024_work_requests.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/024_work_requests.sql'),'utf8');
+  expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+ROLE|DROP\s+SCHEMA/i);
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  const present=async()=>(await q<{t:string|null}>("SELECT to_regclass(n)::text t FROM unnest(ARRAY['public.work_requests','public.work_request_events','identity.tech_roster']) n")).map(r=>r.t);
+  const functions=async()=>(await q<{n:string}>("SELECT p.proname n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE s.nspname='public' AND p.proname IN ('app_actor_is_tech_member','tech_project_catalog','work_request_filer','work_request_seat','work_requests_guard') ORDER BY 1")).map(r=>r.n);
+  const full=['work_requests','work_request_events','identity.tech_roster'];
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='024'")).length;
+  // the refusal raises inside the file's own BEGIN; PGlite keeps that aborted block open (a pooled client that errors is discarded)
+  const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);await seedMembers(h);
+    later=(await from013()).filter(f=>num(f)>24);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    expect(await present()).toEqual(full);
+    expect(await functions()).toEqual(['app_actor_is_tech_member','tech_project_catalog','work_request_filer','work_request_seat','work_requests_guard']);
+    // 1. a later version recorded
+    await q("INSERT INTO schema_migrations(version) VALUES('025')");
+    try { await refused(/later/i); } finally { await q("DELETE FROM schema_migrations WHERE version='025'"); }
+    expect(await present()).toEqual(full);expect(await applied()).toBe(1);
+    // 2. a roster row (each add and removal leaves an identity event)
+    // identity.events is append-only and survives resets on the native harness: count only what this case adds
+    const seen=(kind:string)=>q('SELECT 1 FROM identity.events WHERE kind=$1 AND user_id=$2',[kind,pm.id]).then(r=>r.length);
+    const addedBefore=await seen('tech_roster_added'),removedBefore=await seen('tech_roster_removed');
+    await q('INSERT INTO identity.tech_roster(tenant_id,user_id) VALUES($1,$2)',[ids.tenant,pm.id]);
+    expect(await seen('tech_roster_added')-addedBefore).toBe(1);
+    await refused(/tech_roster holds rows/i);
+    expect(await present()).toEqual(full);
+    await q('DELETE FROM identity.tech_roster');
+    expect(await seen('tech_roster_removed')-removedBefore).toBe(1);
+    // 3. a request row
+    const request=randomUUID();
+    await q(`INSERT INTO work_requests(id,tenant_id,project_id,requester_id,requester_name,request_key,request_hash,title) VALUES($1,$2,$3,$4,'Tên thử',$5,$6,'Việc ghi để thử hoàn tác')`,
+      [request,ids.tenant,ids.sales,member.id,randomUUID(),'c'.repeat(64)]);
+    await refused(/work_requests holds rows/i);
+    expect(await present()).toEqual(full);expect(await applied()).toBe(1);
+    await q('TRUNCATE work_requests CASCADE');
+    // 4. clean: tables and functions go, 024 is forgotten
+    await h.exec(rollback);
+    expect(await present()).toEqual([null,null,null]);
+    expect(await functions()).toEqual([]);
+    expect(await applied()).toBe(0);
+    // 5. repeatable once rolled back; forward twice leaves one of everything
+    await h.exec(rollback);
+    await h.exec(forward);await h.exec(forward);
+    expect(await applied()).toBe(1);
+    expect(await present()).toEqual(full);
+    expect(await functions()).toEqual(['app_actor_is_tech_member','tech_project_catalog','work_request_filer','work_request_seat','work_requests_guard']);
+    expect((await q("SELECT count(*)::int n FROM pg_policies WHERE tablename IN ('work_requests','work_request_events')"))[0]).toEqual({n:5});
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});

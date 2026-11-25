@@ -1104,3 +1104,68 @@ Không mở PR tính năng mới trước đợt triển khai 022 + 023.
   6. **PR riêng cho hermes.libetech.vn:** PR [liberico-ai/ai-together#34](https://github.com/liberico-ai/ai-together/pull/34) vào `libetech-ai-os`, đầu `46c4828`, mở 22/11/2026. **Cập nhật 22/11/2026: đã merge** (merge `a60e8a1`, 01:49 UTC, cùng đợt với PR phát hành 0.9.0 [#35](https://github.com/liberico-ai/ai-together/pull/35); xem `docs/DELIVERY-020-release-0.9.0-20261122.md`). Plugin `dashboard-plugin` không nằm trong gói phát hành, cài qua Hermes Git admission. **Chưa triển khai.**
   7. **«Không mở PR tính năng mới trước đợt triển khai 022 + 023».** Cách hiểu: PR thêm tính năng chờ tới sau đợt. PR ghi hồ sơ, PR #34 (theo lời trên) và phần còn lại của các điều kiện trước đợt (N1–N4) không phải PR tính năng. Thuộc diện chờ: kịch bản OQ-59 (a) (2) (chỉ cần trước khi bật Z4) và mã của OQ-54 (b), OQ-55 (b), OQ-56 (b). Việc đổi mã N4 theo OQ-59 (b) (1) được hiểu là việc của N4 (điều kiện trước đợt), không phải tính năng; cách hiểu này chờ xác nhận trước khi giao.
   8. Điểm dừng không đổi: không áp migration lên CSDL phục vụ; không triển khai d1-ai1; không khởi động lại gateway chung; không gửi tin vào nhóm thật; không bật Z4; không merge PR khi chưa có lời Chairman.
+
+---
+
+**Quyết định của Chairman ngày 25/11/2026** (lời do người dùng dán vào phiên điều phối trong «GIAO VIỆC 5 bản 3»; phiên điều phối không xác nhận được người viết). Khối này nối cuối tệp để các số dòng đã được trích ở tài liệu khác không xê dịch. Nó thuộc về GIAO VIỆC 5 (hạng mục A–F; biên nhận của GIAO VIỆC 5 chưa có trong cây).
+
+Lời trên, chép nguyên, không lược — bốn dòng:
+
+```text
+- Tất cả thành viên Team Tech được tạo việc ở tất cả các dự án. Màn hình tạo việc hiển thị đủ danh sách dự án cho thành viên Tech.
+- Việc mới ghi ở trạng thái chờ BoM xác nhận hoặc phê duyệt. BoM Tech: Chu Hoàng Anh, Quân, Phương.
+- Giữ luật xác nhận 3/3 khi chia lại nhiệm vụ, kể cả chia việc giữa ba thành viên BoM. Quyết định khác cần BoM duyệt: hiện trạng thái và người đã duyệt theo quy chế hiện có.
+- Các phản ánh lịch sử có thể chưa được thu nhận đầy đủ. Đối chiếu thêm trực tiếp với Quân, Phương và tin gốc trước khi đánh dấu một lỗi đã đóng.
+```
+
+Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech (Chairman 25/11)», kèm hệ quả thiết kế do phiên điều phối viết, không phải lời nguyên văn của Chairman. Đề ghi lại lời Chairman ngày 22/11/2026 08:10: «golive và merge luôn».
+
+Ánh xạ của phiên PR (không phải lời Chairman; các «cách hiểu» chờ xác nhận):
+
+1. **«Tất cả thành viên Team Tech được tạo việc ở tất cả các dự án».**
+   - Danh sách Team Tech là bảng `identity.tech_roster` (migration 024). Chỉ operator ghi, bằng `deploy/tech-roster.sql`, và mỗi lần thêm hoặc bớt đều có dòng `identity.events`.
+   - Ở trong danh sách không phải là quyền trên dự án. Người đó thấy danh mục dự án (tên, BU) và gửi được yêu cầu tạo việc vào mọi dự án. Họ không đọc được việc của dự án mà họ không có quyền.
+   - Người trong danh sách là dữ liệu ngoài repo (repo công khai). Đề ghi «Team Tech» mà không nêu danh sách; danh sách gần nhất trong hồ sơ là bản ngày 11/11/2026 (`docs/DELIVERY-008-pilot-onboarding-20261111.md`).
+2. **«Việc mới ghi ở trạng thái chờ BoM».**
+   - Mọi việc mới (gửi từ biểu mẫu, từ tin nhắn ở hạng mục B, từ bảng nguồn ở hạng mục C) là một dòng `work_requests` ở trạng thái chờ.
+   - Đường tạo việc trực tiếp cũ (`POST /api/v1/work`) trả `410 WORK_REQUEST_REQUIRED`.
+   - Ba ghế BoM Tech của một dự án là `bom_scopes.seat_ids` của dự án đó. Operator ghi bằng `deploy/bom-seats.sql`; tên người là dữ liệu ngoài repo.
+   - Một ghế chỉ được tính khi người đó có membership của dự án, tài khoản đang hoạt động và đã liên kết Telegram. Theo hồ sơ 11/11/2026, một trong ba người chưa có membership ở dự án `LBRC · App Saleman` và chưa có bằng chứng kích hoạt hay liên kết. Cấp membership đi qua luồng duyệt quyền hiện có.
+   - Bật `bom_scopes` cho một dự án cũng bật chốt 3/3 khi đổi người thực hiện ở dự án đó. Repo không thấy được CSDL phục vụ nên không biết dự án nào đã bật.
+3. **«Giữ luật xác nhận 3/3 khi chia lại nhiệm vụ, kể cả chia việc giữa ba thành viên BoM».**
+   - Không nới. Duyệt một việc mới là giao lần đầu (Q02, mới ở mức đề xuất): việc mang người thực hiện đã đề xuất, và người duyệt phải là một ghế BoM khác người tạo. Mọi lần đổi người thực hiện sau đó vẫn cần biên nhận 3/3 (`docs/plans/gv5-a-tech-create-approval.md` mục 3).
+   - **«Quyết định khác cần BoM duyệt … theo quy chế hiện có»:** quy chế hiện có (`docs/QUY-CHE-DU-THAO-BOM-TECH.md`) chưa có luật đã chốt cho việc duyệt việc mới. Hệ thống áp cách hiểu tạm ở OQ-60 dưới đây cho tới khi có lời.
+4. **«Đối chiếu … trước khi đánh dấu một lỗi đã đóng».** Không ca nào trong biên nhận của GIAO VIỆC 5 (chưa có trong cây) được ghi «đã đóng». Mỗi ca mang trạng thái «chưa đối chiếu với người báo» cho tới khi người báo xác nhận trên tin gốc. Yêu cầu bằng chứng ở `docs/EVIDENCE-REQUEST-20261125.md`.
+5. **Lời 22/11/2026 «Không mở PR tính năng mới trước đợt triển khai 022 + 023».**
+   - Đề ngày 25/11/2026 ghi hiện trạng «Server 0.9.0, schema 001–023, gateway 20/20 bot». Phiên PR hiểu đợt 022 + 023 đã chạy và mở các PR A–F theo đề đó.
+   - Repo chưa có hồ sơ triển khai nào của đợt này: bản ghi gần nhất là `docs/DELIVERY-020-release-0.9.0-20261122.md`, không có `DEPLOY-005`. Các dòng «022 và 023 chưa áp» trong tài liệu chưa sửa, vì chưa có bằng chứng triển khai. Yêu cầu bằng chứng ở `docs/EVIDENCE-REQUEST-20261125.md`.
+
+## OQ-60 — Ai duyệt một việc mới, và việc đó có người thực hiện ngay khi duyệt không
+
+- **Lát:** GIAO VIỆC 5 hạng mục A (`docs/plans/gv5-a-tech-create-approval.md`); áp chung cho việc từ biểu mẫu, từ tin nhắn (B) và từ bảng nguồn (C).
+- **Căn cứ:** lời Chairman 25/11/2026 ở khối trên: «Việc mới ghi ở trạng thái chờ BoM xác nhận hoặc phê duyệt» và «Quyết định khác cần BoM duyệt: hiện trạng thái và người đã duyệt theo quy chế hiện có». Q07 của quy chế dự thảo mới ở mức đề xuất; Q02 (giao lần đầu) cũng mới ở mức đề xuất.
+- **Câu (a) — bao nhiêu ghế duyệt.** Phương án:
+  (1) một ghế BoM của dự án, khác người tạo;
+  (2) hai ghế khác người tạo;
+  (3) 3/3 như khi chia lại nhiệm vụ.
+- **Câu (b) — dự án chưa bật ghế BoM.** Phương án:
+  (1) việc nằm chờ, không ai duyệt được;
+  (2) điều phối của dự án duyệt thay, khác người tạo.
+- **Câu (c) — người thực hiện lúc duyệt.** Phương án:
+  (1) việc mới không có người thực hiện, giao lần đầu qua phiếu 3/3. Hôm nay phiếu 3/3 chỉ chia lại việc đã có người thực hiện (`src/server/bom.ts:60`), nên muốn chọn phương án này thì phải làm thêm phần giao lần đầu qua 3/3 (Q02);
+  (2) ghế BoM điền các chỗ người tạo để trống ngay khi duyệt (người thực hiện, hai người nghiệm thu), và không bao giờ thay người mà người tạo đã đề xuất; muốn đổi thì từ chối để người tạo gửi lại. Người tạo không có quyền ở dự án thì không thấy thành viên dự án, nên thường gửi không kèm người nào. Đây là giao lần đầu; mọi lần đổi sau đó cần 3/3. Việc không có người thực hiện thì không được duyệt (`ASSIGNEE_REQUIRED`), vì phiếu 3/3 không cấp được người đầu tiên.
+- **Câu (d) — chia lại việc không đến từ bộ nhập nguồn.** Phiếu 3/3 cần một dòng `bom_sources` còn hiệu lực (`src/server/bom.ts:45-46`, `:161-162`). Hôm nay chỉ operator ghi bảng đó. Việc tạo từ yêu cầu, như việc tạo trực tiếp trước đây, không có dòng nào, nên phiếu chia lại dừng ở `SOURCE_RECONCILE`. Phương án:
+  (1) khi duyệt, ghi một dòng nguồn trỏ về chính yêu cầu (bất biến), kèm hash;
+  (2) operator ghi theo từng việc;
+  (3) giữ như hiện nay.
+- **Câu (e) — giao việc mới cho một thành viên BoM.** Lời Chairman 25/11: «Giữ luật xác nhận 3/3 khi chia lại nhiệm vụ, kể cả chia việc giữa ba thành viên BoM». Một ghế duyệt việc mới mà chọn một trong ba ghế BoM (kể cả chính mình) làm người thực hiện là chia việc giữa ba thành viên BoM. Phương án:
+  (1) từ chối cho tới khi có phiếu 3/3 giao lần đầu (hành vi giữ nguyên luật): `SELF_ASSIGNMENT` khi ghế tự giao cho mình, `BOM_ASSIGNEE_HELD` khi giao cho ghế khác;
+  (2) một ghế duyệt là đủ, kể cả khi người thực hiện là một ghế BoM.
+- **Ai quyết:** Chairman; BoM Tech nếu Chairman giao.
+- **Hành vi tạm (đang có trong mã của PR A; không phải phương án được chọn):** (a) (1), (b) (1), (c) (2), (d) (3), (e) (1).
+  - Chọn (c) (1) thì việc mới không có đường nào để có người nhận. Vì vậy (c) dùng cách giao lần đầu có sẵn của `WorkService.create`, với điều kiện chặt hơn: cần một ghế BoM khác người tạo.
+  - Người tạo không bao giờ tự duyệt việc của mình: dịch vụ và CHECK của CSDL chặn; trigger kiểm ghế BoM của người quyết.
+  - Luật ghế (một ghế BoM của dự án, khác người tạo) và luật không tự duyệt nằm trong CHECK và trigger của CSDL (migration 024). Chọn (a) (2), (a) (3) hoặc (b) (2) thì phải có migration mới; không chỉ sửa mã dịch vụ.
+  - **Cách hiểu chờ xác nhận:** câu «Quyết định khác cần BoM duyệt: hiện trạng thái và người đã duyệt theo quy chế hiện có» được áp cho việc duyệt việc mới mà thôi (trạng thái, người duyệt, thời điểm hiện trên màn hình). Hệ thống không áp nó cho quyết định nào khác.
+  - Điều kiện để một thành viên Team Tech đăng nhập được: ít nhất một membership ở một dự án (`identity.ts`, `NO_PROJECT_ACCESS`). Ở trong danh sách Team Tech không thay cho membership.
+  - Màn hình hiện trạng thái, người duyệt và thời điểm duyệt.

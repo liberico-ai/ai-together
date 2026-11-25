@@ -10,6 +10,7 @@ import {OutboxService} from '../src/server/outbox';
 import {IdentityService} from '../src/server/identity';
 import {ProjectRegistryService} from '../src/server/projects-registry';
 import {WorkService} from '../src/server/service';
+import {WorkRequestService} from '../src/server/work-requests';
 import {candidateTransition,type CandidateAction,type CandidateState} from '../src/server/intake-rules';
 import {ids} from '../src/server/identities';
 import {AppError} from '../src/server/errors';
@@ -109,7 +110,7 @@ test('(5) no intake or bot path creates, assigns, closes or accepts work',async(
   const a=await ingest();
   await inbox().command(pm,a.id,confirm(),k(),randomUUID());
   expect(await n('work_items')).toBe(before);
-  await expect(new WorkService(h.db).create(bot,{projectId:ids.transport,serviceId:ids.transportService,code:'BOT-0001',title:'Việc do bot tạo',priority:'normal',dueAt:null,assigneeId:null,technicalId:null,businessId:null,criteria:'',specUrl:null,sourceSha:null},k())).rejects.toMatchObject({code:'READ_ONLY',status:403});
+  await expect(new WorkRequestService(h.db).submit(bot,{projectId:ids.transport,requestKey:k(),code:'BOT-0001',title:'Việc do bot tạo',priority:'normal',dueAt:null,assigneeId:null,technicalId:null,businessId:null,criteria:'',specUrl:null})).rejects.toMatchObject({code:'READ_ONLY',status:403});
   await expect(new WorkService(h.db).command(bot,ids.transportWork,{kind:'close_ticket',expectedVersion:1,ticketRef:'X-1',note:'x'},k())).rejects.toMatchObject({code:'READ_ONLY',status:403});
   const t=await ingest({context:{chatId:chatTransport}});
   await expect(inbox().command(bot,t.id,confirm(),k(),randomUUID())).rejects.toMatchObject({code:'SCOPE_DENIED'});

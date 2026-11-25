@@ -1,0 +1,40 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/work-requests.test.ts (27 tests | 1 failed | 26 skipped) 655ms
+   × (11b) filing at the table: a project grant alone files nothing (bot, viewer, engineer, acceptor); a manager of the project and a Team Tech member file 654ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/work-requests.test.ts > (11b) filing at the table: a project grant alone files nothing (bot, viewer, engineer, acceptor); a manager of the project and a Team Tech member file
+AssertionError: promise resolved "[ { id: 'b7189238-530f-4304-b690-1…' } ]" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+[
+  {
+    "id": "b7189238-530f-4304-b690-1d4f666abdf8",
+  },
+]
+
+ ❯ tests/work-requests.test.ts:379:36
+    377|   for(const [p,project] of [[bot,ids.transport],[viewer,ids.transport]…
+    378|     expect(p.projectIds).toContain(project);
+    379|     await expect(direct(p,project)).rejects.toThrow(/row-level securit…
+       |                                    ^
+    380|   }
+    381|   // a session that claims a manager grant the account rows do not hol…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 26 skipped (27)
+   Start at  14:39:34
+   Duration  802ms (tests 87%, import 6%, transform 6%)
+
+red exit 1

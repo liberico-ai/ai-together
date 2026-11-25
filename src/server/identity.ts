@@ -60,8 +60,10 @@ export class IdentityService {
   const grants=await this.grants(tx,id);
   invariant(grants.length,'NO_PROJECT_ACCESS','Tài khoản chưa được giao dự án.',403);
   const roles=new Set(grants.map(grant=>grant.role));
+  // Team Tech roster: shown to the browser only; the work-request service asks the database again.
+  const techMember=(await tx.query('SELECT 1 FROM identity.tech_roster WHERE user_id=$1',[id])).rows.length>0;
   return {id:u.id,tenantId:u.tenant_id,name:u.name,role:roles.size===1?grants[0].role:'viewer',
-   projectIds:grants.map(grant=>grant.projectId),grants,accountAdmin:id===this.adminId};
+   projectIds:grants.map(grant=>grant.projectId),grants,accountAdmin:id===this.adminId,techMember};
  }
  private async issue(tx:Queryable,userId:string) {
   const token=secret();

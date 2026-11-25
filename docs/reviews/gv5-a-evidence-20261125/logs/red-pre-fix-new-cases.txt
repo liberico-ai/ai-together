@@ -1,0 +1,97 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/foundation.test.ts (19 tests | 1 failed | 18 skipped) 660ms
+   ❯ state and acceptance (10)
+     × a work request validates the proposed people; it is pending and creates no work 659ms
+ ❯ tests/work-requests.test.ts (27 tests | 2 failed | 25 skipped) 1172ms
+   × (11b) filing at the table: a project grant alone files nothing (bot, viewer, engineer, acceptor); a manager of the project and a Team Tech member file 662ms
+   ❯ operator scripts (deploy/tech-roster.sql, deploy/bom-seats.sql) (4)
+     × the seat script refuses a project that is not of the tenant passed, and writes no scope and no event 509ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/foundation.test.ts > state and acceptance > a work request validates the proposed people; it is pending and creates no work
+AssertionError: promise resolved "{ request: { …(27) }, replayed: false }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "replayed": false,
++   "request": {
++     "assignee_id": "14000000-0000-4000-8000-000000000002",
++     "business_id": "14000000-0000-4000-8000-000000000004",
++     "code": null,
++     "created_at": 2026-11-25T07:38:56.298Z,
++     "criteria": "Tiêu chí kiểm thử đầy đủ.",
++     "decided_at": null,
++     "decided_by": null,
++     "decider_name": null,
++     "decision_note": null,
++     "due_at": null,
++     "id": "7fec032e-1231-4587-a52b-8c74773a38b7",
++     "origin": "form",
++     "priority": "normal",
++     "project_id": "11000000-0000-4000-8000-000000000001",
++     "request_hash": "70eef052832e18dc679937dddd553bd8f2a06bceea7458b313319af40504032a",
++     "request_key": "95744688-053a-49a0-85a3-4171bfd1f2b1",
++     "requester_id": "14000000-0000-4000-8000-000000000001",
++     "requester_name": "Điều phối LibeTech",
++     "source_ref": null,
++     "spec_url": "https://example.com/demo/new",
++     "state": "pending",
++     "technical_id": "14000000-0000-4000-8000-000000000003",
++     "tenant_id": "10000000-0000-4000-8000-000000000001",
++     "title": "Việc mới để kiểm tra",
++     "updated_at": 2026-11-25T07:38:56.298Z,
++     "version": 1,
++     "work_id": null,
++   },
+  }
+
+ ❯ tests/foundation.test.ts:153:58
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/work-requests.test.ts > (11b) filing at the table: a project grant alone files nothing (bot, viewer, engineer, acceptor); a manager of the project and a Team Tech member file
+error: function public.work_request_filer(unknown) does not exist
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/work-requests.test.ts > operator scripts (deploy/tech-roster.sql, deploy/bom-seats.sql) > the seat script refuses a project that is not of the tenant passed, and writes no scope and no event
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ tests/work-requests.test.ts:594:44
+    592|     const before=await n('bom_scopes');
+    593|     const vars={tenant_id:ids.tenant,project_id:ids.otherProject,seat_…
+    594|     await expect(run('bom-seats.sql',vars)).rejects.toThrow();
+       |                                            ^
+    595|     await h.exec('ROLLBACK').catch(()=>{});
+    596|     expect(await n('bom_scopes')).toBe(before);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  3 failed | 43 skipped (46)
+   Start at  14:38:55
+   Duration  2.19s (tests 88%, import 7%, transform 4%)
+
+red exit 1
