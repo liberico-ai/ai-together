@@ -1273,3 +1273,9 @@ Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech 
     - Kịch bản `deploy/tech-bom.sql` nhận từ 0 đến 3 BoM Tech: ít hơn ba khi chưa chọn đủ người, danh sách rỗng để gỡ hết. Mỗi thay đổi vẫn ghi một sự kiện.
     - Duyệt cả lô gọi lại với cùng mã thao tác thì nhận lại đúng kết quả cũ của từng dòng, kể cả khi hệ thống hoặc người của dự án đã đổi giữa hai lần gọi.
     - Phương án: (1) giữ.
+  - **Q-GV7-6. Sửa sau cổng Codex (một vòng, 25/11/2026).**
+    - Tiền tố `work_request:` của `bom_sources` từ 028 thuộc về hệ thống. Nếu trước 028 người vận hành đã ghi một dòng nguồn mang tiền tố này mà không yêu cầu đã duyệt nào sinh ra nó, 028 dừng trước khi ghi gì và nói cách làm: đổi tên dòng đó sang tiền tố khác. Hoàn tác 028 chỉ xoá những dòng nó sinh lại được từ yêu cầu đã duyệt; còn dòng nào khác mang tiền tố thì hoàn tác dừng, dòng đó giữ nguyên.
+    - BoM Tech tính là thành viên Team Tech khi gửi yêu cầu, dù có trong roster hay không.
+    - Phân loại tin (luồng B) và nhập bảng vẫn cần có tên trong roster như 0.9.1. Muốn một BoM Tech làm hai việc này thì người vận hành thêm người đó vào roster (`deploy/tech-roster.sql`).
+    - Màn hình nhập gửi tên tệp đã chọn, sau khi bỏ dấu đường dẫn và ký tự điều khiển, tối đa 255 ký tự. Gọi lại cùng mã thao tác mà khác tên tệp là `IDEMPOTENCY_CONFLICT`.
+    - Phương án: (1) giữ; (2) cho BoM Tech ngoài roster phân loại tin và nhập bảng.

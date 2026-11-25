@@ -1,8 +1,10 @@
 -- Rollback of 028 only. Throwaway test copy use; never run against a serving database without Chairman approval.
 -- Refuses while a later migration is recorded, while a BoM Tech row or a work access grant exists, while a batch carries a file name, and while a 3/3 ballot names
 -- the source row of a request: those rows are history (who was BoM Tech, who was given which work by whom, which file was imported, which ballot relied on which
--- source) and this file does not delete history. The source rows of approved requests are pointers the forward file derives again from work_requests; they go.
--- It restores the 024 bodies of work_request_seat and tech_project_catalog, the 024 request policies and the 025 body of intake_link_allowed. No CASCADE.
+-- source) and this file does not delete history. The source rows of approved requests are pointers the forward file derives again from work_requests; they go,
+-- and only they: a row with the same prefix that no approved request derives refuses the file, and stays.
+-- It restores the 024 bodies of work_request_seat, tech_project_catalog and work_request_filer, the 024 request policies and the 025 body of intake_link_allowed.
+-- No CASCADE.
 -- It runs again once 028 is gone (a second run), and after 024, 025 or 027 is gone.
 BEGIN;
 -- A login that row level security binds would count 0 rows and drop history: with row_security off it errors instead.
@@ -27,10 +29,28 @@ DO $$ DECLARE n bigint; BEGIN
     EXECUTE $q$SELECT count(*) FROM public.bom_proposals WHERE starts_with(source_ref,'work_request:')$q$ INTO n;
     IF n > 0 THEN RAISE EXCEPTION 'bom_proposals names the source row of a work request: 028 only goes forward once such a ballot exists.'; END IF;
   END IF;
+  -- a source row with the prefix that no approved request derives is not this file's to delete (one loaded with the triggers off, say by a restore)
+  IF to_regclass('public.bom_sources') IS NOT NULL THEN
+    IF to_regclass('public.work_requests') IS NOT NULL THEN
+      EXECUTE $q$SELECT count(*) FROM public.bom_sources s WHERE starts_with(s.source_ref,'work_request:') AND NOT EXISTS (SELECT 1 FROM public.work_requests r
+        WHERE r.work_id=s.work_id AND r.tenant_id=s.tenant_id AND r.project_id=s.project_id AND r.state='approved'
+         AND s.source_ref='work_request:'||r.id::text AND r.request_hash=s.fingerprint AND s.valid_until='infinity'::timestamptz)$q$ INTO n;
+    ELSE
+      EXECUTE $q$SELECT count(*) FROM public.bom_sources WHERE starts_with(source_ref,'work_request:')$q$ INTO n;
+    END IF;
+    IF n > 0 THEN RAISE EXCEPTION 'bom_sources holds a source named work_request:… that no approved request derives: this file deletes only the rows it can derive again. Rename or remove that row as the operator first.'; END IF;
+  END IF;
 END $$;
 
 DROP TRIGGER IF EXISTS bom_sources_request_guard ON bom_sources;
-DELETE FROM bom_sources WHERE starts_with(source_ref,'work_request:');
+-- only the rows derived from an approved request (the check above refused any other row with the prefix)
+DO $$ BEGIN
+  IF to_regclass('public.work_requests') IS NOT NULL THEN
+    EXECUTE $q$DELETE FROM public.bom_sources s USING public.work_requests r
+      WHERE starts_with(s.source_ref,'work_request:') AND r.work_id=s.work_id AND r.tenant_id=s.tenant_id AND r.project_id=s.project_id AND r.state='approved'
+       AND s.source_ref='work_request:'||r.id::text AND r.request_hash=s.fingerprint AND s.valid_until='infinity'::timestamptz$q$;
+  END IF;
+END $$;
 REVOKE INSERT ON bom_sources FROM libetech_runtime;
 DROP FUNCTION IF EXISTS public.bom_sources_request_guard();
 
@@ -65,6 +85,18 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $b$
  SELECT p.id,p.name,p.bu FROM public.projects p
  WHERE p.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND public.app_actor_is_tech_member()
  ORDER BY p.name,p.id
+$b$ $f$;
+  END IF;
+  IF to_regprocedure('public.work_request_filer(uuid)') IS NOT NULL THEN
+    EXECUTE $f$CREATE OR REPLACE FUNCTION public.work_request_filer(target_project uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $b$
+ SELECT EXISTS (SELECT 1 FROM public.projects p WHERE p.id=target_project AND p.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid)
+  AND (public.app_actor_is_tech_member()
+   OR EXISTS (SELECT 1 FROM identity.memberships m JOIN identity.users u ON u.id=m.user_id AND u.tenant_id=m.tenant_id
+    WHERE m.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND m.project_id=target_project
+     AND target_project=ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+     AND u.id=nullif(current_setting('app.person_id',true),'')::uuid
+     AND u.active AND u.password_hash IS NOT NULL AND coalesce(m.project_role,u.role)='manager'))
 $b$ $f$;
   END IF;
   IF to_regprocedure('public.intake_link_allowed(uuid)') IS NOT NULL THEN

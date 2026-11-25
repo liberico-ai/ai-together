@@ -330,7 +330,9 @@ export class SheetImportService {
       const mappingHash = sha256(JSON.stringify([input.projects.map(m => [m.buLabel, m.projectId]).sort(), input.owners.map(o => [o.text, o.projectId, o.userId]).sort()]));
       const old = (await tx.query<BatchRow>('SELECT * FROM work_import_batches WHERE tenant_id=$1 AND importer_id=$2 AND request_key=$3', [p.tenantId, p.id, input.requestKey])).rows[0];
       if (old) {
-        invariant(old.preview_digest === input.previewDigest && old.mapping_hash === mappingHash, 'IDEMPOTENCY_CONFLICT', 'Mã thao tác đã được dùng với một lần nhập khác. Tải lại trang rồi xem trước lại.', 409);
+        // the file name is data of the write too (OQ-62 câu 6): another name, or a name where there was none, under the same key is another import
+        invariant(old.preview_digest === input.previewDigest && old.mapping_hash === mappingHash && (old.file_name ?? null) === (input.fileName ?? null),
+          'IDEMPOTENCY_CONFLICT', 'Mã thao tác đã được dùng với một lần nhập khác. Tải lại trang rồi xem trước lại.', 409);
         return receiptOf(old, true);
       }
       const file = this.read(input);

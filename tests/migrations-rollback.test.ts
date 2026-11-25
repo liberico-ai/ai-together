@@ -992,3 +992,69 @@ test('rollback 028 refuses while a later migration, a BoM Tech row, a work grant
     await h.reset();await h.close();
   }
 });
+
+// Codex round 1 (25/11/2026, P0): before 028 the prefix 'work_request:' was not reserved, so an operator source row could carry it. 028 does not take such a row
+// over (it stops and says what to do), and the rollback deletes only the source rows it can derive again from an approved request; any other row with the prefix
+// (one loaded with the triggers off, say by a restore) stops it, and the row stays.
+test('rollback 028 deletes only the request source rows it can derive again; an operator row with the same prefix stops 028 before it starts, and stops the rollback',async()=>{
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/028_unlock_092.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/028_unlock_092.sql'),'utf8');
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='028'")).length;
+  const settle=(p:Promise<unknown>)=>p.then(()=>({ok:true,message:''}),(e:Error)=>({ok:false,message:String(e.message)}));
+  const raw=(sql:string,p:unknown[])=>h.operator.transaction(async tx=>{await tx.query('SET LOCAL session_replication_role = replica');await tx.query(sql,p);});
+  const workRow=async(code:string)=>{const id=randomUUID();await q(`INSERT INTO work_items(id,tenant_id,project_id,service_id,code,title,priority,assignee_id,criteria) VALUES($1,$2,$3,$4,$5,'Việc thử nguồn','normal',$6,'')`,
+    [id,ids.tenant,ids.sales,ids.salesService,code,member.id]);return id;};
+  const sourceOf=async(work:string)=>q<{source_ref:string}>('SELECT source_ref FROM bom_sources WHERE work_id=$1',[work]);
+  const filerBody=async()=>(await q<{d:string}>("SELECT pg_get_functiondef('public.work_request_filer(uuid)'::regprocedure) d"))[0].d;
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);await seedMembers(h);
+    later=(await from013()).filter(f=>num(f)>28);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    await h.exec(rollback);
+    expect(await applied()).toBe(0);
+    // the 024 filing rule is back: a BoM Tech files as a member of Team Tech only from 028 on
+    expect(await filerBody()).not.toMatch(/app_actor_is_tech_bom/);
+    // 1. under 027, the operator wrote a source row whose name happens to start with the prefix: 028 stops, names the way out, and the row stays
+    const operatorWork=await workRow('RB-028-OP');
+    const operatorRef='work_request:nhap-tay-cua-nguoi-van-hanh';
+    await q(`INSERT INTO bom_sources(work_id,tenant_id,project_id,source_ref,fingerprint,checked_at,valid_until) VALUES($1,$2,$3,$4,$5,now(),now()+interval '30 days')`,
+      [operatorWork,ids.tenant,ids.sales,operatorRef,'d'.repeat(64)]);
+    const stopped=await settle(h.exec(forward));
+    await h.exec('ROLLBACK').catch(()=>{});
+    expect(stopped.ok).toBe(false);expect(stopped.message).toMatch(/rename/i);
+    expect(await applied()).toBe(0);expect(await sourceOf(operatorWork)).toEqual([{source_ref:operatorRef}]);
+    // the operator renames it, and 028 goes on
+    await q("UPDATE bom_sources SET source_ref='van-hanh:nhap-tay' WHERE work_id=$1",[operatorWork]);
+    await h.exec(forward);
+    expect(await applied()).toBe(1);expect(await sourceOf(operatorWork)).toEqual([{source_ref:'van-hanh:nhap-tay'}]);
+    expect(await filerBody()).toMatch(/app_actor_is_tech_bom/);
+    // 2. under 028, a row with the prefix that no approved request derives (loaded with the triggers off): the rollback stops and the row stays
+    const loadedWork=await workRow('RB-028-LD');
+    await raw(`INSERT INTO bom_sources(work_id,tenant_id,project_id,source_ref,fingerprint,checked_at,valid_until) VALUES($1,$2,$3,$4,$5,now(),'infinity')`,
+      [loadedWork,ids.tenant,ids.sales,'work_request:'+randomUUID(),'e'.repeat(64)]);
+    const kept=await settle(h.exec(rollback));
+    await h.exec('ROLLBACK').catch(()=>{});
+    expect(kept.ok).toBe(false);expect(kept.message).toMatch(/derive/i);
+    expect(await applied()).toBe(1);expect(await sourceOf(loadedWork)).toHaveLength(1);
+    // 3. once that row is gone, the rollback runs: the derived row of an approved request goes, the operator's row stays
+    await raw('DELETE FROM bom_sources WHERE work_id=$1',[loadedWork]);
+    const approvedWork=await workRow('RB-028-AP'),request=randomUUID(),hash='8'.repeat(64);
+    await q(`INSERT INTO work_requests(id,tenant_id,project_id,requester_id,requester_name,origin,request_key,request_hash,title,state,decided_by,decider_name,decided_at,decision_note,work_id)
+      VALUES($1,$2,$3,$4,'Tên thử','form',$5,$6,'Việc duyệt thử nguồn','approved',$7,'Tên thử',now(),'Đã duyệt.',$8)`,[request,ids.tenant,ids.sales,member.id,randomUUID(),hash,pm.id,approvedWork]);
+    await q(`INSERT INTO bom_sources(work_id,tenant_id,project_id,source_ref,fingerprint,checked_at,valid_until) VALUES($1,$2,$3,$4,$5,now(),'infinity')`,
+      [approvedWork,ids.tenant,ids.sales,'work_request:'+request,hash]);
+    await h.exec(rollback);
+    expect(await applied()).toBe(0);
+    expect(await sourceOf(approvedWork)).toEqual([]);expect(await sourceOf(operatorWork)).toEqual([{source_ref:'van-hanh:nhap-tay'}]);
+    await h.exec(forward);
+    expect(await sourceOf(approvedWork)).toEqual([{source_ref:'work_request:'+request}]);
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(forward).catch(()=>{});
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});

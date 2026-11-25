@@ -323,6 +323,28 @@ test('M8 câu 6: the batch keeps the name of the file the PM picked, with its ha
   expect(plain.fileName).toBeNull();
 });
 
+// Codex round 1 (25/11/2026): the file name is data of the write, so the same request key with another name is another import, not a replay
+test('M8 câu 6: the same request key with another file name, or with none, is IDEMPOTENCY_CONFLICT; with the same name it replays',async()=>{
+  const env=envelope([row8({stt:'1',title:'Việc khoá chống lặp theo tên tệp TEST1153'})],{fileName:'bang-a.csv'});
+  const pre=await svc().preview(tech,env);
+  const key=newKey();
+  const body=(fileName:string|undefined)=>({...env,fileName,previewDigest:pre.previewDigest,requestKey:key,projects:mapping(),owners:[]});
+  const settle=(p:Promise<unknown>)=>p.then(()=>({ok:true}),(e:{code?:string;status?:number})=>({ok:false,code:e.code,status:e.status}));
+  const first=await svc().commit(tech,body('bang-a.csv'));
+  expect((await svc().commit(tech,body('bang-a.csv'))).replayed).toBe(true);
+  expect(await settle(svc().commit(tech,body('bang-b.csv')))).toEqual({ok:false,code:'IDEMPOTENCY_CONFLICT',status:409});
+  expect(await settle(svc().commit(tech,body(undefined)))).toEqual({ok:false,code:'IDEMPOTENCY_CONFLICT',status:409});
+  expect(first.fileName).toBe('bang-a.csv');expect(await n('work_requests')).toBe(1);
+  // and a batch written without a name replays only without one
+  const env2=envelope([row8({stt:'2',title:'Việc khoá chống lặp không tên tệp TEST1154'})]);
+  const pre2=await svc().preview(tech,env2);
+  const key2=newKey();
+  const body2=(fileName:string|undefined)=>({...env2,fileName,previewDigest:pre2.previewDigest,requestKey:key2,projects:mapping(),owners:[]});
+  await svc().commit(tech,body2(undefined));
+  expect((await svc().commit(tech,body2(undefined))).replayed).toBe(true);
+  expect(await settle(svc().commit(tech,body2('bang-c.csv')))).toEqual({ok:false,code:'IDEMPOTENCY_CONFLICT',status:409});
+});
+
 test('M2 + M8: the owner cell may name a Team Tech member with no membership in the target project; the preview offers them and the request names them',async()=>{
   const env=envelope([row8({stt:'1',title:'Việc giao cho Tech TEST1161',owner:tech.name})]);
   const pre=await svc().preview(tech,env);

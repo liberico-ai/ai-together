@@ -106,7 +106,8 @@ export async function fileRequestIn(tx: Queryable, p: Principal, input: SubmitIn
   const { requestKey, ...content } = input;
   const hash = sha256(canonical(content));
   if (opts.authorization === 'standard') {
-    const tech = (await tx.query<{ ok: boolean }>('SELECT public.app_actor_is_tech_member() AS ok')).rows[0].ok === true;
+    // a BoM Tech counts as a member of Team Tech here, on the roster or not (M6; the database asks the same in work_request_filer, 028)
+    const tech = (await tx.query<{ ok: boolean }>('SELECT (public.app_actor_is_tech_member() OR public.app_actor_is_tech_bom()) AS ok')).rows[0].ok === true;
     if (!tech && !p.projectIds.some(id => projectRole(p, id) === 'manager')) throw filingDenied();
     const inScope = tech
       ? (await tx.query('SELECT 1 FROM public.tech_project_catalog() WHERE id=$1', [content.projectId])).rows.length > 0

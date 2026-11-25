@@ -515,3 +515,24 @@ describe('Sau soát · phạm vi, quyền cấp và chạy lại',()=>{
     expect(await attempt(()=>svc().decideMany(reviewer,body,key))).toMatchObject({ok:true,value:{results:[{id:a.id,ok:true}]}});
   });
 });
+
+// Codex round 1 (25/11/2026): a BoM Tech is a member of Team Tech (M2 says «roster or BoM Tech»), so one who is not on the roster still files a request (M6).
+describe('Sau cổng Codex · BoM Tech gửi yêu cầu',()=>{
+  test('M6 a BoM Tech who is neither on the roster nor holds a membership files a request and sees it; off the roster and off BoM Tech still files nothing',async()=>{
+    await h.operator.query('DELETE FROM identity.tech_roster WHERE user_id=$1',[bomC.id]);
+    const s=await sessionOf(bomC.id);
+    expect(s).toMatchObject({ok:true,value:{id:bomC.id,projectIds:[],techMember:false,techBom:true}});
+    const me=(s as {value:Principal}).value;
+    for(const projectId of [ids.sales,ibs.project]) {
+      const filed=await attempt(()=>svc().submit(me,input({projectId})));
+      expect(filed).toMatchObject({ok:true,value:{request:{requester_id:bomC.id,project_id:projectId,state:'pending'}}});
+    }
+    const mine=await attempt(()=>svc().list(me,{}));
+    expect(mine).toMatchObject({ok:true});
+    expect((mine as {value:{items:{requester_id:string}[]}}).value.items.filter(r=>r.requester_id===bomC.id)).toHaveLength(2);
+    // removed from BoM Tech too, the same account files nothing (and has no session: nothing gives it a project)
+    await h.operator.query('DELETE FROM identity.tech_bom WHERE user_id=$1',[bomC.id]);
+    expect(await attempt(()=>svc().submit(me,input()))).toMatchObject({ok:false,code:'WORK_REQUEST_DENIED'});
+    expect(await sessionOf(bomC.id)).toMatchObject({ok:false,code:'NO_PROJECT_ACCESS'});
+  });
+});

@@ -10,16 +10,28 @@
 --    The Telegram link is no longer required to decide a request on the web. The 3/3 ballot (bom.ts) keeps its own seat conditions, Telegram included.
 --    The request policies (read, decide) ask that function alone. A BoM Tech's scope is not widened: the decision adds the one project it writes in, nothing else.
 --    Linking a message to existing work (intake_link_allowed) keeps the 025 rule: being a BoM Tech adds nothing there.
+--    Filing a request (work_request_filer): a BoM Tech counts as a member of Team Tech, on the roster or not (M6).
 -- 3. public.work_access_grants: append-only. When a Team Tech member (roster or BoM Tech) who holds no membership in the project is given work — by the approval of
 --    a request, by an applied 3/3 ballot, or by a new revision — one row records who granted it and from which source. While the member still holds that work, the
 --    sign-in adds the project to their scope as 'viewer'; the work service lets the assignee do the performer's steps (M2). Nobody off the roster gets a row, and
 --    nobody grants themselves one (the guard asks the database again).
 -- 4. public.bom_sources: the runtime may write the one source row of a work item it created from an approved request ('work_request:<id>', the request hash, valid
 --    for ever), so the 3/3 ballot can reassign that work (M4). Such a row never changes or goes away. Work approved under 0.9.1 gets its row here (backfill).
+--    The prefix is reserved from here on: an operator source that already carries it and that no approved request derives stops 028 before anything is written.
 -- 5. work_import_batches.file_name: the name of the file the PM chose at preview (OQ-62 câu 6), next to the hash and the time already recorded.
 BEGIN;
 -- a login that row level security binds would see no request and backfill nothing: with row_security off it errors instead
 SET LOCAL row_security = off;
+-- Before 028 the prefix 'work_request:' was the operator's like any other. A source row that carries it and that no approved request derives (the request id, the
+-- same work, the request hash, valid for ever) is not taken over: 028 stops here and changes nothing. Once 028 stands, the guard below writes no such row, so on
+-- a second run every row with the prefix is derived and this passes.
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM public.bom_sources s WHERE starts_with(s.source_ref,'work_request:') AND NOT EXISTS (SELECT 1 FROM public.work_requests r
+    WHERE r.work_id=s.work_id AND r.tenant_id=s.tenant_id AND r.project_id=s.project_id AND r.state='approved'
+     AND s.source_ref='work_request:'||r.id::text AND r.request_hash=s.fingerprint AND s.valid_until='infinity'::timestamptz)) THEN
+  RAISE EXCEPTION 'bom_sources holds an operator source named work_request:… that no approved request derives. Rename that source (another prefix) as the operator, then apply 028.';
+ END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS identity.tech_bom (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL, user_id uuid NOT NULL,
@@ -141,10 +153,22 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
     AND m.user_id=nullif(current_setting('app.person_id',true),'')::uuid AND m.project_role<>'viewer' AND u.active AND u.password_hash IS NOT NULL)
   OR public.work_request_project_seat(target_project)
 $$;
+-- The actor may file a request in the project (024), where a BoM Tech now counts as a member of Team Tech: one who is not on the roster files too (M6). The
+-- manager branch is the 024 one, unchanged.
+CREATE OR REPLACE FUNCTION public.work_request_filer(target_project uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+ SELECT EXISTS (SELECT 1 FROM public.projects p WHERE p.id=target_project AND p.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid)
+  AND (public.app_actor_is_tech_member() OR public.app_actor_is_tech_bom()
+   OR EXISTS (SELECT 1 FROM identity.memberships m JOIN identity.users u ON u.id=m.user_id AND u.tenant_id=m.tenant_id
+    WHERE m.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND m.project_id=target_project
+     AND target_project=ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+     AND u.id=nullif(current_setting('app.person_id',true),'')::uuid
+     AND u.active AND u.password_hash IS NOT NULL AND coalesce(m.project_role,u.role)='manager'))
+$$;
 DO $$ DECLARE f text; BEGIN
  FOREACH f IN ARRAY ARRAY['public.app_actor_is_tech_bom()','public.tech_bom_standing(boolean)','public.tech_performers_among(uuid[],boolean)',
    'public.tech_performers_named(text[])','public.tech_project_catalog()','public.work_request_project_seat(uuid)','public.work_request_seat(uuid)',
-   'public.intake_link_allowed(uuid)'] LOOP
+   'public.intake_link_allowed(uuid)','public.work_request_filer(uuid)'] LOOP
   EXECUTE format('ALTER FUNCTION %s OWNER TO libetech_identity',f);
   EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC',f);
   EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO libetech_runtime',f);
