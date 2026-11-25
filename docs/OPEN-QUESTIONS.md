@@ -1276,6 +1276,10 @@ Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech 
   - **Q-GV7-6. Sửa sau cổng Codex (một vòng, 25/11/2026).**
     - Tiền tố `work_request:` của `bom_sources` từ 028 thuộc về hệ thống. Nếu trước 028 người vận hành đã ghi một dòng nguồn mang tiền tố này mà không yêu cầu đã duyệt nào sinh ra nó, 028 dừng trước khi ghi gì và nói cách làm: đổi tên dòng đó sang tiền tố khác. Hoàn tác 028 chỉ xoá những dòng nó sinh lại được từ yêu cầu đã duyệt; còn dòng nào khác mang tiền tố thì hoàn tác dừng, dòng đó giữ nguyên.
     - BoM Tech tính là thành viên Team Tech khi gửi yêu cầu, dù có trong roster hay không.
-    - Phân loại tin (luồng B) và nhập bảng vẫn cần có tên trong roster như 0.9.1. Muốn một BoM Tech làm hai việc này thì người vận hành thêm người đó vào roster (`deploy/tech-roster.sql`).
+    - Phân loại tin (luồng B) vẫn cần có tên trong roster như 0.9.1.
+    - Nhập bảng: người ngoài roster vào được màn hình nhập chỉ khi là điều phối của một dự án, như 0.9.1.
+      - Nếu người đó cũng là BoM Tech, dòng nhập vào dự án khác được ghi thành yêu cầu chờ duyệt, như khi họ gửi yêu cầu ở biểu mẫu. Trước bản sửa này các dòng đó nhận `NOT_A_FILER`.
+      - Người duyệt vẫn phải khác người tạo.
+    - Muốn một BoM Tech ngoài roster phân loại tin, hay nhập bảng mà không là điều phối dự án nào, thì người vận hành thêm người đó vào roster (`deploy/tech-roster.sql`).
     - Màn hình nhập gửi tên tệp đã chọn, sau khi bỏ dấu đường dẫn và ký tự điều khiển, tối đa 255 ký tự. Gọi lại cùng mã thao tác mà khác tên tệp là `IDEMPOTENCY_CONFLICT`.
     - Phương án: (1) giữ; (2) cho BoM Tech ngoài roster phân loại tin và nhập bảng.

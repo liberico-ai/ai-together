@@ -60,6 +60,18 @@ Plugin bot không đổi (0.3.3) và `scripts/` không đổi, nên không chạ
 
 Các sửa trên làm sau vòng Codex, nên Codex chưa đọc lại. Cổng test chạy lại trên cây cuối.
 
+### Một lượt đọc độc lập của phần sửa sau cổng
+
+Một subagent soát bảo mật, khác phiên viết mã, chỉ đọc delta `1518c3a..d80518a` và các tệp nó gọi tới. Không chạy test, không chạm CSDL.
+- Dòng đầu: `NO P0`.
+- Ba P2, ghi lại để sửa tiến, không sửa trong PR này:
+
+| Mức | Chỗ | Finding | Xử lý |
+|---|---|---|---|
+| P2 | `src/server/sheet-import.ts` (`access`, `facts`); `work_request_filer` | Một BoM Tech ngoài roster mà là điều phối của một dự án nhập được dòng vào dự án khác, thành yêu cầu chờ duyệt. Câu trong Q-GV7-6 lúc đó («nhập bảng vẫn cần roster») không đúng. Không đọc ngược được gì của dự án kia: họ vốn gửi được yêu cầu ở đó qua biểu mẫu. Chính sách `batch_write` của 027 nay cho BoM Tech qua ở tầng CSDL; chỉ dịch vụ còn chặn người không là điều phối | Sửa câu ở Q-GV7-6 cho đúng hành vi. Siết `batch_write` thì để đợt sau |
+| P2 | `migrations/rollback/028_unlock_092.sql` | Sau khi hoàn tác xong, tiền tố lại là của người vận hành; nếu họ ghi một dòng mang tiền tố rồi chạy hoàn tác lần nữa, hoàn tác từ chối (không mất gì) | Ghi lại. Hoàn tác chỉ chạy khi có lời Chairman |
+| P2 | `migrations/028_unlock_092.sql` (kiểm trước) | Một dòng của người vận hành trùng khít một dòng sinh ra được (mã yêu cầu, hash, cùng việc, hạn vô tận) thì 028 nhận nó; khi hoàn tác rồi áp lại, chỉ mất giá trị `checked_at` cũ | Ghi lại: chỉ xảy ra khi người vận hành chép tay mã và hash của một yêu cầu |
+
 ### Đỏ trước khi sửa theo Codex
 
 - `logs/red-after-codex.txt`: mã cũ `1518c3a` (một worktree nháp) cùng bốn ca mới ở bản cuối: 4 tệp, **4 ca hỏng, 4 dòng `AssertionError`**.
