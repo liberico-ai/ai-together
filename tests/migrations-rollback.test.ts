@@ -839,3 +839,70 @@ test('rollback 026 refuses while a later migration is recorded or a pool receipt
     await h.reset();await h.close();
   }
 });
+
+// ---- 027: the work-list import (self-contained block) ----
+test('rollback 027 refuses while a later migration is recorded or a batch or key row exists; it drops what 027 made without 025 or 026; applying 027 twice is fine',async()=>{
+  const {clearImports,projectIds,seedImport,tech}=await import('./sheet-import-fixtures');
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/027_work_imports.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/027_work_imports.sql'),'utf8');
+  expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+ROLE|DROP\s+SCHEMA/i);
+  // a login that row security binds would count 0 rows and drop history: with row_security off it errors instead
+  expect(rollback).toMatch(/SET LOCAL row_security\s*=\s*off/i);
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  const present=async()=>(await q<{t:string|null}>("SELECT to_regclass(n)::text t FROM unnest(ARRAY['public.work_import_batches','public.work_import_rows']) n")).map(r=>r.t);
+  const functions=async()=>(await q<{n:string}>("SELECT p.proname n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE s.nspname='public' AND p.proname LIKE 'work_import_%' ORDER BY 1")).map(r=>r.n);
+  const policy=async()=>(await q("SELECT 1 FROM pg_policies WHERE tablename='project_domain_mappings' AND policyname='identity_ibs_check'")).length;
+  const full=['work_import_batches','work_import_rows'];
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='027'")).length;
+  const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);await seedMembers(h);await seedImport(h);await clearImports(h);
+    // whatever sits above 027 (a later migration) is off first; 025 and 026, when present, are not needed by 027 and are not touched by it
+    later=(await from013()).filter(f=>num(f)>27);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    expect(await present()).toEqual(full);
+    expect(await functions()).toEqual(['work_import_is_ibs_text','work_import_key_conflicts','work_import_project_facts','work_import_rows_guard']);
+    expect(await policy()).toBe(1);
+    // 1. a later version recorded
+    await q("INSERT INTO schema_migrations(version) VALUES('028')");
+    try { await refused(/later/i); } finally { await q("DELETE FROM schema_migrations WHERE version='028'"); }
+    expect(await present()).toEqual(full);expect(await applied()).toBe(1);
+    // 2. a batch row, then a key row
+    const batch=randomUUID(),request=randomUUID();
+    await q(`INSERT INTO work_import_batches(id,tenant_id,importer_id,importer_name,request_key,preview_digest,file_hash,source_id,source_url,sheet,counts,mapping,mapping_hash,results)
+      VALUES($1,$2,$3,'Tên thử',$4,$5,$5,'rb-src','https://docs.google.com/x','s','{}','{}',$5,'[]')`,[batch,ids.tenant,tech.id,randomUUID(),'e'.repeat(64)]);
+    await refused(/work_import_batches holds rows/i);
+    expect(await present()).toEqual(full);expect(await applied()).toBe(1);
+    await h.operator.transaction(async tx=>{
+      await tx.query(`INSERT INTO work_requests(id,tenant_id,project_id,requester_id,requester_name,origin,request_key,request_hash,title) VALUES($1,$2,$3,$4,'Tên thử','import',$5,$6,'Việc ghi để thử hoàn tác')`,
+        [request,ids.tenant,projectIds.lbrc,tech.id,randomUUID(),'f'.repeat(64)]);
+      await tx.query(`INSERT INTO work_import_rows(tenant_id,project_id,importer_id,batch_id,request_id,source_id,sheet,source_row,stt,source_ref,fingerprint,content_hash,bu_label,quality_score)
+        VALUES($1,$2,$3,$4,$5,'rb-src','s',2,'rb1','rb-src/s!A2:H2',$6,$6,'LBRC',100)`,[ids.tenant,projectIds.lbrc,tech.id,batch,request,'1'.repeat(64)]);
+    });
+    await refused(/holds rows/i);
+    expect(await present()).toEqual(full);expect(await applied()).toBe(1);
+    await q('TRUNCATE work_import_batches CASCADE');
+    // 3. clean: tables, functions and the policy go, 027 is forgotten; the request rows 027's users filed are not touched
+    await h.exec(rollback);
+    expect(await present()).toEqual([null,null]);
+    expect(await functions()).toEqual([]);
+    expect(await policy()).toBe(0);
+    expect(await applied()).toBe(0);
+    expect((await q('SELECT 1 FROM work_requests WHERE id=$1',[request])).length).toBe(1);
+    // 4. repeatable once rolled back; forward twice leaves one of everything
+    await h.exec(rollback);
+    await h.exec(forward);await h.exec(forward);
+    expect(await applied()).toBe(1);
+    expect(await present()).toEqual(full);
+    expect(await functions()).toEqual(['work_import_is_ibs_text','work_import_key_conflicts','work_import_project_facts','work_import_rows_guard']);
+    expect(await policy()).toBe(1);
+    expect((await q("SELECT count(*)::int n FROM pg_policies WHERE tablename IN ('work_import_batches','work_import_rows')"))[0]).toEqual({n:5});
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});

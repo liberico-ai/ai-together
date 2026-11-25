@@ -28,11 +28,13 @@ export type SourceException = {
   next_step: string;
 };
 
-const header = ['STT','BU','Đầu việc','Người phụ trách','Phối hợp','Trạng thái','Hạn','Ghi chú'];
+export const header = ['STT','BU','Đầu việc','Người phụ trách','Phối hợp','Trạng thái','Hạn','Ghi chú'];
 const value = (v: string|null|undefined) => (v??'').trim();
+/** The eight-cell fingerprint of one sheet row (cells trimmed, absent cells empty). Shared with the CSV import so both read a row the same way. */
+export const cellsFingerprint = (cells: ReadonlyArray<string|null|undefined>) => sha256(Array.from({length:8},(_,j)=>value(cells[j])));
 const open = (status: string) => !['Hoàn thành','Đã hoàn thành'].includes(status);
 
-function dueIssue(raw: string): 'AMBIGUOUS_DUE'|'DATE_FORMAT_CONFLICT'|'INVALID_DUE'|null {
+export function dueIssue(raw: string): 'AMBIGUOUS_DUE'|'DATE_FORMAT_CONFLICT'|'INVALID_DUE'|null {
   if (!raw) return null;
   // Google Sheets CSV export renders date-only cells as midnight timestamps.
   // Preserve the original cell; validate only its date portion here.
@@ -77,13 +79,13 @@ export function inspectSourceSnapshot(raw: unknown, previousRaw?: unknown) {
   const old = new Map<number,string>();
   if (previous) for(let index=1;index<previous.values.length;index++) {
     const v=previous.values[index];
-    if(v.some(x=>value(x))) old.set(index+1,sha256(Array.from({length:8},(_,j)=>value(v[j]))));
+    if(v.some(x=>value(x))) old.set(index+1,cellsFingerprint(v));
   }
   for(let index=1;index<s.values.length;index++) {
     const v=s.values[index];
     if(!v.some(x=>value(x))) continue;
     const row=index+1, stt=value(v[0]), status=value(v[5]);
-    const fingerprint=sha256(Array.from({length:8},(_,j)=>value(v[j])));
+    const fingerprint=cellsFingerprint(v);
     rows.push({row,stt,source_ref:ref(row),fingerprint,status});
     if(stt) {
       const first=seen.get(stt);

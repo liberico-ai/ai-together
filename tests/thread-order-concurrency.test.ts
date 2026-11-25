@@ -2,6 +2,7 @@ import {afterEach,beforeEach,describe,expect,test} from 'vitest';
 import {createHash,randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
+import {putBack,takeOffAbove} from './migration-stack';
 import {native,openHarness,waitForBlocked,type Harness} from './slice1-db';
 import {member,pm,seedSlice1} from './slice1-fixtures';
 import {scoped,type Database,type Queryable} from '../src/server/db';
@@ -36,12 +37,11 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
       if(r.rows[0]&&r.rows[0].tgenabled==='D') await h.exec(`ALTER TABLE public.${table} ENABLE ${state==='A'?'ALWAYS ':''}TRIGGER ${trigger}`);
     }
   };
-  // 024, 025 and 026 sit on top of 023 and the rollback of 023 refuses while a later migration is recorded: N18 and N18b need the file to reach its lock, so the later ones are
-  // taken off first, newest first, and put back after, oldest first (each rollback refuses while a later version is recorded)
-  const ABOVE_023=['024_work_requests.sql','025_intake_pool_links.sql','026_outbox_pool_receipt.sql'];
-  const migration=(dir:''|'rollback/',f:string)=>readFile(path.join(process.cwd(),'migrations',dir+f),'utf8');
-  beforeEach(async()=>{h=await openHarness();for(const f of [...ABOVE_023].reverse()) await h.exec(await migration('rollback/',f));await restoreGuards();await h.reset();await seedSlice1(h);});
-  afterEach(async()=>{try {for(const f of ABOVE_023) await h.exec(await migration('',f));await restoreGuards();} finally {await h.reset();await h.close();}});
+  // the migrations above 023 (024 onwards) sit on top of it and the rollback of 023 refuses while a later migration is recorded: N18 and N18b need the file to reach its lock,
+  // so every later one is taken off first and put back after (tests/migration-stack.ts)
+  let taken:string[]=[];
+  beforeEach(async()=>{h=await openHarness();taken=await takeOffAbove(h,23);await restoreGuards();await h.reset();await seedSlice1(h);});
+  afterEach(async()=>{try {await putBack(h,taken);await restoreGuards();} finally {await h.reset();await h.close();}});
 
   const svc=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,bridgeConfig.intake!);
   const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;

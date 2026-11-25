@@ -1184,3 +1184,32 @@ Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech 
 - **Ai quyết:** Chairman.
 - **Hành vi tạm (đang có trong mã của PR B; không phải phương án được chọn):** B1 (1), B2 (1), B3 (1), B4 (1), B5 (1), B6 (1).
 - **Điều kiện trước khi bật, ngoài repo (người vận hành, EV-12 và EV-13 của `docs/EVIDENCE-REQUEST-20261125.md`):** kiểm gateway có tự lưu chữ của nhóm chung ở nơi khác (nhật ký phiên, bộ nhớ của agent) không. Có lưu thì dừng và báo Chairman.
+
+## OQ-62 — Nhập bảng việc của PM: khoá chống lặp, người nhập, dòng IBS HI, ngày hai nghĩa
+
+- **Lát:** GIAO VIỆC 5 hạng mục C (`docs/plans/gv5-c-sheet-import.md`).
+- **Căn cứ:** lời Chairman 25/11/2026 cho hạng mục C (xem trước bắt buộc; giữ mã, tham chiếu nguồn, trạng thái, hạn, bằng chứng như đã viết; ô trống gắn cờ, không đoán; nhập lại không ghi lặp theo mã việc + tham chiếu nguồn; chờ BoM duyệt nếu chưa có luật khác); `AGENTS.md`: «IBS HI: pointers, hashes and Tech work metadata only».
+- **Câu 1 — khoá chống lặp.** Lời Chairman là «mã việc + tham chiếu nguồn». Mã dùng STT + mã việc + hash nội dung, cùng phạm vi bảng và trang; số dòng lưu trong tham chiếu nhưng không làm khoá, vì chèn một dòng lên trên làm mọi dòng dưới đổi số. (1) giữ như vậy; (2) dùng đúng số dòng.
+- **Câu 2 — ai được nhập.** Hành vi tạm: thành viên Team Tech, hoặc điều phối của dự án đích, theo luật tạo việc của hạng mục A (`work_request_filer`). Dòng của một dự án mà người nhập không được tạo việc thì ra «cần đối chiếu» với mã `NOT_A_FILER`; các dòng khác vẫn nhập. (1) giữ; (2) chỉ điều phối.
+- **Câu 3 — dòng bảng ghi «Hoàn thành» hoặc «Tạm dừng».** Hành vi tạm: vẫn vào hàng chờ BoM như mọi dòng; trạng thái nguồn chỉ là nhãn, không phải nghiệm thu. (1) giữ; (2) chỉ liệt kê, không tạo yêu cầu.
+- **Câu 4 — dòng IBS HI.** Tiền lệ: migration 011 và `scripts/import-team-tech-catalog.ts` (bản 0.7.0, `DELIVERY-007`) lưu tiêu đề, người phụ trách, người phối hợp, trạng thái, hạn **và ghi chú** của dòng IBS HI ở bảng Z2 `analytics.tech_source_tasks`; `docs/DOI-SOAT-TEAM-TECH-20261110.md` dòng 68–74 liệt kê công khai các dòng IBS HI với tiêu đề, người, trạng thái. Cách chặt nhất (chỉ con trỏ, hash, mã, nhãn) khác tiền lệ đó.
+  (1) giữ tiêu đề, người phụ trách, người phối hợp, trạng thái, hạn như đã viết; **không** lưu ghi chú và chữ bằng chứng (hành vi tạm, đang có trong mã của PR C);
+  (2) chỉ con trỏ, hash, mã việc, nhãn BU, nhãn trạng thái. Cái giá: 20 yêu cầu IBS HI (số dòng nhãn IBS HI ở bản xuất 25/11) tới ghế BoM với tiêu đề do máy sinh, không ai đọc được nếu không mở bảng nguồn, và ghế BoM cần quyền xem bảng do PM cấp.
+  Kèm theo: các dòng Z2 hiện có của 011 đang giữ chữ ghi chú của dòng IBS HI — (a) giữ, (b) che, (c) xoá theo quy trình có biên bản.
+- **Câu 5 — ngày dạng dd/mm đọc được hai thứ tự.** Hành vi tạm: để trống và gắn cờ, như luật hiện có. (1) giữ; (2) đọc theo ngày/tháng của bảng.
+- **Câu 6 — bản nguồn.** Bảng Google Sheet «Checklist dau viec cua Tech theo BU_Update 07.11.2026», trang «Đầu việc Tech», hay workbook .xlsx ở đường dẫn của brief (bản 02/11, là bảng KPI). PM xác nhận (EV-10), kèm: STT có được đánh lại giữa các lần cập nhật không.
+- **Câu 7 — mã việc lấy từ đâu.** Hành vi tạm: chỉ từ tiêu đề, cho mọi dòng; dòng IBS HI không bao giờ đọc ghi chú.
+  - Cái giá, đếm trên bản xuất 25/11, theo nhãn BU:
+    - không dòng nào có mã trong tiêu đề;
+    - dòng có mã chỉ trong ghi chú: LBRC 8, IBS HI 9, XECA 3.
+  - Vì vậy mọi việc duyệt từ lần nhập này mang mã hệ thống `WR-…`, trừ khi ghế BoM gõ mã lúc duyệt.
+  - Phương án: (1) giữ; (2) chỉ tiêu đề cho IBS HI, tiêu đề rồi tới ghi chú cho LBRC và XECA.
+- **Câu 8 — trả lời xung đột khi nhập.** Hàm `work_import_key_conflicts` (SECURITY DEFINER) chỉ trả một lớp theo vị trí dòng; không trả ai đã nhập, dự án hay nội dung. Sửa theo cổng Codex vòng 1 (P0: bản trước so mã và nội dung với mọi dòng của nguồn, nên dò được mã và nội dung đã nhập ở dự án ngoài quyền xem):
+  - với dòng khoá người gọi đọc được (chính họ nhập, hoặc họ giữ ghế BoM của dự án đó): đủ bốn lớp `DUPLICATE`, `CONTENT_UNDER_OTHER_STT`, `SOURCE_CHANGED`, `CODE_UNDER_OTHER_ROW`;
+  - với dòng khoá khác: chỉ `STT_IMPORTED` khi cùng STT, như nhau dù nội dung trùng hay khác; mã và nội dung không được so;
+  - khoá mã và khoá nội dung ở CSDL tính theo từng người nhập, khoá STT theo nguồn và trang: lần ghi cũng không dò được gì hơn.
+  Điều lộ ra còn lại: «STT này của nguồn này đã được nhập». Cái giá: hai người cùng nhập một bảng không ghi lặp theo STT; nhưng nếu STT bị đánh lại giữa hai lần nhập của hai người không xem được dòng của nhau, cùng nội dung có thể thành hai yêu cầu chờ duyệt.
+  Phương án: (1) như trên (hành vi tạm); (2) so mọi dòng của nguồn, như bản trước (lộ mã và nội dung đã nhập cho người không xem được dự án); (3) khoá STT cũng theo từng người nhập (không lộ gì; hai người nhập cùng bảng sẽ ghi lặp).
+- **Câu 9 — `AGENTS.md`.** Hai bảng nhập (`work_import_batches`, `work_import_rows`) là Z1, nhưng dòng Z1 của `AGENTS.md` chưa nêu chúng; các bảng của 024–026 cũng vậy. Phiên PR không sửa `AGENTS.md`. (1) Chairman sửa dòng Z1; (2) giữ nguyên, kế hoạch của từng hạng mục ghi zone.
+- **Ai quyết:** Chairman (câu 1–5, 7–9); PM xác nhận câu 6.
+- **Hành vi tạm (đang có trong mã của PR C; không phải phương án được chọn):** 1 (1), 2 (1), 3 (1), 4 (1) và Z2 (a), 5 (1), 7 (1), 8 (1). Việc sinh ra từ dòng nhập, khi duyệt, mang người phụ trách đã được người nhập xác nhận ánh xạ (giao lần đầu, như OQ-60 (c) (2)); đổi người sau đó cần 3/3 và vướng OQ-60 (d).
