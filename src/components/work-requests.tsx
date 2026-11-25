@@ -4,6 +4,7 @@ import { api } from './api';
 import { projectRole } from '../server/types';
 import type { Principal } from '../server/types';
 import type { PublicRequest, WorkRequestItem } from '@/server/work-requests';
+import type { ImportAnnotation } from '@/server/sheet-import';
 
 // «Việc chờ BoM duyệt». The screen computes no permission: the buttons come from `can_decide` and every denial comes back from the service.
 // Text from the database is rendered as React text only.
@@ -65,11 +66,12 @@ export function Decide({ item, services, people, onDone }: { item: RequestCard; 
   </form>;
 }
 
-export function WorkRequests({ initial, services, people = [] }: { initial: Page; services: Svc[]; people?: Principal[] }) {
+export function WorkRequests({ initial, services, people = [], imports = {}, importEnabled = false }: { initial: Page; services: Svc[]; people?: Principal[]; imports?: Record<string, ImportAnnotation>; importEnabled?: boolean }) {
   const [page, setPage] = useState(initial), [error, setError] = useState('');
   async function reload() { try { setPage(await api<Page>('/api/v1/work-requests')); setError(''); } catch (e) { setError((e as Error).message); } }
   return <main className="doc-page"><h1>Việc chờ BoM duyệt</h1>
     <p className="muted">Việc mới do Team Tech tạo được ghi ở trạng thái chờ. Một ghế BoM của dự án, không phải người tạo, duyệt hoặc từ chối. Đổi người thực hiện của việc đã duyệt cần phiếu BoM 3/3.</p>
+    {importEnabled && <p><a href="/work-import">Nhập bảng việc</a></p>}
     {error && <p className="notice error" role="alert">{error}</p>}
     {!page.items.length && <p className="muted">Chưa có yêu cầu nào trong phạm vi của bạn.</p>}
     {page.items.map(item => <article key={item.id} className="doc-card" data-state={item.state}>
@@ -80,6 +82,7 @@ export function WorkRequests({ initial, services, people = [] }: { initial: Page
         <p className="muted">Người tạo {item.requester_name} · {when(item.created_at)}</p>
         {item.criteria && <p dir="auto">{item.criteria}</p>}
         <ul className="muted" aria-label="Người đề xuất">{SLOTS.map(slot => <li key={slot.field}>{slot.label}: {nameOf(people, item[slot.proposed])}</li>)}</ul>
+        {imports[item.id] && <ImportNote note={imports[item.id]} />}
         <p className="muted">Hạn: {item.due_at ? when(item.due_at) : 'Chưa đặt'}{item.spec_url && <> · <a href={item.spec_url} target="_blank" rel="noopener noreferrer">Tài liệu mô tả</a></>}</p>
         {item.state !== 'pending' && <p className="muted">{item.state === 'approved' ? 'Duyệt' : 'Từ chối'} bởi {item.decider_name} · {when(item.decided_at)}{item.decision_note ? ' · ' + item.decision_note : ''}{item.work_code ? ' · Việc ' + item.work_code : ''}</p>}
         {item.state === 'pending' && item.seat_open === false && <p className="notice neutral">{NO_SEAT_COPY}</p>}
@@ -88,4 +91,13 @@ export function WorkRequests({ initial, services, people = [] }: { initial: Page
       {item.can_decide && <Decide item={item} services={services} people={people} onDone={reload} />}
     </article>)}
   </main>;
+}
+
+// Imported from the team work list (migration 027): what the sheet said, as written. The status is the sheet's report, never an acceptance.
+function ImportNote({ note }: { note: ImportAnnotation }) {
+  return <div className="muted">
+    <p>Nhập từ bảng nguồn · dòng STT <span dir="auto">{note.stt}</span> · <span dir="auto">{note.sourceRef}</span></p>
+    <p>Trạng thái theo bảng nguồn: <span dir="auto">{note.sourceStatus || '(trống)'}</span> · Hạn theo bảng nguồn: <span dir="auto">{note.dueRaw || '(trống)'}</span> · Người phụ trách theo bảng: <span dir="auto">{note.ownerRaw || '(trống)'}</span></p>
+    {note.flags.length > 0 && <p>Cờ: {note.flags.join(', ')}</p>}
+  </div>;
 }

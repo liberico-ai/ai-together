@@ -1,0 +1,131 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/sheet-import.test.ts (38 tests | 3 failed) 21114ms
+   × (5) the conflict answer is a class by row and nothing else: no person, project, request or content; and preview and commit read it the same 522ms
+   × (22) a commit is no probe either: the code and content keys are per importer, the STT key per source and sheet; a BoM seat of the project is told every class 521ms
+   × (23) the database refuses a batch from the bot, a viewer or an engineer, who may import into no project; a Team Tech member and a manager write theirs 522ms
+ ❯ tests/sheet-import-csv.test.ts (8 tests | 1 failed) 9ms
+   ❯ parseCsv (RFC 4180) (4)
+     × (2) a quote inside a cell that is not quoted is CSV_MALFORMED (RFC 4180; Codex P2, gate round 1); a quoted cell keeps its "" as one quote 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/sheet-import-csv.test.ts > parseCsv (RFC 4180) > (2) a quote inside a cell that is not quoted is CSV_MALFORMED (RFC 4180; Codex P2, gate round 1); a quoted cell keeps its "" as one quote
+AssertionError: expected null to deeply equal { code: 'CSV_MALFORMED', status: 422 }
+
+- Expected:
+{
+  "code": "CSV_MALFORMED",
+  "status": 422,
+}
+
++ Received:
+null
+
+ ❯ tests/sheet-import-csv.test.ts:33:63
+     31|   });
+     32|   test('(2) a quote inside a cell that is not quoted is CSV_MALFORMED …
+     33|     expect(await code(()=>parseCsv('a,Việc "sai" dạng,c\n'))).toEqual(…
+       |                                                               ^
+     34|     expect(await code(()=>parseCsv('a,b"\n'))).toEqual({code:'CSV_MALF…
+     35|     expect(parseCsv('a,"Việc ""đúng"" dạng",c\n')).toEqual([['a','Việc…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/sheet-import.test.ts > (5) the conflict answer is a class by row and nothing else: no person, project, request or content; and preview and commit read it the same
+AssertionError: expected [ Array(5) ] to deeply equal [ …(5) ]
+
+- Expected
++ Received
+
+@@ -1,20 +1,20 @@
+  [
+    {
+-     "class": "STT_IMPORTED",
++     "class": "DUPLICATE",
+      "idx": 1,
+    },
+    {
+-     "class": "STT_IMPORTED",
++     "class": "SOURCE_CHANGED",
+      "idx": 2,
+    },
+    {
+-     "class": null,
++     "class": "CONTENT_UNDER_OTHER_STT",
+      "idx": 3,
+    },
+    {
+-     "class": null,
++     "class": "CODE_UNDER_OTHER_ROW",
+      "idx": 4,
+    },
+    {
+      "class": null,
+      "idx": 5,
+
+ ❯ tests/sheet-import.test.ts:533:15
+    531|   // whether the guess of its content is right or wrong; a guessed cod…
+    532|   const out=await ask(pm,stt,code,content,fp);
+    533|   expect(out).toEqual([{idx:1,class:'STT_IMPORTED'},{idx:2,class:'STT_…
+       |               ^
+    534|   for(const r of out) expect(Object.keys(r).sort()).toEqual(['class','…
+    535|   // another source or another tenant: nothing; no person set in the c…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/sheet-import.test.ts > (22) a commit is no probe either: the code and content keys are per importer, the STT key per source and sheet; a BoM seat of the project is told every class
+AssertionError: expected [ …(3) ] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+@@ -1,13 +1,13 @@
+  [
+    [
+      "work_import_key_code",
+-     "UNIQUE (tenant_id, source_id, sheet, importer_id, code)",
++     "UNIQUE (tenant_id, source_id, sheet, code)",
+    ],
+    [
+      "work_import_key_content",
+-     "UNIQUE (tenant_id, source_id, sheet, importer_id, content_hash)",
++     "UNIQUE (tenant_id, source_id, sheet, content_hash)",
+    ],
+    [
+      "work_import_key_stt",
+      "UNIQUE (tenant_id, source_id, sheet, stt)",
+    ],
+
+ ❯ tests/sheet-import.test.ts:556:62
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/sheet-import.test.ts > (23) the database refuses a batch from the bot, a viewer or an engineer, who may import into no project; a Team Tech member and a manager write theirs
+AssertionError: expected a refusal for bot: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ tests/sheet-import.test.ts:583:50
+    581|   for(const who of [bot,viewer,member]){
+    582|     const e=await insert(who).then(()=>null,x=>x as {code?:string});
+    583|     expect(e,'expected a refusal for '+who.role).toBeTruthy();expect(e…
+       |                                                  ^
+    584|   }
+    585|   await insert(tech);await insert(pm);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  4 failed | 42 passed (46)
+   Start at  16:02:43
+   Duration  21.35s (tests 99%)
+
+red exit 1

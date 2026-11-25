@@ -8,7 +8,12 @@ import { AppError } from './errors';
  * as `request.text()` decodes it: UTF-8, a leading BOM dropped, invalid bytes replaced by U+FFFD.
  */
 export async function readBoundedText(request:Request,maxBytes:number,message:string):Promise<string> {
-  if(request.body===null) return '';
+  return new TextDecoder().decode(await readBoundedBytes(request,maxBytes,message));
+}
+
+/** The same bounded read, answered as the raw bytes (the work-list import hashes and decodes the file itself). No body reads as zero bytes. */
+export async function readBoundedBytes(request:Request,maxBytes:number,message:string):Promise<Uint8Array> {
+  if(request.body===null) return new Uint8Array(0);
   const reader=request.body.getReader();
   const chunks:Uint8Array[]=[];
   let total=0;
@@ -21,7 +26,7 @@ export async function readBoundedText(request:Request,maxBytes:number,message:st
     if(total>maxBytes) { await cancel(reader); throw new AppError('PAYLOAD_TOO_LARGE',message,413); }
     chunks.push(value);
   }
-  return new TextDecoder().decode(Buffer.concat(chunks));
+  return Buffer.concat(chunks);
 }
 
 /** Stops the stream. A failed cancel changes nothing for the caller, who refuses the body anyway; it is logged by a fixed code. */

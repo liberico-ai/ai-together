@@ -42,6 +42,9 @@ export async function openHarness():Promise<Harness>{
         await operator.query('TRUNCATE projects, identity.users, identity.memberships, identity.telegram_links, identity.throttle, analytics.reconciliations, analytics.tech_source_imports CASCADE');
         if((await operator.query<{t:string|null}>("SELECT to_regclass('public.document_templates')::text AS t")).rows[0].t)
           await operator.query('TRUNCATE document_templates CASCADE');
+        // 027: a batch has no foreign key to a project, so the truncate above does not reach it; an old batch would make rollback 027 refuse in the next case
+        if((await operator.query<{t:string|null}>("SELECT to_regclass('public.work_import_batches')::text AS t")).rows[0].t)
+          await operator.query('TRUNCATE work_import_batches CASCADE');
       },
       close:async()=>{if(db!==operator) await db.close();await operator.close();}};
   }
