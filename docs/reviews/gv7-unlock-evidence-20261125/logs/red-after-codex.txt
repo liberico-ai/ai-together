@@ -1,0 +1,108 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/sheet-import.test.ts (42 tests | 1 failed) 23204ms
+   × M8 câu 6: the same request key with another file name, or with none, is IDEMPOTENCY_CONFLICT; with the same name it replays 524ms
+ ❯ tests/unlock-092.test.ts (36 tests | 1 failed) 19954ms
+   ❯ Sau cổng Codex · BoM Tech gửi yêu cầu (1)
+     × M6 a BoM Tech who is neither on the roster nor holds a membership files a request and sees it; off the roster and off BoM Tech still files nothing 552ms
+ ❯ tests/migrations-rollback.test.ts (16 tests | 1 failed) 9702ms
+   × rollback 028 deletes only the request source rows it can derive again; an operator row with the same prefix stops 028 before it starts, and stops the rollback 529ms
+ ❯ tests/work-import-ui.test.ts (3 tests | 1 failed) 4ms
+   × M8 câu 6: the request body of the import screen carries the bare name of the chosen file 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 028 deletes only the request source rows it can derive again; an operator row with the same prefix stops 028 before it starts, and stops the rollback
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/migrations-rollback.test.ts:1027:24
+    1025|     const stopped=await settle(h.exec(forward));
+    1026|     await h.exec('ROLLBACK').catch(()=>{});
+    1027|     expect(stopped.ok).toBe(false);expect(stopped.message).toMatch(/re…
+       |                        ^
+    1028|     expect(await applied()).toBe(0);expect(await sourceOf(operatorWork…
+    1029|     // the operator renames it, and 028 goes on
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/sheet-import.test.ts > M8 câu 6: the same request key with another file name, or with none, is IDEMPOTENCY_CONFLICT; with the same name it replays
+AssertionError: expected { ok: true } to deeply equal { ok: false, …(2) }
+
+- Expected
++ Received
+
+  {
+-   "code": "IDEMPOTENCY_CONFLICT",
+-   "ok": false,
+-   "status": 409,
++   "ok": true,
+  }
+
+ ❯ tests/sheet-import.test.ts:335:63
+    333|   const first=await svc().commit(tech,body('bang-a.csv'));
+    334|   expect((await svc().commit(tech,body('bang-a.csv'))).replayed).toBe(…
+    335|   expect(await settle(svc().commit(tech,body('bang-b.csv')))).toEqual(…
+       |                                                               ^
+    336|   expect(await settle(svc().commit(tech,body(undefined)))).toEqual({ok…
+    337|   expect(first.fileName).toBe('bang-a.csv');expect(await n('work_reque…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau cổng Codex · BoM Tech gửi yêu cầu > M6 a BoM Tech who is neither on the roster nor holds a membership files a request and sees it; off the roster and off BoM Tech still files nothing
+AssertionError: expected { ok: false, …(3) } to match object { ok: true, …(1) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "request": {
+-       "project_id": "11000000-0000-4000-8000-000000000001",
+-       "requester_id": "14000000-0000-4000-8000-000000000083",
+-       "state": "pending",
+-     },
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:528:21
+    526|     for(const projectId of [ids.sales,ibs.project]) {
+    527|       const filed=await attempt(()=>svc().submit(me,input({projectId})…
+    528|       expect(filed).toMatchObject({ok:true,value:{request:{requester_i…
+       |                     ^
+    529|     }
+    530|     const mine=await attempt(()=>svc().list(me,{}));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/work-import-ui.test.ts > M8 câu 6: the request body of the import screen carries the bare name of the chosen file
+AssertionError: expected 'undefined' to be 'function' // Object.is equality
+
+Expected: "function"
+Received: "undefined"
+
+ ❯ tests/work-import-ui.test.ts:28:33
+     26|   type Envelope=(name:string,bytes:Uint8Array,sourceUrl:string,sheet:s…
+     27|   const importEnvelope=(ui as Record<string,unknown>).importEnvelope a…
+     28|   expect(typeof importEnvelope).toBe('function');
+       |                                 ^
+     29|   const bytes=new TextEncoder().encode('STT,BU\n1,LBRC\n');
+     30|   const url='https://docs.google.com/spreadsheets/d/thu';
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  4 failed (4)
+      Tests  4 failed | 93 passed (97)
+   Start at  20:29:52
+   Duration  53.35s (tests 99%)
+

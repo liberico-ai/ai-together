@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { scoped, type Database, type Queryable } from './db';
 import { invariant } from './errors';
 import { wasCut } from './list-cut';
-import { append, deduplicate, workRow } from './service';
+import { append, deduplicate, performersAmong, workRow } from './service';
 import { projectWorkSummary } from './projector';
 import type { Principal, Work } from './types';
 
@@ -56,9 +56,10 @@ function assertSeat(p:Principal,scope:Scope|undefined):asserts scope is Scope {
 const owners = (value:Allocation) => [...new Set([value.lead_id,...value.parts.map(part=>part.owner_id)].filter((id):id is string=>id!==null))];
 const canReceive = (member:Member,scope:Scope) =>
   member.project_role==='engineer'||(member.project_role==='manager'&&scope.seat_ids.includes(member.user_id));
-function validAllocation(work:Work,value:Allocation,scope:Scope,eligible:Member[]) {
+// a Team Tech member (roster or BoM Tech) may receive work in every project, with or without a membership (M2, 0.9.2); the database answers who they are
+function validAllocation(work:Work,value:Allocation,scope:Scope,eligible:Member[],performers:Set<string>) {
   return work.state!=='done'&&work.assignee_id!==null&&owners(value).every(id=>
-    id!==work.technical_id&&id!==work.business_id&&eligible.some(member=>member.user_id===id&&canReceive(member,scope)));
+    id!==work.technical_id&&id!==work.business_id&&(performers.has(id)||eligible.some(member=>member.user_id===id&&canReceive(member,scope))));
 }
 async function currentAllocation(tx:Queryable,work:Work):Promise<Allocation> {
   const row=(await tx.query<{parts:Allocation['parts']}>(`SELECT b.proposed_assignment->'parts' AS parts
@@ -92,11 +93,12 @@ export class BomService {
       assertSeat(p,scope);
       const eligible=await members(tx,work.project_id,[...new Set([...scope.seat_ids,...candidateIds])]);
       invariant(eligible.some(member=>member.user_id===p.id&&member.linked),'SCOPE_DENIED','Cần ghép Telegram và có phạm vi dự án.',403);
+      const performers=await performersAmong(tx,candidateIds);
       const proposals=(await tx.query<Proposal>('SELECT * FROM bom_proposals WHERE work_id=$1 ORDER BY created_at DESC,id LIMIT 30',[id])).rows;
       const cards:Card[]=[];
       for(const proposal of proposals) cards.push(await card(tx,proposal));
       return {work,allocation:await currentAllocation(tx,work),enabled:scope.enabled&&seatsReady(scope,eligible),
-        source:await liveSource(tx,id)??null,cards,recipients:eligible.filter(member=>canReceive(member,scope)).map(member=>member.user_id)};
+        source:await liveSource(tx,id)??null,cards,recipients:[...new Set([...eligible.filter(member=>canReceive(member,scope)).map(member=>member.user_id),...performers])]};
     });
   }
 
@@ -156,7 +158,7 @@ export class BomService {
           }
           invariant(current.version===cmd.expectedVersion,'VERSION_CONFLICT','Đầu việc đã đổi. Mở lại hồ sơ trước khi gửi.',409);
           invariant(live.enabled&&seatsReady(live,eligible),'BOM_UNAVAILABLE','Chưa đủ ba ghế BoM có hiệu lực trong dự án.',409);
-          invariant(validAllocation(current,cmd.allocation,live,eligible),'INVALID_ASSIGNMENT',
+          invariant(validAllocation(current,cmd.allocation,live,eligible,await performersAmong(tx,owners(cmd.allocation),true)),'INVALID_ASSIGNMENT',
             'Cần người nhận đủ quyền, tách khỏi người nghiệm thu, trên đầu việc đang có phân công.',422);
           const source=await liveSource(tx,current.id,true);
           invariant(source,'SOURCE_RECONCILE','Cần đọc lại nguồn trước khi gửi phiếu.',409);
@@ -195,9 +197,10 @@ export class BomService {
           return card(tx,await finish(tx,proposal,'cancelled'));
         }
         const source=await liveSource(tx,work.id,true);
+        const performers=await performersAmong(tx,owners(proposal.proposed_assignment),true);
         if(!scope.enabled||scope.version!==proposal.scope_version||scope.seat_ids.some((id,i)=>id!==proposal.seat_ids[i])
           ||!seatsReady(scope,eligible)||work.version!==proposal.work_version||!source||source.source_ref!==proposal.source_ref
-          ||source.fingerprint!==proposal.source_fingerprint||!validAllocation(work,proposal.proposed_assignment,scope,eligible)) {
+          ||source.fingerprint!==proposal.source_fingerprint||!validAllocation(work,proposal.proposed_assignment,scope,eligible,performers)) {
           return card(tx,await finish(tx,proposal,'reconcile'));
         }
         await tx.query(`INSERT INTO bom_votes(proposal_id,tenant_id,project_id,voter_id,choice,note)
@@ -212,6 +215,13 @@ export class BomService {
           WHERE id=$2 AND version=$3 RETURNING *`,[proposal.proposed_assignment.lead_id,work.id,work.version])).rows[0];
         invariant(next,'VERSION_CONFLICT','Đầu việc vừa thay đổi. Cần đối soát lại.',409);
         await append(tx,p,next,'bom_allocation_applied',{proposalId:proposal.id,before:proposal.before_assignment,after:proposal.proposed_assignment});
+        // a Team Tech member the ballot gives work to, with no membership in the project, gets a traced grant: this proposal, granted by the third vote (M2)
+        const granted=owners(proposal.proposed_assignment).filter(owner=>performers.has(owner)&&!eligible.some(member=>member.user_id===owner));
+        // the grant names its granter as the person of the transaction (work_access_grants_guard, migration 028)
+        if(granted.length) await tx.query("SELECT set_config('app.person_id',$1,true)",[p.id]);
+        for(const owner of granted)
+          await tx.query(`INSERT INTO work_access_grants(tenant_id,project_id,work_id,user_id,source_kind,source_id,granted_by) VALUES($1,$2,$3,$4,'bom_allocation',$5,$6)`,
+            [p.tenantId,work.project_id,work.id,owner,proposal.id,p.id]);
         await projectWorkSummary(tx,p.tenantId,work.project_id);
         return card(tx,await finish(tx,proposal,'applied'));
       });

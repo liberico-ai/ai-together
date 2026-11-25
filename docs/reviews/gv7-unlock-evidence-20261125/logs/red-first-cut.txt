@@ -1,0 +1,555 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/unlock-092.test.ts (24 tests | 22 failed) 14299ms
+   ❯ M1 · a BoM seat may be the performer (2)
+     × M1 a seat approves new work for itself, and for another seat of the project 749ms
+     × M1 the creator still never approves, and the performer still differs from each acceptor 570ms
+   ❯ M2 · every Team Tech member may be the performer, in every project (5)
+     × M2 a roster member with no grant in the project is assigned, gets a traced grant and does every performer step 620ms
+     × M2 a roster member who holds another role in the project gets no extra grant and does the performer steps 581ms
+     × M2 a person off the roster keeps the role rule: a viewer is not a performer and gains nothing 626ms
+     × M2 a grant cannot be forged at the table: not the performer, off the roster, in someone else's name, and never changed 651ms
+   ❯ M3 · at approval the seat may change a proposed person (1)
+     × M3 proposed, final and who changed are stored 600ms
+   ❯ M4 · work approved from a request can be reassigned by the 3/3 ballot (2)
+     × M4 approval writes a source row that points at the request; the 3/3 ballot then moves the performer and grants access 619ms
+     × M4 a source row of a request cannot be changed or removed, and the runtime writes no other source row 602ms
+   ❯ M5 · no request waits forever (6)
+     × M5 a BoM Tech with no grant and no Telegram link approves in a project without seats and in a seated one 573ms
+     × M5 a BoM Tech does not approve their own request; another BoM Tech does 551ms
+     × M5 a project seat approves on the web without a Telegram link; the 3/3 ballot still needs every seat linked 573ms
+     × M5 a roster member who is not BoM Tech, and a member who holds no seat, decide nothing 583ms
+     × M5 a tenant has at most three BoM Tech, and every change is an identity event 579ms
+     × M5 the operator script sets exactly three BoM Tech, idempotently, with the source on each event 646ms
+   ❯ M6 · a roster member with no membership signs in (2)
+     × M6 they see the project list, file a request and see it 634ms
+     × M6 off the roster with no membership is still refused, and told what to do 620ms
+   ❯ M7 · many requests in one approval (3)
+     × M7 each request keeps its own event and approver; a failing row does not stop the others; a replay writes nothing new 539ms
+     × M7 a project with one service needs no choice; a project with several asks for one, row by row 526ms
+   ❯ M10 · every refusal says what to do next (1)
+     × M10 filing, deciding and the role rule tell the user what to do; none waits for the Chairman 536ms
+   ❯ IBS HI · M2 and M5 in an IBS HI project (2)
+     × IBS HI M5: a BoM Tech approves; a person off the roster sees nothing and an error names no project 536ms
+     × IBS HI M2: the roster performer gets a traced grant and does the performer step; a person off the roster is not a performer and the refusal names no project 544ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 22 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unlock-092.test.ts > M1 · a BoM seat may be the performer > M1 a seat approves new work for itself, and for another seat of the project
+AssertionError: expected { ok: false, …(3) } to match object { ok: true, value: { …(2) } }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "request": {
+-       "decided_by": "14000000-0000-4000-8000-000000000001",
+-       "state": "approved",
+-     },
+-     "work": {
+-       "assignee_id": "14000000-0000-4000-8000-000000000001",
+-     },
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:86:17
+     84|     const r=await file();
+     85|     const own=await approve(pm,r.id,{assigneeId:pm.id});
+     86|     expect(own).toMatchObject({ok:true,value:{request:{state:'approved…
+       |                 ^
+     87|     const s=await file();
+     88|     const other=await approve(pm,s.id,{assigneeId:reviewer.id});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M1 · a BoM seat may be the performer > M1 the creator still never approves, and the performer still differs from each acceptor
+AssertionError: expected { ok: false, …(3) } to match object { ok: false, code: 'SELF_ACCEPTANCE' }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "code": "SELF_ACCEPTANCE",
++   "code": "BOM_ASSIGNEE_HELD",
+    "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:95:85
+     93|     expect(await approve(pm,r.id)).toMatchObject({ok:false,code:'SELF_…
+     94|     const s=await file();
+     95|     expect(await approve(pm,s.id,{assigneeId:reviewer.id,technicalId:r…
+       |                                                                                     ^
+     96|     expect((await rows('SELECT 1 FROM work_requests WHERE id=ANY($1::u…
+     97|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M2 · every Team Tech member may be the performer, in every project > M2 a roster member with no grant in the project is assigned, gets a traced grant and does every performer step
+AssertionError: expected { ok: false, …(3) } to match object { ok: true, value: { work: { …(1) } } }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "work": {
+-       "assignee_id": "14000000-0000-4000-8000-000000000077",
+-     },
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:104:18
+    102|     const r=await file();
+    103|     const done=await approve(pm,r.id,{assigneeId:tech.id,technicalId:r…
+    104|     expect(done).toMatchObject({ok:true,value:{work:{assignee_id:tech.…
+       |                  ^
+    105|     const w=(done as {value:{work:{id:string;version:number}}}).value.…
+    106|     expect(await grants(w.id)).toEqual([{user_id:tech.id,granted_by:pm…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M2 · every Team Tech member may be the performer, in every project > M2 a roster member who holds another role in the project gets no extra grant and does the performer steps
+AssertionError: expected { ok: false, …(3) } to match object { ok: true, value: { work: { …(1) } } }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "work": {
+-       "assignee_id": "14000000-0000-4000-8000-000000000084",
+-     },
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:129:18
+    127|     const r=await file();
+    128|     const done=await approve(reviewer,r.id,{assigneeId:rosterTechnical…
+    129|     expect(done).toMatchObject({ok:true,value:{work:{assignee_id:roste…
+       |                  ^
+    130|     const w=(done as {value:{work:{id:string;version:number}}}).value.…
+    131|     expect(await grants(w.id)).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M2 · every Team Tech member may be the performer, in every project > M2 a person off the roster keeps the role rule: a viewer is not a performer and gains nothing
+AssertionError: expected 'Người được giao không có vai phù hợp …' to match /Team Tech/
+
+- Expected:
+/Team Tech/
+
++ Received:
+"Người được giao không có vai phù hợp trong dự án."
+
+ ❯ tests/unlock-092.test.ts:138:51
+    136|     const refused=await approve(pm,r.id,{assigneeId:offRoster.id});
+    137|     expect(refused).toMatchObject({ok:false,code:'INVALID_ASSIGNMENT',…
+    138|     expect((refused as {message:string}).message).toMatch(/Team Tech/);
+       |                                                   ^
+    139|     expect(await rows('SELECT 1 FROM work_access_grants')).toEqual([]);
+    140|     expect((await rows('SELECT state FROM work_requests WHERE id=$1',[…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M2 · every Team Tech member may be the performer, in every project > M2 a grant cannot be forged at the table: not the performer, off the roster, in someone else's name, and never changed
+TypeError: Cannot read properties of undefined (reading 'work')
+ ❯ tests/unlock-092.test.ts:145:56
+    143|     const r=await file();
+    144|     const done=await approve(pm,r.id,{assigneeId:tech.id});
+    145|     const w=(done as {value:{work:{id:string}}}).value.work;
+       |                                                        ^
+    146|     const asPm=(sql:string,params:unknown[])=>attempt(()=>scoped(h.db,…
+    147|     const insert=`INSERT INTO work_access_grants(tenant_id,project_id,…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M3 · at approval the seat may change a proposed person > M3 proposed, final and who changed are stored
+AssertionError: expected { ok: false, …(3) } to match object { ok: true, value: { work: { …(2) } } }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "work": {
+-       "assignee_id": "14000000-0000-4000-8000-000000000077",
+-       "technical_id": "14000000-0000-4000-8000-000000000003",
+-     },
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:167:18
+    165|     const r=await file({assigneeId:member.id},pm);
+    166|     const done=await approve(reviewer,r.id,{assigneeId:tech.id,technic…
+    167|     expect(done).toMatchObject({ok:true,value:{work:{assignee_id:tech.…
+       |                  ^
+    168|     const ev=(await rows<{actor_id:string;payload:R}>("SELECT actor_id…
+    169|     expect(ev.actor_id).toBe(reviewer.id);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M4 · work approved from a request can be reassigned by the 3/3 ballot > M4 approval writes a source row that points at the request; the 3/3 ballot then moves the performer and grants access
+AssertionError: expected [] to deeply equal [ { …(3) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "fingerprint": "5aca74ad19a4d625cf672e108ed42cb25ca646968f3a090785d4033107e8fc56",
+-     "forever": true,
+-     "source_ref": "work_request:c32eb65e-2e1f-465d-93c4-bea619cb322c",
+-   },
+- ]
++ []
+
+ ❯ tests/unlock-092.test.ts:184:148
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M4 · work approved from a request can be reassigned by the 3/3 ballot > M4 a source row of a request cannot be changed or removed, and the runtime writes no other source row
+AssertionError: expected { ok: true, value: [] } to match object { ok: false }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": false,
++   "ok": true,
+  }
+
+ ❯ tests/unlock-092.test.ts:196:117
+    194|     const r=await file();
+    195|     const w=((await approve(pm,r.id)) as {value:{work:{id:string}}}).v…
+    196|     expect(await attempt(()=>rows("UPDATE bom_sources SET fingerprint=…
+       |                                                                                                                     ^
+    197|     expect(await attempt(()=>rows('DELETE FROM bom_sources WHERE work_…
+    198|     const pending=await file();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M5 · no request waits forever > M5 a BoM Tech with no grant and no Telegram link approves in a project without seats and in a seated one
+AssertionError: expected { ok: false, …(3) } to match object { ok: true }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:213:20
+    211|     const s=await file();
+    212|     const listed=await attempt(()=>svc().list(bomA,{}));
+    213|     expect(listed).toMatchObject({ok:true});
+       |                    ^
+    214|     const items=(listed as {value:{items:{id:string;can_decide:boolean…
+    215|     expect(items.filter(i=>[t.id,s.id].includes(i.id)).map(i=>i.can_de…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M5 · no request waits forever > M5 a BoM Tech does not approve their own request; another BoM Tech does
+Error: Cần phiên làm việc có phạm vi dự án.
+ ❯ scoped src/server/db.ts:106:84
+    104| }
+    105| export async function scoped<T>(db: Database, principal: Principal, fn…
+    106|   if (!principal?.id || !principal.tenantId || !principal.projectIds.l…
+       |                                                                                    ^
+    107|   return db.transaction(async tx => {
+    108|     await tx.query('SET LOCAL ROLE libetech_runtime');
+ ❯ WorkRequestService.run src/server/work-requests.ts:98:12
+ ❯ WorkRequestService.submit src/server/work-requests.ts:117:17
+ ❯ file tests/unlock-092.test.ts:64:62
+ ❯ tests/unlock-092.test.ts:220:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M5 · no request waits forever > M5 a project seat approves on the web without a Telegram link; the 3/3 ballot still needs every seat linked
+AssertionError: expected { ok: false, …(3) } to match object { ok: true, …(1) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "request": {
+-       "decided_by": "14000000-0000-4000-8000-000000000004",
+-     },
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:228:18
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M5 · no request waits forever > M5 a roster member who is not BoM Tech, and a member who holds no seat, decide nothing
+Error: Cần phiên làm việc có phạm vi dự án.
+ ❯ scoped src/server/db.ts:106:84
+    104| }
+    105| export async function scoped<T>(db: Database, principal: Principal, fn…
+    106|   if (!principal?.id || !principal.tenantId || !principal.projectIds.l…
+       |                                                                                    ^
+    107|   return db.transaction(async tx => {
+    108|     await tx.query('SET LOCAL ROLE libetech_runtime');
+ ❯ WorkRequestService.run src/server/work-requests.ts:98:12
+ ❯ WorkRequestService.submit src/server/work-requests.ts:117:17
+ ❯ file tests/unlock-092.test.ts:64:62
+ ❯ tests/unlock-092.test.ts:234:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M5 · no request waits forever > M5 a tenant has at most three BoM Tech, and every change is an identity event
+AssertionError: expected { ok: false, …(3) } to match object { ok: false, code: 'NOT_FOUND' }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "code": "NOT_FOUND",
++   "code": "UNAUTHENTICATED",
+    "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:247:90
+    245|     // once removed, the person approves nothing more
+    246|     const r=await file({projectId:ids.transport});
+    247|     expect(await approve(bomC,r.id,{serviceId:ids.transportService,ass…
+       |                                                                                          ^
+    248|   });
+    249|   test('M5 the operator script sets exactly three BoM Tech, idempotent…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M5 · no request waits forever > M5 the operator script sets exactly three BoM Tech, idempotently, with the source on each event
+Error: ENOENT: no such file or directory, open '<repo>/deploy/tech-bom.sql'
+ ❯ tests/unlock-092.test.ts:250:13
+    248|   });
+    249|   test('M5 the operator script sets exactly three BoM Tech, idempotent…
+    250|     let sql=await readFile(path.join(process.cwd(),'deploy/tech-bom.sq…
+       |             ^
+    251|     const vars={tenant_id:ids.tenant,user_ids:`${bomB.id},${bomA.id},$…
+    252|     for(const [key,v] of Object.entries(vars)) sql=sql.replaceAll(`:'$…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M6 · a roster member with no membership signs in > M6 they see the project list, file a request and see it
+AssertionError: expected { ok: false, …(3) } to match object { ok: true, value: { …(3) } }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "id": "14000000-0000-4000-8000-000000000086",
+-     "projectIds": [],
+-     "techMember": true,
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:269:15
+    267|   test('M6 they see the project list, file a request and see it',async…
+    268|     const s=await sessionOf(rosterNoGrant);
+    269|     expect(s).toMatchObject({ok:true,value:{id:rosterNoGrant,projectId…
+       |               ^
+    270|     const me=(s as {value:Principal}).value;
+    271|     const catalog=await attempt(()=>svc().catalog(me));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M6 · a roster member with no membership signs in > M6 off the roster with no membership is still refused, and told what to do
+AssertionError: expected 'Tài khoản chưa được giao dự án.' to match /quản trị/
+
+- Expected:
+/quản trị/
+
++ Received:
+"Tài khoản chưa được giao dự án."
+
+ ❯ tests/unlock-092.test.ts:282:45
+    280|     const s=await sessionOf(offRosterNoGrant);
+    281|     expect(s).toMatchObject({ok:false,code:'NO_PROJECT_ACCESS'});
+    282|     expect((s as {message:string}).message).toMatch(/quản trị/);
+       |                                             ^
+    283|   });
+    284| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M7 · many requests in one approval > M7 each request keeps its own event and approver; a failing row does not stop the others; a replay writes nothing new
+AssertionError: expected { ok: false, code: 'THROWN', …(2) } to match object { ok: true, …(1) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "results": [
+-       {
+-         "id": "46d9a28c-4b3d-4f3b-b4b4-9c1bcec78f4d",
+-         "ok": true,
+-         "workId": Any<String>,
+-       },
+-       {
+-         "code": "ASSIGNEE_REQUIRED",
+-         "id": "dbdde89d-aee0-44a6-9c13-97fac72dbd77",
+-         "message": StringMatching /Chọn người thực hiện/,
+    "ok": false,
+-       },
+-       {
+-         "code": "REQUEST_DECIDED",
+-         "id": "b4d6d0f3-793f-4c28-acb8-f57a567d9e20",
+-         "ok": false,
+-       },
+-     ],
+-   },
+  }
+
+ ❯ tests/unlock-092.test.ts:295:17
+    293|     const key=k();
+    294|     const out=await attempt(()=>svc().decideMany(reviewer,body,key));
+    295|     expect(out).toMatchObject({ok:true,value:{results:[
+       |                 ^
+    296|       {id:a.id,ok:true,workId:expect.any(String)},
+    297|       {id:b.id,ok:false,code:'ASSIGNEE_REQUIRED',message:expect.string…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M7 · many requests in one approval > M7 a project with one service needs no choice; a project with several asks for one, row by row
+AssertionError: expected { ok: false, code: 'THROWN', …(2) } to match object { ok: true, …(1) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "results": [
+-       {
+-         "id": "2f4fb87c-6a9c-4165-87a4-beddb345e66c",
+-         "ok": true,
+-       },
+-       {
+-         "code": "SERVICE_REQUIRED",
+-         "id": "4606c54d-5965-4872-b33f-0ae0b1c9f452",
+    "ok": false,
+-       },
+-     ],
+-   },
+  }
+
+ ❯ tests/unlock-092.test.ts:311:17
+    309|     const s=await file({assigneeId:null},pm);
+    310|     const out=await attempt(()=>svc().decideMany(bomA,{requestIds:[t.i…
+    311|     expect(out).toMatchObject({ok:true,value:{results:[{id:t.id,ok:tru…
+       |                 ^
+    312|   });
+    313|   test('M7 the list is capped and identity never comes from the body',…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > M10 · every refusal says what to do next > M10 filing, deciding and the role rule tell the user what to do; none waits for the Chairman
+AssertionError: Chỉ thành viên Team Tech hoặc điều phối dự án được tạo việc.: expected 'Chỉ thành viên Team Tech hoặc điều ph…' to match /Nhờ|Chọn|chọn|Tải lại|BoM Tech|người …/
+
+- Expected:
+/Nhờ|Chọn|chọn|Tải lại|BoM Tech|người quản trị/
+
++ Received:
+"Chỉ thành viên Team Tech hoặc điều phối dự án được tạo việc."
+
+ ❯ tests/unlock-092.test.ts:332:42
+    330|     keep(await approve(pm,r.id,{assigneeId:member.id,technicalId:membe…
+    331|     keep(await approve(pm,r.id,{serviceId:null}));                    …
+    332|     for(const m of messages) expect(m,m).toMatch(/Nhờ|Chọn|chọn|Tải lạ…
+       |                                          ^
+    333|     // no copy anywhere in the server or the screens still tells the u…
+    334|     const sources:string[]=[];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > IBS HI · M2 and M5 in an IBS HI project > IBS HI M5: a BoM Tech approves; a person off the roster sees nothing and an error names no project
+AssertionError: expected { ok: false, …(3) } to match object { ok: true, value: { work: { …(2) } } }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "work": {
+-       "assignee_id": "14000000-0000-4000-8000-000000000077",
+-       "project_id": "11000000-0000-4000-8000-0000000000a1",
+-     },
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:348:81
+    346|     expect(denied).toMatchObject({ok:false,code:'NOT_FOUND'});
+    347|     expect((denied as {message:string}).message).not.toMatch(/IBS|Dự á…
+    348|     expect(await approve(bomA,r.id,{serviceId:ibs.service,assigneeId:t…
+       |                                                                                 ^
+    349|   });
+    350|   test('IBS HI M2: the roster performer gets a traced grant and does t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/22]⎯
+
+ FAIL  tests/unlock-092.test.ts > IBS HI · M2 and M5 in an IBS HI project > IBS HI M2: the roster performer gets a traced grant and does the performer step; a person off the roster is not a performer and the refusal names no project
+AssertionError: expected { ok: false, …(3) } to match object { ok: false, …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "code": "INVALID_ASSIGNMENT",
++   "code": "UNAUTHENTICATED",
+    "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:353:21
+    351|     const r=await file({projectId:ibs.project});
+    352|     const refused=await approve(bomA,r.id,{serviceId:ibs.service,assig…
+    353|     expect(refused).toMatchObject({ok:false,code:'INVALID_ASSIGNMENT'}…
+       |                     ^
+    354|     expect((refused as {message:string}).message).not.toMatch(/IBS|Dự …
+    355|     const done=await approve(bomA,r.id,{serviceId:ibs.service,assignee…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/22]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  22 failed | 2 passed (24)
+   Start at  18:19:57
+   Duration  14.45s (tests 99%)
+

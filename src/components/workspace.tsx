@@ -70,7 +70,9 @@ const eventNames:Record<string,string>={created:'Khởi tạo công việc',tran
 function EvidenceCard({e,current}:{e:Evidence;current:boolean}){return <article className={'evidence-card '+(!current?'historical':'')}><div><Tag>{e.kind.toLocaleUpperCase()}</Tag><span className="muted">r{e.revision} · {current?'Phiên bản hiện tại':'Lịch sử'}</span><a href={e.source_id} target="_blank" rel="noreferrer" aria-label={'Mở nguồn '+e.kind}><ExternalLink size={16}/></a></div><p>{e.note}</p><code>{e.source_sha}</code><small>{e.source_type} · nhập {time(e.ingested_at)} · chất lượng nguồn {Number(e.quality_score).toFixed(1)}</small><small>Do người dùng khai báo · chưa tự truy nguồn để kiểm chứng</small></article>;}
 function WorkModal({principal,detail:d,onClose,onUpdated}:{principal:Principal;detail:WorkDetail;onClose:()=>void;onUpdated:(d:WorkDetail)=>Promise<void>}) {
   const people=useContext(PeopleContext); const personName=(id:string|null)=>labelFor(people,id);
-  const w=d.work; const role=projectRole(principal,w.project_id); const readonly=['viewer','bot'].includes(role);
+  const w=d.work; const granted=projectRole(principal,w.project_id);
+  // a Team Tech member performs the work given to them in a project where they hold only the viewer grant (M2, 0.9.2); the backend checks it again
+  const role=granted==='viewer'&&(principal.techMember||principal.techBom)&&principal.id===w.assignee_id?'engineer':granted; const readonly=['viewer','bot'].includes(role);
   const [action,setAction]=useState(role==='technical'?'technical_accept':role==='business'?'business_accept':role==='engineer'?'evidence':'transition'),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState('');
   const targets:Record<State,State[]>={planned:['doing','blocked'],doing:['review','blocked'],review:['doing','blocked','done'],blocked:['doing','planned'],done:[]};
   const currentEvidence=d.evidence.filter(e=>e.revision===w.revision&&e.source_sha===w.source_sha);

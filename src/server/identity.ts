@@ -58,12 +58,26 @@ export class IdentityService {
   const u=(await tx.query<User>('SELECT id,tenant_id,name,role,active FROM identity.users WHERE id=$1 AND active',[id])).rows[0];
   invariant(u,'UNAUTHENTICATED','Cần đăng nhập lại.',401);
   const grants=await this.grants(tx,id);
-  invariant(grants.length,'NO_PROJECT_ACCESS','Tài khoản chưa được giao dự án.',403);
-  const roles=new Set(grants.map(grant=>grant.role));
-  // Team Tech roster: shown to the browser only; the work-request service asks the database again.
+  // Team Tech roster and the three BoM Tech: shown to the browser; the work services ask the database again on every write.
   const techMember=(await tx.query('SELECT 1 FROM identity.tech_roster WHERE user_id=$1',[id])).rows.length>0;
+  const techBom=(await tx.query('SELECT 1 FROM identity.tech_bom WHERE user_id=$1',[id])).rows.length>0;
+  // A Team Tech member given work in a project they are not a member of reads that project (M2, 0.9.2): each such project comes from a traced grant
+  // (work_access_grants: who gave it, from which request, ballot or revision) and is read with the viewer role; the work services let the assignee act on their own work.
+  // A grant counts only while the person is on Team Tech and still holds that work: its assignee, or a part owner of the latest applied 3/3 receipt (the parts the
+  // work service lets act). A grant whose work went to somebody else stays as history and opens nothing. Anybody else gets exactly their memberships.
+  if(techMember||techBom){
+   const given=(await tx.query<{project_id:string}>(`SELECT DISTINCT g.project_id FROM public.work_access_grants g JOIN public.work_items w ON w.id=g.work_id
+     WHERE g.user_id=$1 AND (w.assignee_id=g.user_id OR EXISTS (SELECT 1 FROM public.bom_receipts rc JOIN public.bom_proposals b ON b.id=rc.proposal_id
+      WHERE rc.work_id=w.id AND rc.work_version=(SELECT max(x.work_version) FROM public.bom_receipts x WHERE x.work_id=w.id)
+       AND EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(b.proposed_assignment->'parts','[]'::jsonb)) part WHERE part->>'owner_id'=g.user_id::text)))
+     ORDER BY g.project_id`,[id])).rows;
+   for(const row of given) if(!grants.some(g=>g.projectId===row.project_id)) grants.push({projectId:row.project_id,role:'viewer',reportPermissions:[]});
+  }
+  // a Team Tech member with no project yet still signs in: they see the project list, file requests and read their own (M6)
+  invariant(grants.length||techMember||techBom,'NO_PROJECT_ACCESS','Tài khoản chưa được giao dự án. Nhờ người quản trị thêm bạn vào một dự án hoặc vào danh sách Team Tech.',403);
+  const roles=new Set(grants.map(grant=>grant.role));
   return {id:u.id,tenantId:u.tenant_id,name:u.name,role:roles.size===1?grants[0].role:'viewer',
-   projectIds:grants.map(grant=>grant.projectId),grants,accountAdmin:id===this.adminId,techMember};
+   projectIds:grants.map(grant=>grant.projectId),grants,accountAdmin:id===this.adminId,techMember,techBom};
  }
  private async issue(tx:Queryable,userId:string) {
   const token=secret();
@@ -173,6 +187,13 @@ export class IdentityService {
    }
    return [...people.values()];
   });
+ }
+ /** The Team Tech members of the tenant (roster or BoM Tech, active and activated): id and name only, for the performer pickers (M2, 0.9.2). */
+ async performers(p:Principal):Promise<{id:string;name:string}[]> {
+  invariant(p.tenantId===this.tenantId,'SCOPE_DENIED','Không có quyền truy cập.',403);
+  return this.scope(async tx=>(await tx.query<{id:string;name:string}>(`SELECT u.id,u.name FROM identity.users u WHERE u.active AND u.password_hash IS NOT NULL
+    AND (EXISTS (SELECT 1 FROM identity.tech_roster r WHERE r.user_id=u.id) OR EXISTS (SELECT 1 FROM identity.tech_bom b WHERE b.user_id=u.id))
+   ORDER BY u.name,u.id`)).rows);
  }
  async linkStatus(p:Principal) {
   invariant(p.tenantId===this.tenantId,'SCOPE_DENIED','Không có quyền truy cập.',403);

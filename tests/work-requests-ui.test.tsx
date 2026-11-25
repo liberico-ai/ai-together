@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { canCreateWork, CreateWorkButton } from '../src/components/create-work-button';
-import { ApproveFields, candidates, decisionBody, nameOf, waitingCopy, NO_SEAT_COPY, OWN_COPY, WAIT_COPY, UNASSIGNED, WorkRequests, type RequestCard } from '../src/components/work-requests';
+import { ApproveFields, BulkDecide, bulkBody, candidates, decisionBody, nameOf, performerCandidates, waitingCopy, NO_SEAT_COPY, OWN_COPY, WAIT_COPY, UNASSIGNED, WorkRequests, type RequestCard } from '../src/components/work-requests';
 import type { Principal } from '../src/server/types';
 
 // Every id and name below is synthetic.
@@ -67,15 +67,41 @@ describe('approval fields', () => {
     expect(html).toMatch(new RegExp(`<option value=""[^>]*>${UNASSIGNED}</option>`));
     expect(candidates(people, A, 'technical').map(x => x.name)).toEqual(['Kỹ thuật thử']);
   });
-  it('renders no select for a slot the requester already filled', () => {
+  it('0.9.2 (M3): renders a select for a slot the requester filled too, with the proposed person chosen and «Giữ người đã đề xuất» as the empty option', () => {
     const html = out(card({ assignee_id: engineer.id }));
-    expect(html).not.toContain('name="assigneeId"');
+    expect(html).toContain('name="assigneeId"');
+    expect(html).toContain('đã đề xuất, có thể đổi');
+    expect(html).toMatch(new RegExp(`<option value="${engineer.id}" selected=""`));
+    expect(html).toContain('Giữ người đã đề xuất');
     expect(html).toContain('name="technicalId"');
   });
-  it('sends the chosen people for empty slots only, null for filled slots and for a rejection', () => {
+  it('sends the person chosen for every slot (a change of a proposed person included), null for «keep» and for a rejection', () => {
     const get = (k: string) => ({ serviceId: 's1', code: '', note: 'Đủ căn cứ để duyệt.', assigneeId: engineer.id, technicalId: technical.id, businessId: '' } as Record<string, string>)[k] ?? '';
     expect(decisionBody(card(), 'approve', get)).toMatchObject({ decision: 'approve', serviceId: 's1', code: null, assigneeId: engineer.id, technicalId: technical.id, businessId: null });
-    expect(decisionBody(card({ assignee_id: business.id }), 'approve', get)).toMatchObject({ assigneeId: null, technicalId: technical.id });
+    expect(decisionBody(card({ assignee_id: business.id }), 'approve', get)).toMatchObject({ assigneeId: engineer.id, technicalId: technical.id });
     expect(decisionBody(card(), 'reject', get)).toMatchObject({ decision: 'reject', serviceId: null, assigneeId: null, technicalId: null, businessId: null });
+  });
+  it('0.9.2 (M1, M2): the performer list holds the engineers of the project, every Team Tech member and the BoM seats of the project, each once', () => {
+    const tech = { id: 'f0000000-0000-4000-8000-0000000000aa', name: 'Tech không thuộc dự án thử' };
+    const list = performerCandidates([...people, person(8, 'Người dự án khác', 'engineer', [B])], [tech, { id: engineer.id, name: engineer.name }], [manager.id], A);
+    expect(list.map(x => x.name)).toEqual(['Kỹ sư thử', 'Tech không thuộc dự án thử', 'Điều phối thử']);
+    const html = renderToStaticMarkup(<ApproveFields item={card()} services={[{ id: 's1', project_id: A, name: 'Hệ thống thử' }]} people={people} performers={[tech]} seats={{ [A]: [manager.id] }} />);
+    expect(html).toContain('Tech không thuộc dự án thử');
+  });
+});
+
+describe('0.9.2 (M7): many requests in one approval', () => {
+  it('offers the pending requests the reader may decide, and a button for each import batch among them', () => {
+    const imports = { [card().id]: { sourceStatus: '', dueRaw: '', sourceRef: 'x', sourceId: 'x', sheet: 'x', stt: '1', buLabel: 'LBRC', ownerRaw: '', flags: [], batchId: 'b0000000-0000-4000-8000-000000000001' } };
+    const html = renderToStaticMarkup(<BulkDecide items={[card(), card({ id: 'c0000000-0000-4000-8000-000000000002', can_decide: false, title: 'Việc không được duyệt' })]} services={[]} imports={imports} onDone={async () => {}} />);
+    expect(html).toContain('Duyệt nhiều yêu cầu');
+    expect(html).toContain('Việc thử để duyệt');
+    expect(html).not.toContain('Việc không được duyệt');
+    expect(html).toContain('Duyệt cả lô nhập (1 yêu cầu)');
+    expect(renderToStaticMarkup(<BulkDecide items={[card({ can_decide: false })]} services={[]} imports={{}} onDone={async () => {}} />)).toBe('');
+  });
+  it('sends the chosen requests or one batch, the note, and a service only for the projects that were given one', () => {
+    expect(bulkBody({ requestIds: ['a', 'b'] }, 'Đủ căn cứ để duyệt.', { [A]: 's1', [B]: '' })).toEqual({ requestIds: ['a', 'b'], note: 'Đủ căn cứ để duyệt.', services: [{ projectId: A, serviceId: 's1' }] });
+    expect(bulkBody({ batchId: 'b1' }, 'Đủ căn cứ để duyệt.', {})).toEqual({ batchId: 'b1', note: 'Đủ căn cứ để duyệt.', services: [] });
   });
 });

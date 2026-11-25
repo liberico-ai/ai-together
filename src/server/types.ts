@@ -3,7 +3,7 @@ export type ReportPermission = 'people_read' | 'quality_review' | 'report_approv
 export type DocApprovalPermission = `doc_approve:${DocType}`;
 export type GrantPermission = ReportPermission | DocApprovalPermission;
 export type ProjectGrant = { projectId:string; role:Exclude<Role,'bot'>; reportPermissions:GrantPermission[] };
-export type Principal = { id: string; tenantId: string; projectIds: string[]; name: string; role: Role; grants?:ProjectGrant[]; accountAdmin?:boolean; techMember?:boolean };
+export type Principal = { id: string; tenantId: string; projectIds: string[]; name: string; role: Role; grants?:ProjectGrant[]; accountAdmin?:boolean; techMember?:boolean; techBom?:boolean };
 export function projectRole(p:Principal,projectId:string):Role {
   if(p.role==='bot') return 'bot';
   if(!p.projectIds.includes(projectId)) return 'viewer';

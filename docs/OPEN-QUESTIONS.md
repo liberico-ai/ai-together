@@ -1169,6 +1169,7 @@ Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech 
   - **Cách hiểu chờ xác nhận:** câu «Quyết định khác cần BoM duyệt: hiện trạng thái và người đã duyệt theo quy chế hiện có» được áp cho việc duyệt việc mới mà thôi (trạng thái, người duyệt, thời điểm hiện trên màn hình). Hệ thống không áp nó cho quyết định nào khác.
   - Điều kiện để một thành viên Team Tech đăng nhập được: ít nhất một membership ở một dự án (`identity.ts`, `NO_PROJECT_ACCESS`). Ở trong danh sách Team Tech không thay cho membership.
   - Màn hình hiện trạng thái, người duyệt và thời điểm duyệt.
+- **Đã quyết 25/11/2026:** xem khối «GIAO VIỆC 7» cuối tệp.
 
 ## OQ-61 — Nhóm chung Dragon Forge: tin nào vào hàng phân loại, ai thấy gì, và một tin nối được bao nhiêu việc
 
@@ -1184,6 +1185,7 @@ Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech 
 - **Ai quyết:** Chairman.
 - **Hành vi tạm (đang có trong mã của PR B; không phải phương án được chọn):** B1 (1), B2 (1), B3 (1), B4 (1), B5 (1), B6 (1).
 - **Điều kiện trước khi bật, ngoài repo (người vận hành, EV-12 và EV-13 của `docs/EVIDENCE-REQUEST-20261125.md`):** kiểm gateway có tự lưu chữ của nhóm chung ở nơi khác (nhật ký phiên, bộ nhớ của agent) không. Có lưu thì dừng và báo Chairman.
+- **Đã quyết 25/11/2026:** xem khối «GIAO VIỆC 7» cuối tệp.
 
 ## OQ-62 — Nhập bảng việc của PM: khoá chống lặp, người nhập, dòng IBS HI, ngày hai nghĩa
 
@@ -1213,3 +1215,71 @@ Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech 
 - **Câu 9 — `AGENTS.md`.** Hai bảng nhập (`work_import_batches`, `work_import_rows`) là Z1, nhưng dòng Z1 của `AGENTS.md` chưa nêu chúng; các bảng của 024–026 cũng vậy. Phiên PR không sửa `AGENTS.md`. (1) Chairman sửa dòng Z1; (2) giữ nguyên, kế hoạch của từng hạng mục ghi zone.
 - **Ai quyết:** Chairman (câu 1–5, 7–9); PM xác nhận câu 6.
 - **Hành vi tạm (đang có trong mã của PR C; không phải phương án được chọn):** 1 (1), 2 (1), 3 (1), 4 (1) và Z2 (a), 5 (1), 7 (1), 8 (1). Việc sinh ra từ dòng nhập, khi duyệt, mang người phụ trách đã được người nhập xác nhận ánh xạ (giao lần đầu, như OQ-60 (c) (2)); đổi người sau đó cần 3/3 và vướng OQ-60 (d).
+- **Đã quyết 25/11/2026:** xem khối «GIAO VIỆC 7» cuối tệp.
+
+## Quyết định 25/11/2026 — GIAO VIỆC 7, bản 0.9.2 «mở khoá» (OQ-60, OQ-61, OQ-62)
+
+- **Lời Chairman 25/11/2026 17:48, nguyên văn:** «Mục tiêu là cả team dùng được sau go live, nên em tự ra quyết định. Đừng Go live xong không làm được gì. lỗi có thể sửa . Đừng khoá chặt , team Tech cũng cần học và trải nghiệm»
+- **Ai quyết:** các lựa chọn dưới đây là quyết định của phiên điều phối (Cowork) theo uỷ quyền Chairman 25/11/2026 17:48; Chairman có thể đổi. Phiên PR làm theo đề GIAO VIỆC 7, không tự chọn. Kế hoạch: `docs/plans/gv7-unlock-092.md`.
+- **OQ-60:**
+  - (a) (1): một ghế duyệt, khác người tạo. Giữ CHECK của CSDL «người duyệt khác người tạo» và luật «người thực hiện khác người nghiệm thu».
+  - (b): một trong ba BoM Tech, khác người tạo, duyệt được ở mọi dự án, kể cả dự án chưa có ghế. Ba BoM Tech là dữ liệu ngoài repo, người vận hành ghi bằng `deploy/tech-bom.sql`. Duyệt trên web không cần liên kết Telegram, với BoM Tech cũng như với ghế của dự án.
+  - (c): lúc duyệt, ghế điền chỗ trống và được đổi người đã đề xuất. Hệ thống lưu người đề xuất, người chốt và ai đổi.
+  - (d) (1): khi duyệt, ghi một dòng nguồn bất biến trỏ về yêu cầu, kèm hash, để phiếu 3/3 chạy được. Việc đã duyệt dưới 0.9.1 được migration 028 điền bù. Luật 3/3 không đổi.
+  - (e) (2): một ghế duyệt là đủ, kể cả khi người thực hiện là một ghế BoM, kể cả chính người duyệt.
+  - Thêm:
+    - mọi thành viên Team Tech nhận việc được ở mọi dự án mà không cần vai `engineer`, và làm mọi thao tác của người thực hiện trên việc của mình. Mỗi lần cấp có dấu vết: ai giao, từ yêu cầu hay phiếu nào;
+    - thành viên Team Tech chưa có membership vẫn đăng nhập, thấy danh mục dự án, gửi và xem yêu cầu của mình;
+    - duyệt được nhiều yêu cầu, hoặc cả một lô nhập, trong một lượt.
+- **OQ-61:** B1–B5 chọn (1), đúng hành vi tạm của PR B. B6 sang đợt D–F.
+- **OQ-62:**
+  - Câu 1, 2, 3, 5, 8: (1).
+  - Câu 4: (1). Che ghi chú IBS HI ở Z2 (phương án (b)) làm ở đợt sau.
+  - Câu 6: PM chọn bản nguồn ở bước xem trước. Lô nhập ghi tên tệp, hash và thời điểm. EV-10 đóng bằng lô đầu tiên.
+  - Câu 7: (2). Mã việc lấy từ tiêu đề, rồi từ ghi chú, cho dòng LBRC và XECA. Dòng IBS HI chỉ đọc tiêu đề.
+  - Câu 9: (2). Không sửa `AGENTS.md`, mỗi kế hoạch ghi zone. Một PR nháp sửa dòng Z1 được chuẩn bị riêng và không merge.
+  - Cờ `LIBETECH_WORK_IMPORT` do người triển khai bật khi triển khai.
+- **Câu mới, không chặn bản 0.9.2:**
+  - **Q-GV7-1. Ghế đổi người đề xuất lúc duyệt, và luật 3/3 «kể cả chia việc giữa ba thành viên BoM».**
+    - Lời Chairman buổi sáng 25/11 (khối đầu của mục 25/11 ở trên): «Giữ luật xác nhận 3/3 khi chia lại nhiệm vụ, kể cả chia việc giữa ba thành viên BoM».
+    - Ở 0.9.2, một ghế lúc duyệt được đổi người đã đề xuất sang chính mình hoặc sang một ghế BoM khác. Với dòng nhập, bảng của PM có thể đã ghi người phụ trách, nên đổi người lúc duyệt gần với «chia lại».
+    - Đề GIAO VIỆC 7 coi lần đổi này là giao lần đầu. Hệ thống làm theo: một ghế là đủ, sự kiện duyệt và audit giữ cả người đề xuất lẫn người chốt.
+    - Phương án:
+      - (1) giữ như 0.9.2;
+      - (2) điền chỗ trống là giao lần đầu, còn đổi người đã đề xuất thì cần phiếu 3/3.
+  - **Q-GV7-2. Quyền đọc của người nhận việc ngoài membership.**
+    - Dòng cấp quyền chỉ thêm, không xoá: đó là lịch sử ai giao việc gì cho ai.
+    - Lúc đăng nhập, một dòng chỉ mở dự án khi người đó còn giữ việc: là người thực hiện, hoặc nhận một phần trong phiếu 3/3 đã áp gần nhất. Việc chia lại cho người khác thì dự án đóng lại với họ; dòng cấp quyền vẫn còn.
+    - Người được cấp đọc cả dự án với vai `viewer`, không chỉ việc của mình. Ra khỏi danh sách Team Tech hoặc BoM Tech thì mất quyền.
+    - Quyền này không đi theo membership: người bị gỡ membership mà vẫn giữ việc và vẫn trong Team Tech thì vẫn đọc được dự án đó.
+    - Không ai tự mở dự án cho mình. BoM Tech không có membership ở một dự án thì không tự nhận việc mình duyệt ở đó (mã `SELF_GRANT`); họ giao cho một thành viên Team Tech khác. Cơ sở dữ liệu cũng từ chối dòng cấp quyền cho chính người cấp.
+    - Phương án:
+      - (1) giữ;
+      - (2) chỉ đọc việc của mình;
+      - (3) thêm sự kiện riêng khi dự án đóng lại với người đó.
+  - **Q-GV7-3. Duyệt hàng loạt chỉ điền chỗ trống.**
+    - Duyệt nhiều yêu cầu một lượt không đổi người đã đề xuất. Muốn đổi người thì duyệt từng yêu cầu.
+    - Phương án: (1) giữ; (2) cho đổi người cả ở lượt duyệt nhiều yêu cầu.
+  - **Q-GV7-4. Phạm vi của BoM Tech.**
+    - BoM Tech thấy và duyệt yêu cầu của mọi dự án trong tenant, kể cả IBS HI, chỉ ở luồng yêu cầu (danh sách, duyệt).
+    - Phạm vi của họ không nới ra cả tenant. Khi duyệt một yêu cầu, giao dịch đó mở đúng một dự án của yêu cầu, để đọc hệ thống, ghế và người của dự án rồi ghi việc vào đó.
+    - Màn hình duyệt chỉ liệt kê dự án đang có yêu cầu chờ họ. Họ không đọc việc, tài liệu hay báo cáo của dự án mà họ không có membership.
+    - Gắn tin nhắn vào việc có sẵn vẫn theo luật cũ (thành viên không phải viewer, hoặc ghế của dự án); là BoM Tech không thêm quyền gì ở đó.
+    - Số tổng ở danh sách yêu cầu đếm đúng những yêu cầu người đó đọc được; với BoM Tech là yêu cầu của mọi dự án. Giữ nguyên.
+    - Báo cáo vẫn không gộp các miền với nhau. Câu báo lỗi không nêu tên dự án.
+    - Phương án: (1) giữ; (2) cho BoM Tech đọc cả việc của mọi dự án.
+  - **Q-GV7-5. Ghi chú vận hành sau hai lượt soát (trước cổng Codex).**
+    - Dòng nguồn của việc duyệt dưới 0.9.1 được bổ sung khi chạy 028. Việc nào đã có dòng nguồn khác (của bộ nhập) thì giữ dòng đó, không thêm; phiếu 3/3 đọc dòng sẵn có.
+    - Kịch bản `deploy/tech-bom.sql` nhận từ 0 đến 3 BoM Tech: ít hơn ba khi chưa chọn đủ người, danh sách rỗng để gỡ hết. Mỗi thay đổi vẫn ghi một sự kiện.
+    - Duyệt cả lô gọi lại với cùng mã thao tác thì nhận lại đúng kết quả cũ của từng dòng, kể cả khi hệ thống hoặc người của dự án đã đổi giữa hai lần gọi.
+    - Phương án: (1) giữ.
+  - **Q-GV7-6. Sửa sau cổng Codex (một vòng, 25/11/2026).**
+    - Tiền tố `work_request:` của `bom_sources` từ 028 thuộc về hệ thống. Nếu trước 028 người vận hành đã ghi một dòng nguồn mang tiền tố này mà không yêu cầu đã duyệt nào sinh ra nó, 028 dừng trước khi ghi gì và nói cách làm: đổi tên dòng đó sang tiền tố khác. Hoàn tác 028 chỉ xoá những dòng nó sinh lại được từ yêu cầu đã duyệt; còn dòng nào khác mang tiền tố thì hoàn tác dừng, dòng đó giữ nguyên.
+    - BoM Tech tính là thành viên Team Tech khi gửi yêu cầu, dù có trong roster hay không.
+    - Phân loại tin (luồng B) vẫn cần có tên trong roster như 0.9.1.
+    - Nhập bảng: người ngoài roster vào được màn hình nhập chỉ khi là điều phối của một dự án, như 0.9.1.
+      - Nếu người đó cũng là BoM Tech, dòng nhập vào dự án khác được ghi thành yêu cầu chờ duyệt, như khi họ gửi yêu cầu ở biểu mẫu. Trước bản sửa này các dòng đó nhận `NOT_A_FILER`.
+      - Người duyệt vẫn phải khác người tạo.
+    - Muốn một BoM Tech ngoài roster phân loại tin, hay nhập bảng mà không là điều phối dự án nào, thì người vận hành thêm người đó vào roster (`deploy/tech-roster.sql`).
+    - Màn hình nhập gửi tên tệp đã chọn, sau khi bỏ dấu đường dẫn và ký tự điều khiển, tối đa 255 ký tự. Gọi lại cùng mã thao tác mà khác tên tệp là `IDEMPOTENCY_CONFLICT`.
+    - Phương án: (1) giữ; (2) cho BoM Tech ngoài roster phân loại tin và nhập bảng.

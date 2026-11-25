@@ -20,6 +20,17 @@ function toBase64(bytes: Uint8Array) {
   for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(out);
 }
+/** The name of the chosen file as the server stores it (OQ-62 câu 6): no path separator or control character, at most 255 UTF-16 units, whole characters only. */
+export function bareFileName(name: string): string | undefined {
+  let out = '';
+  for (const ch of name.replace(/[\/\\\p{Cc}]/gu, '').trim()) { if (out.length + ch.length > 255) break; out += ch; }
+  return out.trim() || undefined;
+}
+/** The body the preview and the write both send: the file, the source the importer names, and the name of the file when it has one. */
+export function importEnvelope(name: string, bytes: Uint8Array, sourceUrl: string, sheet: string): { fileBase64: string; sourceUrl: string; sheet: string; fileName?: string } {
+  const fileName = bareFileName(name);
+  return { fileBase64: toBase64(bytes), sourceUrl, sheet, ...(fileName ? { fileName } : {}) };
+}
 function Groups({ title, groups }: { title: string; groups: Group[] }) {
   return <section><h3>{title}</h3>
     <div className="table-scroll"><table><thead><tr><th>Nhóm</th><th>Số dòng</th><th>Hợp lệ</th><th>Cần đối soát</th><th>Trùng</th></tr></thead>
@@ -43,7 +54,7 @@ export function ownerProjects(preview: ImportPreview, projects: Record<string, s
 
 export function WorkImport() {
   const [file, setFile] = useState<File | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
-  const [body, setBody] = useState<{ fileBase64: string; sourceUrl: string; sheet: string } | null>(null);
+  const [body, setBody] = useState<ReturnType<typeof importEnvelope> | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null), [receipt, setReceipt] = useState<ImportReceipt | null>(null);
   const [projects, setProjects] = useState<Record<string, string>>({}), [owners, setOwners] = useState<Record<string, string>>({});
   const requestKey = useRef('');
@@ -57,7 +68,7 @@ export function WorkImport() {
     setBusy(true); setError(''); setReceipt(null);
     const f = new FormData(e.currentTarget), get = (k: string) => String(f.get(k) ?? '');
     try {
-      const next = { fileBase64: toBase64(new Uint8Array(await file.arrayBuffer())), sourceUrl: get('sourceUrl'), sheet: get('sheet') };
+      const next = importEnvelope(file.name, new Uint8Array(await file.arrayBuffer()), get('sourceUrl'), get('sheet'));
       const pre = await api<ImportPreview>('/api/v1/work-imports/preview', next);   // the first preview uses the defaults
       setBody(next); setPreview(pre); requestKey.current = crypto.randomUUID();
       setProjects(Object.fromEntries(pre.buLabels.filter(b => b.defaultProjectId && !labelProblem(b.label)).map(b => [b.label, b.defaultProjectId as string]))); setOwners({});

@@ -285,21 +285,80 @@ test('(12) every request is origin import and pending, with the source ref, a bl
   expect((await new WorkRequestService(h.db).list(tech,{})).items.every(i=>i.origin==='import'&&i.state==='pending')).toBe(true);
 });
 
-test('a code is read from the title only, never from the note; two different codes in the title are MULTI_CODE and the code stays blank; a title outside 5-200 characters is not imported or cut',async()=>{
+test('M8 câu 7 (2): a code is read from the title, then from the note for a LBRC or XECA row (CODE_FROM_NOTE), never from the note of an IBS HI row; two different codes are MULTI_CODE and the code stays blank; a title outside 5-200 characters is not imported or cut',async()=>{
   const long='x'.repeat(201);
   const {receipt}=await go(tech,[
-    row8({stt:'1',title:'Việc có mã chỉ trong ghi chú',note:'xem LBRC014 ở đây'}),row8({stt:'9',title:'Việc có mã LBRC015 ở tiêu đề',note:'xem LBRC016 ở đây'}),
+    row8({stt:'1',title:'Việc có mã chỉ trong ghi chú',owner:'Người A',note:'xem LBRC014 ở đây'}),row8({stt:'9',title:'Việc có mã LBRC015 ở tiêu đề',note:'xem LBRC016 ở đây'}),
     row8({stt:'2',title:'Việc hai mã TEST1102 và TEST1103'}),
     row8({stt:'3',title:'Việc không có mã nào'}),
     row8({stt:'4',title:'ngắn'}),row8({stt:'5',title:long}),row8({stt:'',title:'Việc không có STT TEST1104'}),row8({stt:'a b c',title:'Việc STT chứa dấu cách TEST1105'}),
+    row8({stt:'6',bu:'XECA',title:'Việc XECA mã ở ghi chú',note:'theo XECA031'}),row8({stt:'7',bu:'IBS HI',title:'Việc IBS mã ở ghi chú',note:'theo IBS0041'}),
+    row8({stt:'8',title:'Việc ghi chú hai mã',note:'LBRC017 và LBRC018'}),
   ]);
   expect(results(receipt)).toEqual([[2,'imported'],[3,'imported'],[4,'imported'],[5,'imported'],[6,'needs_reconciliation','TITLE_LENGTH'],[7,'needs_reconciliation','TITLE_LENGTH'],
-    [8,'needs_reconciliation','MISSING_STT'],[9,'needs_reconciliation','INVALID_STT']]);
-  expect(receipt.results[2].flags).toContain('MULTI_CODE');
-  expect(await rows('SELECT stt,code FROM work_import_rows ORDER BY stt')).toEqual([{stt:'1',code:null},{stt:'2',code:null},{stt:'3',code:null},{stt:'9',code:'LBRC015'}]);
-  // the preview and the file of details carry the code the rows would get
-  const pre=await svc().preview(tech,envelope([row8({stt:'1',title:'Việc có mã LBRC020 ở tiêu đề',note:'xem LBRC021'}),row8({stt:'2',title:'Việc chỉ có mã ở ghi chú',note:'LBRC022'})]));
-  expect(pre.rows.map(r=>r.code)).toEqual(['LBRC020',null]);
+    [8,'needs_reconciliation','MISSING_STT'],[9,'needs_reconciliation','INVALID_STT'],[10,'imported'],[11,'imported'],[12,'imported']]);
+  expect(receipt.results[0].flags).toContain('CODE_FROM_NOTE');expect(receipt.results[1].flags).not.toContain('CODE_FROM_NOTE');
+  expect(receipt.results[2].flags).toContain('MULTI_CODE');expect(receipt.results[10].flags).toContain('MULTI_CODE');
+  expect(receipt.results[9].flags).not.toContain('CODE_FROM_NOTE');
+  expect(await rows('SELECT stt,code FROM work_import_rows ORDER BY stt')).toEqual([{stt:'1',code:'LBRC014'},{stt:'2',code:null},{stt:'3',code:null},{stt:'6',code:'XECA031'},{stt:'7',code:null},{stt:'8',code:null},{stt:'9',code:'LBRC015'}]);
+  expect(await rows('SELECT k.stt,r.code FROM work_import_rows k JOIN work_requests r ON r.id=k.request_id WHERE k.stt IN ($1,$2) ORDER BY k.stt',['1','6'])).toEqual([{stt:'1',code:'LBRC014'},{stt:'6',code:'XECA031'}]);
+  // CODE_FROM_NOTE records the rule of this import, not a defect of the sheet: it does not lower the quality score (the row has an owner, a status and a due date)
+  expect((await rows<{quality_score:number}>("SELECT quality_score FROM work_import_rows WHERE stt='1'"))[0].quality_score).toBe(100);
+  // the preview carries the code the rows would get; an IBS HI row reads the title only
+  const pre=await svc().preview(tech,envelope([row8({stt:'1',title:'Việc có mã LBRC020 ở tiêu đề',note:'xem LBRC021'}),row8({stt:'2',title:'Việc chỉ có mã ở ghi chú',note:'LBRC022'}),
+    row8({stt:'3',bu:'IBS HI',title:'Việc IBS chỉ có mã ở ghi chú',note:'IBS0042'})]));
+  expect(pre.rows.map(r=>r.code)).toEqual(['LBRC020','LBRC022',null]);
+});
+
+test('M8 câu 6: the batch keeps the name of the file the PM picked, with its hash and time; a path is refused; leaving the name out keeps it blank',async()=>{
+  const env=envelope([row8({stt:'1',title:'Việc có tên tệp TEST1151'})],{fileName:'Đầu việc Tech - 25-11.csv'});
+  const pre=await svc().preview(tech,env);
+  const receipt=await svc().commit(tech,{...env,previewDigest:pre.previewDigest,requestKey:newKey(),projects:mapping(),owners:[]});
+  expect(receipt).toMatchObject({fileName:'Đầu việc Tech - 25-11.csv',fileHash:pre.fileHash});
+  expect(await rows('SELECT file_name,file_hash,created_at IS NOT NULL AS timed FROM work_import_batches WHERE id=$1',[receipt.id])).toEqual([{file_name:'Đầu việc Tech - 25-11.csv',file_hash:pre.fileHash,timed:true}]);
+  expect((await svc().receipt(tech,receipt.id)).fileName).toBe('Đầu việc Tech - 25-11.csv');
+  for(const bad of ['../bang.csv','thu-muc/bang.csv','C:\\bang.csv','dòng\nhai.csv',''])
+    await expect(svc().preview(tech,envelope([row8()],{fileName:bad}))).rejects.toBeInstanceOf(ZodError);
+  const {receipt:plain}=await go(tech,[row8({stt:'2',title:'Việc không tên tệp TEST1152'})]);
+  expect(plain.fileName).toBeNull();
+});
+
+// Codex round 1 (25/11/2026): the file name is data of the write, so the same request key with another name is another import, not a replay
+test('M8 câu 6: the same request key with another file name, or with none, is IDEMPOTENCY_CONFLICT; with the same name it replays',async()=>{
+  const env=envelope([row8({stt:'1',title:'Việc khoá chống lặp theo tên tệp TEST1153'})],{fileName:'bang-a.csv'});
+  const pre=await svc().preview(tech,env);
+  const key=newKey();
+  const body=(fileName:string|undefined)=>({...env,fileName,previewDigest:pre.previewDigest,requestKey:key,projects:mapping(),owners:[]});
+  const settle=(p:Promise<unknown>)=>p.then(()=>({ok:true}),(e:{code?:string;status?:number})=>({ok:false,code:e.code,status:e.status}));
+  const first=await svc().commit(tech,body('bang-a.csv'));
+  expect((await svc().commit(tech,body('bang-a.csv'))).replayed).toBe(true);
+  expect(await settle(svc().commit(tech,body('bang-b.csv')))).toEqual({ok:false,code:'IDEMPOTENCY_CONFLICT',status:409});
+  expect(await settle(svc().commit(tech,body(undefined)))).toEqual({ok:false,code:'IDEMPOTENCY_CONFLICT',status:409});
+  expect(first.fileName).toBe('bang-a.csv');expect(await n('work_requests')).toBe(1);
+  // and a batch written without a name replays only without one
+  const env2=envelope([row8({stt:'2',title:'Việc khoá chống lặp không tên tệp TEST1154'})]);
+  const pre2=await svc().preview(tech,env2);
+  const key2=newKey();
+  const body2=(fileName:string|undefined)=>({...env2,fileName,previewDigest:pre2.previewDigest,requestKey:key2,projects:mapping(),owners:[]});
+  await svc().commit(tech,body2(undefined));
+  expect((await svc().commit(tech,body2(undefined))).replayed).toBe(true);
+  expect(await settle(svc().commit(tech,body2('bang-c.csv')))).toEqual({ok:false,code:'IDEMPOTENCY_CONFLICT',status:409});
+});
+
+test('M2 + M8: the owner cell may name a Team Tech member with no membership in the target project; the preview offers them and the request names them',async()=>{
+  const env=envelope([row8({stt:'1',title:'Việc giao cho Tech TEST1161',owner:tech.name})]);
+  const pre=await svc().preview(tech,env);
+  expect(pre.owners).toEqual([{text:tech.name,rows:1,candidates:[expect.objectContaining({userId:tech.id,name:tech.name})]}]);
+  expect(pre.owners[0].candidates[0].projectIds).toContain(projectIds.lbrc);
+  const owners=[{text:tech.name,projectId:projectIds.lbrc,userId:tech.id}];
+  const receipt=await svc().commit(tech,{...env,previewDigest:pre.previewDigest,requestKey:newKey(),projects:mapping(),owners});
+  expect(results(receipt)).toEqual([[2,'imported']]);
+  expect((await rows<{assignee_id:string}>('SELECT r.assignee_id FROM work_requests r JOIN work_import_rows k ON k.request_id=r.id'))[0].assignee_id).toBe(tech.id);
+  // a person who is neither an engineer of the project in the importer's scope nor on Team Tech is still refused
+  const other=envelope([row8({stt:'2',title:'Việc giao cho điều phối TEST1162',owner:pm.name})]);
+  const second=await svc().preview(tech,other);
+  await expect(svc().commit(tech,{...other,previewDigest:second.previewDigest,requestKey:newKey(),projects:mapping(),owners:[{text:pm.name,projectId:projectIds.lbrc,userId:pm.id}]}))
+    .rejects.toMatchObject({code:'OWNER_NOT_IN_PROJECT'});
 });
 
 test('a code that already names a work item of the target project is «cần đối soát» CODE_EXISTS and nothing is written for the row',async()=>{
@@ -468,7 +527,7 @@ test('annotations: a BoM seat reads the source status, due and ref of an importe
   expect(Object.keys(await svc().annotations(pm,[req.id]))).toEqual([req.id]);
 });
 
-test('(13) a code-shaped string in a note is never read as the work code, for IBS HI and LBRC rows alike; it reaches no column of an IBS HI row, no preview, answer, receipt or log',async()=>{
+test('(13) a code-shaped string in the note of an IBS HI row, by label or by target, is never read and reaches no column, preview, answer, receipt or log; the note of a LBRC row is read (M8 câu 7 (2), 0.9.2)',async()=>{
   const sink=logs();
   const SHAPED='ABC123';
   const note=`xem ${SHAPED} ở đây`;
@@ -478,16 +537,18 @@ test('(13) a code-shaped string in a note is never read as the work code, for IB
   const answer=await svc().commit(tech,{...env,previewDigest:pre.previewDigest,requestKey:newKey(),projects:mapping(),owners:[]});
   const receipt=await svc().receipt(tech,answer.id);
   const via=await go(tech,[row8({stt:'3',bu:'LBRC',title:'Việc nhãn LBRC dự án IBS HI không mã',note:'xem DEF456'})],{projects:mapping({LBRC:projectIds.ibs})});
-  expect(await rows('SELECT stt,code FROM work_import_rows ORDER BY stt')).toEqual([{stt:'1',code:null},{stt:'2',code:null},{stt:'3',code:null}]);
+  expect(await rows('SELECT stt,code,source_note FROM work_import_rows ORDER BY stt')).toEqual([{stt:'1',code:null,source_note:''},{stt:'2',code:SHAPED,source_note:note},{stt:'3',code:null,source_note:''}]);
   expect(await whereFound('DEF456')).toEqual([]);
-  // the shaped string exists only in the LBRC row's own stored note
-  expect(await whereFound(SHAPED)).toEqual(['public.work_import_rows.source_note']);
-  for(const [name,doc] of [['preview',pre],['commit',answer],['receipt',receipt],['via',via.receipt]] as const) expect(JSON.stringify(doc),name).not.toContain(SHAPED);
+  // the IBS HI row says nothing of its note anywhere; the LBRC row carries its code, flagged as taken from the note
+  const one=(doc:{rows?:{stt:string}[];results?:{stt?:string}[]})=>JSON.stringify((doc.rows??doc.results??[]).filter(r=>r.stt==='1'));
+  for(const [name,doc] of [['preview',pre],['receipt',receipt]] as const) expect(one(doc as never),name).not.toContain(SHAPED);
+  expect(pre.rows.find(r=>r.stt==='2')).toMatchObject({code:SHAPED,flags:expect.arrayContaining(['CODE_FROM_NOTE'])});
   expect(JSON.stringify(via.receipt)).not.toContain('DEF456');
-  expect(sink.join('\n')).not.toContain(SHAPED);
+  expect(sink.join('\n')).not.toContain('DEF456');
   // no count or flag of an IBS HI row says anything of the note's content beyond that it was not stored
   const two=await go(tech,[row8({stt:'4',bu:'IBS HI',title:'Việc IBS HI hai mã trong ghi chú',note:'GHI111 và GHI222'})]);
   expect(two.receipt.results[0].flags).not.toContain('MULTI_CODE');
+  expect(two.receipt.results[0].flags).not.toContain('CODE_FROM_NOTE');
 });
 
 // ======================= fix batch (items 1-22 of the review) =======================
@@ -738,4 +799,25 @@ test('(17) per target project: a manager of X who is not a manager of Y and not 
   const only=await go(mx,[row8({stt:'9',bu:'XECA',title:'Việc chỉ cho dự án Y TEST1709'})],{projects});
   expect(only.receipt.results.map(shape)).toEqual([['needs_reconciliation','NOT_A_FILER']]);
   expect(await n('work_requests')).toBe(2);
+});
+
+// ---------- approving a whole batch (M7) ----------
+test('M7 a whole import batch is approved in one call: each request keeps its own event and decider; the same call again answers the same and writes nothing',async()=>{
+  const {receipt}=await go(pm,[row8({stt:'1',title:'Việc lô thứ nhất TEST701'}),row8({stt:'2',title:'Việc lô thứ hai TEST702'}),row8({stt:'3',title:'Việc lô thứ ba TEST703'})],
+    {projects:mapping({LBRC:ids.sales})});
+  expect(receipt.results.map(r=>r.result)).toEqual(['imported','imported','imported']);
+  const wr=new WorkRequestService(h.db);
+  const body={batchId:receipt.id,note:'Đã xem cả lô và đồng ý tạo việc.',assigneeId:member.id};
+  const key=newKey();
+  const out=await wr.decideMany(reviewer,body,key);
+  expect(out.results.map(r=>r.ok)).toEqual([true,true,true]);
+  const requests=await rows<{id:string;state:string;decided_by:string}>(`SELECT r.id,r.state,r.decided_by FROM work_import_rows k JOIN work_requests r ON r.id=k.request_id
+    WHERE k.batch_id=$1 ORDER BY k.source_row`,[receipt.id]);
+  expect(requests.map(r=>[r.state,r.decided_by])).toEqual([['approved',reviewer.id],['approved',reviewer.id],['approved',reviewer.id]]);
+  expect(out.results.map(r=>r.id)).toEqual(requests.map(r=>r.id));
+  for(const r of requests) expect(await rows("SELECT actor_id FROM work_request_events WHERE request_id=$1 AND kind='approved'",[r.id])).toEqual([{actor_id:reviewer.id}]);
+  const works=await n('work_items');
+  const again=await wr.decideMany(reviewer,body,key);
+  expect(again.results).toEqual(out.results);
+  expect(await n('work_items')).toBe(works);
 });

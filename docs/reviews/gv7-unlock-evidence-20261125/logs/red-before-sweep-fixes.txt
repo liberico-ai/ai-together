@@ -1,0 +1,359 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/sheet-import.test.ts (41 tests | 1 failed) 22091ms
+   × M7 a whole import batch is approved in one call: each request keeps its own event and decider; the same call again answers the same and writes nothing 537ms
+ ❯ tests/unlock-092.test.ts (35 tests | 12 failed) 18631ms
+   ❯ M5 · no request waits forever (6)
+     × M5 the operator script sets zero to three BoM Tech, idempotently, with the source on each event 517ms
+   ❯ Sau soát · phạm vi, quyền cấp và chạy lại (11)
+     × F6 a BoM Tech reads no work, service or audit row of a project outside their memberships, before or after deciding there 510ms
+     × F6 the decision screen of a BoM Tech holds only the projects of the requests waiting for them 532ms
+     × F6 being a BoM Tech does not let a person link a message to work in a project outside their memberships 511ms
+     × SELF_GRANT a BoM Tech with no membership does not take the work they approve; they give it to another member of Team Tech 527ms
+     × SELF_GRANT the database refuses a grant to its own granter, even in the transaction of a decision 520ms
+     × grant a grant is written only in the transaction of the decision that gave the work 532ms
+     × revise a coordinator makes a roster member with no membership the assignee of a new revision: the grant is written and traced 526ms
+     × live a grant counts at sign-in only while its member holds the work: the 3/3 ballot moving the work away takes the project away 549ms
+     × M4 a source row is a request row only by its literal prefix: an operator source whose name merely looks alike is the operator's 521ms
+     × M4 a login holding the runtime privileges without SET ROLE writes no other source row either 509ms
+     × M7 the same bulk call again gets the stored answers even when the services of the project changed in between 523ms
+ ❯ tests/migrations-rollback.test.ts (15 tests | 1 failed) 8854ms
+   × rollback 028 refuses while a later migration, a BoM Tech row, a work grant, a named batch or a ballot on a request source exists; it drops what 028 made and restores the 024 bodies and policies and the 025 link rule; 028 backfills the source row of work approved under 0.9.1; applying 028 twice is fine 513ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 028 refuses while a later migration, a BoM Tech row, a work grant, a named batch or a ballot on a request source exists; it drops what 028 made and restores the 024 bodies and policies and the 025 link rule; 028 backfills the source row of work approved under 0.9.1; applying 028 twice is fine
+AssertionError: expected [ 'app_actor_is_tech_bom', …(5) ] to have a length of 7 but got 6
+
+- Expected
++ Received
+
+- 7
++ 6
+
+ ❯ tests/migrations-rollback.test.ts:937:69
+    935|     later=(await from013()).filter(f=>num(f)>28);
+    936|     for(const f of [...later].reverse()) await h.exec(await readFile(d…
+    937|     expect(await present()).toEqual(full);expect(await functions()).to…
+       |                                                                     ^
+    938|     // 1. a later version recorded
+    939|     await q("INSERT INTO schema_migrations(version) VALUES('029')");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/14]⎯
+
+ FAIL  tests/sheet-import.test.ts > M7 a whole import batch is approved in one call: each request keeps its own event and decider; the same call again answers the same and writes nothing
+AssertionError: expected [] to deeply equal [ { …(3) }, { …(3) }, { …(3) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "id": "a7177b20-461c-4b57-9b93-b09000b965c2",
+-     "ok": true,
+-     "workId": "98b9c4f9-5514-4352-a4c9-b83ee5723768",
+-   },
+-   {
+-     "id": "bbf255c4-a37b-4249-a2ed-6fcaec927cfb",
+-     "ok": true,
+-     "workId": "1495bf3a-19ac-47dc-972e-01cd5fb2098e",
+-   },
+-   {
+-     "id": "a63817b4-3ea5-432d-9d37-9112b57bd76f",
+-     "ok": true,
+-     "workId": "32a25817-0830-4894-9bcf-27f25645986b",
+-   },
+- ]
++ []
+
+ ❯ tests/sheet-import.test.ts:799:25
+    797|   const works=await n('work_items');
+    798|   const again=await wr.decideMany(reviewer,body,key);
+    799|   expect(again.results).toEqual(out.results);
+       |                         ^
+    800|   expect(await n('work_items')).toBe(works);
+    801| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > M5 · no request waits forever > M5 the operator script sets zero to three BoM Tech, idempotently, with the source on each event
+AssertionError: expected { ok: false, code: '22012', …(2) } to match object { ok: true }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:269:70
+    267|     // fewer than three while a seat is not yet named, and none at all…
+    268|     const seats=async()=>(await rows<{user_id:string}>('SELECT user_id…
+    269|     expect(await attempt(()=>h.exec(fill(`${bomC.id},${bomA.id}`)))).t…
+       |                                                                      ^
+    270|     expect(await seats()).toEqual([bomC.id,bomA.id]);
+    271|     expect(await attempt(()=>h.exec(fill('')))).toMatchObject({ok:true…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > F6 a BoM Tech reads no work, service or audit row of a project outside their memberships, before or after deciding there
+AssertionError: work_items: expected 5 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 5
+
+ ❯ tests/unlock-092.test.ts:386:105
+    384|   const count=(who:Principal,table:string)=>requestScope(h.db,who,asyn…
+    385|   test('F6 a BoM Tech reads no work, service or audit row of a project…
+    386|     for(const t of ['work_items','services','audit_events','bom_scopes…
+       |                                                                                                         ^
+    387|     const r=await file({projectId:ids.transport});
+    388|     expect(await approve(bomA,r.id,{serviceId:ids.transportService,ass…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > F6 the decision screen of a BoM Tech holds only the projects of the requests waiting for them
+AssertionError: expected { projectIds: [ …(4) ], …(2) } to match object { projectIds: [], services: [], …(1) }
+
+- Expected
++ Received
+
+  {
+-   "projectIds": [],
++   "projectIds": [
++     "11000000-0000-4000-8000-000000000001",
++     "11000000-0000-4000-8000-000000000002",
++     "11000000-0000-4000-8000-000000000003",
++     "11000000-0000-4000-8000-0000000000a1",
++   ],
+    "seats": {},
+-   "services": [],
++   "services": [
++     {
++       "id": "12000000-0000-4000-8000-0000000000a1",
++       "name": "Hệ thống thử IBS",
++       "project_id": "11000000-0000-4000-8000-0000000000a1",
++     },
++     {
++       "id": "12000000-0000-4000-8000-000000000001",
++       "name": "Sales Portal",
++       "project_id": "11000000-0000-4000-8000-000000000001",
++     },
++     {
++       "id": "12000000-0000-4000-8000-000000000002",
++       "name": "Transport Console",
++       "project_id": "11000000-0000-4000-8000-000000000002",
++     },
++   ],
+  }
+
+ ❯ tests/unlock-092.test.ts:394:39
+    392|   });
+    393|   test('F6 the decision screen of a BoM Tech holds only the projects o…
+    394|     expect(await svc().context(bomA)).toMatchObject({projectIds:[],ser…
+       |                                       ^
+    395|     await file({projectId:ids.transport});
+    396|     const ctx=await svc().context(bomA);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > F6 being a BoM Tech does not let a person link a message to work in a project outside their memberships
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/unlock-092.test.ts:404:20
+    402|   test('F6 being a BoM Tech does not let a person link a message to wo…
+    403|     const linked=await requestScope(h.db,bomA,async tx=>(await tx.quer…
+    404|     expect(linked).toBe(false);
+       |                    ^
+    405|     // a seat of the project still links there
+    406|     expect(await requestScope(h.db,reviewer,async tx=>(await tx.query<…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > SELF_GRANT a BoM Tech with no membership does not take the work they approve; they give it to another member of Team Tech
+AssertionError: expected { ok: true, value: { …(2) } } to match object { ok: false, code: 'SELF_GRANT', …(1) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "code": "SELF_GRANT",
+-   "ok": false,
+-   "status": 403,
++   "ok": true,
+  }
+
+ ❯ tests/unlock-092.test.ts:411:21
+    409|     const r=await file({projectId:ids.transport});
+    410|     const refused=await approve(bomA,r.id,{serviceId:ids.transportServ…
+    411|     expect(refused).toMatchObject({ok:false,code:'SELF_GRANT',status:4…
+       |                     ^
+    412|     expect((refused as {message:string}).message).toMatch(/Nhờ/);
+    413|     expect((refused as {message:string}).message).not.toMatch(/Vận tải…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > SELF_GRANT the database refuses a grant to its own granter, even in the transaction of a decision
+AssertionError: expected { ok: true, value: undefined } to match object { ok: false }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": false,
++   "ok": true,
+  }
+
+ ❯ tests/unlock-092.test.ts:432:20
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > grant a grant is written only in the transaction of the decision that gave the work
+AssertionError: expected 'duplicate key value violates unique c…' to match /points at the decision/
+
+- Expected:
+/points at the decision/
+
++ Received:
+"duplicate key value violates unique constraint \"work_access_grants_work_id_user_id_source_kind_source_id_key\""
+
+ ❯ tests/unlock-092.test.ts:448:48
+    446|     }));
+    447|     expect(late).toMatchObject({ok:false});
+    448|     expect((late as {message:string}).message).toMatch(/points at the …
+       |                                                ^
+    449|     expect(await grants(w.id)).toHaveLength(1);
+    450|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > revise a coordinator makes a roster member with no membership the assignee of a new revision: the grant is written and traced
+AssertionError: expected { ok: false, code: 'THROWN', …(2) } to match object { ok: true, value: { work: { …(1) } } }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
+-   "value": {
+-     "work": {
+-       "assignee_id": "14000000-0000-4000-8000-000000000086",
+-     },
+-   },
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:455:21
+    453|     const revised=await attempt(()=>work().command(pm,ids.transportWor…
+    454|       specUrl:'https://example.com/spec/gv7-revise',dueAt:null,assigne…
+    455|     expect(revised).toMatchObject({ok:true,value:{work:{assignee_id:ro…
+       |                     ^
+    456|     const audit=(await rows<{id:string}>("SELECT id FROM audit_events …
+    457|     expect(await grants(ids.transportWork)).toEqual([{user_id:rosterNo…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > live a grant counts at sign-in only while its member holds the work: the 3/3 ballot moving the work away takes the project away
+AssertionError: expected [ …(2) ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  [
+    "11000000-0000-4000-8000-000000000002",
++   "11000000-0000-4000-8000-000000000001",
+  ]
+
+ ❯ tests/unlock-092.test.ts:481:30
+    479|     expect(await grants(w.id)).not.toHaveLength(0);
+    480|     const after=((await sessionOf(tech.id)) as {value:Principal}).valu…
+    481|     expect(after.projectIds).toEqual([ids.transport]);
+       |                              ^
+    482|   });
+    483|   test('M4 a source row is a request row only by its literal prefix: a…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > M4 a source row is a request row only by its literal prefix: an operator source whose name merely looks alike is the operator's
+AssertionError: expected { ok: false, code: 'P0001', …(2) } to match object { ok: true }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
++   "ok": false,
+  }
+
+ ❯ tests/unlock-092.test.ts:485:58
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > M4 a login holding the runtime privileges without SET ROLE writes no other source row either
+AssertionError: expected 'written' to match /runtime writes only/
+
+- Expected:
+/runtime writes only/
+
++ Received:
+"written"
+
+ ❯ tests/unlock-092.test.ts:504:21
+    502|       throw new Error('rollback-sentinel');
+    503|     }).catch(e=>{ if(!/rollback-sentinel/.test(String(e))) throw e; });
+    504|     expect(message).toMatch(/runtime writes only/);
+       |                     ^
+    505|     expect(await rows('SELECT 1 FROM bom_sources WHERE work_id=$1',[id…
+    506|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/14]⎯
+
+ FAIL  tests/unlock-092.test.ts > Sau soát · phạm vi, quyền cấp và chạy lại > M7 the same bulk call again gets the stored answers even when the services of the project changed in between
+AssertionError: expected { ok: true, …(1) } to match object { ok: true, …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+@@ -2,10 +2,10 @@
+    "ok": true,
+    "value": {
+      "results": [
+        {
+          "id": "266efc34-dbc7-4143-872a-26df4e546df6",
+-         "ok": true,
++         "ok": false,
+        },
+      ],
+    },
+  }
+
+ ❯ tests/unlock-092.test.ts:513:68
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/14]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  14 failed | 77 passed (91)
+   Start at  19:29:21
+   Duration  49.92s (tests 100%)
+
