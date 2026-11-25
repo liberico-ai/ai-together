@@ -1,4 +1,5 @@
 import { cookies, headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { COOKIE, sessionPrincipal, localHost } from '@/server/auth';
 import { database } from '@/server/db';
 import { WorkService } from '@/server/service';
@@ -15,6 +16,8 @@ export default async function Page() {
   let principal;
   try { principal=demo?sessionPrincipal((await cookies()).get(COOKIE)?.value,host):await identityService().session((await cookies()).get(SESSION_COOKIE)?.value); }
   catch { return demo?<Welcome enabled={demo}/>:<Login/>; }
+  // a Team Tech member with no project yet starts at the work requests: the project list, their own requests and the filing form (M6)
+  if(!principal.projectIds.length) redirect('/work-requests');
   try {
     const data=await new WorkService(await database()).workspace(principal);
     return <Workspace key={principal.id} principal={principal} initial={JSON.parse(JSON.stringify(data))} demo={demo} version={APP_VERSION} bridge={bridgeStatus({configured:Boolean(process.env.LIBETECH_BRIDGE_CONFIG),verifiedAt:await bridgeVerifiedAt()})}/>;

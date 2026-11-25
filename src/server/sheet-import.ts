@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { readSheetCsv, SHEET_LIMITS, type SheetRow } from './csv';
-import { scoped, type Database, type Queryable } from './db';
+import type { Database, Queryable } from './db';
 import { AppError, invariant } from './errors';
 import { demoProfiles } from './identities';
 import { reportingDomainLabel, type ReportingDomain } from './projects-registry';
@@ -9,6 +9,7 @@ import { sourceHostProblem } from './source-hosts';
 import { cellsFingerprint, dueIssue } from './source-snapshot';
 import { projectRole } from './types';
 import type { Principal } from './types';
+import { requestScope } from './work-requests';
 
 // Import of the PM's team work list (tab «Đầu việc Tech», exported as CSV): a preview that writes nothing, then a commit that files every valid row as a pending
 // work request (origin 'import') for a BoM seat to approve, exactly as PR A's rule says (migration 024). Identity and tenant come from the principal only. The cells
@@ -20,7 +21,9 @@ const base64 = z.string().min(1).max(Math.ceil(SHEET_LIMITS.fileBytes / 3) * 4 +
 /** The only tab this import reads (the header check already limits a file to it). Compared and stored in NFC. */
 export const SHEET_NAME = 'Đầu việc Tech';
 const sheetName = z.string().trim().min(1).max(100).refine(v => v.normalize('NFC') === SHEET_NAME, 'Chỉ nhận trang «' + SHEET_NAME + '».').transform(() => SHEET_NAME);
-const envelopeShape = { fileBase64: base64, sourceUrl: z.string().min(1).max(1000), sheet: sheetName };
+// the name of the exported file the PM picked (M8 câu 6, 0.9.2): kept on the batch with its hash and time, never a path
+const fileName = z.string().trim().min(1).max(255).refine(v => !/[\/\\\p{Cc}]/u.test(v), 'Chỉ ghi tên tệp, không ghi đường dẫn.');
+const envelopeShape = { fileBase64: base64, sourceUrl: z.string().min(1).max(1000), sheet: sheetName, fileName: fileName.optional() };
 const projectPair = z.object({ buLabel: z.string().min(1).max(100), projectId: uuid }).strict();
 const ownerPair = z.object({ text: z.string().min(1).max(SHEET_LIMITS.cellChars), projectId: uuid, userId: uuid }).strict();
 // the preview may be told the mapping the commit will use (the digest does not depend on it); left out, it uses the defaults
@@ -43,13 +46,13 @@ export type ImportPreview = {
   buLabels: { label: string; rows: number; defaultProjectId: string | null }[]; owners: { text: string; rows: number; candidates: Candidate[] }[];
   counts: Counts; catalog: { id: string; name: string; bu: string }[];
 };
-export type ImportReceipt = { id: string; replayed: boolean; fileHash: string; previewDigest: string; sourceId: string; sheet: string; createdAt: string; counts: Counts; results: RowResult[] };
+export type ImportReceipt = { id: string; replayed: boolean; fileHash: string; fileName: string | null; previewDigest: string; sourceId: string; sheet: string; createdAt: string; counts: Counts; results: RowResult[] };
 export type ImportAnnotation = { sourceStatus: string; dueRaw: string; sourceRef: string; sourceId: string; sheet: string; stt: string; buLabel: string; ownerRaw: string; flags: string[]; batchId: string };
 export type PeopleSource = (p: Principal) => Promise<Principal[]>;
 
-const denied = () => new AppError('IMPORT_DENIED', 'Chỉ thành viên Team Tech, hoặc điều phối của mọi dự án đích, được nhập bảng việc.', 403);
-const scopeDenied = () => new AppError('SCOPE_DENIED', 'Không tìm thấy dự án trong phạm vi được cấp.', 404);
-const notFound = () => new AppError('NOT_FOUND', 'Không tìm thấy biên nhận trong phạm vi được cấp.', 404);
+const denied = () => new AppError('IMPORT_DENIED', 'Chỉ thành viên Team Tech, hoặc điều phối của mọi dự án đích, được nhập bảng việc. Nhờ điều phối dự án nhập giúp, hoặc nhờ người quản trị thêm bạn vào Team Tech.', 403);
+const scopeDenied = () => new AppError('SCOPE_DENIED', 'Không tìm thấy dự án trong phạm vi được cấp. Chọn một dự án trong danh sách.', 404);
+const notFound = () => new AppError('NOT_FOUND', 'Không tìm thấy biên nhận trong phạm vi được cấp. Mở lại biên nhận từ lần nhập của chính bạn.', 404);
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 const chars = (v: string) => [...v].length;
 /** Fail-closed IBS test of a label or a project BU: anything that contains «ibs» once normalised (NFKC, lower case, letters and digits only). SQL twin: work_import_is_ibs_text. */
@@ -57,7 +60,7 @@ const ibsLabel = (v: string | null | undefined) => (v ?? '').normalize('NFKC').t
 const KNOWN_STATUS = new Set(['Chưa làm', 'Đang làm', 'Hoàn thành', 'Tạm dừng']);
 const STT = /^[A-Za-z0-9._-]{1,40}$/;
 /** Flags that record a policy of this import, not a defect of the sheet: they do not lower the quality score. */
-const POLICY_FLAGS = new Set(['IBS_NOTE_NOT_STORED', 'OWNER_NOT_MAPPED']);
+const POLICY_FLAGS = new Set(['IBS_NOTE_NOT_STORED', 'OWNER_NOT_MAPPED', 'CODE_FROM_NOTE']);
 const DEFAULT_NAMES: Record<string, string> = { XECA: 'XECA · Team Tech', LBRC: 'LBRC · Team Tech', 'IBS HI': 'IBS HI · Team Tech' };
 
 /** The importer's view of people: the directory the rest of the service uses (demo profiles in demo, the identity directory otherwise). */
@@ -70,7 +73,7 @@ const defaultPeople: PeopleSource = async p => {
 // ---------------------------------------------------------------- the file, row by row (pure)
 type Facts = {
   row: number; stt: string; bu: string; title: string; owner: string; collab: string; status: string; due: string; note: string; ref: string;
-  fingerprint: string; contentHash: string; code: string | null; codeCount: number; ownerKind: 'none' | 'single' | 'multi'; dueAt: string | null; dueFlag: string | null;
+  fingerprint: string; contentHash: string; code: string | null; codeCount: number; codeFromNote: boolean; ownerKind: 'none' | 'single' | 'multi'; dueAt: string | null; dueFlag: string | null;
   blocks: string[]; existing: string | null;
 };
 const CODE_TOKEN = /(?<![A-Za-z0-9-])[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*(?![A-Za-z0-9-])/g;
@@ -90,20 +93,23 @@ function dueIso(raw: string): string | null {
   // the same convention as the form of PR A: the due day at 16:00 Vietnam time
   return new Date(`${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T16:00:00+07:00`).toISOString();
 }
-/** The work code is read from the title alone, for every row; the note is never read for it. `titleOnly(label)`: the row is, or may become, IBS HI (or has no target): its
- * fingerprint and content hash are taken with the note cell blanked, so no hash, answer or request field depends on the note. */
+/** The work code is read from the title; when the title holds none, from the note, but only for a row that is not title-only (M8 câu 7 (2), 0.9.2: LBRC and XECA).
+ * `titleOnly(label)`: the row is, or may become, IBS HI (or has no target): its note is never read, and its fingerprint and content hash are taken with the note cell
+ * blanked, so no hash, answer or request field depends on the note. */
 function analyze(rows: SheetRow[], sourceId: string, sheet: string, titleOnly: (label: string) => boolean): Facts[] {
   const facts: Facts[] = rows.map(({ row, cells }) => {
     const [stt, bu, title, owner, collab, status, due, note] = cells;
-    const codes = codesIn(title);
-    const hashed = titleOnly(bu) ? [...cells.slice(0, 7), ''] : cells;
+    const only = titleOnly(bu);
+    const fromTitle = codesIn(title);
+    const codes = fromTitle.length || only ? fromTitle : codesIn(note);
+    const hashed = only ? [...cells.slice(0, 7), ''] : cells;
     const ownerKind = !owner ? 'none' : /[,;/&\n]|\s+và\s+|\s+and\s+/i.test(owner) ? 'multi' : 'single';
     const blocks: string[] = [];
     if (!stt) blocks.push('MISSING_STT'); else if (!STT.test(stt)) blocks.push('INVALID_STT');
     if (chars(title) < 5 || chars(title) > 200) blocks.push('TITLE_LENGTH');
     return { row, stt, bu, title, owner, collab, status, due, note, ref: `${sourceId}/${sheet}!A${row}:H${row}`,
       fingerprint: cellsFingerprint(hashed), contentHash: sha256(JSON.stringify(hashed.slice(1))),
-      code: codes.length === 1 ? codes[0] : null, codeCount: codes.length, ownerKind, dueAt: dueIso(due), dueFlag: due ? dueIssue(due) : 'MISSING_DUE', blocks, existing: null };
+      code: codes.length === 1 ? codes[0] : null, codeCount: codes.length, codeFromNote: !fromTitle.length && codes.length > 0, ownerKind, dueAt: dueIso(due), dueFlag: due ? dueIssue(due) : 'MISSING_DUE', blocks, existing: null };
   });
   // two rows of one file that share an STT, a work code or a content: both wait, neither wins
   for (const [key, reason] of [['stt', 'DUPLICATE_STT'], ['code', 'DUPLICATE_CODE_IN_FILE'], ['contentHash', 'DUPLICATE_CONTENT_IN_FILE']] as const) {
@@ -133,6 +139,7 @@ function decide(facts: Facts[], targetOf: (label: string) => Target | null, owne
     if (f.dueFlag) flags.push(f.dueFlag);
     if (!f.status) flags.push('MISSING_STATUS'); else if (!KNOWN_STATUS.has(f.status)) flags.push('UNKNOWN_STATUS');
     if (f.codeCount > 1) flags.push('MULTI_CODE');
+    if (f.codeFromNote) flags.push('CODE_FROM_NOTE');
     if (ibs && f.note) flags.push('IBS_NOTE_NOT_STORED');
     const verdict: Verdict = reasons.length ? 'needs_reconciliation' : f.existing === 'DUPLICATE' ? 'duplicate' : 'valid';
     return { f, target, assignee, verdict, reasons, flags, ibs };
@@ -179,8 +186,8 @@ type Access = { tech: boolean; managed: string[]; catalog: ProjectInfo[] };
 export class SheetImportService {
   constructor(private db: Database, private people: PeopleSource = defaultPeople) {}
   private run<T>(p: Principal, fn: (tx: Queryable) => Promise<T>, readOnly = false): Promise<T> {
-    return scoped(this.db, p, async tx => {
-      await tx.query("SELECT set_config('app.person_id',$1,true)", [p.id]);
+    // the scope of the work-request flow: a Team Tech member with no project yet still imports (M6), a BoM Tech reads the notes of every project (M5)
+    return requestScope(this.db, p, async tx => {
       if (readOnly) await tx.query('SET TRANSACTION READ ONLY');
       return fn(tx);
     });
@@ -227,7 +234,7 @@ export class SheetImportService {
       if (same.length === 1) mapped.set(label, same[0].id);
     }
     for (const m of chosen ?? []) {
-      invariant(!mapped.has(m.buLabel), 'INVALID_MAPPING', 'Mỗi nhãn BU chỉ ánh xạ tới một dự án.', 422);
+      invariant(!mapped.has(m.buLabel), 'INVALID_MAPPING', 'Mỗi nhãn BU chỉ ánh xạ tới một dự án. Bỏ bớt một ánh xạ rồi xem trước lại.', 422);
       if (labels.includes(m.buLabel)) mapped.set(m.buLabel, m.projectId);
     }
     const targetIds = [...new Set(mapped.values())];
@@ -237,13 +244,17 @@ export class SheetImportService {
     for (const [label, id] of mapped) targets.set(label, await this.facts(tx, id, acc.catalog.find(c => c.id === id)?.name ?? '', label));
     return { mapped, targetIds, targets };
   }
-  /** Confirmed owners: only a person the importer sees as an engineer of that target project, bound to the cell text only when the account name is that text. */
-  private ownersOf(p: Principal, people: Principal[], targetIds: string[], given: { text: string; projectId: string; userId: string }[]): Map<string, string> {
+  /** Confirmed owners: a person the importer sees as an engineer of that target project, or a Team Tech member (any target project, M2), bound to the cell text
+   * only when the account name is that text. */
+  private async ownersOf(tx: Queryable, p: Principal, people: Principal[], targetIds: string[], given: { text: string; projectId: string; userId: string }[]): Promise<Map<string, string>> {
     const owners = new Map<string, string>();
+    const performers = given.length ? (await tx.query<{ user_id: string; name: string }>('SELECT user_id,name FROM public.tech_performers_among($1::uuid[])', [[...new Set(given.map(o => o.userId))]])).rows : [];
     for (const o of given) {
       const person = people.find(x => x.id === o.userId);
-      invariant(targetIds.includes(o.projectId) && person && person.name === o.text && p.projectIds.includes(o.projectId) && person.projectIds.includes(o.projectId) && projectRole(person, o.projectId) === 'engineer',
-        'OWNER_NOT_IN_PROJECT', 'Người phụ trách đã chọn không phải người thực hiện của dự án đích trong phạm vi của bạn.', 422);
+      const engineer = !!person && person.name === o.text && p.projectIds.includes(o.projectId) && person.projectIds.includes(o.projectId) && projectRole(person, o.projectId) === 'engineer';
+      const tech = performers.some(x => x.user_id === o.userId && x.name === o.text);
+      invariant(targetIds.includes(o.projectId) && (engineer || tech),
+        'OWNER_NOT_IN_PROJECT', 'Người phụ trách đã chọn không phải người thực hiện của dự án đích, cũng không thuộc Team Tech. Chọn người khác hoặc để trống.', 422);
       owners.set(o.projectId + '\u0000' + o.text, o.userId);
     }
     return owners;
@@ -261,7 +272,7 @@ export class SheetImportService {
       const labels = [...new Set(file.rows.map(r => r.cells[1]))];
       const { targetIds, targets } = await this.targetsOf(tx, acc, labels, input.projects);
       const people = await this.people(p);
-      const owners = this.ownersOf(p, people, targetIds, input.owners ?? []);
+      const owners = await this.ownersOf(tx, p, people, targetIds, input.owners ?? []);
       const titleOnly = this.titleOnlyOf(targets);
       const facts = analyze(file.rows, file.sourceId, file.sheet, titleOnly);
       await this.conflicts(tx, facts, file.sourceId, file.sheet);
@@ -274,7 +285,7 @@ export class SheetImportService {
         rows: decisions.map(d => ({ row: d.f.row, stt: d.f.stt, buLabel: d.f.bu, title: d.f.title, code: d.f.code, titleOnly: titleOnly(d.f.bu), owner: d.f.owner, collaborators: d.f.collab, status: d.f.status, due: d.f.due,
           result: d.verdict, reasons: d.reasons, flags: d.flags })),
         buLabels: labels.map(label => ({ label, rows: facts.filter(f => f.bu === label).length, defaultProjectId: defaults.get(label) ?? null })),
-        owners: this.ownerCandidates(p, people, facts), counts: countsOf(decisions.map(d => ({ f: d.f, target: d.target, verdict: d.verdict }))), catalog: acc.catalog,
+        owners: await this.ownerCandidates(tx, p, people, facts, acc.catalog.map(c => c.id)), counts: countsOf(decisions.map(d => ({ f: d.f, target: d.target, verdict: d.verdict }))), catalog: acc.catalog,
       };
     }, true);
   }
@@ -286,14 +297,20 @@ export class SheetImportService {
     const rows = (await tx.query<{ project_id: string; code: string }>('SELECT project_id,code FROM work_items WHERE project_id=ANY($1::uuid[]) AND code=ANY($2::text[])', [projects, codes])).rows;
     return new Set(rows.map(r => r.project_id + '|' + r.code));
   }
-  /** People the importer can already see as engineers of a project of their own scope, matched by exact name. Nobody is ticked for them. */
-  private ownerCandidates(p: Principal, people: Principal[], facts: Facts[]) {
+  /** People the importer can already see as engineers of a project of their own scope, and Team Tech members (every project the importer may import into),
+   * matched by exact name. Nobody is ticked for them. */
+  private async ownerCandidates(tx: Queryable, p: Principal, people: Principal[], facts: Facts[], catalog: string[]) {
     const texts = new Map<string, number>();
     for (const f of facts) if (f.ownerKind === 'single') texts.set(f.owner, (texts.get(f.owner) ?? 0) + 1);
-    return [...texts].map(([text, rows]) => ({ text, rows, candidates: people.filter(x => x.name === text).flatMap(x => {
-      const projectIds = x.projectIds.filter(id => p.projectIds.includes(id) && projectRole(x, id) === 'engineer');
-      return projectIds.length ? [{ userId: x.id, name: x.name, projectIds }] : [];
-    }) }));
+    const tech = texts.size ? (await tx.query<{ user_id: string; name: string }>('SELECT user_id,name FROM public.tech_performers_named($1::text[])', [[...texts.keys()]])).rows : [];
+    return [...texts].map(([text, rows]) => {
+      const engineers = people.filter(x => x.name === text).flatMap(x => {
+        const projectIds = x.projectIds.filter(id => p.projectIds.includes(id) && projectRole(x, id) === 'engineer');
+        return projectIds.length ? [{ userId: x.id, name: x.name, projectIds }] : [];
+      });
+      const members = tech.filter(x => x.name === text && !engineers.some(e => e.userId === x.user_id)).map(x => ({ userId: x.user_id, name: x.name, projectIds: catalog }));
+      return { text, rows, candidates: [...engineers, ...members.filter(m => m.projectIds.length)] };
+    });
   }
 
   async commit(p: Principal, raw: unknown): Promise<ImportReceipt> {
@@ -312,7 +329,7 @@ export class SheetImportService {
       const mappingHash = sha256(JSON.stringify([input.projects.map(m => [m.buLabel, m.projectId]).sort(), input.owners.map(o => [o.text, o.projectId, o.userId]).sort()]));
       const old = (await tx.query<BatchRow>('SELECT * FROM work_import_batches WHERE tenant_id=$1 AND importer_id=$2 AND request_key=$3', [p.tenantId, p.id, input.requestKey])).rows[0];
       if (old) {
-        invariant(old.preview_digest === input.previewDigest && old.mapping_hash === mappingHash, 'IDEMPOTENCY_CONFLICT', 'Mã thao tác đã được dùng với một lần nhập khác.', 409);
+        invariant(old.preview_digest === input.previewDigest && old.mapping_hash === mappingHash, 'IDEMPOTENCY_CONFLICT', 'Mã thao tác đã được dùng với một lần nhập khác. Tải lại trang rồi xem trước lại.', 409);
         return receiptOf(old, true);
       }
       const file = this.read(input);
@@ -322,7 +339,7 @@ export class SheetImportService {
 
       const labels = [...new Set(file.rows.map(r => r.cells[1]))];
       const { mapped, targetIds, targets } = await this.targetsOf(tx, acc, labels, input.projects);
-      const owners = this.ownersOf(p, await this.people(p), targetIds, input.owners);
+      const owners = await this.ownersOf(tx, p, await this.people(p), targetIds, input.owners);
       // hashes and the stored note are decided now that the target projects are known: an IBS HI row, or a row with no target, is read without its note
       const facts = analyze(file.rows, file.sourceId, file.sheet, this.titleOnlyOf(targets));
       await this.conflicts(tx, facts, file.sourceId, file.sheet);
@@ -343,10 +360,10 @@ export class SheetImportService {
         results[i] = { row: d.f.row, stt: safeStt(d.f.stt), result, reasons, flags: d.flags };
       }
       const counts = countsOf(decisions.map((d, i) => ({ f: d.f, target: d.target, verdict: results[i].result })));
-      const made = (await tx.query<BatchRow>(`INSERT INTO work_import_batches(id,tenant_id,importer_id,importer_name,request_key,preview_digest,file_hash,source_id,source_url,sheet,counts,mapping,mapping_hash,results)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (tenant_id,importer_id,request_key) DO NOTHING RETURNING *`,
+      const made = (await tx.query<BatchRow>(`INSERT INTO work_import_batches(id,tenant_id,importer_id,importer_name,request_key,preview_digest,file_hash,source_id,source_url,sheet,counts,mapping,mapping_hash,results,file_name)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (tenant_id,importer_id,request_key) DO NOTHING RETURNING *`,
         [batchId, p.tenantId, p.id, p.name, input.requestKey, input.previewDigest, file.fileHash, file.sourceId, file.sourceUrl, file.sheet,
-          JSON.stringify(counts), JSON.stringify(Object.fromEntries(mapped)), mappingHash, JSON.stringify(results)])).rows[0];
+          JSON.stringify(counts), JSON.stringify(Object.fromEntries(mapped)), mappingHash, JSON.stringify(results), input.fileName ?? null])).rows[0];
       // a twin of this very call won the key while this one worked: nothing of this transaction stays, and the call reads the twin's receipt
       if (!made) throw new BatchRaced();
       return receiptOf(made, false);
@@ -404,7 +421,7 @@ export class SheetImportService {
   }
 }
 
-type BatchRow = { id: string; preview_digest: string; mapping_hash: string; file_hash: string; source_id: string; sheet: string; created_at: string | Date; counts: Counts; results: RowResult[] };
+type BatchRow = { id: string; preview_digest: string; mapping_hash: string; file_hash: string; file_name: string | null; source_id: string; sheet: string; created_at: string | Date; counts: Counts; results: RowResult[] };
 function receiptOf(row: BatchRow, replayed: boolean): ImportReceipt {
-  return { id: row.id, replayed, fileHash: row.file_hash, previewDigest: row.preview_digest, sourceId: row.source_id, sheet: row.sheet, createdAt: new Date(row.created_at).toISOString(), counts: row.counts, results: row.results };
+  return { id: row.id, replayed, fileHash: row.file_hash, fileName: row.file_name ?? null, previewDigest: row.preview_digest, sourceId: row.source_id, sheet: row.sheet, createdAt: new Date(row.created_at).toISOString(), counts: row.counts, results: row.results };
 }

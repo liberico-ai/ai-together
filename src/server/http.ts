@@ -40,10 +40,11 @@ export async function handleApi(request:Request, parts:string[], db:Database) {
       checkOrigin(request);
       if(parts.join('/')==='overview/refresh') return success(await service.refresh(principal));
       const key=request.headers.get('idempotency-key')??'';
-      if(parts.join('/')==='work') throw new AppError('WORK_REQUEST_REQUIRED','Việc mới được gửi để BoM duyệt.',410);
+      if(parts.join('/')==='work') throw new AppError('WORK_REQUEST_REQUIRED','Việc mới đi qua yêu cầu chờ BoM duyệt. Gửi yêu cầu ở trang «Việc chờ BoM duyệt».',410);
       if(parts.join('/')==='work-requests') { const r=await new WorkRequestService(db).submit(principal,await body(request)); return success({...r,request:publicRequest(r.request,principal.id)},r.replayed?200:201); }
       if(importOn && parts.join('/')==='work-imports/preview') return success(await new SheetImportService(db).preview(principal,await importBody(request)));
       if(importOn && parts.join('/')==='work-imports') { const r=await new SheetImportService(db).commit(principal,await importBody(request)); return success(r,r.replayed?200:201); }
+      if(parts.join('/')==='work-requests/decide-many') return success(await new WorkRequestService(db).decideMany(principal,await body(request),key));
       if(parts[0]==='work-requests' && parts[2]==='decision' && parts.length===3) { const r=await new WorkRequestService(db).decide(principal,parts[1],await body(request),key); return success({...r,request:publicRequest(r.request,principal.id,true)}); }
       if(parts[0]==='work' && parts[2]==='commands' && parts.length===3) return success(await service.command(principal,parts[1],await body(request),key));
     }

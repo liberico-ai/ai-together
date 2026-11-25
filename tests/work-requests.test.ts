@@ -64,7 +64,7 @@ test('(1) a Team Tech member sees every project and files into one they hold no 
 
 test('(2) a viewer or engineer off the roster is denied, a bot is read-only, a project manager may file',async()=>{
   for(const p of [viewer,member,reviewer])
-    await expect(svc().submit(p,input())).rejects.toMatchObject({code:'WORK_REQUEST_DENIED',status:403,message:'Chỉ thành viên Team Tech hoặc điều phối dự án được tạo việc.'});
+    await expect(svc().submit(p,input())).rejects.toMatchObject({code:'WORK_REQUEST_DENIED',status:403,message:'Chỉ thành viên Team Tech hoặc điều phối dự án được tạo việc. Nhờ điều phối dự án tạo việc giúp bạn, hoặc nhờ người quản trị thêm bạn vào Team Tech.'});
   await expect(svc().submit(bot,input())).rejects.toMatchObject({code:'READ_ONLY',status:403});
   const mine=await svc().submit(pm,input({projectId:ids.transport}));
   expect(mine.request).toMatchObject({requester_id:pm.id,project_id:ids.transport,state:'pending'});
@@ -181,29 +181,30 @@ test('(6) a BoM seat other than the requester approves: the work item, the audit
   expect((await svc().decide(approver,third.id,decision({code:'BOM-CHOSEN-1'}),k())).work!.code).toBe('BOM-CHOSEN-1');
 });
 
-test('(6b) the seat fills only empty slots: no assignee, itself as assignee, another seat as assignee, a replaced proposal and a wrong role are all refused',async()=>{
+test('(6b) 0.9.2: the seat fills empty slots and may change a proposed person (M3), itself or another seat included (M1); no assignee, a wrong role and an assignee who is also an acceptor are refused',async()=>{
   const r=await file();
   const refuse=async(who:Principal,over:R,code:string,status:number)=>{
     await expect(svc().decide(who,r.id,decision(over),k())).rejects.toMatchObject({code,status});
     expect(await row(r.id)).toMatchObject({state:'pending',version:1,work_id:null});
   };
   await refuse(pm,{assigneeId:null},'ASSIGNEE_REQUIRED',422);
-  await refuse(pm,{assigneeId:pm.id},'SELF_ASSIGNMENT',403);
-  await refuse(pm,{assigneeId:reviewer.id},'BOM_ASSIGNEE_HELD',422);
-  await refuse(pm,{assigneeId:approver.id},'BOM_ASSIGNEE_HELD',422);
   await refuse(pm,{technicalId:approver.id},'INVALID_ASSIGNMENT',422);
   await refuse(pm,{assigneeId:member.id,technicalId:member.id},'SELF_ACCEPTANCE',422);
   await refuse(pm,{assigneeId:randomUUID()},'INVALID_ASSIGNMENT',422);
   expect(await n('work_items WHERE code LIKE \'WR-%\'')).toBe(0);
   expect(await n(`audit_events WHERE payload->>'requestId'='${r.id}'`)).toBe(0);
-  // a person the requester proposed stays: the seat may repeat it, never replace it
+  // M3: a person the requester proposed may be changed by the seat, here to another seat of the project (M1); the change is recorded
   const p=await file({assigneeId:member.id},pm);
-  await expect(svc().decide(reviewer,p.id,decision({assigneeId:approver.id}),k())).rejects.toMatchObject({code:'PROPOSAL_FIXED',status:422});
-  await expect(svc().decide(reviewer,p.id,decision({assigneeId:null,technicalId:null}),k())).resolves.toMatchObject({work:{assignee_id:member.id}});
+  const changed=await svc().decide(reviewer,p.id,decision({assigneeId:approver.id}),k());
+  expect(changed.work).toMatchObject({assignee_id:approver.id});
+  expect((await rows<{payload:R}>("SELECT payload FROM audit_events WHERE work_id=$1 AND kind='created'",[changed.work!.id]))[0].payload).toMatchObject({changedBySeat:['assigneeId'],proposed:{assigneeId:member.id},final:{assigneeId:approver.id}});
+  // a null keeps the proposed person
+  const kept=await file({assigneeId:member.id},pm);
+  await expect(svc().decide(reviewer,kept.id,decision({assigneeId:null,technicalId:null}),k())).resolves.toMatchObject({work:{assignee_id:member.id}});
   const q=await file({assigneeId:member.id},pm);
   const same=await svc().decide(approver,q.id,decision({assigneeId:member.id}),k());
   expect(same.work).toMatchObject({assignee_id:member.id});
-  expect((await rows<{payload:R}>("SELECT payload FROM audit_events WHERE work_id=$1 AND kind='created'",[same.work!.id]))[0].payload).toMatchObject({filledBySeat:[]});
+  expect((await rows<{payload:R}>("SELECT payload FROM audit_events WHERE work_id=$1 AND kind='created'",[same.work!.id]))[0].payload).toMatchObject({filledBySeat:[],changedBySeat:[]});
 });
 
 test('a BoM seat rejects with a note; no work item is made; the approval needs a service of that project',async()=>{
@@ -225,7 +226,7 @@ test('a BoM seat rejects with a note; no work item is made; the approval needs a
 
 test('(7) a seat does not decide its own request; the database refuses it too',async()=>{
   const r=await file({},pm);
-  await expect(svc().decide(pm,r.id,decision(),k())).rejects.toMatchObject({code:'SELF_APPROVAL',status:403,message:'Người tạo việc không tự duyệt việc của mình.'});
+  await expect(svc().decide(pm,r.id,decision(),k())).rejects.toMatchObject({code:'SELF_APPROVAL',status:403,message:'Người tạo việc không tự duyệt việc của mình. Nhờ một BoM Tech khác hoặc một ghế BoM khác của dự án duyệt.'});
   await expect(svc().decide(pm,r.id,decision({decision:'reject'}),k())).rejects.toMatchObject({code:'SELF_APPROVAL'});
   expect(await row(r.id)).toMatchObject({state:'pending',version:1});
   // the requester who is not a seat is not told anything about the row: the same answer as for an id that does not exist
@@ -250,9 +251,9 @@ test('(7) a seat does not decide its own request; the database refuses it too',a
   expect(await row(t.id)).toMatchObject({state:'pending',version:1});
 });
 
-test('(8) a manager without a seat, a seat without Telegram, a disabled scope and a project without a scope all stop the decision',async()=>{
+test('(8) a manager without a seat, a disabled scope and a project without a scope all stop the decision of a project member; a seat without Telegram still decides on the web (0.9.2, M5)',async()=>{
   // a person who holds no seat of the project cannot see the request at all (row level security), so the answer is the one for an unknown id
-  const deny=async(who:Principal,id:string)=>expect(svc().decide(who,id,decision(),k())).rejects.toMatchObject({code:'NOT_FOUND',status:404,message:'Không tìm thấy yêu cầu trong phạm vi được cấp.'});
+  const deny=async(who:Principal,id:string)=>expect(svc().decide(who,id,decision(),k())).rejects.toMatchObject({code:'NOT_FOUND',status:404,message:'Không tìm thấy yêu cầu trong phạm vi được cấp. Tải lại danh sách.'});
   // transport has no scope: pm manages it, still no seat
   const t=await file({projectId:ids.transport});
   await deny(pm,t.id);
@@ -262,9 +263,9 @@ test('(8) a manager without a seat, a seat without Telegram, a disabled scope an
   await h.operator.query(`INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) VALUES($1,$2,$3,'manager')`,[ids.tenant,stranger.id,ids.sales]);
   const a=await file();
   await deny(stranger,a.id);
-  // a seat whose Telegram link is gone
+  // a seat whose Telegram link is gone keeps deciding on the web (M5); only the 3/3 ballot needs the link
   await h.operator.query('DELETE FROM identity.telegram_links WHERE user_id=$1',[approver.id]);
-  await deny(approver,a.id);
+  expect((await svc().list(approver,{})).items.find(i=>i.id===a.id)).toMatchObject({can_decide:true});
   // a disabled scope takes every seat away
   await h.operator.query('UPDATE bom_scopes SET enabled=false WHERE project_id=$1',[ids.sales]);
   await deny(pm,a.id);
@@ -497,7 +498,7 @@ describe('(14) the HTTP routes',()=>{
   test('POST /work answers 410 and writes nothing; POST /work-requests is 201 then 200 on a replay; the list and the catalog answer',async()=>{
     const gone=await call('POST',['work'],'manager',{});
     expect(gone.status).toBe(410);
-    expect((await gone.json()).error).toMatchObject({code:'WORK_REQUEST_REQUIRED',message:'Việc mới được gửi để BoM duyệt.'});
+    expect((await gone.json()).error).toMatchObject({code:'WORK_REQUEST_REQUIRED',message:'Việc mới đi qua yêu cầu chờ BoM duyệt. Gửi yêu cầu ở trang «Việc chờ BoM duyệt».'});
     const body=input({projectId:ids.transport,title:'Việc gửi qua đường HTTP'});
     const created=await call('POST',['work-requests'],'manager',body);
     expect(created.status).toBe(201);
