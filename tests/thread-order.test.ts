@@ -36,12 +36,14 @@ async function restoreGuards(db:Harness){
     if(r.rows[0]&&r.rows[0].tgenabled==='D') await db.exec(`ALTER TABLE public.${table} ENABLE ${state==='A'?'ALWAYS ':''}TRIGGER ${trigger}`);
   }
 }
-beforeEach(async()=>{needsForward=false;h=await openHarness();await restoreGuards(h);await h.reset();await seedSlice1(h);});
+// 024 sits on top of 023: these cases roll 023 back, so 024 is taken off first and put back after
+beforeEach(async()=>{needsForward=false;h=await openHarness();await h.exec(await file('migrations/rollback/024_work_requests.sql'));await restoreGuards(h);await h.reset();await seedSlice1(h);});
 afterEach(async()=>{
   await h.exec('ROLLBACK').catch(()=>{});
   try {
     // a case that rolled 023 back puts it back before the harness truncates: the database may be a shared native one
     if(needsForward) await h.exec(await forwardSql());
+    await h.exec(await file('migrations/024_work_requests.sql'));
   } finally {
     await restoreGuards(h);
     await h.reset();await h.close();

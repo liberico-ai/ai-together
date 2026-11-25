@@ -6,6 +6,7 @@ import path from 'node:path';
 import { embeddedDatabase, scoped, type Database } from '../src/server/db';
 import { seed, demoSha } from '../src/server/seed';
 import { WorkService } from '../src/server/service';
+import { WorkRequestService } from '../src/server/work-requests';
 import { demoProfiles as profiles, ids, otherPrincipal } from '../src/server/identities';
 import { createSession, principalFromRequest, COOKIE, endSession } from '../src/server/auth';
 import { handleApi } from '../src/server/http';
@@ -59,7 +60,8 @@ describe('scope and identity',()=>{
   test('bot and customer cannot write, even with a forged body',async()=>{
     for(const p of [profiles.bot,profiles.customer]) {
       await expect(service.command(p,ids.transportWork,{kind:'close_ticket',actorId:profiles.manager.id},key())).rejects.toMatchObject({code:'READ_ONLY'});
-      await expect(service.create(p,{},key())).rejects.toMatchObject({code:'READ_ONLY'});
+      await expect(new WorkRequestService(db).submit(p,{projectId:ids.transport,requestKey:randomUUID(),code:null,title:'Việc do vai chỉ đọc gửi',priority:'normal',dueAt:null,criteria:'',specUrl:null,assigneeId:null,technicalId:null,businessId:null}))
+        .rejects.toMatchObject({code:p.role==='bot'?'READ_ONLY':'WORK_REQUEST_DENIED',status:403});
       await expect(service.refresh(p)).rejects.toMatchObject({code:'READ_ONLY'});
     }
   });
@@ -144,13 +146,17 @@ describe('state and acceptance',()=>{
       await expect(scoped(db,profiles.manager,tx=>tx.query('DELETE FROM '+table))).rejects.toThrow();
     }
   });
-  test('create validates assignment and scoped service; fresh work enters planned state',async()=>{
-    const input={projectId:ids.sales,serviceId:ids.salesService,code:'DEMO-NEW',title:'Việc mới để kiểm tra',priority:'normal',dueAt:null,assigneeId:profiles.engineer.id,technicalId:profiles.technical.id,businessId:profiles.business.id,criteria:'Tiêu chí kiểm thử đầy đủ.',specUrl:'https://example.com/demo/new',sourceSha:demoSha};
-    await expect(service.create(profiles.manager,{...input,technicalId:profiles.engineer.id},key())).rejects.toMatchObject({code:'SELF_ACCEPTANCE'});
-    await expect(service.create(profiles.manager,{...input,tenantId:ids.tenant},key())).rejects.toThrow();
-    await expect(service.create(profiles.manager,{...input,serviceId:ids.otherService},key())).rejects.toMatchObject({code:'SCOPE_DENIED'});
-    const d=await service.create(profiles.manager,input,key()); expect(d.work.state).toBe('planned'); expect(d.events).toHaveLength(1);
-    expect((await service.refresh(profiles.manager)).summary.total).toBe(6);
+  test('a work request validates the proposed people; it is pending and creates no work',async()=>{
+    const requests=new WorkRequestService(db);
+    const input={projectId:ids.sales,requestKey:randomUUID(),code:null,title:'Việc mới để kiểm tra',priority:'normal',dueAt:null,assigneeId:profiles.engineer.id,technicalId:profiles.technical.id,businessId:profiles.business.id,criteria:'Tiêu chí kiểm thử đầy đủ.',specUrl:'https://example.com/demo/new'};
+    // the demo profiles have no account rows, and the filing policy reads them (work_request_filer, 024): without one the service answers with the denial
+    await expect(requests.submit(profiles.manager,input)).rejects.toMatchObject({code:'WORK_REQUEST_DENIED',status:403});
+    await db.query(`INSERT INTO identity.users(id,tenant_id,username,name,role,password_hash) VALUES($1,$2,'foundation-manager',$3,'manager','fixture-only')`,[profiles.manager.id,ids.tenant,profiles.manager.name]);
+    await db.query(`INSERT INTO identity.memberships(tenant_id,user_id,project_id,project_role) VALUES($1,$2,$3,'manager')`,[ids.tenant,profiles.manager.id,ids.sales]);
+    await expect(requests.submit(profiles.manager,{...input,technicalId:profiles.engineer.id})).rejects.toMatchObject({code:'SELF_ACCEPTANCE'});
+    await expect(requests.submit(profiles.manager,{...input,tenantId:ids.tenant})).rejects.toThrow();
+    const filed=await requests.submit(profiles.manager,input); expect(filed.request.state).toBe('pending'); expect(filed.replayed).toBe(false);
+    expect((await service.refresh(profiles.manager)).summary.total).toBe(5);
     await expect(service.refresh(profiles.engineer)).rejects.toMatchObject({code:'MANAGER_REQUIRED'});
   });
 });
@@ -161,7 +167,7 @@ describe('HTTP contract',()=>{
     const cookie=cookieFor('bot');
     const visible=await handleApi(req('GET',{},cookie),['work'],db); expect(visible.status).toBe(200); expect((await visible.json()).data).toHaveLength(1);
     expect((await handleApi(req('GET',{},cookie),['work',ids.pilot],db)).status).toBe(404);
-    const denied=await handleApi(req('POST',{},cookie),['work'],db); expect(denied.status).toBe(403); expect((await denied.json()).error.code).toBe('READ_ONLY');
+    const denied=await handleApi(req('POST',{},cookie),['work-requests'],db); expect(denied.status).toBe(403); expect((await denied.json()).error.code).toBe('READ_ONLY');
     const cross=new Request(url+'/api/v1/work',{method:'POST',headers:{host:'127.0.0.1:3147',origin:'https://evil.example',cookie:cookieFor('manager')},body:'{}'});
     expect((await handleApi(cross,['work'],db)).status).toBe(403);
   });
@@ -169,7 +175,7 @@ describe('HTTP contract',()=>{
     const cookie=cookieFor('manager');
     for(const endpoint of [['workspace'],['overview'],['services'],['work',ids.pilot]]) expect((await handleApi(req('GET',{},cookie),endpoint,db)).status).toBe(200);
     expect((await handleApi(req('GET',{},cookie),['unknown'],db)).status).toBe(404);
-    expect((await handleApi(req('POST',{actorId:'forged'},cookie),['work'],db)).status).toBe(422);
+    expect((await handleApi(req('POST',{actorId:'forged'},cookie),['work-requests'],db)).status).toBe(422);
     const post=req('POST',{kind:'close_ticket',expectedVersion:1,ticketRef:'API-DEMO',note:'Đóng ticket qua API mô phỏng.'},cookie); post.headers.set('idempotency-key',key());
     const result=await handleApi(post,['work',ids.pilot,'commands'],db); expect(result.status).toBe(200); const json=await result.json(); expect(json.data.work.state).toBe('review'); expect(json.meta.requestId).toBeTruthy();
     expect((await handleApi(req('POST',{},cookie),['overview','refresh'],db)).status).toBe(200);

@@ -36,8 +36,10 @@ describe.skipIf(!native)('thread numbers under concurrency (native PostgreSQL)',
       if(r.rows[0]&&r.rows[0].tgenabled==='D') await h.exec(`ALTER TABLE public.${table} ENABLE ${state==='A'?'ALWAYS ':''}TRIGGER ${trigger}`);
     }
   };
-  beforeEach(async()=>{h=await openHarness();await restoreGuards();await h.reset();await seedSlice1(h);});
-  afterEach(async()=>{try {await restoreGuards();} finally {await h.reset();await h.close();}});
+  // 024 sits on top of 023 and the rollback of 023 refuses while a later migration is recorded: N18 and N18b need the file to reach its lock, so 024 is taken off first and put back after
+  const migration024=(dir:''|'rollback/')=>readFile(path.join(process.cwd(),'migrations',dir+'024_work_requests.sql'),'utf8');
+  beforeEach(async()=>{h=await openHarness();await h.exec(await migration024('rollback/'));await restoreGuards();await h.reset();await seedSlice1(h);});
+  afterEach(async()=>{try {await h.exec(await migration024(''));await restoreGuards();} finally {await h.reset();await h.close();}});
 
   const svc=()=>new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,bridgeConfig.intake!);
   const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;

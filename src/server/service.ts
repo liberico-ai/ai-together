@@ -10,7 +10,7 @@ import type { Principal, Work, WorkDetail, Evidence, AuditEvent, Acceptance, Sum
 
 const uuid = z.string().uuid();
 const sha = z.string().regex(/^[a-f0-9]{40}$/, 'Cần SHA đủ 40 ký tự.');
-const httpsUrl = z.string().url().max(1000).refine(v => { const u = new URL(v); return u.protocol === 'https:' && !u.username && !u.password; }, 'Dùng URL HTTPS không chứa thông tin đăng nhập.');
+export const httpsUrl = z.string().url().max(1000).refine(v => { const u = new URL(v); return u.protocol === 'https:' && !u.username && !u.password; }, 'Dùng URL HTTPS không chứa thông tin đăng nhập.');
 const base = { expectedVersion: z.number().int().positive() };
 const commandSchema = z.discriminatedUnion('kind', [
   z.object({ ...base, kind: z.literal('transition'), state: z.enum(['planned','doing','review','blocked','done']), note: z.string().trim().min(3).max(1000) }).strict(),
@@ -19,9 +19,7 @@ const commandSchema = z.discriminatedUnion('kind', [
   z.object({ ...base, kind: z.literal('close_ticket'), ticketRef: z.string().trim().min(3).max(120), note: z.string().trim().min(5).max(2000) }).strict(),
   z.object({ ...base, kind: z.literal('revise'), sourceSha: sha, criteria: z.string().trim().min(10).max(3000), specUrl: httpsUrl, dueAt: z.string().datetime().nullable(), assigneeId: uuid, technicalId: uuid, businessId: uuid, note: z.string().trim().min(5).max(2000) }).strict(),
 ]);
-const createSchema = z.object({ projectId: uuid, serviceId: uuid, code: z.string().regex(/^[A-Z0-9][A-Z0-9-]{2,39}$/), title: z.string().trim().min(5).max(200), priority: z.enum(['normal','high']), dueAt: z.string().datetime().nullable(), assigneeId: uuid.nullable(), technicalId: uuid.nullable(), businessId: uuid.nullable(), criteria: z.string().max(3000), specUrl: httpsUrl.nullable(), sourceSha: sha.nullable() }).strict();
 export type Command = z.infer<typeof commandSchema>;
-export type CreateWork = z.infer<typeof createSchema>;
 const transitions: Record<State, State[]> = { planned: ['doing','blocked'], doing: ['review','blocked'], review: ['doing','blocked','done'], blocked: ['doing','planned'], done: [] };
 export function currentAcceptance(work: Work, events: AuditEvent[]): Acceptance {
   const valid = (kind: string) => events.some(e => e.kind === kind && e.payload.revision === work.revision && e.payload.sourceSha === work.source_sha);
@@ -33,9 +31,10 @@ function canWriteSomewhere(p:Principal) {
     'READ_ONLY','Vai này chỉ được đọc dữ liệu trong phạm vi dự án.',403);
 }
 function assigned(p: Principal, work: Work) { invariant(p.role === 'manager' || p.id === work.assignee_id, 'NOT_ASSIGNED', 'Chỉ điều phối hoặc người được giao mới được thực hiện thao tác này.', 403); }
-async function approvers(p:Principal, assignee: string | null, tech: string | null, business: string | null, project: string) {
+export async function approvers(p:Principal, assignee: string | null, tech: string | null, business: string | null, project: string) {
   invariant(!assignee || (assignee !== tech && assignee !== business), 'SELF_ACCEPTANCE', 'Người thực hiện phải khác người nghiệm thu.', 422);
-  const people=process.env.LIBETECH_DEMO==='1'?Object.values(demoProfiles):await identityService().directory(p);
+  // demo mirrors the server directory: a principal sees only the people of projects they hold a grant in
+  const people=process.env.LIBETECH_DEMO==='1'?Object.values(demoProfiles).filter(x=>x.tenantId===p.tenantId).map(x=>({...x,projectIds:x.projectIds.filter(id=>p.projectIds.includes(id))})):await identityService().directory(p);
   for (const [id, role] of [[assignee,'engineer'],[tech,'technical'],[business,'business']]) {
     if (!id) continue;
     invariant(people.some(p => p.id === id && projectRole(p,project) === role), 'INVALID_ASSIGNMENT', 'Người được giao không có vai phù hợp trong dự án.', 422);
@@ -95,22 +94,6 @@ export class WorkService {
     const managed=p.projectIds.filter(id=>projectRole(p,id)==='manager');
     invariant(managed.length,'MANAGER_REQUIRED','Chỉ điều phối được làm mới bản tổng hợp.',403);
     return scoped(this.db,p,async tx => { for (const id of managed) await projectWorkSummary(tx,p.tenantId,id); return overview(tx); });
-  }
-  async create(p: Principal, input: unknown, key: string): Promise<WorkDetail> {
-    canWriteSomewhere(p);
-    const data = createSchema.parse(input);
-    invariant(projectRole(p,data.projectId)==='manager','MANAGER_REQUIRED','Chỉ điều phối dự án được tạo việc.',403);
-    await approvers(p,data.assigneeId,data.technicalId,data.businessId,data.projectId);
-    return scoped(this.db,p,async tx => {
-      invariant((await tx.query('SELECT id FROM services WHERE id=$1 AND project_id=$2',[data.serviceId,data.projectId])).rows.length,'SCOPE_DENIED','Hệ thống không thuộc phạm vi được cấp.',404);
-      return deduplicate(tx,p,data.projectId,key,data,async () => {
-        const work = (await tx.query<Work>(`INSERT INTO work_items(tenant_id,project_id,service_id,code,title,priority,due_at,assignee_id,technical_id,business_id,criteria,spec_url,source_sha)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`, [p.tenantId,data.projectId,data.serviceId,data.code,data.title,data.priority,data.dueAt,data.assigneeId,data.technicalId,data.businessId,data.criteria,data.specUrl,data.sourceSha])).rows[0];
-        await append(tx,p,work,'created',{ title:data.title,revision:1,sourceSha:data.sourceSha });
-        await projectWorkSummary(tx,p.tenantId,work.project_id);
-        return detail(tx,work);
-      });
-    });
   }
   async command(principal: Principal, id: string, input: unknown, key: string): Promise<WorkDetail> {
     canWriteSomewhere(principal);

@@ -399,12 +399,23 @@ describe.skipIf(!enabled)('N4 restore rehearsal with the real pg_dump and pg_res
     });
 
     test('R9 the plan names it pre-023, and the command of before N4 fails on it for a reason that has nothing to do with 023: the document and its revision point at each other (the red of F0)',async()=>{
-      const target=await freshDatabase();
+      // the bundle this archive is loaded into is the one of 023: a target with later migrations has tables the archive cannot carry (R9b)
+      const target=await freshDatabase('023');
       expect(await classify(oldArchive,target.name)).toMatchObject({code:0,out:'pre-023\n'});
       const r=await tool(OLD_RESTORE(target.name),oldArchive);
       expect(r.code,first(r.err)).not.toBe(0);
       said('R9 old command on a pre-023 archive with a document, exit '+r.code,r.err);
       expect(errLines(r.err)).toMatch(/fk_document_records_latest_revision/);
+    });
+
+    // An archive carries the tables of the bundle it was taken from. Loaded by a bundle with later migrations (024 here: the roster and the work requests), the plan refuses it and names
+    // the tables, as it does for a dump that was cut: it cannot tell a table that did not exist yet from data left out. Such an archive is loaded by its own bundle, then migrated forward.
+    test('R9b the plan refuses an archive taken before 024 for a target that has 024, and names the tables it lacks',async()=>{
+      const target=await freshDatabase();
+      const r=await classify(oldArchive,target.name);
+      expect(r.code).not.toBe(0);
+      expect(r.out).toBe('');
+      expect(r.err).toMatch(/Archive holds no data of table\(s\): .*public\.work_requests/);
     });
 
     test('R10 loaded with --disable-triggers, numbered by applying 023 again, checked by the file: every revision has a number, and the numbers are the ones that an in-place upgrade of the source gives',async()=>{

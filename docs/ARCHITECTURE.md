@@ -84,7 +84,11 @@ Tất cả phản hồi `{data,error,meta:{requestId}}`. List/detail áp dụng 
 | `GET /api/v1/services` | Danh mục scoped |
 | `GET /api/v1/work` | Danh sách scoped, tối đa 200 việc ở slice này |
 | `GET /api/v1/work/:id` | Việc, bằng chứng, sự kiện, nghiệm thu hiện hành |
-| `POST /api/v1/work` | Điều phối; Idempotency-Key; schema nghiêm |
+| `POST /api/v1/work` | Trả `410 WORK_REQUEST_REQUIRED`: việc mới đi qua yêu cầu chờ BoM duyệt |
+| `GET /api/v1/work-requests` | Yêu cầu của chính người gọi và yêu cầu của dự án mà người gọi giữ ghế BoM; phân trang, tối đa 200; không có `tenant_id`, khoá và hash |
+| `GET /api/v1/work-requests/catalog` | Danh mục dự án (id, tên, BU): đủ dự án cho thành viên Team Tech, dự án mình điều phối cho người khác |
+| `POST /api/v1/work-requests` | Thành viên Team Tech hoặc điều phối; `requestKey` chống ghi lặp (201, hoặc 200 khi gửi lại); schema nghiêm |
+| `POST /api/v1/work-requests/:id/decision` | Một ghế BoM của dự án, khác người tạo; expectedVersion + Idempotency-Key; duyệt tạo việc cùng transaction và điền chỗ người tạo để trống |
 | `POST /api/v1/work/:id/commands` | Người có quyền; expectedVersion + Idempotency-Key |
 | `POST /api/v1/overview/refresh` | Điều phối kích hoạt pipeline Z2 |
 | `POST /api/demo/session` | Local-only, synthetic, không phải production identity |

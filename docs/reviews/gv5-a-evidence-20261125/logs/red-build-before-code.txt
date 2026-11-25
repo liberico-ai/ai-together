@@ -1,0 +1,322 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/work-requests.test.ts (16 tests | 14 failed | 2 skipped) 7667ms
+   × (1) a Team Tech member sees every project and files into one they hold no grant in; a person off the roster sees an empty catalog 654ms
+   × (2) a viewer or engineer off the roster is denied, a bot is read-only, a project manager may file 506ms
+   × (3) the body cannot name the tenant, the requester or the state; identity comes from the session only 603ms
+   × (4) the same key and content replays the stored row; the same key with other content is a conflict 541ms
+   × (5) the requester and the BoM seats of the project see the request; another member of the project does not 496ms
+   × list: pending first, then newest first; paged with a hard cap 488ms
+   × (6) a BoM seat other than the requester approves: the work item, the audit trail and the decision are written together 484ms
+   × a BoM seat rejects with a note; no work item is made; the approval needs a service of that project 494ms
+   × (7) a seat does not decide its own request; the database refuses it too 555ms
+   × (8) a manager without a seat, a seat without Telegram, a disabled scope and a project without a scope all stop the decision 500ms
+   × (9) a stale version, a decided request and a taken code are refused; a taken code leaves the request pending 538ms
+   × (11) row level security: no context, other requester, other tenant and a filing into another tenant 625ms
+   × (12) changing the assignee of an approved work item still needs the 3/3 BoM receipt 542ms
+   ❯ (14) the HTTP routes (1)
+     × POST /work answers 410 and writes nothing; POST /work-requests is 201 then 200 on a replay; the list and the catalog answer 639ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/work-requests.test.ts > (1) a Team Tech member sees every project and files into one they hold no grant in; a person off the roster sees an empty catalog
+AssertionError: expected [] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+- [
+-   "11000000-0000-4000-8000-000000000001",
+-   "11000000-0000-4000-8000-000000000002",
+-   "11000000-0000-4000-8000-000000000003",
+- ]
++ []
+
+ ❯ tests/work-requests.test.ts:53:39
+     51| test('(1) a Team Tech member sees every project and files into one the…
+     52|   const catalog=await svc().catalog(tech);
+     53|   expect(catalog.map(c=>c.id).sort()).toEqual([ids.sales,ids.transport…
+       |                                       ^
+     54|   expect(Object.keys(catalog[0]).sort()).toEqual(['bu','id','name']);
+     55|   expect(catalog.some(c=>c.id===ids.otherProject)).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (2) a viewer or engineer off the roster is denied, a bot is read-only, a project manager may file
+AssertionError: promise resolved "{ request: {}, replayed: false }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "replayed": false,
++   "request": {},
+  }
+
+ ❯ tests/work-requests.test.ts:67:42
+     65| test('(2) a viewer or engineer off the roster is denied, a bot is read…
+     66|   for(const p of [viewer,member,reviewer])
+     67|     await expect(svc().submit(p,input())).rejects.toMatchObject({code:…
+       |                                          ^
+     68|   await expect(svc().submit(bot,input())).rejects.toMatchObject({code:…
+     69|   const mine=await svc().submit(pm,input({projectId:ids.transport}));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (3) the body cannot name the tenant, the requester or the state; identity comes from the session only
+AssertionError: promise resolved "{ request: {}, replayed: false }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "replayed": false,
++   "request": {},
+  }
+
+ ❯ tests/work-requests.test.ts:84:50
+     82| test('(3) the body cannot name the tenant, the requester or the state;…
+     83|   for(const extra of [{tenantId:ids.otherTenant},{requesterId:pm.id},{…
+     84|     await expect(svc().submit(tech,input(extra))).rejects.toBeInstance…
+       |                                                  ^
+     85|   await expect(svc().submit(tech,input({requestKey:'not-a-uuid'}))).re…
+     86|   await expect(svc().submit(tech,input({specUrl:'https://user:pw@examp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (4) the same key and content replays the stored row; the same key with other content is a conflict
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/work-requests.test.ts:103:61
+    101|   const first=await svc().submit(tech,body);
+    102|   const again=await svc().submit(tech,body);
+    103|   expect(first.replayed).toBe(false);expect(again.replayed).toBe(true);
+       |                                                             ^
+    104|   expect(again.request.id).toBe(first.request.id);
+    105|   expect(await n('work_requests')).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (5) the requester and the BoM seats of the project see the request; another member of the project does not
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/work-requests.test.ts:118:21
+    116|   const r=await file();
+    117|   const own=await svc().list(tech,{});
+    118|   expect(own.total).toBe(1);
+       |                     ^
+    119|   expect(own.items[0]).toMatchObject({id:r.id,project_name:expect.any(…
+    120|   for(const seat of [pm,reviewer,approver]) {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/14]⎯
+
+ FAIL  tests/work-requests.test.ts > list: pending first, then newest first; paged with a hard cap
+AssertionError: expected [] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+- [
+-   "0003f8df-6e83-422b-b1f4-5cfaa7ed3599",
+-   "c220d3fb-723a-491d-accd-371be613fbd2",
+-   "59dca0e9-47d3-4727-9609-ed42a4c3c684",
+- ]
++ []
+
+ ❯ tests/work-requests.test.ts:138:34
+    136|   await raw({id:rejected,created:'2026-01-02T10:00:00Z',state:'rejecte…
+    137|   const all=await svc().list(tech,{});
+    138|   expect(all.items.map(i=>i.id)).toEqual([newPending,oldPending,reject…
+       |                                  ^
+    139|   expect(all.items[2]).toMatchObject({state:'rejected',decider_name:pm…
+    140|   const page=await svc().list(tech,{limit:1,offset:1});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (6) a BoM seat other than the requester approves: the work item, the audit trail and the decision are written together
+AssertionError: expected {} to match object { state: 'approved', …(3) }
+
+- Expected
++ Received
+
+- {
+-   "decided_by": "14000000-0000-4000-8000-000000000001",
+-   "decider_name": "Điều phối LibeTech",
+-   "state": "approved",
+-   "version": 2,
+- }
++ {}
+
+ ❯ tests/work-requests.test.ts:151:24
+    149|   const r=await file({title:'Việc cần BoM phê duyệt',criteria:'Đạt khi…
+    150|   const done=await svc().decide(pm,r.id,decision(),k());
+    151|   expect(done.request).toMatchObject({state:'approved',decided_by:pm.i…
+       |                        ^
+    152|   expect(done.work).toMatchObject({project_id:ids.sales,service_id:ids…
+    153|   const code='WR-'+r.id.slice(0,8).toUpperCase();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/14]⎯
+
+ FAIL  tests/work-requests.test.ts > a BoM seat rejects with a note; no work item is made; the approval needs a service of that project
+AssertionError: expected undefined to match object { state: 'rejected', …(5) }
+
+- Expected:
+{
+  "decided_by": "14000000-0000-4000-8000-000000000003",
+  "decider_name": "Người duyệt kỹ thuật",
+  "decision_note": "Chưa thuộc phạm vi quý này.",
+  "state": "rejected",
+  "version": 2,
+  "work_id": null,
+}
+
++ Received:
+undefined
+
+ ❯ tests/work-requests.test.ts:181:27
+    179|   const done=await svc().decide(reviewer,r.id,decision({decision:'reje…
+    180|   expect(done.work).toBeNull();
+    181|   expect(await row(r.id)).toMatchObject({state:'rejected',decided_by:r…
+       |                           ^
+    182|   expect(await n('work_items')).toBe(before);
+    183|   expect((await rows<{kind:string}>('SELECT kind FROM work_request_eve…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (7) a seat does not decide its own request; the database refuses it too
+AssertionError: promise resolved "{ request: {}, work: null }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "request": {},
++   "work": null,
+  }
+
+ ❯ tests/work-requests.test.ts:195:53
+    193| test('(7) a seat does not decide its own request; the database refuses…
+    194|   const r=await file({},pm);
+    195|   await expect(svc().decide(pm,r.id,decision(),k())).rejects.toMatchOb…
+       |                                                     ^
+    196|   await expect(svc().decide(pm,r.id,decision({decision:'reject'}),k())…
+    197|   expect(await row(r.id)).toMatchObject({state:'pending',version:1});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (8) a manager without a seat, a seat without Telegram, a disabled scope and a project without a scope all stop the decision
+AssertionError: promise resolved "{ request: {}, work: null }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "request": {},
++   "work": null,
+  }
+
+ ❯ deny tests/work-requests.test.ts:214:89
+
+ ❯ tests/work-requests.test.ts:217:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (9) a stale version, a decided request and a taken code are refused; a taken code leaves the request pending
+AssertionError: promise resolved "{ request: {}, work: null }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "request": {},
++   "work": null,
+  }
+
+ ❯ tests/work-requests.test.ts:242:72
+    240| test('(9) a stale version, a decided request and a taken code are refu…
+    241|   const r=await file();
+    242|   await expect(svc().decide(pm,r.id,decision({expectedVersion:2}),k())…
+       |                                                                        ^
+    243|   expect(await row(r.id)).toMatchObject({state:'pending',version:1});
+    244|   const key=k();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (11) row level security: no context, other requester, other tenant and a filing into another tenant
+AssertionError: expected [] to deeply equal [ { id: undefined } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "id": undefined,
+-   },
+- ]
++ []
+
+ ❯ tests/work-requests.test.ts:307:180
+    305|   expect(await scoped(h.db,outsider,async tx=>(await tx.query('SELECT …
+    306|   expect(await scoped(h.db,outsider,async tx=>(await tx.query('SELECT …
+    307|   expect(await scoped(h.db,tech,async tx=>{await tx.query("SELECT set_…
+       |                                                                                                                                                                                    ^
+    308|   // history is append-only and requests are never deleted, whoever as…
+    309|   await expect(rows('DELETE FROM work_request_events')).rejects.toThro…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (12) changing the assignee of an approved work item still needs the 3/3 BoM receipt
+TypeError: Cannot read properties of null (reading 'assignee_id')
+ ❯ tests/work-requests.test.ts:317:16
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/14]⎯
+
+ FAIL  tests/work-requests.test.ts > (14) the HTTP routes > POST /work answers 410 and writes nothing; POST /work-requests is 201 then 200 on a replay; the list and the catalog answer
+AssertionError: expected 422 to be 410 // Object.is equality
+
+- Expected
++ Received
+
+- 410
++ 422
+
+ ❯ tests/work-requests.test.ts:335:25
+    333|   test('POST /work answers 410 and writes nothing; POST /work-requests…
+    334|     const gone=await call('POST',['work'],'manager',{});
+    335|     expect(gone.status).toBe(410);
+       |                         ^
+    336|     expect((await gone.json()).error).toMatchObject({code:'WORK_REQUES…
+    337|     const body=input({projectId:ids.transport,title:'Việc gửi qua đườn…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/14]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  14 failed | 2 skipped (16)
+   Start at  11:08:02
+   Duration  7.89s (tests 98%, transform 1%, import 1%)
+
