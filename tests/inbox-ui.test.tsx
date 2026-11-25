@@ -5,6 +5,9 @@ import { statusLabel, variantOf, inboxState, commandErrorMessage, initialDraft, 
 import { Inbox, InboxBody, IntakeCard, CardView, CardDetailView, SourceList, FailureList, GatewayHash } from '../src/components/inbox';
 import { api, ApiError } from '../src/components/api';
 import { ApprovalItem } from '../src/components/approvals';
+import { PoolItemView, PoolList, POOL_NOTE } from '../src/components/inbox-pool';
+import { WorkRequests } from '../src/components/work-requests';
+import type { PoolCard } from '../src/server/intake-pool';
 import { AccessActions, expandsAccess } from '../src/components/team-accounts';
 import type { CandidateCard, IntakeStatus, SourceAvailabilityRow, FailureRow } from '../src/server/inbox';
 
@@ -13,7 +16,8 @@ const status = (over: Partial<IntakeStatus> = {}): IntakeStatus => ({ receivedAt
 const pid = '22222222-2222-4222-8222-222222222222';
 const card = (over: Partial<CandidateCard> = {}): CandidateCard => ({ candidateId: '11111111-1111-4111-8111-111111111111', ref: 'IN-1111', projectId: pid,
   projectLabel: 'Dự án Thử', sourceRef: 'telegram:-1000000000001:42', receivedAt: '2026-11-13T01:00:00.000Z', classification: null, state: 'new', missingFields: [], duplicateCandidates: [],
-  contentMode: 'excerpt', excerpt: 'Cổng thanh toán lỗi từ 9 giờ', forwarded: false, attachments: [], ticketRef: null, status: status(), version: 1, ...over });
+  contentMode: 'excerpt', excerpt: 'Cổng thanh toán lỗi từ 9 giờ', forwarded: false, attachments: [], ticketRef: null, status: status(), version: 1,
+  trail: { label: 'Đã nhận — chưa thấy yêu cầu hay việc nào trong phạm vi của bạn', waitingOn: 'điều phối dự án', steps: [] }, ...over });
 // Only the (state, classification) pairs InboxService produces: ingest → new/null; need_info → needs_info/null (classification
 // unchanged); confirm → confirmed/type; dismiss and mark_duplicate from an open card keep null; reopen → new/null.
 const fresh = (over: Partial<CandidateCard> = {}) => card(over);
@@ -488,5 +492,77 @@ describe('UI-6 request failures', () => {
     // the card's own detail panel is this view, retrying with the same loader
     const { readFile } = await import('node:fs/promises');
     expect(await readFile('src/components/inbox.tsx', 'utf8')).toMatch(/<CardDetailView state=\{state\} onOpen=\{load\} onRetry=\{load\} \/>/);
+  });
+});
+
+// GIAO VIỆC 5 B: the trail strip, the pool item and the origin line of a request.
+describe('trail, pool and request origin (GIAO VIỆC 5 B)', () => {
+  const hiddenWords = /đã tạo|đã giao/i;
+  const poolCard = (over: Partial<PoolCard> = {}): PoolCard => ({ itemId: '33333333-3333-4333-8333-333333333333', ref: 'IN-33333333', state: 'unassigned', classification: null, dismissCode: null,
+    projectId: null, projectLabel: null, receivedAt: '2026-11-25T01:00:00.000Z', editedAt: null, revisionCount: 0, senderName: 'Thành viên Tech thử', forwarded: false, attachment: null,
+    receipt: { state: 'delivered', deliveredAt: '2026-11-25T01:00:05.000Z' }, version: 1,
+    trail: { label: 'Đã nhận — chưa gán dự án', waitingOn: 'người phân loại (Team Tech)', steps: [] }, links: [], ...over });
+  const projects = [{ id: pid, name: 'Dự án Thử', bu: 'BU Thử' }];
+
+  it('(24) a candidate card shows its trail; with only the receipt it says nothing was made', () => {
+    const html = render(card());
+    expect(html).toContain('Đã nhận — chưa thấy yêu cầu hay việc nào trong phạm vi của bạn');
+    expect(html).toContain('Đang chờ: <span class="inbox-wait">điều phối dự án</span>');
+    expect(html).not.toMatch(hiddenWords);
+  });
+  it('(26) an unassigned pool item says «chưa gán dự án», waits for the triager and shows no message text, file name or sender label', () => {
+    const html = renderToStaticMarkup(<PoolItemView card={poolCard()} projects={projects} onCommand={noop} />);
+    expect(html).toContain('Chưa gán dự án');
+    expect(html).toContain('người phân loại (Team Tech)');
+    expect(html).toContain(POOL_NOTE);
+    expect(html).toContain('Đã gửi biên nhận');
+    expect(html).not.toMatch(hiddenWords);
+    expect(html).not.toContain('excerpt');
+  });
+  it('(26) a Team Tech member without a right in the project sees the project name and the fact, never the title of the request', () => {
+    const html = renderToStaticMarkup(<PoolItemView card={poolCard({ state: 'assigned', projectId: pid, projectLabel: 'Dự án Thử', classification: 'request', version: 2,
+      trail: { label: 'Đã gán dự án Dự án Thử', waitingOn: '', steps: [] }, links: [] })} projects={projects} />);
+    expect(html).toContain('Dự án Thử');
+    expect(html).toContain('Đã gán dự án Dự án Thử');
+    expect(html).not.toContain('Tiêu đề bí mật');
+  });
+  it('a request filed from a message shows «Từ tin IN-…»; a form request does not', () => {
+    const item = (over: Record<string, unknown>) => ({ id: 'r', title: 'Việc từ tin nhóm', state: 'pending', project_name: 'Dự án Thử', priority: 'normal', requester_name: 'Người lập', created_at: '2026-11-25T01:00:00.000Z',
+      criteria: '', assignee_id: null, decided_by: null, can_decide: false, seat_open: true, origin: 'form', source_ref: null, ...over });
+    const html = (over: Record<string, unknown>) => renderToStaticMarkup(<WorkRequests initial={{ items: [item(over)] as never, total: 1 }} services={[]} />);
+    expect(html({ origin: 'intake', source_ref: 'IN-1A2B3C4D · 11111111-1111-4111-8111-111111111111' })).toContain('Từ tin IN-1A2B3C4D');
+    expect(html({})).not.toContain('Từ tin');
+  });
+  it('(17) the pool note sends the triager to the IN code of the receipt, shows no locator and no chat id; the page counts only what has no project, never a sum across projects', () => {
+    expect(POOL_NOTE).toContain('mã IN');
+    const one = (over: Partial<PoolCard>) => poolCard(over);
+    const html = renderToStaticMarkup(<PoolList projects={projects} initial={{ unassigned: 1, items: [
+      one({ itemId: 'a1111111-1111-4111-8111-111111111111', ref: 'IN-A1111111', state: 'assigned', projectId: pid, projectLabel: 'Dự án Thử', classification: 'request' }),
+      one({ itemId: 'b2222222-2222-4222-8222-222222222222', ref: 'IN-B2222222', state: 'assigned', projectId: pid, projectLabel: 'Dự án Khác', classification: 'request' }),
+      one({})] }} />);
+    expect(html).toContain('1 tin chưa gán dự án');
+    expect(html).not.toMatch(/\d+ \/ \d+|t\.me|https?:/);
+    expect(renderToStaticMarkup(<PoolItemView card={poolCard()} projects={projects} />)).not.toMatch(/t\.me|-100\d|href=/);
+  });
+  it('(28) the button pressed decides the command: «Liên kết việc đã có» sends link_work with the work id, «Tạo yêu cầu…» sends file_request', () => {
+    const sent: Record<string, unknown>[] = [];
+    const values: Record<string, string> = { projectId: pid, classification: 'request', title: 'Việc thử từ tin nhóm', criteria: '', priority: 'normal', workId: ' 44444444-4444-4444-8444-444444444444 ' };
+    // a browser leaves the submit button out of new FormData(form); the stub does the same, so the handler has to take the button from the submit event (Codex, PR B)
+    vi.stubGlobal('FormData', class { get(k: string) { return k in values ? values[k] : null; } });
+    try {
+      const form = hosts(<PoolItemView card={poolCard()} projects={projects} onCommand={c => { sent.push(c); }} />).find(h => h.type === 'form')!;
+      const submit = (value: string) => (form.props.onSubmit as (e: unknown) => void)({ preventDefault() {}, currentTarget: {}, nativeEvent: { submitter: { name: 'mode', value } } });
+      submit('link');
+      submit('file');
+    } finally { vi.unstubAllGlobals(); }
+    expect(sent.map(c => c.kind)).toEqual(['link_work', 'file_request']);
+    expect(sent[0]).toMatchObject({ projectId: pid, workId: '44444444-4444-4444-8444-444444444444' });
+    expect(sent[1]).toMatchObject({ projectId: pid, title: 'Việc thử từ tin nhóm' });
+  });
+  it('(27) the reports read no intake, pool or link table, so nothing adds a received count to a count of work or across domains', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const reports = await readFile('src/server/reports.ts', 'utf8');
+    expect(reports).not.toMatch(/intake_|source_events|outbox_|work_requests/);
+    for (const f of ['src/components/inbox-pool.tsx', 'src/components/inbox-trail.tsx', 'src/server/intake-trail.ts']) expect(await readFile(f, 'utf8'), f).not.toMatch(/\.reduce\(|sum\(/i);
   });
 });

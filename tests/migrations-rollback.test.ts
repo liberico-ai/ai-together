@@ -742,3 +742,100 @@ test('rollback 024 refuses while a later migration is recorded or a request or r
     await h.reset();await h.close();
   }
 });
+
+test('rollback 025 refuses while a later migration is recorded or a pool item, event or link exists; it drops what 025 made; applying 025 twice is fine',async()=>{
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/025_intake_pool_links.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/025_intake_pool_links.sql'),'utf8');
+  expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+ROLE|DROP\s+SCHEMA/i);
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  const full=['intake_pool_items','intake_pool_events','intake_work_links'];
+  const present=async()=>(await q<{t:string|null}>("SELECT to_regclass(n)::text t FROM unnest(ARRAY['public.intake_pool_items','public.intake_pool_events','public.intake_work_links']) n")).map(r=>r.t);
+  const names=['intake_link_allowed','intake_pool_items_guard','intake_pool_links_outside','intake_pool_sender','intake_work_links_bind','tech_roster_names'];
+  const functions=async()=>(await q<{n:string}>("SELECT p.proname n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE s.nspname='public' AND p.proname = ANY($1::text[]) ORDER BY 1",[names])).map(r=>r.n);
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='025'")).length;
+  const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);await seedMembers(h);
+    later=(await from013()).filter(f=>num(f)>25);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    expect(await present()).toEqual(full);
+    expect(await functions()).toEqual(names);
+    // 1. a later version recorded
+    await q("INSERT INTO schema_migrations(version) VALUES('026')");
+    try { await refused(/later/i); } finally { await q("DELETE FROM schema_migrations WHERE version='026'"); }
+    expect(await present()).toEqual(full);expect(await applied()).toBe(1);
+    // 2. a pool item (the sender is a user of the tenant)
+    const item=randomUUID();
+    await q(`INSERT INTO intake_pool_items(id,tenant_id,source_id,source_type,quality_score,chat_id,message_id,sender_id,observed_at,content_hash,trace_id,correlation_id)
+      VALUES($1,$2,'telegram:-10012345:1','telegram_gateway',100,'-10012345','1',$3,now(),$4,$5,$5)`,[item,ids.tenant,member.id,'d'.repeat(64),randomUUID()]);
+    await refused(/intake_pool_items holds rows/i);
+    expect(await present()).toEqual(full);expect(await applied()).toBe(1);
+    // 3. the rows go (the test copy is thrown away; the file itself never deletes them) and the rollback then runs
+    await q('TRUNCATE intake_pool_items CASCADE');
+    expect(await present()).toEqual(full);
+    // 4. clean: tables and functions go, 025 is forgotten
+    await h.exec(rollback);
+    expect(await present()).toEqual([null,null,null]);
+    expect(await functions()).toEqual([]);
+    expect(await applied()).toBe(0);
+    expect((await q("SELECT count(*)::int n FROM pg_policies WHERE policyname='identity_blockers'"))[0]).toEqual({n:0});
+    // 5. repeatable once rolled back; forward twice leaves one of everything
+    await h.exec(rollback);
+    await h.exec(forward);await h.exec(forward);
+    expect(await applied()).toBe(1);
+    expect(await present()).toEqual(full);
+    expect(await functions()).toEqual(names);
+    expect((await q("SELECT count(*)::int n FROM pg_policies WHERE tablename IN ('intake_pool_items','intake_pool_events','intake_work_links')"))[0]).toEqual({n:12});
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});
+
+test('rollback 026 refuses while a later migration is recorded or a pool receipt exists; it restores the 017 shape; applying 026 twice is fine',async()=>{
+  const h=await openHarness();
+  const forward=await readFile(dir('migrations/026_outbox_pool_receipt.sql'),'utf8');
+  const rollback=await readFile(dir('migrations/rollback/026_outbox_pool_receipt.sql'),'utf8');
+  expect(rollback.replace(/--.*$/gm,'')).not.toMatch(/CASCADE|DROP\s+ROLE|DROP\s+SCHEMA/i);
+  const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
+  const column=async()=>(await q("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='outbox_messages' AND column_name='pool_item_id'")).length;
+  const applied=async()=>(await q("SELECT 1 FROM schema_migrations WHERE version='026'")).length;
+  const templates=async()=>(await q<{d:string}>("SELECT pg_get_constraintdef(oid) d FROM pg_constraint WHERE conrelid='public.outbox_messages'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%intake.attachment_failed%'")).map(r=>r.d);
+  const refused=async(pattern:RegExp)=>{await expect(h.exec(rollback)).rejects.toThrow(pattern);await h.exec('ROLLBACK');};
+  let later:string[]=[];
+  try {
+    await h.reset();await seedSlice1(h);await seedMembers(h);
+    later=(await from013()).filter(f=>num(f)>26);
+    for(const f of [...later].reverse()) await h.exec(await readFile(dir('migrations/rollback/'+f),'utf8'));
+    expect(await column()).toBe(1);
+    expect((await templates()).join()).toContain('intake.pool_received');
+    await q("INSERT INTO schema_migrations(version) VALUES('027')");
+    try { await refused(/later/i); } finally { await q("DELETE FROM schema_migrations WHERE version='027'"); }
+    expect(await column()).toBe(1);expect(await applied()).toBe(1);
+    // a pool receipt
+    const item=randomUUID();
+    await q(`INSERT INTO intake_pool_items(id,tenant_id,source_id,source_type,quality_score,chat_id,message_id,sender_id,observed_at,content_hash,trace_id,correlation_id)
+      VALUES($1,$2,'telegram:-10012345:1','telegram_gateway',100,'-10012345','1',$3,now(),$4,$5,$5)`,[item,ids.tenant,member.id,'d'.repeat(64),randomUUID()]);
+    await q(`INSERT INTO outbox_messages(tenant_id,project_id,pool_item_id,event_id,event_type,trace_id,correlation_id,audience,target_chat_id,reply_to_message_id,template,payload,dedupe_key)
+      VALUES($1,NULL,$2,$3,'intake.pool_received',$4,$4,'group','-10012345','1','intake.pool_received','{}',$5)`,[ids.tenant,item,randomUUID(),randomUUID(),'t-'+item]);
+    await refused(/pool receipts/i);
+    expect(await column()).toBe(1);expect(await applied()).toBe(1);
+    await q('TRUNCATE outbox_messages, intake_pool_items CASCADE');
+    await h.exec(rollback);
+    expect(await column()).toBe(0);expect(await applied()).toBe(0);
+    expect((await templates()).join()).not.toContain('pool_received');
+    await h.exec(rollback);
+    await h.exec(forward);await h.exec(forward);
+    expect(await column()).toBe(1);expect(await applied()).toBe(1);
+    expect((await templates()).join()).toContain('intake.pool_received');
+  } finally {
+    await h.exec('ROLLBACK').catch(()=>{});
+    await h.exec(forward);
+    for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
+    await h.reset();await h.close();
+  }
+});

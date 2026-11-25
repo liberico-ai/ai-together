@@ -1,0 +1,107 @@
+
+ RUN  v5.1.0 <repo>
+
+(node:37097) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:42599) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:42714) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:44870) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:45557) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:48683) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:52230) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:53424) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:55750) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ❯ tests/thread-order-concurrency.test.ts (30 tests | 30 failed) 5336ms
+   ❯ thread numbers under concurrency (native PostgreSQL) (30)
+     × N1 two intake transactions of one thread take turns: the second waits for the first to commit and gets the next number 183ms
+     × N2 a thread that has no head row yet is safe with two writers 272ms
+     × N3 another thread of the same project does not wait 267ms
+     × N4 an intake that waits past the cap fails with 55P03 and stores nothing; the same event is stored once the thread is free 166ms
+     × N5 the intake role scoped to another project is answered at once while the thread is held 168ms
+     × N6 a REPEATABLE READ writer that raced is refused with 40001 162ms
+     × N16 a replayed revision returns at once while its thread is held, and takes no lock 165ms
+     × N7 a confirmation that carries the position it read waits for an intake of the thread in flight and is refused once that intake commits 193ms
+     × N8 an intake waits for a confirmation in flight; the confirmation commits first 164ms
+     × N9 a rejection does not wait for an intake of the thread 172ms
+     × N10 scoped to another project, the runtime role is answered at once while the thread is held 162ms
+     × N11 intake, a mapping insert and a confirmation of one project never deadlock: the confirmation waits for the mapping, then for the intake, and is refused 166ms
+     × N17 an open triage of the candidate, an intake of its thread and a confirmation do not deadlock 166ms
+     × N18 the rollback waits for a confirmation in flight and then refuses: the position that was written is not lost 163ms
+     × N19 two confirmations of one thread take turns: while one holds the counter row the other waits, and so does an intake 164ms
+     × N19b the same with the guard of 022 switched off, so that the lock on the project row does not do the work: the counter row alone makes them take turns 163ms
+     × N20 the guard of a project locks the counter row of its own thread and none of another project that has the same chat and thread key 169ms
+     × N12 the reverse-commit gap is closed: a message whose intake transaction began before the draft's message and committed after the context was read holds the draft 173ms
+     × N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stays free 168ms
+     × N14 a confirmation in flight makes an intake of the thread wait; both commit; a second draft that names the old message is then held 161ms
+     × N15 a confirmation that waits past the cap fails with the database error 55P03 and writes nothing; the same command succeeds once the thread is free 170ms
+     × N21 a confirmation of a person for whom the draft is masked, or who may not decide, does not wait for the counter row of the thread: it is answered while an edit holds the row, and stores nothing 205ms
+     × N18b a confirmation that has read the revision table and has not written yet, and the rollback: no deadlock, the confirmation is stored and the rollback refuses 217ms
+     × H3 a case that switches the guard of 022 and the numbering trigger off with committed statements and ends without putting them back 181ms
+     × H4 the case that follows finds both on, each as the file leaves it: the hooks put them back 161ms
+     × N23 the check for a revision without a number is made after the wait for the counter row: one that commits while the confirmation waits is seen 162ms
+     × N22 the boundary that remains: the owner who switches the numbering trigger off, writes and switches it on again in one transaction, without the counter row, after the check and before the commit, is not caught 158ms
+     × N25 a restore (session_replication_role = replica) that writes a revision of the thread while a confirmation is in flight waits for it and is numbered after it 152ms
+     × N24 a maintenance session that takes the counter row FOR UPDATE before it writes a revision without a number waits for a confirmation in flight and writes after it 161ms
+     × N24b a confirmation that arrives while a maintenance session holds the counter row waits, and refuses once the session has written its revision without a number 202ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 30 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N1 two intake transactions of one thread take turns: the second waits for the first to commit and gets the next number
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N2 a thread that has no head row yet is safe with two writers
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N3 another thread of the same project does not wait
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N4 an intake that waits past the cap fails with 55P03 and stores nothing; the same event is stored once the thread is free
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N5 the intake role scoped to another project is answered at once while the thread is held
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N6 a REPEATABLE READ writer that raced is refused with 40001
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N16 a replayed revision returns at once while its thread is held, and takes no lock
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N7 a confirmation that carries the position it read waits for an intake of the thread in flight and is refused once that intake commits
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N8 an intake waits for a confirmation in flight; the confirmation commits first
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N9 a rejection does not wait for an intake of the thread
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N10 scoped to another project, the runtime role is answered at once while the thread is held
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N11 intake, a mapping insert and a confirmation of one project never deadlock: the confirmation waits for the mapping, then for the intake, and is refused
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N17 an open triage of the candidate, an intake of its thread and a confirmation do not deadlock
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N18 the rollback waits for a confirmation in flight and then refuses: the position that was written is not lost
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N19 two confirmations of one thread take turns: while one holds the counter row the other waits, and so does an intake
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N19b the same with the guard of 022 switched off, so that the lock on the project row does not do the work: the counter row alone makes them take turns
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N20 the guard of a project locks the counter row of its own thread and none of another project that has the same chat and thread key
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N12 the reverse-commit gap is closed: a message whose intake transaction began before the draft's message and committed after the context was read holds the draft
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N13 an edit in flight when the confirmation runs: the confirmation waits, then is held; nothing is stored and the key stays free
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N14 a confirmation in flight makes an intake of the thread wait; both commit; a second draft that names the old message is then held
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N15 a confirmation that waits past the cap fails with the database error 55P03 and writes nothing; the same command succeeds once the thread is free
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N21 a confirmation of a person for whom the draft is masked, or who may not decide, does not wait for the counter row of the thread: it is answered while an edit holds the row, and stores nothing
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N18b a confirmation that has read the revision table and has not written yet, and the rollback: no deadlock, the confirmation is stored and the rollback refuses
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > H3 a case that switches the guard of 022 and the numbering trigger off with committed statements and ends without putting them back
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > H4 the case that follows finds both on, each as the file leaves it: the hooks put them back
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N23 the check for a revision without a number is made after the wait for the counter row: one that commits while the confirmation waits is seen
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N22 the boundary that remains: the owner who switches the numbering trigger off, writes and switches it on again in one transaction, without the counter row, after the check and before the commit, is not caught
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N25 a restore (session_replication_role = replica) that writes a revision of the thread while a confirmation is in flight waits for it and is numbered after it
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N24 a maintenance session that takes the counter row FOR UPDATE before it writes a revision without a number waits for a confirmation in flight and writes after it
+ FAIL  tests/thread-order-concurrency.test.ts > thread numbers under concurrency (native PostgreSQL) > N24b a confirmation that arrives while a maintenance session holds the counter row waits, and refuses once the session has written its revision without a number
+error: Roll back the later migrations before 024.
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ Object.query src/server/db.ts:73:91
+     71|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+     72|   return {
+     73|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+       |                                                                                           ^
+     74|     async transaction(fn) {
+     75|       await check();
+ ❯ Object.exec tests/slice1-db.ts:39:24
+ ❯ tests/thread-order-concurrency.test.ts:41:46
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/30]⎯
+
+
+ Test Files  1 failed | 91 passed (92)
+      Tests  30 failed | 1562 passed (1592)
+   Start at  15:52:37
+   Duration  602.89s (tests 99%, import 1%)
+
+native exit 1

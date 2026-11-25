@@ -5,6 +5,7 @@ import type { Database } from './db';
 import { AppError } from './errors';
 import { body, failure, success } from './http';
 import { InboxService } from './inbox';
+import { PoolService } from './intake-pool';
 import { currentExcerptChats } from './bridge-config';
 
 // Same sentence as InboxService's out-of-scope answer: unknown path, unknown id and out-of-scope id are indistinguishable.
@@ -34,6 +35,14 @@ export async function handleInboxApi(request: Request, parts: string[], db: Data
     // OQ-30: the flag list is read from the operator config on every request, so a tightened config hides text at once.
     const inbox = new InboxService(db, await currentExcerptChats());
     const rest = parts.slice(1);
+    // GIAO VIỆC 5 B: the pool of the shared group. The Team Tech roster only; the service answers an empty list to anybody else.
+    if (rest[0] === 'pool') {
+      const pool = new PoolService(db);
+      if (m === 'GET' && rest.length === 1) return success(await pool.list(principal, query(request)), 200, requestId);
+      if (m === 'GET' && rest.length === 2) return success(await pool.detail(principal, rest[1]), 200, requestId);
+      if (m === 'POST' && rest.length === 3 && rest[2] === 'commands') return success(await pool.command(principal, rest[1], await body(request), requestId), 200, requestId);
+      throw notFound();
+    }
     if (m === 'GET' && rest.length === 0) return success(await inbox.list(principal, query(request)), 200, requestId);
     if (m === 'GET' && rest.length === 1 && rest[0] === 'sources') return success(await inbox.sources(principal, projectQuery.parse(query(request)).projectId), 200, requestId);
     if (m === 'GET' && rest.length === 1 && rest[0] === 'failures') return success(await inbox.failures(principal, projectQuery.parse(query(request)).projectId), 200, requestId);

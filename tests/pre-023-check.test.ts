@@ -32,7 +32,7 @@ let needsForward=false;
 beforeEach(async()=>{needsForward=false;h=await openHarness();await h.reset();await seedSlice1(h);});
 afterEach(async()=>{
   await h.exec('ROLLBACK').catch(()=>{});
-  try {if(needsForward) {await h.exec(await forwardSql());await h.exec(await file('migrations/024_work_requests.sql'));}} finally {await h.reset();await h.close();}
+  try {if(needsForward) {await h.exec(await forwardSql());for(const f of ['024_work_requests.sql','025_intake_pool_links.sql','026_outbox_pool_receipt.sql']) await h.exec(await file('migrations/'+f));}} finally {await h.reset();await h.close();}
 });
 const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
 
@@ -72,8 +72,8 @@ async function runFile(asRole?:string,settings:Record<string,string>={}):Promise
 const check=async(asRole?:string,settings:Record<string,string>={}):Promise<Answer>=>JSON.parse(await runFile(asRole,settings));
 async function rolledBack<T>(fn:()=>Promise<T>):Promise<T>{
   needsForward=true;
-  // 024 sits on top of 023: it is taken off first and put back with 023 in afterEach
-  await h.exec(await file('migrations/rollback/024_work_requests.sql'));
+  // 024, 025 and 026 sit on top of 023: it is taken off first and put back with 023 in afterEach
+  for(const f of ['026_outbox_pool_receipt.sql','025_intake_pool_links.sql','024_work_requests.sql']) await h.exec(await file('migrations/rollback/'+f));
   await h.exec(await rollbackSql());
   return fn();
 }

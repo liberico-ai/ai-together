@@ -2,12 +2,12 @@ import {readFile} from 'node:fs/promises';
 import {z} from 'zod';
 import {AppError} from './errors';
 export type ChatScopes=Record<string,string[]>;
-export type BridgeConfig={key:string;chatScopes:ChatScopes;intake?:{key:string;principalId:string;chats:string[];excerptChats?:string[]}};
+export type BridgeConfig={key:string;chatScopes:ChatScopes;intake?:{key:string;principalId:string;chats:string[];excerptChats?:string[];poolChats?:string[]}};
 const chatId=z.string().regex(/^-[1-9][0-9]*$/);
 const schema=z.object({
  key:z.string().min(43),
  chatScopes:z.record(chatId,z.array(z.string().uuid())),
- intake:z.object({key:z.string().min(43),principalId:z.string().uuid(),chats:z.array(chatId),excerptChats:z.array(chatId).optional()}).strict().optional(),
+ intake:z.object({key:z.string().min(43),principalId:z.string().uuid(),chats:z.array(chatId),excerptChats:z.array(chatId).optional(),poolChats:z.array(chatId).optional()}).strict().optional(),
 }).strict();
 export function parseBridgeConfig(raw:unknown):BridgeConfig {
  const c=schema.parse(raw);
@@ -16,6 +16,12 @@ export function parseBridgeConfig(raw:unknown):BridgeConfig {
   const allowed=new Set(Object.keys(c.chatScopes));
   if(!c.intake.chats.every(x=>allowed.has(x))) throw new Error('Intake chats must be a subset of chatScopes.');
   if(!(c.intake.excerptChats??[]).every(x=>c.intake!.chats.includes(x))) throw new Error('Intake excerpt chats must be a subset of intake chats.');
+  // A pool group (GIAO VIỆC 5 B) is a shared group whose messages become pool items without a project and without text. It is never an intake group and
+  // never a group whose text is stored; its project is never read from chatScopes.
+  const pool=c.intake.poolChats??[];
+  if(pool.some(x=>c.intake!.chats.includes(x)||(c.intake!.excerptChats??[]).includes(x))) throw new Error('Intake pool chats must not be intake chats or excerpt chats.');
+  // chatScopes also feeds the read bridge (bridge.ts): a pool group that named a project there would grant that project to the bot's reads
+  if(pool.some(x=>(c.chatScopes[x]??[]).length>0)) throw new Error('Intake pool chats must not grant a project in chatScopes.');
  }
  // A project id listed twice for one group is operator noise: lowercase (canonical uuid form), keep the first of each, in order (OQ-27 counts distinct projects).
  return {...c,chatScopes:Object.fromEntries(Object.entries(c.chatScopes).map(([k,v])=>[k,[...new Set(v.map(x=>x.toLowerCase()))]]))};

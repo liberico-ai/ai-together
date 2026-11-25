@@ -1754,3 +1754,105 @@ class DocumentApprovalCodeTests(unittest.TestCase):
         self.assertNotIn('account_approval_vote',[r['operation'] for r in requests])
 
 if __name__=='__main__':unittest.main()
+
+# ---- GIAO VIỆC 5 B: a pool chat (a shared group). Nothing of the message leaves the gateway but pointers and a keyed hash. ----
+POOL='-10012345'
+CANARY='canary-9e41b7'
+KEY=b'k'*32
+# the pool id is listed in poolChats ONLY: it is never also an intake chat (removing it from poolChats must stop everything)
+POOL_ON=dict(hookEnabled=True,chats=[GROUP],poolChats=[POOL])
+
+class PoolChatTests(unittest.TestCase):
+    def pool_event(self,text=CANARY+' nội dung',**fields):
+        return tg_event(text,source=dict(chat_id=POOL,message_id='77'),**fields)
+    def take_pool(self,event,key=KEY):
+        return bridge.intake_event(event,chats=frozenset([GROUP,POOL]),pool_chats=frozenset([POOL]),pool_key=key)
+    def test_a_pool_message_that_calls_the_bot_carries_no_text_and_no_label_and_only_a_keyed_hash(self):
+        body=self.take_pool(self.pool_event('/lam '+CANARY))
+        self.assertEqual(body['text'],'')
+        self.assertTrue(body['addressed'])
+        self.assertNotIn('actorLabel',body);self.assertNotIn('attachment',body)
+        self.assertNotIn(CANARY,json.dumps(body))
+        # a message that does not call the bot is not taken at all
+        self.assertIsNone(self.take_pool(self.pool_event()))
+        # the ordinary group keeps its text and its rules
+        self.assertEqual(bridge.intake_event(tg_event('Nhờ kiểm tra'),chats=frozenset([GROUP,POOL]),pool_chats=frozenset([POOL]),pool_key=KEY)['text'],'Nhờ kiểm tra')
+    def test_the_pool_hash_is_keyed_follows_the_text_and_survives_fit_event(self):
+        def sent(text,key=KEY):
+            return bridge.fit_event(self.take_pool(self.pool_event('/lam '+text),key))['contentHash']
+        a,b,c=sent('một'),sent('hai'),sent('một')
+        self.assertEqual(a,c);self.assertNotEqual(a,b)
+        self.assertNotEqual(a,hashlib.sha256(('/lam một').encode()).hexdigest())
+        self.assertNotEqual(a,hashlib.sha256(b'').hexdigest())
+        self.assertNotEqual(a,sent('một',b'z'*32))
+        self.assertRegex(a,r'^[a-f0-9]{64}$')
+    def test_the_hash_key_is_created_once_by_the_plugin_in_its_own_folder_and_never_sent(self):
+        with profile_home(**POOL_ON) as home:
+            key=bridge._pool_hash_key(home)
+            self.assertEqual(len(key),32)
+            path=home/'runtime/libetech-ai-os/pool-hash.key'
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode),0o600)
+            self.assertEqual(bridge._pool_hash_key(home),key)
+            hook=hook_of(home);sent=[]
+            with patch.object(bridge,'call_backend',lambda _h,event,**kw:(sent.append(event),dict(ACK))[1]):
+                hook(event=self.pool_event('/lam '+CANARY,reply_to_is_own_message=True))
+            self.assertEqual(len(sent),1)
+            self.assertNotIn(key.hex(),json.dumps(sent));self.assertNotIn(CANARY,json.dumps(sent))
+    def test_through_the_hook_a_pool_message_is_spooled_and_posted_without_text_file_name_or_download(self):
+        for backend_up in (True,False):
+            with profile_home(**POOL_ON) as home:
+                hook=hook_of(home)
+                download=Mock(return_value=b'%PDF-1.4 synthetic')
+                sent=[]
+                def backend(_home,event,**kw):
+                    sent.append(event);return dict(ACK)
+                attached=dict(attachment={'mime_type':'application/pdf','file_size':18,'file_name':CANARY+'.pdf'},download_attachment=download,
+                              media_urls=None,reply_to_is_own_message=True)
+                failing=Mock(side_effect=urllib.error.URLError('down'))
+                with patch.object(bridge,'call_backend',backend if backend_up else failing):
+                    self.assertIsNone(hook(event=self.pool_event(**attached)))
+                    self.assertIsNone(hook(event=tg_event(CANARY,source=dict(chat_id=POOL,message_id='78'))))
+                download.assert_not_called()
+                self.assertFalse((home/'runtime/libetech-ai-os/attachments').exists())
+                spooled=(home/'runtime/libetech-ai-os/intake-spool.jsonl')
+                everything=json.dumps(sent)+(spooled.read_text() if spooled.exists() else '')
+                self.assertNotIn(CANARY,everything)
+                if backend_up:
+                    self.assertEqual(len(sent),1);self.assertEqual(sent[0]['text'],'');self.assertNotIn('attachment',sent[0])
+                else:
+                    self.assertEqual(len(spool_lines(home)),1)
+                dead=home/'runtime/libetech-ai-os/intake-dead.jsonl'
+                self.assertNotIn(CANARY,dead.read_text() if dead.exists() else '')
+    def test_removing_the_id_from_poolchats_stops_everything_it_never_becomes_a_text_chat(self):
+        with profile_home(**POOL_ON) as home:
+            hook=hook_of(home)
+            backend=Mock(return_value=dict(ACK));download=Mock(return_value=b'%PDF-1.4 synthetic')
+            event=lambda:self.pool_event('/lam '+CANARY,reply_to_is_own_message=True,attachment={'mime_type':'application/pdf','file_size':18,'file_name':CANARY+'.pdf'},download_attachment=download)
+            with patch.object(bridge,'call_backend',backend):
+                hook(event=event())
+            self.assertEqual(backend.call_count,1)
+            # switched off: the id leaves poolChats and is not in chats
+            key=home/'runtime/libetech-ai-os/intake.json'
+            key.write_text(json.dumps({'key':INTAKE_KEY,'hookEnabled':True,'chats':[GROUP]}));os.chmod(key,0o600)
+            backend.reset_mock()
+            with patch.object(bridge,'call_backend',backend):
+                self.assertIsNone(hook(event=event()))
+            backend.assert_not_called();download.assert_not_called()
+            runtime=home/'runtime/libetech-ai-os'
+            self.assertFalse((runtime/'attachments').exists())
+            dead=runtime/'intake-dead.jsonl'
+            self.assertNotIn(CANARY,dead.read_text() if dead.exists() else '')
+            self.assertEqual(len(spool_lines(home)),0)
+    def test_the_pool_receipt_template_takes_only_the_reference_and_the_time_and_unknown_or_overlapping_config_is_refused(self):
+        text=bridge.render('intake.pool_received',{'ref':'IN-0A1B2C3D','observedAt':'2026-11-25T01:00:00.000Z','projectName':'Dự án bí mật','text':CANARY})
+        self.assertEqual(text,'Đã nhận, mã IN-0A1B2C3D. Chưa gán dự án. Đây chưa phải việc đã tạo.')
+        self.assertNotIn('Dự án bí mật',text);self.assertNotIn(CANARY,text)
+        with self.assertRaisesRegex(ValueError,'TEMPLATE_PARAMS_INVALID'):bridge.render('intake.pool_received',{'ref':'not-a-ref'})
+        # the id in both lists, a pool list that is not a list, a foreign key: refused
+        for fields in (dict(hookEnabled=True,chats=[GROUP,POOL],poolChats=[POOL]),dict(hookEnabled=True,chats=[GROUP],poolChats='x'),dict(hookEnabled=True,chats=[GROUP],other=[1])):
+            with profile_home(**fields) as home:
+                with self.assertRaisesRegex(ValueError,'INTAKE_CONFIG_INVALID'):bridge._intake_config(home)
+        with profile_home(**POOL_ON) as home:
+            config=bridge._intake_config(home)
+            self.assertEqual(config['poolChats'],frozenset([POOL]))
+            self.assertEqual(config['chats'],frozenset([GROUP]))

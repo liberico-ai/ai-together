@@ -2,6 +2,8 @@
 import { useState, type ReactNode } from 'react';
 import type { CandidateCard, SourceAvailabilityRow, FailureRow, RevisionView, EventView, DeliveryView } from '../server/inbox';
 import { api } from './api';
+import { TrailStrip } from './inbox-trail';
+import { CandidateWork, type PersonOption, type WorkContext, type WorkOption } from './inbox-work';
 import { inboxState, statusLabel, failureLabel, variantOf, isOpen, initialDraft, cardActions, commandErrorMessage, formatTime, sizeLabel, chatTail,
   templateLabel, sourceLabel, reloadInbox, loadDetail, VARIANT_NAMES, STATE_NAMES, CONFLICT_COPY, NOT_MANAGER_COPY, POINTER_ONLY_COPY, HIDDEN_COPY,
   type CardAction, type CardDraft, type DetailLoad, type InboxPageState } from './inbox-view';
@@ -79,14 +81,16 @@ const Section = ({ title, children }: { title: string; children: ReactNode }) =>
 const FieldList = ({ fields }: { fields: string[] }) => <ul className="inbox-plain">{fields.map(f => <li key={f} className="doc-wrap">{f}</li>)}</ul>;
 
 export type CardViewProps = { card: CandidateCard; canAct: boolean; draft: CardDraft; busy: boolean; error: string;
-  onDraft: (patch: Partial<CardDraft>) => void; onSubmit: (cmd: Record<string, unknown>) => void; onInvalid: (message: string) => void };
+  onDraft: (patch: Partial<CardDraft>) => void; onSubmit: (cmd: Record<string, unknown>) => void; onInvalid: (message: string) => void;
+  /** the actions that turn a confirmed message into work (GIAO VIỆC 5 B) */
+  extra?: ReactNode };
 
 /**
  * One card, without state of its own: the unsaved choices come in as `draft` and every change goes out through a callback.
  * An open card (new, needs_info) is always unclassified on the server; picking a type only changes the draft and shows that
  * type's inputs. The server is written only by a commit button, with the version the card was read at.
  */
-export function CardView({ card, canAct, draft, busy, error, onDraft, onSubmit, onInvalid }: CardViewProps) {
+export function CardView({ card, canAct, draft, busy, error, onDraft, onSubmit, onInvalid, extra }: CardViewProps) {
   const open = isOpen(card), editing = canAct && open, variant = variantOf(card, draft), unsaved = !card.classification && variant !== 'unclassified';
   const press = (a: CardAction) => { const b = a.build(); if (b.ok) onSubmit({ expectedVersion: card.version, ...b.cmd }); else onInvalid(b.error); };
   return <article className="inbox-card" aria-label={'Tin ' + card.ref} data-variant={variant} data-state={card.state}>
@@ -101,6 +105,7 @@ export function CardView({ card, canAct, draft, busy, error, onDraft, onSubmit, 
       : <NoTextNotice mode={card.contentMode} sourceRef={card.sourceRef} />}
     {card.attachments.length > 0 && <ul className="inbox-plain" aria-label="Tệp đính kèm">{card.attachments.map((a, i) => <li key={i} className="doc-wrap">
       {a.fileName || 'Tệp không tên'} · {a.mimeType} · {sizeLabel(a.sizeBytes)} · {a.state === 'stored' ? 'Đã ghi con trỏ' : a.state === 'too_large' ? 'Quá lớn, chỉ ghi thông tin' : a.state === 'unsupported_type' ? 'Loại tệp không nhận, chỉ ghi thông tin' : a.state}</li>)}</ul>}
+    <TrailStrip trail={card.trail} />
     <dl className="inbox-life">
       <div><dt>Nhận lúc</dt><dd>{formatTime(card.status.receivedAt)}</dd></div>
       <div><dt>Ghi lúc</dt><dd>{formatTime(card.status.persistedAt)}</dd></div>
@@ -134,12 +139,13 @@ export function CardView({ card, canAct, draft, busy, error, onDraft, onSubmit, 
       {cardActions(card, draft, canAct).map(a => <button key={a.label} type="button" className={a.primary ? 'doc-action' : 'doc-action inbox-secondary'} disabled={busy}
         onClick={() => press(a)}>{a.label}</button>)}
     </div> : <p className="doc-meta inbox-readonly">{NOT_MANAGER_COPY}</p>}
+    {extra}
     <CardDetail candidateId={card.candidateId} />
   </article>;
 }
 
 /** Holds one card's draft, busy flag and error. Without a command handler the card is read-only (I-1: nothing to send). */
-export function IntakeCard({ card, canAct, onCommand }: { card: CandidateCard; canAct: boolean; onCommand?: (cmd: Record<string, unknown>) => Promise<void> }) {
+export function IntakeCard({ card, canAct, onCommand, work }: { card: CandidateCard; canAct: boolean; onCommand?: (cmd: Record<string, unknown>) => Promise<void>; work?: WorkContext }) {
   const [draft, setDraft] = useState(() => initialDraft(card)), [busy, setBusy] = useState(false), [error, setError] = useState('');
   async function submit(cmd: Record<string, unknown>) {
     if (!onCommand) return;
@@ -147,11 +153,13 @@ export function IntakeCard({ card, canAct, onCommand }: { card: CandidateCard; c
     try { await onCommand(cmd); } catch (e) { setError(commandErrorMessage(e)); } finally { setBusy(false); }
   }
   return <CardView card={card} canAct={canAct && Boolean(onCommand)} draft={draft} busy={busy} error={error}
-    onDraft={patch => { setError(''); setDraft(d => ({ ...d, ...patch })); }} onSubmit={cmd => void submit(cmd)} onInvalid={setError} />;
+    onDraft={patch => { setError(''); setDraft(d => ({ ...d, ...patch })); }} onSubmit={cmd => void submit(cmd)} onInvalid={setError}
+    extra={work ? <CandidateWork card={card} work={work} /> : undefined} />;
 }
 
-export function InboxBody({ state, items, total, error, projectLabel, canAct, onRetry, onCommand }:
-  { state: InboxPageState; items: CandidateCard[]; total: number; error: string | null; projectLabel: string; canAct: boolean; onRetry?: () => void; onCommand?: (c: CandidateCard, cmd: Record<string, unknown>) => Promise<void> }) {
+export type InboxWork = { works: WorkOption[]; people: PersonOption[]; onCommand: (c: CandidateCard, cmd: Record<string, unknown>) => Promise<void> };
+export function InboxBody({ state, items, total, error, projectLabel, canAct, onRetry, onCommand, work }:
+  { state: InboxPageState; items: CandidateCard[]; total: number; error: string | null; projectLabel: string; canAct: boolean; onRetry?: () => void; onCommand?: (c: CandidateCard, cmd: Record<string, unknown>) => Promise<void>; work?: InboxWork }) {
   if (state === 'loading') return <div className="doc-list doc-skeleton" aria-busy="true" aria-label="Đang tải Inbox">{[0, 1, 2].map(i => <div key={i} className="doc-skel-row" aria-hidden="true" />)}</div>;
   if (state === 'denied') return <div className="doc-state doc-denied" role="status"><h2>Anh/chị chưa có quyền xem Inbox của dự án này</h2>
     <p>Liên hệ người quản lý để được cấp quyền. Trang này không hiện dữ liệu của dự án.</p></div>;
@@ -160,12 +168,13 @@ export function InboxBody({ state, items, total, error, projectLabel, canAct, on
   if (state === 'empty') return <div className="doc-state doc-empty"><h2>Chưa có tin nào được tiếp nhận cho dự án này</h2>
     <p>Tin chỉ vào Inbox khi gateway nhận được từ nhóm đã được cấu hình. Xem mục «Nguồn tin» ở trên để biết nhóm nào đã nhận.</p></div>;
   return <div className="doc-list" role="list" aria-label={'Tin của ' + projectLabel}>
-    {items.map(c => <div role="listitem" key={c.candidateId + ':' + c.version}><IntakeCard card={c} canAct={canAct} onCommand={onCommand && (cmd => onCommand(c, cmd))} /></div>)}
+    {items.map(c => <div role="listitem" key={c.candidateId + ':' + c.version}><IntakeCard card={c} canAct={canAct} onCommand={onCommand && (cmd => onCommand(c, cmd))}
+      work={work && { works: work.works, people: work.people, onCommand: cmd => work.onCommand(c, cmd) }} /></div>)}
     <p className="doc-meta" role="status">{items.length} / {total} tin</p></div>;
 }
 
-export function Inbox({ projects, projectId, initial, sources: initialSources, failures: initialFailures, denied, canAct }:
-  { projects: { id: string; name: string }[]; projectId: string | null; initial: Page | null; sources: SourceAvailabilityRow[]; failures: FailureRow[]; denied: boolean; canAct: boolean }) {
+export function Inbox({ projects, projectId, initial, sources: initialSources, failures: initialFailures, denied, canAct, works = [], people = [] }:
+  { projects: { id: string; name: string }[]; projectId: string | null; initial: Page | null; sources: SourceAvailabilityRow[]; failures: FailureRow[]; denied: boolean; canAct: boolean; works?: WorkOption[]; people?: PersonOption[] }) {
   const [page, setPage] = useState<Page | null>(initial), [loading, setLoading] = useState(false), [error, setError] = useState<string | null>(null),
     [notice, setNotice] = useState(''), [stale, setStale] = useState(false),
     [sources, setSources] = useState(initialSources), [failures, setFailures] = useState(initialFailures);
@@ -186,7 +195,9 @@ export function Inbox({ projects, projectId, initial, sources: initialSources, f
     setNotice('');
     try { await api('/api/inbox/' + c.candidateId + '/commands', cmd); }
     catch (e) { if (commandErrorMessage(e) === CONFLICT_COPY) setStale(true); throw e; }
-    setNotice('Đã ghi thao tác cho ' + c.ref + '. Chưa tạo, giao hay đóng việc nào.');
+    // the page is read again below, so the trail shows the new step and who it waits for
+    setNotice(cmd.kind === 'file_request' ? 'Đã lập yêu cầu việc từ ' + c.ref + '. Yêu cầu chờ ghế BoM của dự án duyệt; chưa phải việc đã có.'
+      : cmd.kind === 'link_work' ? 'Đã nối ' + c.ref + ' với việc có sẵn.' : 'Đã ghi thao tác cho ' + c.ref + '. Chưa tạo, giao hay đóng việc nào.');
     await load();
   }
   return <main className="doc-page">
@@ -197,7 +208,8 @@ export function Inbox({ projects, projectId, initial, sources: initialSources, f
     {stale && <p className="doc-meta"><button type="button" className="doc-action" onClick={() => void load()}>Tải lại danh sách</button></p>}
     <SourceList sources={sources} />
     <section className="inbox-section" aria-label="Tin đã tiếp nhận"><h2>Tin đã tiếp nhận</h2>
-      <InboxBody state={state} items={page?.items ?? []} total={page?.total ?? 0} error={error} projectLabel={projectLabel} canAct={canAct} onRetry={() => void load()} onCommand={command} /></section>
+      <InboxBody state={state} items={page?.items ?? []} total={page?.total ?? 0} error={error} projectLabel={projectLabel} canAct={canAct} onRetry={() => void load()} onCommand={command}
+        work={{ works: works.filter(w => w.projectId === projectId), people, onCommand: command }} /></section>
     <FailureList failures={failures} />
   </main>;
 }

@@ -35,13 +35,13 @@ const CLEAR_KIND_DEFAULTS=`DO $$ DECLARE r text; BEGIN
     EXECUTE format('ALTER ROLE %I IN DATABASE %I RESET libetech.archive_kind', r, current_database());
   END LOOP;
 END $$`;
-// 024 sits on top of 023: the cases that roll 023 back need 024 off first, and it is put back after
-beforeEach(async()=>{needsForward=false;undo=[];h=await openHarness();await h.exec(await file('migrations/rollback/024_work_requests.sql'));await h.exec(CLEAR_KIND_DEFAULTS);await h.reset();await seedSlice1(h);});
+// 024, 025 and 026 sit on top of 023: the cases that roll 023 back need 024 off first, and it is put back after
+beforeEach(async()=>{needsForward=false;undo=[];h=await openHarness();for(const f of ['026_outbox_pool_receipt.sql','025_intake_pool_links.sql','024_work_requests.sql']) await h.exec(await file('migrations/rollback/'+f));await h.exec(CLEAR_KIND_DEFAULTS);await h.reset();await seedSlice1(h);});
 afterEach(async()=>{
   await h.exec('ROLLBACK').catch(()=>{});
   try{
     if(needsForward) await h.exec(await forwardSql());
-    await h.exec(await file('migrations/024_work_requests.sql'));
+    for(const f of ['024_work_requests.sql','025_intake_pool_links.sql','026_outbox_pool_receipt.sql']) await h.exec(await file('migrations/'+f));
     for(const sql of undo.reverse()) await h.exec(sql);
     // a case that ended before its own undo must not leave the shared database with a trigger off or at the wrong state
     await h.exec(`ALTER TABLE public.source_event_revisions ENABLE ALWAYS TRIGGER ${NUMBERING}`).catch(()=>{});

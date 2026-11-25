@@ -1,0 +1,5 @@
+
+> libetech-ai-os@0.9.0 typecheck
+> tsc --noEmit
+
+typecheck exit 0

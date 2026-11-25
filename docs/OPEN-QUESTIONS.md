@@ -1169,3 +1169,18 @@ Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech 
   - **Cách hiểu chờ xác nhận:** câu «Quyết định khác cần BoM duyệt: hiện trạng thái và người đã duyệt theo quy chế hiện có» được áp cho việc duyệt việc mới mà thôi (trạng thái, người duyệt, thời điểm hiện trên màn hình). Hệ thống không áp nó cho quyết định nào khác.
   - Điều kiện để một thành viên Team Tech đăng nhập được: ít nhất một membership ở một dự án (`identity.ts`, `NO_PROJECT_ACCESS`). Ở trong danh sách Team Tech không thay cho membership.
   - Màn hình hiện trạng thái, người duyệt và thời điểm duyệt.
+
+## OQ-61 — Nhóm chung Dragon Forge: tin nào vào hàng phân loại, ai thấy gì, và một tin nối được bao nhiêu việc
+
+- **Lát:** GIAO VIỆC 5 hạng mục B (`docs/plans/gv5-b-intake-to-work.md`).
+- **Căn cứ:** lời Chairman 25/11/2026: «Dragon Forge = nhóm Telegram chung của cả Team Tech» — không gắn với dự án nào, dự án chọn ở bước phân loại, chưa chọn thì «chưa gán dự án»; mọi thành viên Tech gửi được vào intake từ Dragon Forge; quyền đọc theo quyền từng dự án; IBS HI chỉ con trỏ, hash và metadata công việc Tech (`AGENTS.md`). Repo hôm nay loại nhóm này khỏi pilot (`deploy/pilot-scope.json`), tin từ đó bị `SCOPE_DENIED` và không lưu.
+- **Đã có trong mã của PR B, không cần hỏi:** mục của nhóm chung không lưu chữ, tên tệp, nhãn người gửi; plugin bỏ các thứ đó trước khi gửi và không tải tệp; máy chủ bỏ lần nữa. Bot API của Telegram không đọc được lịch sử nhóm, nên mọi «xem lại» chỉ đọc dữ liệu đã lưu.
+- **B1 — tin nào vào hàng phân loại.** (1) chỉ tin gọi bot (lệnh, nhắc tên bot, trả lời bot); (2) mọi tin của thành viên Tech trong nhóm.
+- **B2 — sau khi gán dự án, ai thấy tên dự án.** (1) mọi thành viên Tech thấy tên dự án của mục; nội dung yêu cầu, quyết định và việc chỉ người có quyền ở dự án thấy; (2) chỉ người có quyền ở dự án thấy cả tên dự án.
+- **B3 — ở nhóm gắn dự án, ai lập yêu cầu việc từ một tin đã xác nhận.** (1) như hạng mục A: thành viên Team Tech, hoặc điều phối của dự án đó; (2) mọi người có vai đọc được tin đó (rộng hơn hạng mục A: thêm kỹ sư, người nghiệm thu kỹ thuật và nghiệp vụ của dự án); (3) chỉ điều phối của dự án.
+- **B4 — một tin nối được mấy việc.** (1) nhiều việc trong cùng một dự án; một mục của nhóm chung chỉ thuộc một dự án; (2) một tin một việc.
+- **B5 — số đếm theo miền.** (1) PR B không có báo cáo số đếm (cần bảng Z2 và projector có tên, AR-07 — lát riêng); (2) thêm ngay trong PR B.
+- **B6 — gỡ một liên kết sai.** (1) chưa có lệnh gỡ, liên kết chỉ thêm; (2) lệnh thu hồi có sự kiện riêng.
+- **Ai quyết:** Chairman.
+- **Hành vi tạm (đang có trong mã của PR B; không phải phương án được chọn):** B1 (1), B2 (1), B3 (1), B4 (1), B5 (1), B6 (1).
+- **Điều kiện trước khi bật, ngoài repo (người vận hành, EV-12 và EV-13 của `docs/EVIDENCE-REQUEST-20261125.md`):** kiểm gateway có tự lưu chữ của nhóm chung ở nơi khác (nhật ký phiên, bộ nhớ của agent) không. Có lưu thì dừng và báo Chairman.

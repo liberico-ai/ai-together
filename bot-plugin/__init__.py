@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-VERSION = "0.3.2"
+VERSION = "0.3.3"
 EXPECTED_HOME = Path("/home/iptech/.hermes/profiles/libetech")
 ORIGIN = "http://127.0.0.1:3148"
 ENDPOINT = ORIGIN + "/api/bridge"
@@ -61,8 +61,11 @@ INTAKE_RESPONSE_INVALID = "INTAKE_RESPONSE_INVALID"
 HOOK_TIMEOUT = 2
 HOOK_REPLAYS = 5
 SPOOL_LOCK_SECONDS = 1.0
-# Runtime intake.json (never in the repo): {"key": ..., "hookEnabled": true, "chats": ["<group chat id>", ...]}.
-INTAKE_CONFIG_FIELDS = frozenset({"key", "hookEnabled", "chats"})
+# Runtime intake.json (never in the repo): {"key": ..., "hookEnabled": true, "chats": ["<group chat id>", ...], "poolChats": [...]}.
+# poolChats (GIAO VIỆC 5 B) lists the shared groups, DISJOINT from chats: a pool id is never also an intake chat, so removing it from poolChats switches that group off
+# and can never turn it into a full-text chat. Its messages become pool items on the server, so the plugin strips text, file names and sender labels and
+# downloads nothing before anything is spooled or sent; the hash it sends is a keyed HMAC under a key the plugin creates in its own folder.
+INTAKE_CONFIG_FIELDS = frozenset({"key", "hookEnabled", "chats", "poolChats"})
 # Gateway hook observed for intake. Not verified against the running gateway (plan, stop point 3).
 INTAKE_HOOK = "pre_gateway_dispatch"
 LOG = logging.getLogger("libetech_ai_os_bridge")
@@ -354,12 +357,13 @@ def _raw_addressed_to_bot(raw_message, context):
     return False
 
 
-def intake_event(event, chats=None):
+def intake_event(event, chats=None, pool_chats=frozenset(), pool_key=None):
     """Intake body built from the gateway's Telegram event; identity and placement never come from the text.
     None: not a person's message in a Telegram group of the libetech profile, a route the gateway rejected, a chat not
     in `chats` (the gateway-side allowlist from intake.json, which the hook always passes; the server's allowlist stays
     authoritative), no `chats` at all (None: fails closed, never permissive), one of this plugin's own commands, or an
-    empty message without a file. Never raises for a malformed
+    empty message without a file. In a pool chat (`pool_chats`, a subset of `chats`) only a message that calls the bot is taken, and its body carries no text, only the
+    HMAC of the text (`pool_key`: the 32 key bytes, or a function that returns them; none: the message is not taken). Never raises for a malformed
     optional field: that field is dropped with INTAKE_FIELD_DROPPED in the log and the message is still recorded."""
     source = getattr(event, "source", None)
     if event is None or source is None or getattr(event, "internal", False) is True:
@@ -429,6 +433,16 @@ def intake_event(event, chats=None):
                  or getattr(event, "mentions_bot", False) is True or getattr(event, "reply_to_bot", False) is True)
     forwarded = any(getattr(raw_message, name, None) is not None for name in (
         "forward_origin", "forward_date", "forward_from", "forward_from_chat"))
+    if context["chatId"] in pool_chats:
+        # A shared group: nothing of the message leaves the gateway but its pointers and the hash of the text (AGENTS.md, IBS HI). Not calling the bot: not taken at all.
+        if not addressed:
+            return None
+        key = pool_key() if callable(pool_key) else pool_key
+        if not isinstance(key, bytes) or len(key) != 32:
+            return None
+        return dict({"context": context, "observedAt": observed}, **({"editedAt": edited} if edited else {}), addressed=True, spooled=False,
+                    forwarded=forwarded or getattr(event, "forwarded", False) is True, text="", textTruncated=False,
+                    contentHash=hmac.new(key, text.encode(), hashlib.sha256).hexdigest(), traceId=str(uuid.uuid4()))
     payload = {"context": context, "observedAt": observed}
     if edited:
         payload["editedAt"] = edited
@@ -446,7 +460,8 @@ def fit_event(payload):
     if not isinstance(text, str):
         raise ValueError("INTAKE_EVENT_INVALID")
     text = text.encode("utf-8", "replace").decode("utf-8")
-    if not event.get("textTruncated"):
+    if not event.get("textTruncated") and text:
+        # a body with no text (a pool message) keeps the keyed hash it was built with; the hash of nothing is no evidence of anything
         event["contentHash"] = hashlib.sha256(text.encode()).hexdigest()
     # PostgreSQL text refuses U+0000, so NUL is removed from the text that is SENT, after hashing: contentHash stays
     # the hash of the full original text (brief), so it is not the hash of the sent text when a NUL was removed.
@@ -906,6 +921,26 @@ def submit_event(home, payload, spool, *, timeout=5, replays=None):
             LOG.warning("libetech intake: %s", _channel_code(error))
         return keep(1 if kind == "answered" else 0)
 
+def _pool_hash_key(home):
+    """The gateway-local key of the pool hash: 32 random bytes, created by this plugin on first use in its own runtime folder (O_EXCL, owner-only), never logged,
+    never sent. Losing it only makes the next edit of each message look like a revision. An unreadable or unsafe key file is an error, never a weaker key."""
+    path = _runtime_dir(home) / "pool-hash.key"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags, 0o600)
+    except FileExistsError:
+        fd = None
+    if fd is not None:
+        try:
+            os.write(fd, secrets.token_bytes(32))
+        finally:
+            os.close(fd)
+    info = os.lstat(path)
+    if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077 or info.st_size != 32:
+        raise ValueError("POOL_KEY_UNSAFE")
+    with open(path, "rb") as handle:
+        return handle.read()
+
 def _intake_config(home):
     """Runtime intake.json, read on every hook call so an operator can switch intake off without a restart.
     "hookEnabled" must be the JSON value true for the hook to do anything (absent: false). "chats" lists the group chat
@@ -916,10 +951,12 @@ def _intake_config(home):
     _key_of(config)
     enabled = config.get("hookEnabled", False)
     chats = config.get("chats", [])
+    pool = config.get("poolChats", [])
     if (set(config) - INTAKE_CONFIG_FIELDS or type(enabled) is not bool or not isinstance(chats, list)
-            or not all(isinstance(chat, str) and GROUP_CHAT.fullmatch(chat) for chat in chats)):
+            or not all(isinstance(chat, str) and GROUP_CHAT.fullmatch(chat) for chat in chats)
+            or not isinstance(pool, list) or not all(isinstance(chat, str) and GROUP_CHAT.fullmatch(chat) and chat not in chats for chat in pool)):
         raise ValueError("INTAKE_CONFIG_INVALID")
-    return {"hookEnabled": enabled, "chats": frozenset(chats)}
+    return {"hookEnabled": enabled, "chats": frozenset(chats), "poolChats": frozenset(pool)}
 
 def _intake_hook_enabled(home):
     """Registration only: an absent intake.json is the ordinary case and says nothing; a present one that cannot be
@@ -944,11 +981,13 @@ def intake_hook(profile_home, /, *args, **kwargs):
         if not config["hookEnabled"]:
             return None
         event = kwargs["event"] if "event" in kwargs else (args[0] if args else None)
-        payload = intake_event(event, chats=config["chats"])
+        payload = intake_event(event, chats=config["chats"] | config["poolChats"], pool_chats=config["poolChats"], pool_key=lambda: _pool_hash_key(profile_home))
         if payload is None:
             return None
         raw = getattr(event, "attachment", None)
-        if getattr(event, "media_urls", None):
+        if payload["context"]["chatId"] in config["poolChats"]:
+            pass  # a pool chat: no file is read, downloaded or recorded, not even its name
+        elif getattr(event, "media_urls", None):
             payload["attachment"] = store_cached_media(profile_home, event)
         elif raw is not None:
             payload["attachment"] = store_attachment(profile_home, raw, getattr(event, "download_attachment", None))
@@ -977,6 +1016,7 @@ TEMPLATES = {
     "intake.received": ("Đã ghi nhận, mã {ref}. PM sẽ xác nhận loại và dự án; đây chưa phải việc đã giao.", ("ref",)),
     "intake.recovered": ("Kết nối đã khôi phục. Tin lúc {observedAt} đã được ghi nhận, mã {ref}.", ("observedAt", "ref")),
     "intake.attachment_failed": ("Đã ghi nhận nội dung, mã {ref}, nhưng chưa lưu được tệp đính kèm. Vui lòng gửi lại tệp.", ("ref",)),
+    "intake.pool_received": ("Đã nhận, mã {ref}. Chưa gán dự án. Đây chưa phải việc đã tạo.", ("ref",)),
     "account_approval.pending": ("Có phiếu Tech chờ anh/chị xác nhận. Gõ /duyet trong chat riêng này.", ()),
 }
 TEMPLATE_PARAMS = {"ref": re.compile(r"IN-[0-9A-F]{8}\Z"),
@@ -1303,7 +1343,8 @@ def drain_outbox(home, send, journal, *, limit=10):
                 or not isinstance(pulled.get("reconcile"), list)
                 or len(pulled["deliveries"]) > 10 or len(pulled["reconcile"]) > 10):
             raise ValueError("OUTBOX_RESPONSE_INVALID")
-        allowed = _intake_config(home)["chats"] if pulled["deliveries"] else frozenset()
+        config = _intake_config(home) if pulled["deliveries"] else None
+        allowed = (config["chats"] | config["poolChats"]) if config else frozenset()
         fresh = [receipt for receipt in (_deliver(item, send, journal, summary, allowed) for item in pulled["deliveries"]) if receipt]
         fresh += [receipt for receipt in (_reconcile(item, journal, summary) for item in pulled["reconcile"]) if receipt]
         _report(home, journal, fresh, summary)

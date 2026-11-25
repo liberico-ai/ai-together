@@ -1,0 +1,441 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/intake-links.test.ts (17 tests | 7 failed | 1 skipped) 9913ms
+   ❯ T4 triage of a pool item (12)
+     × (15) a Team Tech member with no grant in X files a request into X: pending, origin intake, the IN code in source_ref, two pool events, the item carries X 920ms
+     × (3) a person off the roster, even a project manager, cannot read or command a pool item: SCOPE_DENIED 632ms
+     × (20) dismissing takes one of three codes; opening again: a dismissed item yes; an assigned item with a pending request no; once the only request is rejected, the person who can read that rejection opens it and the card forgets the old assignment 718ms
+     × (7) reopen answers the same to a roster member whatever the BoM decided; only a reader of the rejection opens the item 617ms
+     × (1) an edit of a message that was assigned or dismissed is a revision: the count rises, one pool.revised, no error 556ms
+   ❯ T5 commands on the candidate of a project group (5)
+     × (22) file_request files a pending request; the text of the message is not copied, even for a group that stores text 564ms
+     × (5) an engineer of the project who is not the requester, decider or seat sees no link, no requester name and neutral copy on the candidate 568ms
+ ❯ tests/inbox-http.test.ts (9 tests | 3 failed) 5549ms
+   ❯ inbox HTTP (7)
+     × round trip: list -> detail -> confirm -> list shows the new state 555ms
+   ❯ pool routes (GIAO VIỆC 5 B) (2)
+     × the routes need a session; off the roster the list is empty and a detail or command is SCOPE_DENIED; a bot is read-only; origin is checked 617ms
+     × a roster member lists, reads and dismisses; no answer carries a Telegram id 605ms
+ ❯ tests/intake-pool.test.ts (10 tests | 2 failed | 1 skipped) 5468ms
+   ❯ T2 receiving a message of a pool group (6)
+     × (11) a pool group is refused at load when it is also an intake chat, an excerpt chat or a group with a project in chatScopes (503); a service handed such a group still gives no project 567ms
+     × (3) the stored hash is only compared: a newer edit with a new hash is a revision, with the same hash nothing is written; a free-text mime type is not stored (8) 549ms
+ ❯ tests/intake-pool-isolation.test.ts (7 tests | 3 failed) 4210ms
+   × (1) the three tables exist, and none of them has a column that could hold message text, a file name or a sender label 765ms
+   × (6) the runtime and intake roles do not bypass RLS; the new functions belong to libetech_identity and are closed to PUBLIC 572ms
+   × (10) a person cannot link a candidate they cannot read, even to a request they filed 527ms
+ ❯ tests/inbox-ui.test.tsx (32 tests | 1 failed) 80ms
+   ❯ trail, pool and request origin (GIAO VIỆC 5 B) (6)
+     × (17) the pool note sends the triager to the IN code of the receipt, shows no locator and no chat id; the page counts only what has no project, never a sum across projects 3ms
+ ❯ tests/intake-trail.test.ts (3 tests | 3 failed) 5ms
+   ❯ intakeTrail (3)
+     × (24) nothing readable: neutral copy that neither claims nor denies work, and no label claims work was made or given 3ms
+     × (25) a pending request waits for a BoM seat; no enabled seat says so; a rejection names who and when; an approval gives the work code, who and when 1ms
+     × (26) a pool item not yet assigned waits for the triager; an assigned one shows the project but, when its requests are not readable, none of their content 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 19 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/inbox-http.test.ts > inbox HTTP > round trip: list -> detail -> confirm -> list shows the new state
+AssertionError: expected undefined to be 1 // Object.is equality
+
+- Expected:
+1
+
++ Received:
+undefined
+
+ ❯ tests/inbox-http.test.ts:58:34
+     56|     const id=await ingest();
+     57|     const list=await json(await call('GET',`/api/inbox?projectId=${ids…
+     58|     expect(list.data.unassigned).toBe(1); expect(list.data.items[0]).t…
+       |                                  ^
+     59|     const det=await call('GET','/api/inbox/'+id); expect(det.status).t…
+     60|     expect((await json(det)).data.card.candidateId).toBe(id);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/19]⎯
+
+ FAIL  tests/inbox-http.test.ts > pool routes (GIAO VIỆC 5 B) > the routes need a session; off the roster the list is empty and a detail or command is SCOPE_DENIED; a bot is read-only; origin is checked
+AssertionError: expected { items: [], total: +0 } to deeply equal { items: [], unassigned: +0 }
+
+- Expected
++ Received
+
+  {
+    "items": [],
+-   "unassigned": 0,
++   "total": 0,
+  }
+
+ ❯ tests/inbox-http.test.ts:165:36
+    163|     const off=await call('GET','/api/inbox/pool',{cookie:login('manage…
+    164|     expect(off.status).toBe(200);
+    165|     expect((await json(off)).data).toEqual({items:[],unassigned:0});
+       |                                    ^
+    166|     expect((await call('GET','/api/inbox/pool/'+id,{cookie:login('mana…
+    167|     expect((await call('POST',`/api/inbox/pool/${id}/commands`,{cookie…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/19]⎯
+
+ FAIL  tests/inbox-http.test.ts > pool routes (GIAO VIỆC 5 B) > a roster member lists, reads and dismisses; no answer carries a Telegram id
+AssertionError: expected undefined to be 1 // Object.is equality
+
+- Expected:
+1
+
++ Received:
+undefined
+
+ ❯ tests/inbox-http.test.ts:180:34
+    178|     const id=await seedTech();
+    179|     const list=await json(await call('GET','/api/inbox/pool',{cookie:l…
+    180|     expect(list.data.unassigned).toBe(1);
+       |                                  ^
+    181|     expect(list.data.items[0]).toMatchObject({itemId:id,state:'unassig…
+    182|     expect(list.data.items[0].trail).toMatchObject({label:'Đã nhận — c…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/19]⎯
+
+ FAIL  tests/inbox-ui.test.tsx > trail, pool and request origin (GIAO VIỆC 5 B) > (17) the pool note sends the triager to the IN code of the receipt, shows no locator and no chat id; the page counts only what has no project, never a sum across projects
+AssertionError: expected 'Tin ở nhóm chung chỉ giữ con trỏ, khô…' to contain 'mã IN'
+
+Expected: "mã IN"
+Received: "Tin ở nhóm chung chỉ giữ con trỏ, không giữ chữ. Mở tin gốc trong Telegram để đọc."
+
+ ❯ tests/inbox-ui.test.tsx:537:23
+    535|   });
+    536|   it('(17) the pool note sends the triager to the IN code of the recei…
+    537|     expect(POOL_NOTE).toContain('mã IN');
+       |                       ^
+    538|     const one = (over: Partial<PoolCard>) => poolCard(over);
+    539|     const html = renderToStaticMarkup(<PoolList projects={projects} in…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/19]⎯
+
+ FAIL  tests/intake-links.test.ts > T4 triage of a pool item > (15) a Team Tech member with no grant in X files a request into X: pending, origin intake, the IN code in source_ref, two pool events, the item carries X
+AssertionError: expected '[{"id":"65276121-2c0c-434a-bd02-890e0…' not to match /work_request_id|work_id|workRequestId/
+
+- Expected:
+/work_request_id|work_id|workRequestId/
+
++ Received:
+"[{\"id\":\"65276121-2c0c-434a-bd02-890e0d62ab6d\",\"kind\":\"pool.received\",\"actorKind\":\"intake_service\",\"actorName\":null,\"createdAt\":\"2026-11-25T06:42:46.753Z\",\"payload\":{\"state_after\":\"unassigned\",\"version_after\":1}},{\"id\":\"a53a3aa8-0fa5-4481-92c4-0dd8828db706\",\"kind\":\"pool.triaged\",\"actorKind\":\"user\",\"actorName\":\"Thành viên Tech A thử\",\"createdAt\":\"2026-11-25T06:42:46.761Z\",\"payload\":{\"project_id\":\"11000000-0000-4000-8000-000000000001\",\"state_after\":\"assigned\",\"state_before\":\"unassigned\",\"version_after\":2,\"classification\":\"request\",\"version_before\":1}},{\"id\":\"c3adcd54-8455-4600-b922-e2d1174c6b14\",\"kind\":\"pool.request_filed\",\"actorKind\":\"user\",\"actorName\":\"Thành viên Tech A thử\",\"createdAt\":\"2026-11-25T06:42:46.761Z\",\"payload\":{\"project_id\":\"11000000-0000-4000-8000-000000000001\",\"version_after\":2,\"work_request_id\":\"2ff27b4e-12a3-40a9-8411-9f83880b4407\"}}]"
+
+ ❯ tests/intake-links.test.ts:65:40
+     63|     const events=(await pool().detail(techA,id)).events;
+     64|     expect(events.map(e=>e.kind)).toEqual(['pool.received','pool.triag…
+     65|     expect(JSON.stringify(events)).not.toMatch(/work_request_id|work_i…
+       |                                        ^
+     66|     expect(await n('intake_work_links')).toBe(1);
+     67|     expect((await rows<R>('SELECT * FROM intake_work_links'))[0]).toMa…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/19]⎯
+
+ FAIL  tests/intake-links.test.ts > T4 triage of a pool item > (3) a person off the roster, even a project manager, cannot read or command a pool item: SCOPE_DENIED
+AssertionError: expected { items: [], total: +0 } to deeply equal { items: [], unassigned: +0 }
+
+- Expected
++ Received
+
+  {
+    "items": [],
+-   "unassigned": 0,
++   "total": 0,
+  }
+
+ ❯ tests/intake-links.test.ts:79:39
+     77|       await expect(cmd(p,id,fileBody(1))).rejects.toMatchObject({code:…
+     78|       await expect(pool().detail(p,id)).rejects.toMatchObject({code:'S…
+     79|       expect(await pool().list(p,{})).toEqual({items:[],unassigned:0});
+       |                                       ^
+     80|     }
+     81|     expect((await itemRow(id)).state).toBe('unassigned');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/19]⎯
+
+ FAIL  tests/intake-links.test.ts > T4 triage of a pool item > (20) dismissing takes one of three codes; opening again: a dismissed item yes; an assigned item with a pending request no; once the only request is rejected, the person who can read that rejection opens it and the card forgets the old assignment
+AssertionError: expected [ { kind: 'request', …(6) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "createdAt": "2026-11-25T06:42:51.055Z",
++     "createdByName": "Thành viên Tech A thử",
++     "kind": "request",
++     "requestId": "73b1ec27-ae41-4e55-bfea-6ffaf1b8f685",
++     "requestState": "rejected",
++     "title": "Việc mới từ tin nhóm chung",
++     "workCode": null,
++   },
++ ]
+
+ ❯ tests/intake-links.test.ts:189:24
+    187|     expect(open).toMatchObject({state:'unassigned',projectId:null,vers…
+    188|     // (4) the card of the open item shows none of the earlier assignm…
+    189|     expect(open.links).toEqual([]);
+       |                        ^
+    190|     expect(open.trail).toMatchObject({label:'Đã nhận — chưa gán dự án'…
+    191|     expect((await pool().detail(techA,id)).card.trail.label).toBe('Đã …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/19]⎯
+
+ FAIL  tests/intake-links.test.ts > T4 triage of a pool item > (7) reopen answers the same to a roster member whatever the BoM decided; only a reader of the rejection opens the item
+Error: expected a refusal
+ ❯ tests/intake-links.test.ts:201:110
+
+ ❯ tests/intake-links.test.ts:218:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/19]⎯
+
+ FAIL  tests/intake-links.test.ts > T4 triage of a pool item > (1) an edit of a message that was assigned or dismissed is a revision: the count rises, one pool.revised, no error
+error: new row violates row-level security policy for table "intake_pool_items"
+ ❯ pe.Oe ../../../node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt ../../../node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse ../../../node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce ../../../node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ ../../../node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/19]⎯
+
+ FAIL  tests/intake-links.test.ts > T5 commands on the candidate of a project group > (22) file_request files a pending request; the text of the message is not copied, even for a group that stores text
+AssertionError: promise resolved "{ …(18) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "attachments": [],
++   "candidateId": "5e9dc360-2452-45b1-bbdc-d11157ddba15",
++   "classification": "request",
++   "contentMode": "excerpt",
++   "duplicateCandidates": [],
++   "excerpt": "canary-5d2c80 mô tả sự cố",
++   "forwarded": false,
++   "missingFields": [],
++   "projectId": "11000000-0000-4000-8000-000000000001",
++   "projectLabel": "Cổng bán hàng mẫu",
++   "receivedAt": "2025-10-09T08:53:35.000Z",
++   "ref": "IN-5E9DC360",
++   "sourceRef": "telegram:-1000000000001:15",
++   "state": "confirmed",
++   "status": {
++     "acknowledgedAt": null,
++     "deliveredAt": null,
++     "outboxState": "pending",
++     "persistedAt": "2026-11-25T06:42:54.088Z",
++     "projectedAt": null,
++     "receivedAt": "2025-10-09T08:53:35.000Z",
++   },
++   "ticketRef": null,
++   "trail": {
++     "label": "Đã lập yêu cầu — chờ BoM duyệt",
++     "steps": [
++       {
++         "actor": null,
++         "at": "2025-10-09T08:53:35.000Z",
++         "key": "received",
++         "label": "Đã nhận tin",
++         "state": "done",
++       },
++       {
++         "actor": null,
++         "at": null,
++         "key": "triaged",
++         "label": "Điều phối đã xác nhận",
++         "state": "done",
++       },
++       {
++         "actor": "Người thực hiện",
++         "at": "2026-11-25T06:42:54.098Z",
++         "key": "request",
++         "label": "Có yêu cầu hoặc liên kết việc",
++         "state": "done",
++       },
++       {
++         "actor": null,
++         "at": null,
++         "key": "decision",
++         "label": "Chờ BoM duyệt",
++         "state": "waiting",
++       },
++     ],
++     "waitingOn": "ghế BoM của dự án",
++   },
++   "version": 3,
+  }
+
+ ❯ tests/intake-links.test.ts:287:50
+    285|     expect(String(stored.text_excerpt)).toContain(CANARY);          //…
+    286|     // (12) PR A's submit rule: a Team Tech member or the manager of t…
+    287|     await expect(run(member,id,fileCandidate(2))).rejects.toMatchObjec…
+       |                                                  ^
+    288|     expect(await n('work_requests')).toBe(0);
+    289|     const card=await run(pm,id,fileCandidate(2));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/19]⎯
+
+ FAIL  tests/intake-links.test.ts > T5 commands on the candidate of a project group > (5) an engineer of the project who is not the requester, decider or seat sees no link, no requester name and neutral copy on the candidate
+AssertionError: expected 'Có yêu cầu hoặc liên kết việc' to be 'Chưa thấy yêu cầu hay liên kết việc n…' // Object.is equality
+
+Expected: "Chưa thấy yêu cầu hay liên kết việc nào trong phạm vi của bạn"
+Received: "Có yêu cầu hoặc liên kết việc"
+
+ ❯ tests/intake-links.test.ts:364:66
+    362|       expect(JSON.stringify(mine.trail)).not.toContain(pm.name);
+    363|       expect(mine.trail.label).not.toMatch(/chưa tạo việc|đã tạo|đã gi…
+    364|       expect(mine.trail.steps.find(x=>x.key==='request')!.label).toBe(…
+       |                                                                  ^
+    365|       const direct=await asRoleLinks(member.id,[ids.sales]);
+    366|       expect(direct).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/19]⎯
+
+ FAIL  tests/intake-pool-isolation.test.ts > (1) the three tables exist, and none of them has a column that could hold message text, a file name or a sender label
+AssertionError: promise resolved "{ rows: [], fields: [], …(3) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "affectedRows": 1,
++   "command": "INSERT",
++   "fields": [],
++   "rowCount": 1,
++   "rows": [],
+  }
+
+ ❯ tests/intake-pool-isolation.test.ts:49:105
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/19]⎯
+
+ FAIL  tests/intake-pool-isolation.test.ts > (6) the runtime and intake roles do not bypass RLS; the new functions belong to libetech_identity and are closed to PUBLIC
+AssertionError: expected [ 'intake_link_allowed', …(2) ] to deeply equal [ 'intake_link_allowed', …(3) ]
+
+- Expected
++ Received
+
+  [
+    "intake_link_allowed",
+-   "intake_pool_link_count",
+    "intake_pool_sender",
+    "tech_roster_names",
+  ]
+
+ ❯ tests/intake-pool-isolation.test.ts:156:27
+    154|      FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE …
+    155|       AND p.proname IN ('intake_pool_sender','intake_link_allowed','te…
+    156|   expect(fns.map(f=>f.n)).toEqual(['intake_link_allowed','intake_pool_…
+       |                           ^
+    157|   for(const f of fns){
+    158|     expect(f.owner,f.n).toBe('libetech_identity');expect(f.definer,f.n…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/19]⎯
+
+ FAIL  tests/intake-pool-isolation.test.ts > (10) a person cannot link a candidate they cannot read, even to a request they filed
+error: null value in column "forwarded" of relation "source_events" violates not-null constraint
+ ❯ pe.Oe ../../../node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt ../../../node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse ../../../node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce ../../../node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ ../../../node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/19]⎯
+
+ FAIL  tests/intake-pool.test.ts > T2 receiving a message of a pool group > (11) a pool group is refused at load when it is also an intake chat, an excerpt chat or a group with a project in chatScopes (503); a service handed such a group still gives no project
+AssertionError: expected [Function] to throw an error
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ tests/intake-pool.test.ts:113:146
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/19]⎯
+
+ FAIL  tests/intake-pool.test.ts > T2 receiving a message of a pool group > (3) the stored hash is only compared: a newer edit with a new hash is a revision, with the same hash nothing is written; a free-text mime type is not stored (8)
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/intake-pool.test.ts:138:27
+    136|     const later=(ms:number)=>new Date(Date.parse(first.observedAt)+ms)…
+    137|     const same=await svc().ingest({...first,editedAt:later(60000)});
+    138|     expect(same.replayed).toBe(true);
+       |                           ^
+    139|     expect(await n('intake_pool_events')).toBe(1);
+    140|     expect((await rows<R>('SELECT * FROM intake_pool_items'))[0]).toMa…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/19]⎯
+
+ FAIL  tests/intake-trail.test.ts > intakeTrail > (24) nothing readable: neutral copy that neither claims nor denies work, and no label claims work was made or given
+AssertionError: expected 'Đã nhận — chưa tạo việc' to be 'Đã nhận — chưa thấy yêu cầu hay việc …' // Object.is equality
+
+Expected: "Đã nhận — chưa thấy yêu cầu hay việc nào trong phạm vi của bạn"
+Received: "Đã nhận — chưa tạo việc"
+
+ ❯ tests/intake-trail.test.ts:12:21
+     10|   test('(24) nothing readable: neutral copy that neither claims nor de…
+     11|     const t=intakeTrail(base);
+     12|     expect(t.label).toBe('Đã nhận — chưa thấy yêu cầu hay việc nào tro…
+       |                     ^
+     13|     expect(t.steps.find(s=>s.key==='request')!.label).toBe('Chưa thấy …
+     14|     expect(t.steps.map(s=>s.key+':'+s.state)).toEqual(['received:done'…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/19]⎯
+
+ FAIL  tests/intake-trail.test.ts > intakeTrail > (25) a pending request waits for a BoM seat; no enabled seat says so; a rejection names who and when; an approval gives the work code, who and when
+AssertionError: expected 'ghế BoM của dự án' to be 'Yêu cầu chờ ghế BoM của dự án.' // Object.is equality
+
+Expected: "Yêu cầu chờ ghế BoM của dự án."
+Received: "ghế BoM của dự án"
+
+ ❯ tests/intake-trail.test.ts:25:77
+     23|   test('(25) a pending request waits for a BoM seat; no enabled seat s…
+     24|     expect(intakeTrail({...base,requests:[req()]})).toMatchObject({lab…
+     25|     expect(intakeTrail({...base,requests:[req()],seatOpen:null}).waiti…
+       |                                                                             ^
+     26|     expect(intakeTrail({...base,requests:[req()],seatOpen:false})).toM…
+     27|     const rejected=intakeTrail({...base,requests:[req({state:'rejected…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/19]⎯
+
+ FAIL  tests/intake-trail.test.ts > intakeTrail > (26) a pool item not yet assigned waits for the triager; an assigned one shows the project but, when its requests are not readable, none of their content
+AssertionError: expected '' to be 'Yêu cầu chờ ghế BoM của dự án.' // Object.is equality
+
+- Expected
++ Received
+
+- Yêu cầu chờ ghế BoM của dự án.
+
+ ❯ tests/intake-trail.test.ts:46:30
+     44|     const hidden=intakeTrail(pool({poolState:'assigned',projectName:'C…
+     45|     expect(hidden.label).toBe('Đã gán dự án Cổng bán hàng mẫu');
+     46|     expect(hidden.waitingOn).toBe('Yêu cầu chờ ghế BoM của dự án.');
+       |                              ^
+     47|     expect(hidden.steps.find(s=>s.key==='triaged')).toMatchObject({sta…
+     48|     expect(hidden.steps.find(s=>s.key==='request')).toMatchObject({sta…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/19]⎯
+
+
+ Test Files  6 failed (6)
+      Tests  19 failed | 57 passed | 2 skipped (78)
+   Start at  13:42:45
+   Duration  25.90s (tests 99%, import 1%)
+
+exit 1

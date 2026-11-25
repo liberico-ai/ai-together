@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import type {Database,Queryable} from './db';
 import type {IdentityService} from './identity';
-import {intakeScoped,type IntakePrincipal} from './intake-scope';
+import {intakePoolScoped,intakeScoped,type IntakePrincipal} from './intake-scope';
 import {AppError} from './errors';
 
 // Outbox (E-INT-06): rows are written in the caller's own transaction; the Telegram gateway pulls, sends and reports receipts.
@@ -76,6 +76,17 @@ export async function enqueueReceipt(tx:Queryable,i:{tenantId:string;projectId:s
  return r.rows.length?'queued':'none';
 }
 
+/** The receipt of a pool item (GIAO VIỆC 5 B): a group row with no project, tied to the pool item and its own template. Params are the reference and the time, never the message. */
+export type EnqueuePoolReceipt=(tx:Queryable,i:{tenantId:string;poolItemId:string;chatId:string;topicId:string;replyToMessageId:string;params:{ref:string;observedAt:string};traceId:string;correlationId:string})=>Promise<'queued'|'none'>;
+export async function enqueuePoolReceipt(tx:Queryable,i:Parameters<EnqueuePoolReceipt>[1]):Promise<'queued'|'none'> {
+ const r=await tx.query<{id:string}>(
+  `INSERT INTO outbox_messages(tenant_id,project_id,pool_item_id,event_id,event_type,trace_id,correlation_id,causation_id,audience,target_chat_id,target_topic_id,reply_to_message_id,template,payload,dedupe_key)
+   VALUES($1,NULL,$2,$3,'intake.pool_received',$4,$5,NULL,'group',$6,$7,$8,'intake.pool_received',$9,$10)
+   ON CONFLICT(tenant_id,dedupe_key) DO NOTHING RETURNING id`,
+  [i.tenantId,i.poolItemId,randomUUID(),i.traceId,i.correlationId,i.chatId,i.topicId,i.replyToMessageId,JSON.stringify({params:{ref:i.params.ref,observedAt:i.params.observedAt}}),'intake.pool_received:'+i.poolItemId]);
+ return r.rows.length?'queued':'none';
+}
+
 /** Runs inside identity.scope (role libetech_identity). The DM row belongs to the tenant, not to a project. */
 export async function enqueueDm(tx:Queryable,i:{tenantId:string;recipientUserId:string;telegramId:string;template:'account_approval.pending';dedupeKey:string;params:Record<string,string>;traceId:string;correlationId:string;causationId:string|null}):Promise<void> {
  await tx.query(
@@ -99,7 +110,11 @@ const envelopeOf=(r:Row):Envelope=>({event_id:r.event_id,event_type:r.event_type
  trace_id:r.trace_id,correlation_id:r.correlation_id,causation_id:r.causation_id,payload:{template:r.template,params:r.payload?.params??{}}});
 
 export class OutboxService {
- constructor(private intakeDb:Database,private identity:IdentityService,private p:IntakePrincipal) {}
+ /** poolEnabled: the operator configured a pool group, so an empty project list is a tenant-level scope (pool receipts only) and not a missing scope. */
+ constructor(private intakeDb:Database,private identity:IdentityService,private p:IntakePrincipal,private poolEnabled=false) {}
+ private scope<T>(fn:(tx:Queryable)=>Promise<T>):Promise<T> {
+  return this.poolEnabled&&this.p.projectIds.length===0?intakePoolScoped(this.intakeDb,this.p,fn):intakeScoped(this.intakeDb,this.p,fn);
+ }
 
  private audit(tx:Queryable,row:{id:string;project_id:string|null;trace_id:string},kind:string,requestId:string,payload:Record<string,unknown>) {
   if(!row.project_id) return Promise.resolve();
@@ -113,7 +128,7 @@ export class OutboxService {
   const requestId=randomUUID();
   const ctx:OutboxCtx={requestId};
   const t=this.p.tenantId;
-  const first=await intakeScoped(this.intakeDb,this.p,async tx=>{
+  const first=await this.scope(async tx=>{
    // (1) leases whose gateway went silent become uncertain: reconcile before any resend. The sweep takes at most `limit` rows
    // per pull (oldest first, skipping rows another pull holds), so a large backlog after an outage is worked off across pulls
    // instead of in one unbounded transaction (Database review M-4).
@@ -149,7 +164,7 @@ export class OutboxService {
    const linked=new Set(links.map(l=>l.user_id+':'+l.telegram_id));
    const gone=dms.filter(l=>!linked.has(l.row.recipient_user_id+':'+l.row.target_chat_id));
    if(gone.length) {
-    await intakeScoped(this.intakeDb,this.p,async tx=>{
+    await this.scope(async tx=>{
      for(const l of gone) {
       await applyOutboxSignal(tx,l.row,'failed_permanent',ctx,{set:{last_error_code:'RECIPIENT_UNLINKED',lease_token:null,lease_expires_at:null}});
       await this.audit(tx,l.row,'outbox.dead',requestId,{attemptNo:l.attemptNo,errorCode:'RECIPIENT_UNLINKED'});
@@ -167,7 +182,7 @@ export class OutboxService {
   const {receipts}=reportSchema.parse(raw);
   const requestId=randomUUID();
   const ctx:OutboxCtx={requestId};
-  return intakeScoped(this.intakeDb,this.p,async tx=>{
+  return this.scope(async tx=>{
    let accepted=0,replayed=0;
    const rejected:{outboxId:string;attemptNo:number;code:string}[]=[];
    for(const r of receipts) {

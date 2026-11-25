@@ -6,6 +6,9 @@ import {refOf} from './intake';
 import {DUPLICATE_HINT_SQL,latestRevisionCte,listVisibleRevisions,type DisplayMode} from './source-text';
 import {candidateTransition,type CandidateAction,type CandidateState} from './intake-rules';
 import {applyOutboxSignal,OVERDUE_SECONDS,type OutboxState} from './outbox';
+import {intakeTrail,type IntakeTrail} from './intake-trail';
+import {loadLinkRows,summariseLinks} from './intake-pool';
+import {fileRequestIn,submitSchema} from './work-requests';
 import {projectRole} from './types';
 import type {Principal} from './types';
 export type {CandidateAction,CandidateState} from './intake-rules';
@@ -17,7 +20,7 @@ export type {DisplayMode} from './source-text';
 export type IntakeStatus={receivedAt:string;persistedAt:string;projectedAt:null;deliveredAt:string|null;acknowledgedAt:string|null;outboxState:OutboxState|null};
 export type CandidateCard={candidateId:string;ref:string;projectId:string;projectLabel:string;sourceRef:string;receivedAt:string;classification:'incident'|'request'|'document'|null;state:CandidateState;missingFields:string[];
  duplicateCandidates:{candidateId:string;ref:string;reason:string}[];contentMode:DisplayMode;excerpt:string|null;forwarded:boolean;
- attachments:{state:string;mimeType:string;sizeBytes:number|null;fileName:string}[];ticketRef:string|null;status:IntakeStatus;version:number};
+ attachments:{state:string;mimeType:string;sizeBytes:number|null;fileName:string}[];ticketRef:string|null;status:IntakeStatus;version:number;trail:IntakeTrail};
 export type SourceAvailabilityRow={chatId:string;topicId:string;state:'not-configured'|'partially-received';coverageStart:string|null;coverageGaps:{from:string;to:string}[];label:string};
 export type RevisionView={revisionNo:number;editedAt:string|null;contentMode:DisplayMode;contentHash:string|null;excerpt:string|null;textTruncated:boolean;recordedAt:string};
 export type EventView={id:string;kind:string;actorKind:string;actorId:string;createdAt:string;payload:Record<string,unknown>};
@@ -52,6 +55,11 @@ const commandSchema=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('reopen'),expectedVersion,reason}).strict(),
  z.object({kind:z.literal('link_ticket'),expectedVersion,ticketRef:z.string().regex(/^TK-[A-Z0-9]{1,12}-\d{6}-\d{3,5}$/)}).strict(),
 ]);
+// GIAO VIỆC 5 B: the request carries the filer's own words; the project is the candidate's, never named in the body.
+const linkCommandSchema=z.discriminatedUnion('kind',[
+ submitSchema.omit({projectId:true}).extend({kind:z.literal('file_request'),expectedVersion}).strict(),
+ z.object({kind:z.literal('link_work'),expectedVersion,workId:uuid}).strict(),
+]);
 const failureSchema=z.object({kind:z.enum(['take','requeue','abandon']),expectedVersion,reason}).strict();
 
 type CardRow={id:string;project_id:string;project_label:string;state:CandidateState;classification:CandidateCard['classification'];missing_fields:string[];ticket_ref:string|null;version:number;
@@ -74,7 +82,8 @@ const CARD_SQL=`WITH lat AS (
  LEFT JOIN LATERAL (SELECT state,delivered_at,acknowledged_at FROM outbox_messages WHERE candidate_id=c.id ORDER BY created_at DESC,id LIMIT 1) o ON true
  WHERE c.project_id=$1`;
 
-function toCard(r:CardRow):CandidateCard {
+type PlainCard=Omit<CandidateCard,'trail'>;
+function toCard(r:CardRow):PlainCard {
  const mode=r.display_mode;
  return {candidateId:r.id,ref:refOf(r.id),projectId:r.project_id,projectLabel:r.project_label,sourceRef:r.source_id,receivedAt:iso(r.observed_at),classification:r.classification,state:r.state,
   missingFields:r.missing_fields,duplicateCandidates:r.dups.map(id=>({candidateId:id,ref:refOf(id),reason:'cùng nội dung'})),
@@ -82,10 +91,20 @@ function toCard(r:CardRow):CandidateCard {
   attachments:r.attachments.map(a=>({state:a.state,mimeType:a.mimeType,sizeBytes:a.sizeBytes==null?null:Number(a.sizeBytes),fileName:a.fileName})),ticketRef:r.ticket_ref,
   status:{receivedAt:iso(r.observed_at),persistedAt:iso(r.ingested_at),projectedAt:null,deliveredAt:isoOrNull(r.delivered_at),acknowledgedAt:isoOrNull(r.acknowledged_at),outboxState:r.outbox_state},version:r.version};
 }
+/** The trail of each card (GIAO VIỆC 5 B), from the links the reader may read; requests are readable by their requester, decider and BoM seats only. */
+async function attachTrails(tx:Queryable,projectId:string,cards:PlainCard[]):Promise<CandidateCard[]> {
+ if(!cards.length) return [];
+ const links=await loadLinkRows(tx,'candidate_id',cards.map(c=>c.candidateId));
+ const seatOpen=(await tx.query<{open:boolean}>('SELECT EXISTS (SELECT 1 FROM bom_scopes s WHERE s.project_id=$1 AND s.enabled) AS open',[projectId])).rows[0].open;
+ return cards.map(c=>{
+  const {requests,workLinks,hidden}=summariseLinks(links.filter(l=>l.candidate_id===c.candidateId));
+  return {...c,trail:intakeTrail({kind:'candidate',receivedAt:c.receivedAt,candidateState:c.state,projectName:c.projectLabel,triagedAt:null,triagedBy:null,requests,workLinks,hiddenLinks:hidden,seatOpen})};
+ });
+}
 async function loadCard(tx:Queryable,projectId:string,candidateId:string,excerptChats:readonly string[]):Promise<CandidateCard> {
  const row=(await tx.query<CardRow>(CARD_SQL+' AND c.id=$3',[projectId,[...excerptChats],candidateId])).rows[0];
  if(!row) throw DENIED();
- return toCard(row);
+ return (await attachTrails(tx,projectId,[toCard(row)]))[0];
 }
 
 export class InboxService {
@@ -116,7 +135,7 @@ export class InboxService {
    const total=(await tx.query<{n:number}>(`SELECT count(*)::int AS n FROM intake_candidates c WHERE c.project_id=$1${filterAt(2)}`,q.state?[q.projectId,q.state]:[q.projectId])).rows[0].n;
    const params:unknown[]=[q.projectId,[...this.excerptChats],...(q.state?[q.state]:[]),q.limit,q.offset];
    const rows=(await tx.query<CardRow>(`${CARD_SQL}${filterAt(3)} ORDER BY c.created_at DESC,c.id LIMIT $${params.length-1} OFFSET $${params.length}`,params)).rows;
-   return {items:rows.map(toCard),total};
+   return {items:await attachTrails(tx,q.projectId,rows.map(toCard)),total};
   });
  }
 
@@ -148,6 +167,8 @@ export class InboxService {
  async command(p:Principal,candidateId:string,raw:unknown,key:string,requestId:string):Promise<CandidateCard> {
   uuid.parse(requestId);
   const projectId=await this.locate(p,'intake_candidates',candidateId);
+  const linkKind=(raw as {kind?:unknown}|null)?.kind;
+  if(linkKind==='file_request'||linkKind==='link_work') return this.linkCommand(p,projectId,candidateId,raw,key,requestId);
   managerOf(p,projectId);
   const input=commandSchema.parse(raw);
   const action:CandidateAction=input.kind;
@@ -192,6 +213,63 @@ export class InboxService {
     `INSERT INTO intake_events(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload) VALUES($1,$2,'intake_candidate',$3,$4,'user',$5,$6,$7,$8)`,
     [p.tenantId,projectId,candidateId,p.id,kind,requestId,row.trace_id,JSON.stringify({stateBefore:row.state,stateAfter:next,versionBefore:row.version,versionAfter:row.version+1,...detail})]);
    return {candidateId,state:next,version:row.version+1};
+   });
+   return loadCard(tx,projectId,done.candidateId,this.excerptChats);
+  });
+ }
+
+ /**
+  * GIAO VIỆC 5 B: a confirmed candidate leads to a work request filed from it, or to a link with existing work of its project. Neither changes the state of the
+  * candidate; each raises its version by one and writes one intake event. The text of the message is never copied: the filer types the request.
+  * file_request needs a reader of the candidate (B3); link_work needs a reader of the candidate who also holds a project role other than viewer or a BoM seat, and the work must belong to the same project.
+  */
+ private async linkCommand(p:Principal,projectId:string,candidateId:string,raw:unknown,key:string,requestId:string):Promise<CandidateCard> {
+  const input=linkCommandSchema.parse(raw);
+  // Both kinds answer with the candidate card (excerpt text included): the caller must be a reader of the candidate first. link_work then needs the link right on top of it.
+  readable(p,projectId);
+  return this.run(p,projectId,async tx=>{
+   const done=await deduplicate(tx,p,projectId,key,{op:'inbox.candidate.'+input.kind,candidateId,...input},async()=>{
+    if(input.kind==='link_work') {
+     const allowed=(await tx.query<{ok:boolean}>('SELECT public.intake_link_allowed($1) AS ok',[projectId])).rows[0].ok===true;
+     if(!allowed) throw new AppError('LINK_DENIED','Bạn không có quyền liên kết việc ở dự án này.',403);
+    }
+    const row=(await tx.query<{id:string;state:CandidateState;version:number;trace_id:string}>(
+     `SELECT c.id,c.state,c.version,e.trace_id FROM intake_candidates c JOIN source_events e ON e.id=c.root_source_event_id WHERE c.id=$1 AND c.project_id=$2 FOR UPDATE OF c`,[candidateId,projectId])).rows[0];
+    if(!row) throw DENIED();
+    if(row.state!=='confirmed') throw new AppError('CANDIDATE_NOT_CONFIRMED','Điều phối cần xác nhận ứng viên trước.',409);
+    const unchanged={candidateId,state:row.state,version:row.version};
+    const conflict=()=>new AppError('REVISION_CONFLICT','Ứng viên đã thay đổi; tải lại rồi thao tác lại.',409);
+    const link=async(target:{requestId?:string;workId?:string})=>(await tx.query<{id:string}>(
+     `INSERT INTO intake_work_links(tenant_id,project_id,candidate_id,work_request_id,work_id,created_by,created_by_name) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING RETURNING id`,
+     [p.tenantId,projectId,candidateId,target.requestId??null,target.workId??null,p.id,p.name])).rows[0];
+    const bump=async(kind:string,detail:Record<string,unknown>)=>{
+     if(row.version!==input.expectedVersion) throw conflict();
+     const upd=await tx.query('UPDATE intake_candidates SET version=version+1,updated_at=now() WHERE id=$1 AND version=$2 RETURNING id',[candidateId,row.version]);
+     if(!upd.rows.length) throw conflict();
+     await tx.query(
+      `INSERT INTO intake_events(tenant_id,project_id,entity_type,entity_id,actor_id,actor_kind,kind,request_id,trace_id,payload) VALUES($1,$2,'intake_candidate',$3,$4,'user',$5,$6,$7,$8)`,
+      [p.tenantId,projectId,candidateId,p.id,kind,requestId,row.trace_id,JSON.stringify({stateBefore:row.state,stateAfter:row.state,versionBefore:row.version,versionAfter:row.version+1,...detail})]);
+     return {candidateId,state:row.state,version:row.version+1};
+    };
+    if(input.kind==='file_request') {
+     const {kind:_k,expectedVersion:_v,...content}=input;void _k;void _v;
+     const filed=await fileRequestIn(tx,p,{...content,projectId},{origin:'intake',sourceRef:`${refOf(candidateId)} · ${candidateId}`,authorization:'standard'});
+     if(filed.replayed) {
+      const seen=(await tx.query('SELECT 1 FROM intake_work_links WHERE candidate_id=$1 AND work_request_id=$2',[candidateId,filed.request.id])).rows.length>0;
+      if(!seen) throw new AppError('IDEMPOTENCY_CONFLICT','Mã thao tác đã được dùng cho một yêu cầu khác.',409);
+      return unchanged;
+     }
+     const out=await bump('candidate.request_filed',{workRequestId:filed.request.id});
+     await link({requestId:filed.request.id});
+     return out;
+    }
+    if(!(await tx.query('SELECT 1 FROM work_items WHERE id=$1 AND project_id=$2',[input.workId,projectId])).rows.length) throw DENIED();
+    // the candidate is locked: a link read here is the one every concurrent caller finds; linking the same pair again changes nothing
+    if((await tx.query('SELECT 1 FROM intake_work_links WHERE candidate_id=$1 AND work_id=$2',[candidateId,input.workId])).rows.length) return unchanged;
+    const out=await bump('candidate.work_linked',{workId:input.workId});
+    const made=await link({workId:input.workId});
+    if(!made) throw conflict();
+    return out;
    });
    return loadCard(tx,projectId,done.candidateId,this.excerptChats);
   });

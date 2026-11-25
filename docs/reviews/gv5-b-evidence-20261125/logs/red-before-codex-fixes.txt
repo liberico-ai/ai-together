@@ -1,0 +1,131 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/migrations-rollback.test.ts (13 tests | 1 failed | 12 skipped) 802ms
+   × rollback 025 refuses while a later migration is recorded or a pool item, event or link exists; it drops what 025 made; applying 025 twice is fine 801ms
+ ❯ tests/intake-pool-isolation.test.ts (9 tests | 3 failed | 6 skipped) 1908ms
+   × (6) the runtime and intake roles do not bypass RLS; the new functions belong to libetech_identity and are closed to PUBLIC 716ms
+   × (11) the reopen check is one bit and tells a roster member who reads nothing of the project nothing: one link, two links or a link to work answer the same 650ms
+   × (12) the event payload holds states, numbers, a project id and codes only: free text under any allowed key is refused 542ms
+ ❯ tests/inbox-ui.test.tsx (33 tests | 1 failed | 32 skipped) 19ms
+   ❯ trail, pool and request origin (GIAO VIỆC 5 B) (7)
+     × (28) the button pressed decides the command: «Liên kết việc đã có» sends link_work with the work id, «Tạo yêu cầu…» sends file_request 18ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/inbox-ui.test.tsx > trail, pool and request origin (GIAO VIỆC 5 B) > (28) the button pressed decides the command: «Liên kết việc đã có» sends link_work with the work id, «Tạo yêu cầu…» sends file_request
+AssertionError: expected [ 'file_request', 'file_request' ] to deeply equal [ 'link_work', 'file_request' ]
+
+- Expected
++ Received
+
+  [
+-   "link_work",
++   "file_request",
+    "file_request",
+  ]
+
+ ❯ tests/inbox-ui.test.tsx:558:35
+    556|       submit('file');
+    557|     } finally { vi.unstubAllGlobals(); }
+    558|     expect(sent.map(c => c.kind)).toEqual(['link_work', 'file_request'…
+       |                                   ^
+    559|     expect(sent[0]).toMatchObject({ projectId: pid, workId: '44444444-…
+    560|     expect(sent[1]).toMatchObject({ projectId: pid, title: 'Việc thử t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/intake-pool-isolation.test.ts > (6) the runtime and intake roles do not bypass RLS; the new functions belong to libetech_identity and are closed to PUBLIC
+AssertionError: expected [ 'intake_link_allowed', …(2) ] to deeply equal [ 'intake_link_allowed', …(3) ]
+
+- Expected
++ Received
+
+  [
+    "intake_link_allowed",
+-   "intake_pool_links_outside",
+    "intake_pool_sender",
+    "tech_roster_names",
+  ]
+
+ ❯ tests/intake-pool-isolation.test.ts:156:27
+    154|      FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace WHERE …
+    155|       AND p.proname IN ('intake_pool_sender','intake_link_allowed','te…
+    156|   expect(fns.map(f=>f.n)).toEqual(['intake_link_allowed','intake_pool_…
+       |                           ^
+    157|   for(const f of fns){
+    158|     expect(f.owner,f.n).toBe('libetech_identity');expect(f.definer,f.n…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/intake-pool-isolation.test.ts > (11) the reopen check is one bit and tells a roster member who reads nothing of the project nothing: one link, two links or a link to work answer the same
+AssertionError: expected 'intake_pool_link_count(uuid,uuid)' to be null
+
+- Expected:
+null
+
++ Received:
+"intake_pool_link_count(uuid,uuid)"
+
+ ❯ tests/intake-pool-isolation.test.ts:197:124
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/intake-pool-isolation.test.ts > (12) the event payload holds states, numbers, a project id and codes only: free text under any allowed key is refused
+AssertionError: promise resolved "{ rows: [], fields: [], …(3) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "affectedRows": 1,
++   "command": "INSERT",
++   "fields": [],
++   "rowCount": 1,
++   "rows": [],
+  }
+
+ ❯ tests/intake-pool-isolation.test.ts:228:113
+    226|   const TEXT='nội dung một tin của nhóm';
+    227|   for(const key of ['state_before','state_after','version_before','ver…
+    228|     for(const value of [TEXT,{text:TEXT},[TEXT]]) await expect(put({[k…
+       |                                                                                                                 ^
+    229|   // a number where a state goes, and a state where a number goes
+    230|   await expect(put({state_after:1})).rejects.toThrow();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/migrations-rollback.test.ts > rollback 025 refuses while a later migration is recorded or a pool item, event or link exists; it drops what 025 made; applying 025 twice is fine
+AssertionError: expected [ 'intake_link_allowed', …(4) ] to deeply equal [ 'intake_link_allowed', …(5) ]
+
+- Expected
++ Received
+
+  [
+    "intake_link_allowed",
+    "intake_pool_items_guard",
+-   "intake_pool_links_outside",
+    "intake_pool_sender",
+    "intake_work_links_bind",
+    "tech_roster_names",
+  ]
+
+ ❯ tests/migrations-rollback.test.ts:764:31
+    762|     for(const f of [...later].reverse()) await h.exec(await readFile(d…
+    763|     expect(await present()).toEqual(full);
+    764|     expect(await functions()).toEqual(names);
+       |                               ^
+    765|     // 1. a later version recorded
+    766|     await q("INSERT INTO schema_migrations(version) VALUES('026')");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  5 failed | 50 skipped (55)
+   Start at  15:37:33
+   Duration  3.10s (tests 93%, transform 4%, import 3%)
+
