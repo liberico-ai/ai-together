@@ -1,13 +1,17 @@
-# Kịch bản nghiệm thu GIAO VIỆC 5 — tài khoản thật (0.9.1)
+# Kịch bản nghiệm thu GIAO VIỆC 5 và 7 — tài khoản thật (0.9.2)
 
-Version 1.0 · 25/11/2026 · bản 0.9.1 (merge `c3c9c4a`) · biên nhận: `docs/DELIVERY-022-gv5-golive-tech-work-20261125.md` · runbook: `docs/RUNBOOK-091-20261125.md`
+Version 1.1 · 25/11/2026 · bản 0.9.2 (merge `9cd6a13`) · biên nhận: `docs/DELIVERY-023-gv7-unlock-092-20261125.md` · runbook: `docs/RUNBOOK-092-20261125.md`
+
+Bản 1.0 viết cho 0.9.1 (merge `c3c9c4a`, `docs/DELIVERY-022-gv5-golive-tech-work-20261125.md`). Bản 1.1 sửa kịch bản 2 theo luật của 0.9.2 và thêm các kịch bản 8–12 (GIAO VIỆC 7).
 
 **Ai chạy:** Codex, trên d1-ai1 sau khi triển khai, cùng người thật. Phiên PR soạn, không chạy.
 
 **Người tham gia, nêu bằng vai.** Ai giữ vai nào nằm ngoài repo; phiên điều phối giữ bảng đó.
 - `BoM-1`, `BoM-2`, `BoM-3`: ba thành viên BoM Tech. Mỗi người là ghế BoM của các dự án dùng để thử.
 - `PM`: người giữ bảng danh sách việc của team. Cũng là một trong ba người BoM.
-- `Tech-1`: một thành viên Team Tech không giữ ghế BoM.
+- `Tech-1`: một thành viên Team Tech không giữ ghế BoM. `Tech-1` có một người dự phòng, cũng trong roster.
+- `Tech-2`: một thành viên roster chưa có membership ở dự án nào (kịch bản 12).
+- `Tech-M`, `Tech-V`: hai thành viên roster, vai `manager` và vai `technical` hoặc `viewer` ở một dự án thử (kịch bản 8).
 - Người báo ca (a), (b), (c): người đã báo lỗi đó.
 
 **Quy ước biên bản:**
@@ -33,10 +37,10 @@ Version 1.0 · 25/11/2026 · bản 0.9.1 (merge `c3c9c4a`) · biên nhận: `doc
 ## 2 · Chia lại việc cần đủ 3/3
 
 1. Trên việc vừa duyệt ở kịch bản 1, `BoM-1` đổi người thực hiện ngay trên trang việc: bị từ chối `BOM_REQUIRED` («Dùng phiếu BoM 3/3 để đổi người thực hiện.»), người thực hiện không đổi.
-2. Cũng việc đó, mở phiếu 3/3: trang `/bom` không liệt kê nó, và lệnh gửi phiếu trả `SOURCE_RECONCILE`. Lý do: phiếu 3/3 cần một dòng `bom_sources` còn hiệu lực, mà việc sinh từ yêu cầu không có (OQ-60 (d) (3), cách hiểu tạm). Ghi kết quả này vào biên bản là **vướng chờ Chairman**, không phải bước không đạt.
+2. Cũng việc đó: trang `/bom` của một ghế liệt kê nó, vì khi duyệt, 0.9.2 ghi dòng nguồn `work_request:<id>` (M4). Bản 1.0 ghi ở bước này `SOURCE_RECONCILE`; với 0.9.2, gặp `SOURCE_RECONCILE` ở đây là **không đạt**. Chia lại việc này theo kịch bản 11.
 3. Trên một việc đã có dòng `bom_sources` còn hiệu lực (trang `/bom` liệt kê nó): `BoM-1` gửi phiếu đổi người thực hiện. Ba ghế lần lượt chọn đồng ý. Sau phiếu đồng ý thứ hai, người thực hiện vẫn chưa đổi; sau phiếu thứ ba mới đổi, và phiếu có biên nhận.
 4. Lặp lại bước 3 với người thực hiện mới là một trong ba ghế BoM: vẫn cần đủ ba phiếu đồng ý.
-5. Duyệt một việc mới mà người thực hiện là một ghế BoM: bị giữ lại (`SELF_ASSIGNMENT` khi ghế tự giao cho mình, `BOM_ASSIGNEE_HELD` khi giao cho ghế khác). Đây là cách hiểu tạm OQ-60 (e) (1).
+5. Duyệt một việc mới mà người thực hiện là một ghế BoM: duyệt được, kể cả khi ghế tự nhận việc (M1, 0.9.2). Chi tiết ở kịch bản 9. Bản 1.0 ghi ở bước này `SELF_ASSIGNMENT` / `BOM_ASSIGNEE_HELD`; hai mã đó đã bỏ.
 
 ## 3 · Tin thật đi hết luồng B
 
@@ -69,6 +73,65 @@ Hạng mục F. Chạy khi F đã triển khai. Lịch nhắc GO LIVE và lịch
 4. `PM` nhập lại đúng tệp đó: 0 dòng mới.
 5. `Tech-1` (không giữ ghế BoM của các dự án đích) nhập đúng tệp đó: 0 dòng mới; các dòng ra «cần đối soát» `STT_IMPORTED`, không nói mã hay nội dung của dòng đã nhập (OQ-62 câu 8).
 6. Dòng IBS HI chỉ mang con trỏ, hash và dữ liệu công việc Tech: người vận hành chạy truy vấn chỉ đọc, không cột nào giữ chữ «Ghi chú» của dòng IBS HI.
+
+## 8 · Ba vai cùng làm người thực hiện (M2, 0.9.2)
+
+**Người tham gia,** đều có trong roster Team Tech, mỗi người một việc ở cùng một dự án thử:
+- `Tech-M`: vai `manager` của dự án;
+- `Tech-V`: vai `technical` hoặc `viewer` của dự án;
+- `BoM-2`: một ghế BoM của dự án.
+
+**Các bước:**
+1. Mỗi người gửi một yêu cầu, ghi chính mình là người thực hiện. `BoM-1` duyệt cả ba.
+   - Với người chưa có membership ở dự án, mỗi lần duyệt ghi một dòng cấp quyền. Người vận hành đếm số dòng đó bằng truy vấn chỉ đọc (chỉ ghi số).
+2. Mỗi người tự làm trên việc của mình:
+   - chuyển sang «Đang làm»;
+   - nộp bằng chứng đúng SHA;
+   - chuyển sang «Chờ nghiệm thu».
+
+   Không ai cần vai `engineer`.
+3. `Tech-V` (vai `viewer`) thử chuyển trạng thái việc của `Tech-M`: bị từ chối (`READ_ONLY` hoặc `NOT_ASSIGNED`).
+4. Một tài khoản ngoài roster, chỉ có vai `viewer` ở dự án, thử nhận việc: lúc duyệt bị từ chối `INVALID_ASSIGNMENT`.
+   - Câu báo nói «Chọn người khác» và không nêu tên dự án nào khác.
+
+## 9 · Ghế BoM nhận việc, kể cả người duyệt tự nhận (M1, M3)
+
+1. `Tech-1` gửi một yêu cầu và đề xuất chính mình làm người thực hiện.
+2. `BoM-1` duyệt và đổi người thực hiện sang chính `BoM-1`. Duyệt được.
+   - Trang việc hiện `BoM-1` là người thực hiện.
+   - Sự kiện duyệt ghi người đề xuất (`Tech-1`), người chốt (`BoM-1`) và ai đổi (`BoM-1`). Người vận hành đọc bằng truy vấn chỉ đọc; biên bản chỉ ghi vai.
+3. `BoM-2` gửi một yêu cầu, ghi `BoM-3` là người thực hiện. `BoM-1` duyệt: được.
+4. `BoM-1` tạo một yêu cầu rồi tự duyệt: vẫn bị từ chối (`SELF_APPROVAL`). Câu báo nói nhờ một BoM Tech hoặc ghế BoM khác.
+5. Người thực hiện trùng người nghiệm thu: vẫn bị từ chối (`SELF_ACCEPTANCE`).
+
+## 10 · Duyệt cả lô nhập (M7)
+
+1. Sau kịch bản 7, `BoM-1` mở «Việc chờ BoM duyệt» và chọn «Duyệt cả lô nhập (N yêu cầu)».
+   - Dự án có nhiều dịch vụ thì chọn dịch vụ cho từng dự án.
+2. Kết quả hiện từng dòng.
+   - Mỗi yêu cầu được duyệt có sự kiện riêng và người duyệt là `BoM-1`.
+   - Dòng lỗi ghi mã và câu báo riêng, ví dụ `SELF_APPROVAL` cho yêu cầu do `BoM-1` tạo (trường hợp PM là `BoM-1`) hoặc `ASSIGNEE_REQUIRED`. Dòng lỗi không chặn các dòng khác.
+3. Với các dòng lỗi vì người duyệt là người tạo, `BoM-2` duyệt cả lô lần nữa. Lượt này chỉ lấy các yêu cầu còn chờ, nên chỉ các dòng đó được duyệt; yêu cầu đã duyệt không ghi gì mới.
+4. Ghi số đếm theo nhãn BU: đã duyệt, lỗi theo mã. Không cộng gộp các miền.
+
+## 11 · Chia lại 3/3 trên việc tạo sau 0.9.2 (M4)
+
+1. Lấy một việc duyệt từ yêu cầu sau khi triển khai 0.9.2, ở một dự án có đủ ba ghế đã liên kết Telegram.
+   - Trang `/bom` của một ghế liệt kê việc đó: nó có dòng nguồn của yêu cầu.
+2. Trên trang `/bom`, `BoM-1` gửi phiếu đổi người thực hiện sang `Tech-1`. Phiếu được nhận, không bị từ chối `SOURCE_RECONCILE`. Sau hai phiếu đồng ý, người thực hiện chưa đổi. Sau phiếu thứ ba thì đổi, và phiếu có biên nhận.
+3. Lặp lại với người thực hiện mới là một trong ba ghế BoM: vẫn cần đủ ba phiếu.
+4. Lặp lại bước 1–2 với một việc đã duyệt dưới 0.9.1. Migration 028 đã điền bù dòng nguồn cho việc đó, nên trang `/bom` cũng liệt kê nó và phiếu cũng được nhận.
+5. `BoM-1` đổi người thực hiện thẳng trên trang việc: vẫn bị từ chối `BOM_REQUIRED`.
+
+## 12 · BoM Tech duyệt ở dự án chưa có ghế; Tech chưa có membership đăng nhập (M5, M6)
+
+1. Một yêu cầu ở dự án chưa ghi ghế BoM. Trang hiện «Dự án chưa có ghế BoM — một BoM Tech sẽ duyệt.» Một BoM Tech khác người tạo duyệt được, không cần liên kết Telegram.
+2. Lặp lại bước 1 với một dự án thuộc miền IBS HI. Người vận hành chạy truy vấn chỉ đọc: chỉ có con trỏ, hash và dữ liệu công việc Tech.
+3. `Tech-2`, thành viên roster chưa có membership nào, đăng nhập.
+   - Vào thẳng «Việc chờ BoM duyệt» và thấy danh mục dự án.
+   - Gửi một yêu cầu, rồi thấy yêu cầu của mình.
+   - Không thấy việc của dự án nào.
+4. Một tài khoản ngoài roster, chưa có membership, đăng nhập: bị từ chối `NO_PROJECT_ACCESS`. Câu báo nói nhờ người quản trị thêm vào dự án hoặc vào Team Tech.
 
 ## Biên bản
 
