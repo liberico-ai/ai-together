@@ -20,13 +20,16 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const denied = <Inbox key="denied" projects={[]} projectId={projectId} initial={null} sources={[]} failures={[]} denied canAct={false} />;
   if (projectId && !mayRead(projectId)) return denied;
   const db = await database();
-  const projects = (await new WorkService(db).workspace(principal)).projects.filter(p => mayRead(p.id)).map(p => ({ id: p.id, name: p.name }));
+  const workspace = await new WorkService(db).workspace(principal);
+  const projects = workspace.projects.filter(p => mayRead(p.id)).map(p => ({ id: p.id, name: p.name }));
   if (!projectId && projects.length === 1) redirect('/inbox?projectId=' + projects[0].id);
   if (!projectId) return <Inbox key="picker" projects={projects} projectId={null} initial={null} sources={[]} failures={[]} denied={false} canAct={false} />;
   const inbox = new InboxService(db, await currentExcerptChats());
   try {
     const [initial, sources, failures] = await Promise.all([inbox.list(principal, { projectId }), inbox.sources(principal, projectId), inbox.failures(principal, projectId)]);
-    return <Inbox key={projectId} projects={projects} projectId={projectId} initial={JSON.parse(JSON.stringify(initial))} sources={sources} failures={failures} denied={false} canAct={projectRole(principal, projectId) === 'manager'} />;
+    return <Inbox key={projectId} projects={projects} projectId={projectId} initial={JSON.parse(JSON.stringify(initial))} sources={sources} failures={failures} denied={false} canAct={projectRole(principal, projectId) === 'manager'}
+      works={workspace.work.filter(w => w.project_id === projectId).map(w => ({ id: w.id, projectId: w.project_id, code: w.code, title: w.title }))}
+      people={workspace.people.filter(p => ['engineer', 'technical', 'business'].includes(projectRole(p, projectId))).map(p => ({ id: p.id, name: p.name, role: projectRole(p, projectId) as 'engineer' | 'technical' | 'business' }))} />;
   } catch (e) {
     if (e instanceof AppError && e.code === 'SCOPE_DENIED') return denied;
     throw e;

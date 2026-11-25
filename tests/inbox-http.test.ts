@@ -10,7 +10,7 @@ import {COOKIE,createSession} from '../src/server/auth';
 import {handleInboxApi} from '../src/server/inbox-http';
 import {IntakeService} from '../src/server/intake';
 import {currentExcerptChats} from '../src/server/bridge-config';
-import {ids} from '../src/server/identities';
+import {demoProfiles,ids} from '../src/server/identities';
 
 let h:Harness;
 const url='http://127.0.0.1:3147';
@@ -142,5 +142,50 @@ describe('inbox HTTP',()=>{
     } finally { spy.mockRestore(); }
     for(const f of ['src/server/inbox-http.ts','src/app/inbox/page.tsx'])
       expect(readFileSync(f,'utf8'),f).toMatch(/new InboxService\(db, await currentExcerptChats\(\)\)/);
+  });
+});
+
+describe('pool routes (GIAO VIỆC 5 B)',()=>{
+  const chatPool='-10012345',techTelegram='900000103';
+  const cfg={chats:bridgeConfig.intake!.chats,excerptChats:[],poolChats:[chatPool]};
+  const seedTech=async()=>{
+    // the demo engineer is on the Team Tech roster and linked to Telegram
+    await h.operator.query('INSERT INTO identity.tech_roster(tenant_id,user_id) VALUES($1,$2)',[ids.tenant,demoProfiles.engineer.id]);
+    await h.operator.query('INSERT INTO identity.telegram_links(tenant_id,user_id,telegram_id) VALUES($1,$2,$3)',[ids.tenant,demoProfiles.engineer.id,techTelegram]);
+    const ack=await new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,cfg).ingest(messageEvent({context:{chatId:chatPool,telegramId:techTelegram}}));
+    return ack.sourceEventId;
+  };
+
+  test('the routes need a session; off the roster the list is empty and a detail or command is SCOPE_DENIED; a bot is read-only; origin is checked',async()=>{
+    const id=await seedTech();
+    expect((await call('GET','/api/inbox/pool',{cookie:null})).status).toBe(401);
+    expect((await call('POST',`/api/inbox/pool/${id}/commands`,{cookie:null,payload:{kind:'reopen',expectedVersion:1}})).status).toBe(401);
+    const off=await call('GET','/api/inbox/pool',{cookie:login('manager')});
+    expect(off.status).toBe(200);
+    expect((await json(off)).data).toEqual({items:[],unassigned:0});
+    expect((await call('GET','/api/inbox/pool/'+id,{cookie:login('manager')})).status).toBe(404);
+    expect((await call('POST',`/api/inbox/pool/${id}/commands`,{cookie:login('manager'),payload:{kind:'dismiss',expectedVersion:1,code:'not_work'}})).status).toBe(404);
+    expect((await call('GET','/api/inbox/pool/not-an-id',{cookie:login('engineer')})).status).toBe(404);
+    const bot=await call('POST',`/api/inbox/pool/${id}/commands`,{cookie:login('bot'),payload:{kind:'dismiss',expectedVersion:1,code:'not_work'}});
+    expect(bot.status).toBe(403);expect((await json(bot)).error.code).toBe('READ_ONLY');
+    expect((await call('GET','/api/inbox/pool',{cookie:login('bot')})).status).toBe(403);
+    expect((await call('POST',`/api/inbox/pool/${id}/commands`,{cookie:login('engineer'),origin:'http://evil.example',payload:{kind:'dismiss',expectedVersion:1,code:'not_work'}})).status).toBe(403);
+    const body={kind:'dismiss',expectedVersion:1,code:'not_work',origin:'form'};
+    expect((await call('POST',`/api/inbox/pool/${id}/commands`,{cookie:login('engineer'),payload:body})).status).toBe(422);
+  });
+
+  test('a roster member lists, reads and dismisses; no answer carries a Telegram id',async()=>{
+    const id=await seedTech();
+    const list=await json(await call('GET','/api/inbox/pool',{cookie:login('engineer')}));
+    expect(list.data.unassigned).toBe(1);
+    expect(list.data.items[0]).toMatchObject({itemId:id,state:'unassigned',projectId:null,version:1});
+    expect(list.data.items[0].trail).toMatchObject({label:'Đã nhận — chưa gán dự án',waitingOn:'người phân loại (Team Tech)'});
+    const detail=await json(await call('GET','/api/inbox/pool/'+id,{cookie:login('engineer')}));
+    expect(detail.data.events.map((e:{kind:string})=>e.kind)).toEqual(['pool.received']);
+    const done=await call('POST',`/api/inbox/pool/${id}/commands`,{cookie:login('engineer'),payload:{kind:'dismiss',expectedVersion:1,code:'not_work'}});
+    expect(done.status).toBe(200);
+    expect((await json(done)).data).toMatchObject({state:'dismissed',version:2});
+    const all=JSON.stringify([list,detail]);
+    expect(all).not.toContain(chatPool);expect(all).not.toContain(techTelegram);
   });
 });

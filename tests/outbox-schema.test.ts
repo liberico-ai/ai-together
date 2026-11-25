@@ -243,6 +243,8 @@ test('017 rollback refuses while identity.account_approvals.kind exists, then dr
   expect(await hasKind()).toBe(true);
   await h.exec(fw); // forward twice in a row
   await h.exec(fw18);
+  // 017 revokes and replaces what later migrations changed on outbox_messages (026: column grant, target binding, policies), so they go back on top, as in the finally above
+  for(const f of later) await h.exec(await readFile(dir('migrations/'+f),'utf8'));
   expect(await schemaAcl()).toContain('libetech_outbox_audit=');
 });
 

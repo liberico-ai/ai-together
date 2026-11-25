@@ -76,6 +76,7 @@ export function WorkRequests({ initial, services, people = [] }: { initial: Page
       <div className="doc-main">
         <h2 dir="auto">{item.title}</h2>
         <p><strong>{stateLabel[item.state]}</strong> · {item.project_name ?? 'Dự án trong phạm vi'}{item.priority === 'high' ? ' · Ưu tiên cao' : ''}</p>
+        {item.origin === 'intake' && item.source_ref && <p className="muted">Từ tin {item.source_ref.split(' · ')[0]}</p>}
         <p className="muted">Người tạo {item.requester_name} · {when(item.created_at)}</p>
         {item.criteria && <p dir="auto">{item.criteria}</p>}
         <ul className="muted" aria-label="Người đề xuất">{SLOTS.map(slot => <li key={slot.field}>{slot.label}: {nameOf(people, item[slot.proposed])}</li>)}</ul>

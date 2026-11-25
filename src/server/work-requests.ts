@@ -12,7 +12,7 @@ import type { Principal, Project, Work } from './types';
 // Approval creates the work_items row in the same transaction, with the proposed assignee and acceptors (the initial assignment, as WorkService.create allowed); later changes of the assignee need the 3/3 ballot (bom_guard_assignment).
 const uuid = z.string().uuid();
 const code = z.string().regex(/^[A-Z0-9][A-Z0-9-]{2,39}$/);
-const submitSchema = z.object({
+export const submitSchema = z.object({
   projectId: uuid, requestKey: uuid, code: code.nullable(), title: z.string().trim().min(5).max(200), priority: z.enum(['normal', 'high']),
   dueAt: z.string().datetime().nullable(), criteria: z.string().max(3000), specUrl: httpsUrl.nullable(),
   assigneeId: uuid.nullable(), technicalId: uuid.nullable(), businessId: uuid.nullable(),
@@ -55,6 +55,43 @@ const canonical = (o: Record<string, unknown>) => JSON.stringify(Object.keys(o).
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 const PROJECT_LIST = "string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[]";
 
+export type SubmitInput = z.infer<typeof submitSchema>;
+/**
+ * The filing of a request inside the caller's transaction (already scoped, app.person_id set). The HTTP route reaches it with origin 'form'; the intake
+ * paths (pool triage, candidate command) reach it with origin 'intake' and a source_ref made of the IN code and the internal uuid of the pool item or candidate,
+ * never a Telegram id. `authorization: 'standard'` is PR A's rule: a Team Tech member, or the manager of the project.
+ */
+export async function fileRequestIn(tx: Queryable, p: Principal, input: SubmitInput, opts: { origin: 'form' | 'intake'; sourceRef: string | null; authorization: 'standard' }): Promise<{ request: WorkRequest; replayed: boolean }> {
+  const { requestKey, ...content } = input;
+  const hash = sha256(canonical(content));
+  if (opts.authorization === 'standard') {
+    const tech = (await tx.query<{ ok: boolean }>('SELECT public.app_actor_is_tech_member() AS ok')).rows[0].ok === true;
+    const denied = () => new AppError('WORK_REQUEST_DENIED', 'Chỉ thành viên Team Tech hoặc điều phối dự án được tạo việc.', 403);
+    if (!tech && !p.projectIds.some(id => projectRole(p, id) === 'manager')) throw denied();
+    const inScope = tech
+      ? (await tx.query('SELECT 1 FROM public.tech_project_catalog() WHERE id=$1', [content.projectId])).rows.length > 0
+      : p.projectIds.includes(content.projectId);
+    if (!inScope) throw scopeDenied();
+    if (!tech && projectRole(p, content.projectId) !== 'manager') throw denied();
+  } else if (!p.projectIds.includes(content.projectId)) throw scopeDenied();
+  // The filing policy asks the same question of the account rows (work_request_filer, 024); a session whose grant the database does not back
+  // (a demo profile, a manager role removed since sign-in) gets this answer instead of a row-level security error.
+  const filer = (await tx.query<{ ok: boolean }>('SELECT public.work_request_filer($1) AS ok', [content.projectId])).rows[0].ok === true;
+  if (!filer) throw new AppError('WORK_REQUEST_DENIED', 'Chỉ thành viên Team Tech hoặc điều phối dự án được tạo việc.', 403);
+  await approvers({ ...p, role: projectRole(p, content.projectId) }, content.assigneeId, content.technicalId, content.businessId, content.projectId);
+  const made = (await tx.query<WorkRequest>(`INSERT INTO work_requests(tenant_id,project_id,requester_id,requester_name,origin,source_ref,request_key,request_hash,code,title,priority,due_at,criteria,spec_url,assignee_id,technical_id,business_id)
+    VALUES($1,$2,$3,$4,$16,$17,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (tenant_id,requester_id,request_key) DO NOTHING RETURNING *`,
+    [p.tenantId, content.projectId, p.id, p.name, requestKey, hash, content.code, content.title, content.priority, content.dueAt, content.criteria, content.specUrl, content.assigneeId, content.technicalId, content.businessId, opts.origin, opts.sourceRef])).rows[0];
+  if (!made) {
+    const old = (await tx.query<WorkRequest>('SELECT * FROM work_requests WHERE tenant_id=$1 AND requester_id=$2 AND request_key=$3', [p.tenantId, p.id, requestKey])).rows[0];
+    invariant(old && old.request_hash === hash, 'IDEMPOTENCY_CONFLICT', 'Mã thao tác đã được dùng với nội dung khác.', 409);
+    return { request: old, replayed: true };
+  }
+  await tx.query(`INSERT INTO work_request_events(tenant_id,project_id,request_id,requester_id,actor_id,kind,payload) VALUES($1,$2,$3,$4,$4,'submitted',$5)`,
+    [p.tenantId, made.project_id, made.id, p.id, JSON.stringify({ origin: opts.origin, title: made.title })]);
+  return { request: made, replayed: false };
+}
+
 export class WorkRequestService {
   constructor(private db: Database) {}
   private run<T>(p: Principal, fn: (tx: Queryable) => Promise<T>): Promise<T> {
@@ -76,34 +113,8 @@ export class WorkRequestService {
 
   async submit(p: Principal, raw: unknown): Promise<{ request: WorkRequest; replayed: boolean }> {
     invariant(p && p.role !== 'bot', 'READ_ONLY', 'Vai này chỉ được đọc dữ liệu trong phạm vi dự án.', 403);
-    const { requestKey, ...content } = submitSchema.parse(raw);
-    const hash = sha256(canonical(content));
-    return this.run(p, async tx => {
-      const tech = (await tx.query<{ ok: boolean }>('SELECT public.app_actor_is_tech_member() AS ok')).rows[0].ok === true;
-      const denied = () => new AppError('WORK_REQUEST_DENIED', 'Chỉ thành viên Team Tech hoặc điều phối dự án được tạo việc.', 403);
-      if (!tech && !p.projectIds.some(id => projectRole(p, id) === 'manager')) throw denied();
-      const inScope = tech
-        ? (await tx.query('SELECT 1 FROM public.tech_project_catalog() WHERE id=$1', [content.projectId])).rows.length > 0
-        : p.projectIds.includes(content.projectId);
-      if (!inScope) throw scopeDenied();
-      if (!tech && projectRole(p, content.projectId) !== 'manager') throw denied();
-      // The filing policy asks the same question of the account rows (work_request_filer, 024); a session whose grant the database does not back
-      // (a demo profile, a manager role removed since sign-in) gets this answer instead of a row-level security error.
-      const filer = (await tx.query<{ ok: boolean }>('SELECT public.work_request_filer($1) AS ok', [content.projectId])).rows[0].ok === true;
-      if (!filer) throw denied();
-      await approvers({ ...p, role: projectRole(p, content.projectId) }, content.assigneeId, content.technicalId, content.businessId, content.projectId);
-      const made = (await tx.query<WorkRequest>(`INSERT INTO work_requests(tenant_id,project_id,requester_id,requester_name,origin,request_key,request_hash,code,title,priority,due_at,criteria,spec_url,assignee_id,technical_id,business_id)
-        VALUES($1,$2,$3,$4,'form',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (tenant_id,requester_id,request_key) DO NOTHING RETURNING *`,
-        [p.tenantId, content.projectId, p.id, p.name, requestKey, hash, content.code, content.title, content.priority, content.dueAt, content.criteria, content.specUrl, content.assigneeId, content.technicalId, content.businessId])).rows[0];
-      if (!made) {
-        const old = (await tx.query<WorkRequest>('SELECT * FROM work_requests WHERE tenant_id=$1 AND requester_id=$2 AND request_key=$3', [p.tenantId, p.id, requestKey])).rows[0];
-        invariant(old && old.request_hash === hash, 'IDEMPOTENCY_CONFLICT', 'Mã thao tác đã được dùng với nội dung khác.', 409);
-        return { request: old, replayed: true };
-      }
-      await tx.query(`INSERT INTO work_request_events(tenant_id,project_id,request_id,requester_id,actor_id,kind,payload) VALUES($1,$2,$3,$4,$4,'submitted',$5)`,
-        [p.tenantId, made.project_id, made.id, p.id, JSON.stringify({ origin: 'form', title: made.title })]);
-      return { request: made, replayed: false };
-    });
+    const input = submitSchema.parse(raw);
+    return this.run(p, tx => fileRequestIn(tx, p, input, { origin: 'form', sourceRef: null, authorization: 'standard' }));
   }
 
   async list(p: Principal, raw: unknown): Promise<{ items: WorkRequestItem[]; total: number }> {

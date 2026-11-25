@@ -21,5 +21,7 @@ Quy ước cho mọi câu trả lời:
 | EV-09 | Tài khoản dùng để nghiệm thu | Với ba người BoM Tech và một thành viên Tech: tài khoản đang hoạt động, đã kích hoạt, đã liên kết Telegram; danh sách dự án có membership và vai ở từng dự án. Đây là đầu vào cho `deploy/tech-roster.sql` và `deploy/bom-seats.sql`. Dữ liệu ngoài repo | Trang quản trị tài khoản; `psql` chỉ đọc | Codex |
 | EV-10 | Bản nguồn danh sách việc | Bản nào là nguồn để nhập: (1) Google Sheet «Checklist dau viec cua Tech theo BU_Update 07.11.2026», trang «Đầu việc Tech», sửa lần cuối 25/11/2026 10:02 (+07); hay (2) tệp `LibeTech_NhiemVu_KeHoach_KPI_2026-11.xlsx` sửa lần cuối 02/11/2026 13:31 (+07), là bảng kế hoạch/KPI. Trạng thái hiện tại: «chờ PM xác nhận bản nguồn» | PM | PM |
 | EV-11 | P0 còn mở từ `docs/DELIVERY-020-release-0.9.0-20261122.md:58-66` | Unit outbox chạy dạng user unit hay system unit | `systemctl` / `systemctl --user` trên d1-ai1 | Codex |
+| EV-12 | Gateway có giữ chữ của Dragon Forge ở nơi khác không (hạng mục B, OQ-61) | Có hay không, cho từng nơi: nhật ký phiên của gateway, bộ nhớ của agent, thư mục lịch sử hội thoại của Hermes. Chỉ trả có/không, nơi nào và số tệp; không in chữ của tin. Có ⇒ chưa bật `poolChats`, báo Chairman | d1-ai1: cấu hình gateway và Hermes, các thư mục phiên | Codex |
+| EV-13 | Bot ở Dragon Forge nhận được những tin nào (hạng mục B, OQ-61 B1) | Chế độ riêng tư (privacy mode) của bot đang bật hay tắt; bot có là quản trị viên của nhóm không. Hai điều này quyết định tin nào tới được plugin, trước mọi luật của PR B | BotFather / trang quản trị nhóm | Codex |
 
-Các mục của hạng mục B–F được bổ sung vào bảng này khi mỗi PR mở.
+Các mục của hạng mục C–F được bổ sung vào bảng này khi mỗi PR mở.
