@@ -7,7 +7,7 @@ import {DUPLICATE_HINT_SQL,latestRevisionCte,listVisibleRevisions,type DisplayMo
 import {candidateTransition,type CandidateAction,type CandidateState} from './intake-rules';
 import {applyOutboxSignal,OVERDUE_SECONDS,type OutboxState} from './outbox';
 import {intakeTrail,type IntakeTrail} from './intake-trail';
-import {loadLinkRows,summariseLinks} from './intake-pool';
+import {loadLinkRows,summariseLinks,priorLink,revocableLink,revokeLink,revokeSchema,LINK_REVOKED,type PoolLinkView} from './intake-pool';
 import {fileRequestIn,submitSchema} from './work-requests';
 import {projectRole} from './types';
 import type {Principal} from './types';
@@ -20,7 +20,7 @@ export type {DisplayMode} from './source-text';
 export type IntakeStatus={receivedAt:string;persistedAt:string;projectedAt:null;deliveredAt:string|null;acknowledgedAt:string|null;outboxState:OutboxState|null};
 export type CandidateCard={candidateId:string;ref:string;projectId:string;projectLabel:string;sourceRef:string;receivedAt:string;classification:'incident'|'request'|'document'|null;state:CandidateState;missingFields:string[];
  duplicateCandidates:{candidateId:string;ref:string;reason:string}[];contentMode:DisplayMode;excerpt:string|null;forwarded:boolean;
- attachments:{state:string;mimeType:string;sizeBytes:number|null;fileName:string}[];ticketRef:string|null;status:IntakeStatus;version:number;trail:IntakeTrail};
+ attachments:{state:string;mimeType:string;sizeBytes:number|null;fileName:string}[];ticketRef:string|null;status:IntakeStatus;version:number;trail:IntakeTrail;links:PoolLinkView[]};
 export type SourceAvailabilityRow={chatId:string;topicId:string;state:'not-configured'|'partially-received';coverageStart:string|null;coverageGaps:{from:string;to:string}[];label:string};
 export type RevisionView={revisionNo:number;editedAt:string|null;contentMode:DisplayMode;contentHash:string|null;excerpt:string|null;textTruncated:boolean;recordedAt:string};
 export type EventView={id:string;kind:string;actorKind:string;actorId:string;createdAt:string;payload:Record<string,unknown>};
@@ -59,6 +59,7 @@ const commandSchema=z.discriminatedUnion('kind',[
 const linkCommandSchema=z.discriminatedUnion('kind',[
  submitSchema.omit({projectId:true}).extend({kind:z.literal('file_request'),expectedVersion}).strict(),
  z.object({kind:z.literal('link_work'),expectedVersion,workId:uuid}).strict(),
+ revokeSchema,
 ]);
 const failureSchema=z.object({kind:z.enum(['take','requeue','abandon']),expectedVersion,reason}).strict();
 
@@ -82,7 +83,7 @@ const CARD_SQL=`WITH lat AS (
  LEFT JOIN LATERAL (SELECT state,delivered_at,acknowledged_at FROM outbox_messages WHERE candidate_id=c.id ORDER BY created_at DESC,id LIMIT 1) o ON true
  WHERE c.project_id=$1`;
 
-type PlainCard=Omit<CandidateCard,'trail'>;
+type PlainCard=Omit<CandidateCard,'trail'|'links'>;
 function toCard(r:CardRow):PlainCard {
  const mode=r.display_mode;
  return {candidateId:r.id,ref:refOf(r.id),projectId:r.project_id,projectLabel:r.project_label,sourceRef:r.source_id,receivedAt:iso(r.observed_at),classification:r.classification,state:r.state,
@@ -97,8 +98,8 @@ async function attachTrails(tx:Queryable,projectId:string,cards:PlainCard[]):Pro
  const links=await loadLinkRows(tx,'candidate_id',cards.map(c=>c.candidateId));
  const seatOpen=(await tx.query<{open:boolean}>('SELECT EXISTS (SELECT 1 FROM bom_scopes s WHERE s.project_id=$1 AND s.enabled) AS open',[projectId])).rows[0].open;
  return cards.map(c=>{
-  const {requests,workLinks,hidden}=summariseLinks(links.filter(l=>l.candidate_id===c.candidateId));
-  return {...c,trail:intakeTrail({kind:'candidate',receivedAt:c.receivedAt,candidateState:c.state,projectName:c.projectLabel,triagedAt:null,triagedBy:null,requests,workLinks,hiddenLinks:hidden,seatOpen})};
+  const {views,requests,workLinks,hidden}=summariseLinks(links.filter(l=>l.candidate_id===c.candidateId));
+  return {...c,links:views,trail:intakeTrail({kind:'candidate',receivedAt:c.receivedAt,candidateState:c.state,projectName:c.projectLabel,triagedAt:null,triagedBy:null,requests,workLinks,hiddenLinks:hidden,seatOpen})};
  });
 }
 async function loadCard(tx:Queryable,projectId:string,candidateId:string,excerptChats:readonly string[]):Promise<CandidateCard> {
@@ -168,7 +169,7 @@ export class InboxService {
   uuid.parse(requestId);
   const projectId=await this.locate(p,'intake_candidates',candidateId);
   const linkKind=(raw as {kind?:unknown}|null)?.kind;
-  if(linkKind==='file_request'||linkKind==='link_work') return this.linkCommand(p,projectId,candidateId,raw,key,requestId);
+  if(linkKind==='file_request'||linkKind==='link_work'||linkKind==='revoke_link') return this.linkCommand(p,projectId,candidateId,raw,key,requestId);
   managerOf(p,projectId);
   const input=commandSchema.parse(raw);
   const action:CandidateAction=input.kind;
@@ -236,7 +237,8 @@ export class InboxService {
     const row=(await tx.query<{id:string;state:CandidateState;version:number;trace_id:string}>(
      `SELECT c.id,c.state,c.version,e.trace_id FROM intake_candidates c JOIN source_events e ON e.id=c.root_source_event_id WHERE c.id=$1 AND c.project_id=$2 FOR UPDATE OF c`,[candidateId,projectId])).rows[0];
     if(!row) throw DENIED();
-    if(row.state!=='confirmed') throw new AppError('CANDIDATE_NOT_CONFIRMED','Điều phối cần xác nhận ứng viên trước.',409);
+    // a wrong link stays revocable even after the candidate was opened again
+    if(row.state!=='confirmed'&&input.kind!=='revoke_link') throw new AppError('CANDIDATE_NOT_CONFIRMED','Điều phối cần xác nhận ứng viên trước.',409);
     const unchanged={candidateId,state:row.state,version:row.version};
     const conflict=()=>new AppError('REVISION_CONFLICT','Ứng viên đã thay đổi; tải lại rồi thao tác lại.',409);
     const link=async(target:{requestId?:string;workId?:string})=>(await tx.query<{id:string}>(
@@ -263,9 +265,16 @@ export class InboxService {
      await link({requestId:filed.request.id});
      return out;
     }
+    if(input.kind==='revoke_link') {
+     const target=await revocableLink(tx,p,'candidate_id',candidateId,input.linkId);
+     if(!await revokeLink(tx,p,target,input.reasonCode)) return unchanged;
+     return bump('candidate.link_revoked',{linkId:input.linkId,reasonCode:input.reasonCode});
+    }
     if(!(await tx.query('SELECT 1 FROM work_items WHERE id=$1 AND project_id=$2',[input.workId,projectId])).rows.length) throw DENIED();
-    // the candidate is locked: a link read here is the one every concurrent caller finds; linking the same pair again changes nothing
-    if((await tx.query('SELECT 1 FROM intake_work_links WHERE candidate_id=$1 AND work_id=$2',[candidateId,input.workId])).rows.length) return unchanged;
+    // the candidate is locked: a link read here is the one every concurrent caller finds; linking the same pair again changes nothing, a revoked pair is refused
+    const prior=await priorLink(tx,'candidate_id',candidateId,input.workId);
+    if(prior==='live') return unchanged;
+    if(prior==='revoked') throw LINK_REVOKED();
     const out=await bump('candidate.work_linked',{workId:input.workId});
     const made=await link({workId:input.workId});
     if(!made) throw conflict();

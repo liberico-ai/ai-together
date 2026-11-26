@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { PoolCard } from '../server/intake-pool';
 import { api } from './api';
 import { TrailStrip } from './inbox-trail';
+import { LinkList } from './inbox-links';
 import { formatTime } from './inbox-view';
 
 // The pool of the shared group (GIAO VIỆC 5 B), for the Team Tech roster. A pool item carries no message text, no file name and no sender label: only the time, the
@@ -28,8 +29,7 @@ export function PoolItemView({ card, projects, busy, error, onCommand }: { card:
       <div><dt>Biên nhận</dt><dd>{card.receipt.state ? POOL_RECEIPT[card.receipt.state] ?? card.receipt.state : 'Chưa có biên nhận'}</dd></div>
     </dl>
     <TrailStrip trail={card.trail} />
-    {card.links.length > 0 && <ul className="inbox-plain" aria-label="Yêu cầu và liên kết">{card.links.map((l, i) => <li key={i} className="doc-wrap">
-      {l.kind === 'request' ? 'Yêu cầu' + (l.title ? ': ' + l.title : '') : 'Liên kết việc ' + (l.workCode ?? '')} · {l.createdByName} · {formatTime(l.createdAt)}</li>)}</ul>}
+    <LinkList links={card.links} version={card.version} busy={busy} onCommand={onCommand} />
     {error && <p role="alert" className="doc-problem">{error}</p>}
     {onCommand && (open || card.state === 'assigned') && <form className="inbox-actions" onSubmit={e => {
       e.preventDefault();

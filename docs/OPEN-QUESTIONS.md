@@ -1296,3 +1296,8 @@ Phiên PR ghi cách hiểu tạm dưới đây để không bị chặn. Đây k
   - Xác nhận một dự án thành `IBS_HI`, hoặc người vận hành đổi nhãn BU thành IBS HI, thì ghi chú của dự án đó cũng được chuyển. Mỗi bản chữ khác nhau của một dòng được giữ riêng.
   - Đổi miền khỏi `IBS_HI` về sau **không** tự trả chữ về.
   - Phương án: (1) giữ; (2) quyền theo cột kèm hàm đọc. Tạm: (1).
+- **Q-GV5E-1. Ai được gỡ một liên kết sai** (OQ-61 B6 (2)): người tạo liên kết, hoặc một ghế BoM của dự án. Cả hai phải đọc được liên kết đó. Ở nhóm chung còn cần là thành viên Team Tech.
+  - Lý do gỡ chọn trong bốn mã cố định, không có chữ tự do.
+  - Phương án: (1) giữ; (2) thêm điều phối dự án.
+- **Q-GV5E-2. Không nối lại đúng cặp đã gỡ.** Khoá duy nhất của 025 giữ nguyên. Muốn nối lại đúng cặp thì phải đổi khoá đó.
+  - Phương án: (1) giữ; (2) cho nối lại.
