@@ -8,6 +8,7 @@ export const SHEET_LIMITS = { fileBytes: 256 * 1024, bodyBytes: 400 * 1024, data
 /** One data row: `row` is the source row (header = 1, then the order of records, not of physical lines); `cells` are the eight cells, trimmed, absent cells empty. */
 export type SheetRow = { row: number; cells: string[] };
 
+const XLSX = 'Đây là tệp Excel (.xlsx), chưa nhập được. Mở trang «Đầu việc Tech» trong Google Sheets, chọn Tệp → Tải xuống → Giá trị phân tách bằng dấu phẩy (.csv), rồi chọn tệp .csv đó.';
 const NOT_UTF8 = 'Tệp không phải UTF-8. Tải lại từ Google Sheets theo bước 2, không lưu qua Excel.';
 
 /** Decodes bytes as UTF-8, strictly: any invalid sequence is refused. A leading BOM is dropped. */
@@ -58,6 +59,8 @@ const headerProblem = () => new AppError('SOURCE_HEADER_MISMATCH', 'Tệp không
 /** The file as the sheet's rows. Blank records (all cells empty) are skipped; their numbers are still counted in the source row of the rows after them. */
 export function readSheetCsv(bytes: Uint8Array): { fileHash: string; rows: SheetRow[] } {
   if (bytes.byteLength > SHEET_LIMITS.fileBytes) throw new AppError('FILE_TOO_LARGE', `Tệp vượt ${SHEET_LIMITS.fileBytes / 1024} KB.`, 413);
+  // a .xlsx workbook is a ZIP: say it is Excel and how to export the CSV, rather than «not UTF-8»
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) throw new AppError('XLSX_NOT_SUPPORTED', XLSX, 422);
   const records = parseCsv(decodeUtf8Strict(bytes));
   const head = records[0];
   if (!head || header.some((name, index) => (head[index] ?? '').trim() !== name) || head.slice(header.length).some(c => c.trim() !== '')) throw headerProblem();

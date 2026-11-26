@@ -3,6 +3,9 @@ import { useRef, useState } from 'react';
 import { api } from './api';
 import type { ImportPreview, ImportReceipt, Group } from '@/server/sheet-import';
 
+// the import calls give up after a minute with CLIENT_TIMEOUT rather than leaving the screen busy
+const IMPORT_WAIT = { timeoutMs: 60_000 };
+
 // «Nhập bảng việc»: choose the exported file → preview (nothing is written) → confirm the mapping → write. There is no path that writes without a preview.
 // Text from the file is rendered as React text only. The note column of the sheet is never shown here.
 export const SOURCE_STATUS_LABEL = 'Trạng thái theo bảng nguồn';
@@ -69,7 +72,7 @@ export function WorkImport() {
     const f = new FormData(e.currentTarget), get = (k: string) => String(f.get(k) ?? '');
     try {
       const next = importEnvelope(file.name, new Uint8Array(await file.arrayBuffer()), get('sourceUrl'), get('sheet'));
-      const pre = await api<ImportPreview>('/api/v1/work-imports/preview', next);   // the first preview uses the defaults
+      const pre = await api<ImportPreview>('/api/v1/work-imports/preview', next, undefined, IMPORT_WAIT);   // the first preview uses the defaults
       setBody(next); setPreview(pre); requestKey.current = crypto.randomUUID();
       setProjects(Object.fromEntries(pre.buLabels.filter(b => b.defaultProjectId && !labelProblem(b.label)).map(b => [b.label, b.defaultProjectId as string]))); setOwners({});
     } catch (err) { setError((err as Error).message); setPreview(null); } finally { setBusy(false); }
@@ -79,14 +82,14 @@ export function WorkImport() {
     if (!preview || !body) return;
     setProjects(nextProjects); setOwners(nextOwners); setBusy(true); setError('');
     try {
-      const pre = await api<ImportPreview>('/api/v1/work-imports/preview', { ...body, ...pairs(preview, nextProjects, nextOwners) });
+      const pre = await api<ImportPreview>('/api/v1/work-imports/preview', { ...body, ...pairs(preview, nextProjects, nextOwners) }, undefined, IMPORT_WAIT);
       setPreview(pre); requestKey.current = crypto.randomUUID();
     } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   }
   async function commit() {
     if (!preview || !body) return;
     setBusy(true); setError('');
-    try { setReceipt(await api<ImportReceipt>('/api/v1/work-imports', { ...body, previewDigest: preview.previewDigest, requestKey: requestKey.current, ...pairs(preview, projects, owners) })); }
+    try { setReceipt(await api<ImportReceipt>('/api/v1/work-imports', { ...body, previewDigest: preview.previewDigest, requestKey: requestKey.current, ...pairs(preview, projects, owners) }, undefined, IMPORT_WAIT)); }
     catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   }
 
