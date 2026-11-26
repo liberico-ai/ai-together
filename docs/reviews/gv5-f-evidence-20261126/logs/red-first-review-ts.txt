@@ -1,0 +1,130 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/reminders.test.ts (24 tests | 4 failed) 14426ms
+   ❯ a dropped reminder is not lost for good, and a base time changed back is sent again (2)
+     × a message dropped as dead is queued again while it is due, three times in all, then counted as given up 639ms
+     × the base time changed away and back by the operator sends each current time 642ms
+   ❯ the send-time rules on their own (2)
+     × meeting messages go out between 07:00 and 21:00 only 565ms
+     × a GO LIVE status goes out within an hour of being queued 615ms
+ ❯ tests/reminder-schema.test.ts (6 tests | 2 failed) 4502ms
+   ❯ the send guard (4)
+     × every change of a target or a series leaves an audit row with its source; no application role reads it 574ms
+   × every privileged function of this migration pins its search path with the temporary schema last 571ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/reminder-schema.test.ts > the send guard > every change of a target or a series leaves an audit row with its source; no application role reads it
+AssertionError: every event carries a request id and a trace id: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/reminder-schema.test.ts:91:85
+     89|   await h.operator.query('UPDATE meeting_series SET version=version+1,…
+     90|   const ids_=(await h.operator.query<{r:string|null;t:string|null}>('S…
+     91|   expect(ids_.every(x=>x.r&&x.t),'every event carries a request id and…
+       |                                                                                     ^
+     92|   const run=randomUUID();
+     93|   await h.operator.transaction(async tx=>{await tx.query("SELECT set_c…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/reminder-schema.test.ts > every privileged function of this migration pins its search path with the temporary schema last
+AssertionError: meeting_changes_guard: expected 'search_path=pg_catalog' to be 'search_path=pg_catalog,pg_temp' // Object.is equality
+
+Expected: "search_path=pg_catalog,pg_temp"
+Received: "search_path=pg_catalog"
+
+ ❯ tests/reminder-schema.test.ts:110:117
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/reminders.test.ts > a dropped reminder is not lost for good, and a base time changed back is sent again > a message dropped as dead is queued again while it is due, three times in all, then counted as given up
+AssertionError: attempt 2: expected { Object (queued, replayed, ...) } to match object { queued: 1 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 1,
++   "queued": 0,
+  }
+
+ ❯ tests/reminders.test.ts:205:74
+    203|   await insertSeries(h);const t=await target({kind:'bom_meeting',chat:…
+    204|   const drop=async()=>{await new OutboxService(h.operator,{} as never,…
+    205|   for(const attempt of [1,2,3]){await expect(run(WED),'attempt '+attem…
+       |                                                                          ^
+    206|   await expect(run(WED)).resolves.toMatchObject({queued:0,skipped:{gav…
+    207|   expect((await h.operator.query<{n:string}>('SELECT count(*) n FROM o…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/reminders.test.ts > a dropped reminder is not lost for good, and a base time changed back is sent again > the base time changed away and back by the operator sends each current time
+AssertionError: expected { Object (queued, replayed, ...) } to match object { queued: 1 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 1,
++   "queued": 0,
+  }
+
+ ❯ tests/reminders.test.ts:216:25
+    214|   await expect(run(WED)).resolves.toMatchObject({queued:1});
+    215|   await script('meeting-series.sql',{...vars,start_time:'09:00',expect…
+    216|   await expect(run(WED)).resolves.toMatchObject({queued:1});
+       |                         ^
+    217|   expect((await sent()).map(r=>r.payload.params.time)).toEqual(['09:00…
+    218|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/reminders.test.ts > the send-time rules on their own > meeting messages go out between 07:00 and 21:00 only
+AssertionError: 2026-11-26T21:00: expected null to be 'REMINDER_OUTSIDE_HOURS' // Object.is equality
+
+- Expected:
+"REMINDER_OUTSIDE_HOURS"
+
++ Received:
+null
+
+ ❯ tests/reminders.test.ts:227:92
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  tests/reminders.test.ts > the send-time rules on their own > a GO LIVE status goes out within an hour of being queued
+AssertionError: expected null to be 'REMINDER_EXPIRED' // Object.is equality
+
+- Expected:
+"REMINDER_EXPIRED"
+
++ Received:
+null
+
+ ❯ tests/reminders.test.ts:233:22
+    231|   const golive=(ageMinutes:number)=>deliveryBlock('reminder.golive_sta…
+    232|   expect(golive(60)).toBeNull();
+    233|   expect(golive(61)).toBe('REMINDER_EXPIRED');
+       |                      ^
+    234|  });
+    235| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 24 passed (30)
+   Start at  20:54:53
+   Duration  19.19s (tests 99%, import 1%)
+

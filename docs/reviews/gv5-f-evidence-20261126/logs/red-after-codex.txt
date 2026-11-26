@@ -1,0 +1,313 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/reminders.test.ts (20 tests | 9 failed) 11266ms
+   ❯ GO LIVE status reminder (5)
+     × no row means nothing to send; a target outside the intake scope, or on a project now IBS HI, sends nothing and says why 556ms
+   ❯ the group of a reminder (2)
+     × must serve the project of the reminder and no other: not another project's group, not a shared group, not a two-project group 543ms
+     × without a server config nothing is queued, and that is counted 544ms
+   ❯ delivery: everything is checked again when the gateway pulls (4)
+     × a queued reminder is pulled for its target; one older than six hours, or a GO LIVE status of another day, expires with a visible code 544ms
+     × a target switched off or moved, a project now IBS HI, or a group that no longer serves the project: nothing is handed to the gateway 540ms
+     × a meeting reminder whose time changed, or whose session already started, is not handed out; the new time goes 551ms
+     × a question already answered is not asked 553ms
+   ❯ operator scripts (deploy/reminder-targets.sql, deploy/meeting-series.sql) (2)
+     × the target script writes and updates one target per project and kind, and records each real change with its source 539ms
+     × the series script writes and updates one series per project and title 536ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > no row means nothing to send; a target outside the intake scope, or on a project now IBS HI, sends nothing and says why
+AssertionError: expected { Object (queued, replayed, ...) } to match object { queued: +0, skipped: { …(1) } }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
+-   "skipped": {
+-     "not_in_intake_scope": 1,
+-   },
++   "queued": 1,
++   "skipped": {},
+  }
+
+ ❯ tests/reminders.test.ts:74:87
+     72|   await expect(run()).resolves.toMatchObject({queued:0,replayed:0});
+     73|   await target();await projected();
+     74|   await expect(run(TUE,{...routes,intake:{...routes.intake!,chats:[gro…
+       |                                                                                       ^
+     75|   await mapDomain(h,ids.sales,'IBS_HI',2);
+     76|   await expect(run()).resolves.toMatchObject({queued:0,skipped:{refuse…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  tests/reminders.test.ts > the group of a reminder > must serve the project of the reminder and no other: not another project's group, not a shared group, not a two-project group
+AssertionError: a group of another project: expected { Object (queued, replayed, ...) } to match object { queued: +0, skipped: { …(1) } }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
+-   "skipped": {
+-     "group_not_for_project": 1,
+-   },
++   "queued": 1,
++   "skipped": {},
+  }
+
+ ❯ tests/reminders.test.ts:114:198
+    112|   await target();await projected();
+    113|   for(const [label,scopes] of [['a group of another project',[ids.tran…
+    114|    await expect(run(TUE,{...routes,chatScopes:{...routes.chatScopes,[g…
+       |                                                                                                                                                                                                      ^
+    115|     .resolves.toMatchObject({queued:0,skipped:{group_not_for_project:1…
+    116|   expect(await sent()).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  tests/reminders.test.ts > the group of a reminder > without a server config nothing is queued, and that is counted
+AssertionError: expected { Object (queued, replayed, ...) } to match object { queued: +0, skipped: { …(1) } }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
+-   "skipped": {
+-     "intake_scope_unchecked": 1,
+-   },
++   "queued": 1,
++   "skipped": {},
+  }
+
+ ❯ tests/reminders.test.ts:120:30
+    118|  test('without a server config nothing is queued, and that is counted'…
+    119|   await target();await projected();
+    120|   await expect(run(TUE,null)).resolves.toMatchObject({queued:0,skipped…
+       |                              ^
+    121|   expect(await sent()).toEqual([]);
+    122|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  tests/reminders.test.ts > delivery: everything is checked again when the gateway pulls > a queued reminder is pulled for its target; one older than six hours, or a GO LIVE status of another day, expires with a visible code
+AssertionError: expected [ [ '-10055501', …(2) ], …(1) ] to deeply equal [ [ '-10055501', …(2) ] ]
+
+- Expected
++ Received
+
+@@ -2,6 +2,11 @@
+    [
+      "-10055501",
+      "reminder.golive_status",
+      null,
+    ],
++   [
++     "-10055501",
++     "reminder.golive_status",
++     null,
++   ],
+  ]
+
+ ❯ tests/reminders.test.ts:206:95
+    204|   await reminderRow(h,{target:t,dedupe:'yesterday',payload:{params:{da…
+    205|   const pulled=await outbox().pull({limit:10});
+    206|   expect(pulled.deliveries.map(d=>[d.chatId,d.envelope.payload.templat…
+       |                                                                                               ^
+    207|   expect(await codes()).toEqual([['fresh','leased',null],['old','dead'…
+    208|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  tests/reminders.test.ts > delivery: everything is checked again when the gateway pulls > a target switched off or moved, a project now IBS HI, or a group that no longer serves the project: nothing is handed to the gateway
+AssertionError: expected [ { …(8) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "attemptNo": 1,
++     "audience": "group",
++     "chatId": "-10055501",
++     "envelope": {
++       "causation_id": null,
++       "correlation_id": "ba8ee828-98c4-4f7c-9e29-75f91ac7d9c6",
++       "event_id": "604c7add-06d2-4479-a7ef-7b03b2416519",
++       "event_type": "reminder.golive_status",
++       "payload": {
++         "params": {
++           "date": "2026-11-26",
++         },
++         "template": "reminder.golive_status",
++       },
++       "source": "libetech-ai-os",
++       "tenant_id": "10000000-0000-4000-8000-000000000001",
++       "timestamp": "2026-11-26T13:10:11.658Z",
++       "trace_id": "03ea406c-9e2e-49fb-84c1-c5e595c3bc26",
++       "version": "v1",
++     },
++     "leaseToken": "f93b1dc5-6f8d-49e1-b0e9-f9abdfc5fd2e",
++     "outboxId": "53623cf9-f471-4bcf-8727-d59dcf0f44b7",
++     "replyToMessageId": null,
++     "topicId": "",
++   },
++ ]
+
+ ❯ tests/reminders.test.ts:214:56
+    212|   await reminderRow(h,{target:t,dedupe:'a-off'});
+    213|   await h.operator.query('UPDATE reminder_targets SET enabled=false WH…
+    214|   expect((await outbox().pull({limit:10})).deliveries).toEqual([]);
+       |                                                        ^
+    215|   await h.operator.query('UPDATE reminder_targets SET enabled=true WHE…
+    216|   await reminderRow(h,{target:t,dedupe:'b-moved'});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  tests/reminders.test.ts > delivery: everything is checked again when the gateway pulls > a meeting reminder whose time changed, or whose session already started, is not handed out; the new time goes
+AssertionError: expected [ '09:00', undefined, '14:00' ] to deeply equal [ '14:00' ]
+
+- Expected
++ Received
+
+  [
++   "09:00",
++   undefined,
+    "14:00",
+  ]
+
+ ❯ tests/reminders.test.ts:242:68
+    240|   await expect(run(noon)).resolves.toMatchObject({queued:1});
+    241|   const pulled=await outbox().pull({limit:10});
+    242|   expect(pulled.deliveries.map(d=>d.envelope.payload.params.time)).toE…
+       |                                                                    ^
+    243|   expect((await codes()).map(c=>c[2]).sort()).toEqual(['REMINDER_SUPER…
+    244|   // back to 09:00 after the 09:00 message was dropped: a new message,…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  tests/reminders.test.ts > delivery: everything is checked again when the gateway pulls > a question already answered is not asked
+AssertionError: expected [ { …(8) }, { …(8) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "attemptNo": 1,
++     "audience": "group",
++     "chatId": "<test-chat>",
++     "envelope": {
++       "causation_id": null,
++       "correlation_id": "cf45f18d-f723-4dca-86ae-5095adf5ff4f",
++       "event_id": "84d2b3f7-09ba-4a66-a777-e28f23b1234d",
++       "event_type": "intake.received",
++       "payload": {
++         "params": {
++           "observedAt": "2025-10-09T08:53:25.000Z",
++           "ref": "IN-41A2017E",
++         },
++         "template": "intake.received",
++       },
++       "source": "libetech-ai-os",
++       "tenant_id": "10000000-0000-4000-8000-000000000001",
++       "timestamp": "2026-11-26T13:10:12.751Z",
++       "trace_id": "4dc2425d-d84f-4fae-8c5b-499431415412",
++       "version": "v1",
++     },
++     "leaseToken": "d9455280-f071-45e7-9383-9abfdceaecb2",
++     "outboxId": "dcd6b6f8-8e6b-48ee-aac1-66cc5eace045",
++     "replyToMessageId": "5",
++     "topicId": "",
++   },
++   {
++     "attemptNo": 1,
++     "audience": "group",
++     "chatId": "-10055503",
++     "envelope": {
++       "causation_id": null,
++       "correlation_id": "020a249c-4fef-4c11-a3f2-ebee22691001",
++       "event_id": "6387f4d3-36d2-43ac-a095-b75cc2f32a8e",
++       "event_type": "reminder.bom_meeting_question",
++       "payload": {
++         "params": {
++           "date": "2026-11-27",
++           "project": "Cổng bán hàng mẫu",
++           "source": "IN-41A2017E",
++         },
++         "template": "reminder.bom_meeting_question",
++       },
++       "source": "libetech-ai-os",
++       "tenant_id": "10000000-0000-4000-8000-000000000001",
++       "timestamp": "2026-11-26T13:10:12.759Z",
++       "trace_id": "dd650f3d-a7c0-4e46-860b-16228cf750dc",
++       "version": "v1",
++     },
++     "leaseToken": "9fb9708a-936e-4b00-8d51-9f16fb38807b",
++     "outboxId": "14bfac9a-7975-4576-9763-d343bb2109ba",
++     "replyToMessageId": null,
++     "topicId": "",
++   },
++ ]
+
+ ❯ tests/reminders.test.ts:263:56
+    261|   await expect(run(noon)).resolves.toMatchObject({queued:1});
+    262|   await meetings.record(pm,{seriesId:series,requestKey:randomUUID(),ki…
+    263|   expect((await outbox().pull({limit:10})).deliveries).toEqual([]);
+       |                                                        ^
+    264|   expect((await codes()).map(c=>c[2])).toEqual(['REMINDER_SUPERSEDED']…
+    265|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  tests/reminders.test.ts > operator scripts (deploy/reminder-targets.sql, deploy/meeting-series.sql) > the target script writes and updates one target per project and kind, and records each real change with its source
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ tests/reminders.test.ts:281:99
+    279|   await script('reminder-targets.sql',{...vars,enabled:'false',source:…
+    280|   // a command prepared before that change does not switch the target …
+    281|   await expect(script('reminder-targets.sql',{...vars,source:'Biên bản…
+       |                                                                                                   ^
+    282|   await h.exec('ROLLBACK').catch(()=>{});
+    283|   await expect(script('reminder-targets.sql',{...vars,kind:'bom_meetin…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  tests/reminders.test.ts > operator scripts (deploy/reminder-targets.sql, deploy/meeting-series.sql) > the series script writes and updates one series per project and title
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ tests/reminders.test.ts:293:95
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  9 failed | 11 passed (20)
+   Start at  20:10:02
+   Duration  11.41s (tests 99%)
+

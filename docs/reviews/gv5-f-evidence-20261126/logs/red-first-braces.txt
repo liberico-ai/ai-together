@@ -1,0 +1,34 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/reminders.test.ts (13 tests | 1 failed | 12 skipped) 763ms
+   ❯ GO LIVE status reminder (5)
+     × a message of one project names nobody of another, and long or unsafe names are cut and cleaned, never silently 762ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > a message of one project names nobody of another, and long or unsafe names are cut and cleaned, never silently
+AssertionError: expected 'AAA kênh lệnh xuống dòng {date}, Nguy…' not to match /[{}]/
+
+- Expected:
+/[{}]/
+
++ Received:
+"AAA kênh lệnh xuống dòng {date}, Nguyễn Thị Thành Viên Số 00 Rất Dài, Nguyễn Thị Thành Viên Số 01 Rất Dài, Nguyễn Thị Thành Viên Số 02 Rất Dài, Nguyễn Thị Thành Viên Số 03 Rất Dài, Nguyễn Thị Thành Viên Số 04 Rất Dài, Nguyễn Thị Thành Viên Số 05 Rất Dài, Nguyễn Thị Thành Viên Số 06 Rất Dài, Nguyễn Thị Thành Viên Số 07 Rất Dài, Nguyễn Thị Thành Viên Số 08 Rất Dài, Nguyễn Thị Thành Viên Số 09 Rất Dài, Nguyễn Thị Thành Viên Số 10 Rất Dài, Nguyễn Thị Thành Viên Số 11 Rất Dài và 20 người nữa"
+
+ ❯ tests/reminders.test.ts:98:31
+     96|   expect(sales.noRequest).not.toMatch(/[@\/<>\n]/);
+     97|   expect(sales.noRequest).toContain('AAA kênh lệnh xuống dòng');
+     98|   expect(sales.noRequest).not.toMatch(/[{}]/);
+       |                               ^
+     99|   for(const r of rows) expect(Buffer.byteLength(JSON.stringify(r.paylo…
+    100|   // the engineer holds no work in transport: no «1 việc» entry there
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 skipped (13)
+   Start at  19:13:25
+   Duration  925ms (tests 88%, import 7%, transform 5%)
+

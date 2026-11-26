@@ -1,0 +1,38 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/reminders.test.ts (13 tests | 1 failed | 11 skipped) 1534ms
+   ❯ the intake scope the scheduler checks (1)
+     × is exactly what the gateway pull uses: the projects of the intake chats, each once; none without intake 763ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/reminders.test.ts > the intake scope the scheduler checks > is exactly what the gateway pull uses: the projects of the intake chats, each once; none without intake
+AssertionError: expected undefined to deeply equal [ …(3) ]
+
+- Expected:
+[
+  "11000000-0000-4000-8000-000000000001",
+  "11000000-0000-4000-8000-000000000002",
+  "11000000-0000-4000-8000-000000000003",
+]
+
++ Received:
+undefined
+
+ ❯ tests/reminders.test.ts:148:48
+    146|  test('is exactly what the gateway pull uses: the projects of the inta…
+    147|   const ids_=(bridgeConfigModule as unknown as {intakeProjectIds?:(c:t…
+    148|   expect(ids_?.(bridgeConfig)?.slice().sort()).toEqual([ids.sales,ids.…
+       |                                                ^
+    149|   expect(ids_?.({key:bridgeConfig.key,chatScopes:bridgeConfig.chatScop…
+    150|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 11 skipped (13)
+   Start at  19:11:57
+   Duration  1.68s (tests 95%, import 3%, transform 2%)
+

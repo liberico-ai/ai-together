@@ -1,0 +1,319 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/reminders.test.ts (12 tests | 12 failed) 7220ms
+   ❯ GO LIVE status reminder (5)
+     × one weekday message per target per day, with names only, and a second run queues nothing 845ms
+     × nothing outside weekday mornings; a missed window and a stale status are counted, never silent 572ms
+     × no row means nothing to send; a target outside the intake scope, or on a project now IBS HI, sends nothing and says why 555ms
+     × everybody has filed and has evidence: no message 575ms
+     × a message of one project names nobody of another, and long or unsafe names are cut and cleaned, never silently 567ms
+   ❯ BoM meeting reminder (3)
+     × one message the day before at the target time, with the base time; a changed time sends one more with its IN code 557ms
+     × no message at night, nor after the session started; a session the timer missed the day before is sent that morning 551ms
+     × an unclear change stops the reminder and asks once; after the answer the reminder carries the answered time 572ms
+   ❯ delivery (1)
+     × a queued reminder is pulled for its target; one older than six hours expires with a visible code instead of going out late 562ms
+   ❯ operator scripts (deploy/reminder-targets.sql, deploy/meeting-series.sql) (2)
+     × the target script writes and updates one target per project and kind, and records each real change with its source 652ms
+     × the series script writes and updates one series per project and title 577ms
+   ❯ the scheduler login (1)
+     × a login that also reaches another application role is refused 632ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > one weekday message per target per day, with names only, and a second run queues nothing
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: 1, replayed: +0 }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 1,
+-   "replayed": 0,
++   "queued": -1,
++   "replayed": -1,
+  }
+
+ ❯ tests/reminders.test.ts:42:22
+     40|  test('one weekday message per target per day, with names only, and a …
+     41|   await target();await projected();
+     42|   await expect(run()).resolves.toMatchObject({queued:1,replayed:0});
+       |                      ^
+     43|   await expect(run(vn('2026-11-24T09:20'))).resolves.toMatchObject({qu…
+     44|   const rows=await sent();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > nothing outside weekday mornings; a missed window and a stale status are counted, never silent
+AssertionError: 2026-11-24T07:59: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
++   "queued": -1,
+  }
+
+ ❯ tests/reminders.test.ts:57:107
+     55|  test('nothing outside weekday mornings; a missed window and a stale s…
+     56|   await target();await projected();
+     57|   for(const at of ['2026-11-24T07:59','2026-11-28T08:35','2026-11-29T0…
+       |                                                                                                           ^
+     58|   await projected(ids.sales,vn('2026-11-24T12:00'));
+     59|   await expect(run(vn('2026-11-24T12:00'))).resolves.toMatchObject({qu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > no row means nothing to send; a target outside the intake scope, or on a project now IBS HI, sends nothing and says why
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0, replayed: +0 }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
+-   "replayed": 0,
++   "queued": -1,
++   "replayed": -1,
+  }
+
+ ❯ tests/reminders.test.ts:66:22
+     64|
+     65|  test('no row means nothing to send; a target outside the intake scope…
+     66|   await expect(run()).resolves.toMatchObject({queued:0,replayed:0});
+       |                      ^
+     67|   await target();await projected();
+     68|   await expect(run(TUE,[ids.transport])).resolves.toMatchObject({queue…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > everybody has filed and has evidence: no message
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0, skipped: { …(1) } }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
+-   "skipped": {
+-     "nothing_missing": 1,
+-   },
++   "queued": -1,
++   "skipped": {},
+  }
+
+ ❯ tests/reminders.test.ts:80:22
+     78|     [ids.tenant,ids.sales,techA.id,techA.name,randomUUID(),'a'.repeat(…
+     79|   await target();await projected();
+     80|   await expect(run()).resolves.toMatchObject({queued:0,skipped:{nothin…
+       |                      ^
+     81|  });
+     82|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > a message of one project names nobody of another, and long or unsafe names are cut and cleaned, never silently
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: 2 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 2,
++   "queued": -1,
+  }
+
+ ❯ tests/reminders.test.ts:91:22
+     89|   }
+     90|   await target();await target({project:ids.transport,chat:groupTranspo…
+     91|   await expect(run()).resolves.toMatchObject({queued:2});
+       |                      ^
+     92|   const rows=await sent();
+     93|   const sales=rows.find(r=>r.project_id===ids.sales)?.payload.params??…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL  tests/reminders.test.ts > BoM meeting reminder > one message the day before at the target time, with the base time; a changed time sends one more with its IN code
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
++   "queued": -1,
+  }
+
+ ❯ tests/reminders.test.ts:111:44
+    109|
+    110|  test('one message the day before at the target time, with the base ti…
+    111|   await expect(run(vn('2026-11-25T08:00'))).resolves.toMatchObject({qu…
+       |                                            ^
+    112|   await expect(run(WED)).resolves.toMatchObject({queued:1});
+    113|   await expect(run(vn('2026-11-25T15:00'))).resolves.toMatchObject({qu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+ FAIL  tests/reminders.test.ts > BoM meeting reminder > no message at night, nor after the session started; a session the timer missed the day before is sent that morning
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
++   "queued": -1,
+  }
+
+ ❯ tests/reminders.test.ts:124:44
+    122|
+    123|  test('no message at night, nor after the session started; a session t…
+    124|   await expect(run(vn('2026-11-25T22:30'))).resolves.toMatchObject({qu…
+       |                                            ^
+    125|   await expect(run(vn('2026-11-26T06:30'))).resolves.toMatchObject({qu…
+    126|   await expect(run(vn('2026-11-26T09:05'))).resolves.toMatchObject({qu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯
+
+ FAIL  tests/reminders.test.ts > BoM meeting reminder > an unclear change stops the reminder and asks once; after the answer the reminder carries the answered time
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: 1, skipped: { …(1) } }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 1,
+-   "skipped": {
+-     "blocked_unclear": 1,
+-   },
++   "queued": -1,
++   "skipped": {},
+  }
+
+ ❯ tests/reminders.test.ts:133:25
+    131|   const ref=await code();
+    132|   await record({kind:'unclear',sessionDate:null,sourceRef:ref},vn('202…
+    133|   await expect(run(WED)).resolves.toMatchObject({queued:1,skipped:{blo…
+       |                         ^
+    134|   await expect(run(vn('2026-11-25T10:00'))).resolves.toMatchObject({qu…
+    135|   expect(await sent()).toMatchObject([{template:'reminder.bom_meeting_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯
+
+ FAIL  tests/reminders.test.ts > delivery > a queued reminder is pulled for its target; one older than six hours expires with a visible code instead of going out late
+AssertionError: expected [ [ '-10055501', …(2) ], …(1) ] to deeply equal [ [ '-10055501', …(2) ] ]
+
+- Expected
++ Received
+
+@@ -2,6 +2,11 @@
+    [
+      "-10055501",
+      "reminder.golive_status",
+      null,
+    ],
++   [
++     "-10055501",
++     "reminder.golive_status",
++     null,
++   ],
+  ]
+
+ ❯ tests/reminders.test.ts:152:95
+    150|   await reminderRow(h,{target:t,dedupe:'fresh'}).catch(()=>{});
+    151|   const pulled=await outbox().pull({limit:10});
+    152|   expect(pulled.deliveries.map(d=>[d.chatId,d.envelope.payload.templat…
+       |                                                                                               ^
+    153|   const rows=(await h.operator.query<{dedupe_key:string;state:string;l…
+    154|   expect(rows).toEqual([{dedupe_key:'fresh',state:'leased',last_error_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯
+
+ FAIL  tests/reminders.test.ts > operator scripts (deploy/reminder-targets.sql, deploy/meeting-series.sql) > the target script writes and updates one target per project and kind, and records each real change with its source
+AssertionError: expected [] to deeply equal [ { kind: 'golive_status', …(2) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "chat_id": "-10055501",
+-     "enabled": false,
+-     "kind": "golive_status",
+-   },
+- ]
++ []
+
+ ❯ tests/reminders.test.ts:170:75
+    168|   await script('reminder-targets.sql',vars);await script('reminder-tar…
+    169|   await script('reminder-targets.sql',{...vars,enabled:'false',source:…
+    170|   expect(await rows('SELECT kind,chat_id,enabled FROM reminder_targets…
+       |                                                                           ^
+    171|   expect(await rows('SELECT op,source FROM reminder_config_events ORDE…
+    172|   await expect(script('reminder-targets.sql',{...vars,source:'x'})).re…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/12]⎯
+
+ FAIL  tests/reminders.test.ts > operator scripts (deploy/reminder-targets.sql, deploy/meeting-series.sql) > the series script writes and updates one series per project and title
+AssertionError: expected [] to deeply equal [ { weekday: 4, t: '10:00', …(2) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "enabled": true,
+-     "t": "10:00",
+-     "version": 2,
+-     "weekday": 4,
+-   },
+- ]
++ []
+
+ ❯ tests/reminders.test.ts:178:108
+    176|   const vars={tenant_id:ids.tenant,project_id:ids.sales,title:'Họp BoM…
+    177|   await script('meeting-series.sql',vars);await script('meeting-series…
+    178|   expect(await rows("SELECT weekday,to_char(start_time,'HH24:MI') t,en…
+       |                                                                                                            ^
+    179|   expect(await rows('SELECT op FROM reminder_config_events ORDER BY se…
+    180|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/12]⎯
+
+ FAIL  tests/reminders.test.ts > the scheduler login > a login that also reaches another application role is refused
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ tests/reminders.test.ts:190:127
+    188|    await h.operator.query(`GRANT libetech_reminder TO ${name}`).catch(…
+    189|    await h.operator.query(`GRANT libetech_runtime TO ${name}`);
+    190|    await expect(h.operator.transaction(async tx=>{await tx.query(`SET …
+       |                                                                                                                               ^
+    191|   } finally {
+    192|    await h.operator.query(`REVOKE libetech_runtime FROM ${name}`).catc…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/12]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  12 failed (12)
+   Start at  19:10:10
+   Duration  7.37s (tests 99%, import 1%, transform 1%)
+

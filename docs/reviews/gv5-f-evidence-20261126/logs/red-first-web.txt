@@ -1,0 +1,116 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/meetings-web.test.tsx (5 tests | 5 failed) 840ms
+   ❯ the routes (1)
+     × a seat lists its series and records a change (201, then 200 on a replay); a non-seat sees no series and gets 404 835ms
+   ❯ the page (4)
+     × each series shows its day, base time, next session with its source, and its history with who recorded it 2ms
+     × the form offers one session, the series, or unclear; an open question is shown with the pause and can be answered 0ms
+     × nobody without a series is shown a form 0ms
+     × the body carries only what the kind needs, with the code upper-cased 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/meetings-web.test.tsx > the routes > a seat lists its series and records a change (201, then 200 on a replay); a non-seat sees no series and gets 404
+AssertionError: expected 404 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 404
+
+ ❯ tests/meetings-web.test.tsx:27:23
+     25|  test('a seat lists its series and records a change (201, then 200 on …
+     26|   const list=await call('GET',['meetings'],'manager');
+     27|   expect(list.status).toBe(200);
+       |                       ^
+     28|   expect((await list.json()).data.series.map((s:SeriesView)=>s.id)).to…
+     29|   expect((await (await call('GET',['meetings'],'engineer')).json()).da…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/meetings-web.test.tsx > the page > each series shows its day, base time, next session with its source, and its history with who recorded it
+AssertionError: Dự án Thử: expected '' to contain 'Dự án Thử'
+
+- Expected
++ Received
+
+- Dự án Thử
+
+ ❯ tests/meetings-web.test.tsx:51:152
+     49|  test('each series shows its day, base time, next session with its sou…
+     50|   const out=html([view({next:{date:'2026-11-26',time:'14:00',sourceRef…
+     51|   for(const text of ['Dự án Thử','Họp BoM','Thứ Năm','09:00','26/11/20…
+       |                                                                                                                                                        ^
+     52|   expect(html([view()])).toContain('lịch gốc');
+     53|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/meetings-web.test.tsx > the page > the form offers one session, the series, or unclear; an open question is shown with the pause and can be answered
+AssertionError: Chỉ một buổi: expected '' to contain 'Chỉ một buổi'
+
+- Expected
++ Received
+
+- Chỉ một buổi
+
+ ❯ tests/meetings-web.test.tsx:56:157
+     54|  test('the form offers one session, the series, or unclear; an open qu…
+     55|   const out=html([view()]);
+     56|   for(const text of ['Chỉ một buổi','Cả lịch định kỳ, từ buổi kế tiếp'…
+       |                                                                                                                                                             ^
+     57|   expect(out).not.toContain('Trả lời câu hỏi');
+     58|   const open=html([view({openQuestions:[change({kind:'unclear',session…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/meetings-web.test.tsx > the page > nobody without a series is shown a form
+AssertionError: expected '' to contain 'Bạn chưa có lịch họp nào để ghi'
+
+- Expected
++ Received
+
+- Bạn chưa có lịch họp nào để ghi
+
+ ❯ tests/meetings-web.test.tsx:64:15
+     62|  test('nobody without a series is shown a form',()=>{
+     63|   const out=html([]);
+     64|   expect(out).toContain('Bạn chưa có lịch họp nào để ghi');
+       |               ^
+     65|   expect(out).not.toContain('Ghi thay đổi');
+     66|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/meetings-web.test.tsx > the page > the body carries only what the kind needs, with the code upper-cased
+AssertionError: expected {} to deeply equal { …(8) }
+
+- Expected
++ Received
+
+- {
+-   "expectedVersion": 3,
+-   "kind": "one_off",
+-   "newTime": "14:00",
+-   "requestKey": "k1",
+-   "resolvesChangeId": null,
+-   "seriesId": "11111111-1111-4111-8111-111111111111",
+-   "sessionDate": "2026-11-26",
+-   "sourceRef": "IN-0A1B2C3D",
+- }
++ {}
+
+ ❯ tests/meetings-web.test.tsx:69:146
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed (5)
+   Start at  19:08:34
+   Duration  1.08s (tests 83%, import 9%, transform 8%)
+

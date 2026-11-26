@@ -1,0 +1,328 @@
+.FFFF                                                      [100%]
+=================================== FAILURES ===================================
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': '@someone', 'project': 'Cổng bán hàng mẫu'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'a\nb', 'project': 'Cổng bán hàng mẫu'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': '/approve', 'noRequest': 'Nguyễn An, Trần Bình', 'project': 'Cổng bán hàng mẫu'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'noRequest': 'Nguyễn An, Trần Bình', 'project': 'Cổng bán hàng mẫu'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'Nguyễn An, Trần Bình', 'project': ''}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'Nguyễn An, Trần Bình', 'project': '<b>x</b>'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.golive_status', params={'date': '24/11/2026', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'Nguyễn An, Trần Bình', 'project': 'Cổng bán hàng mẫu'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.golive_status', params={'date': '2026-13-40', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'Nguyễn An, Trần Bình', 'project': 'Cổng bán hàng mẫu'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': None, 'project': 'Cổng bán hàng mẫu'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.bom_meeting', params={'date': '2026-11-26', 'project': 'Cổng bán hàng mẫu', 'source': 'IN-0A1B2C3D', 'time': '25:00'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.bom_meeting', params={'date': '2026-11-26', 'project': 'Cổng bán hàng mẫu', 'source': 'IN-0A1B2C3D', 'time': '9:00'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.bom_meeting', params={'date': '2026-11-26', 'project': 'Cổng bán hàng mẫu', 'source': 'IN-xyz', 'time': '14:00'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.bom_meeting', params={'date': '2026-11-26', 'project': 'Cổng bán hàng mẫu', 'source': '', 'time': '14:00'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_bad_or_unsafe_parameters_are_refused (template='reminder.bom_meeting_question', params={'date': '2026-11-26', 'project': 'X', 'source': 'base'}) _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_bad_or_unsafe_parameters_are_refused>
+
+    def test_bad_or_unsafe_parameters_are_refused(self):
+        cases = [('reminder.golive_status', GOLIVE | bad) for bad in (
+            {'noRequest': '@someone'}, {'noRequest': 'a\nb'}, {'noEvidence': '/approve'}, {'noEvidence': 'x' * 901},
+            {'project': ''}, {'project': '<b>x</b>'}, {'date': '24/11/2026'}, {'date': '2026-13-40'}, {'noRequest': None})]
+        cases += [('reminder.bom_meeting', MEETING | bad) for bad in ({'time': '25:00'}, {'time': '9:00'}, {'source': 'IN-xyz'}, {'source': ''})]
+        cases += [('reminder.bom_meeting_question', {'project': 'X', 'source': 'base', 'date': '2026-11-26'})]
+        for template, params in cases:
+            with self.subTest(template=template, params=params):
+>               self.assertEqual(render(template, params), 'refused: TEMPLATE_PARAMS_INVALID')
+E               AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'refused: TEMPLATE_PARAMS_INVALID'
+E               - refused: TEMPLATE_UNKNOWN
+E               + refused: TEMPLATE_PARAMS_INVALID
+
+tests/test_reminder_templates.py:46: AssertionError
+_ ReminderTemplateTests.test_golive_status_names_who_has_not_filed_and_who_lacks_evidence _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_golive_status_names_who_has_not_filed_and_who_lacks_evidence>
+
+    def test_golive_status_names_who_has_not_filed_and_who_lacks_evidence(self):
+>       self.assertEqual(render('reminder.golive_status', GOLIVE),
+                         'Nhắc GO LIVE — Cổng bán hàng mẫu, ngày 24/11/2026.\n'
+                         'Chưa gửi yêu cầu việc: Nguyễn An, Trần Bình.\n'
+                         'Có việc đang mở chưa có bằng chứng: Lê Chi (2 việc).')
+E       AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'Nhắc GO LIVE — Cổng bán hàng mẫu, ngày 24[105 chars]ệc).'
+E       - refused: TEMPLATE_UNKNOWN
+E       + Nhắc GO LIVE — Cổng bán hàng mẫu, ngày 24/11/2026.
+E       + Chưa gửi yêu cầu việc: Nguyễn An, Trần Bình.
+E       + Có việc đang mở chưa có bằng chứng: Lê Chi (2 việc).
+
+tests/test_reminder_templates.py:20: AssertionError
+___ ReminderTemplateTests.test_meeting_reminder_says_the_time_and_its_source ___
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_meeting_reminder_says_the_time_and_its_source>
+
+    def test_meeting_reminder_says_the_time_and_its_source(self):
+>       self.assertEqual(render('reminder.bom_meeting', MEETING),
+                         'Nhắc họp BoM — Cổng bán hàng mẫu: ngày 26/11/2026 lúc 14:00 (giờ Việt Nam). Nguồn giờ họp: tin IN-0A1B2C3D.')
+E       AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'Nhắc họp BoM — Cổng bán hàng mẫu: ngày 26[62 chars]C3D.'
+E       - refused: TEMPLATE_UNKNOWN
+E       + Nhắc họp BoM — Cổng bán hàng mẫu: ngày 26/11/2026 lúc 14:00 (giờ Việt Nam). Nguồn giờ họp: tin IN-0A1B2C3D.
+
+tests/test_reminder_templates.py:29: AssertionError
+__ ReminderTemplateTests.test_the_plugin_version_moved_with_the_new_messages ___
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_the_plugin_version_moved_with_the_new_messages>
+
+    def test_the_plugin_version_moved_with_the_new_messages(self):
+>       self.assertEqual(bridge.VERSION, '0.3.6')
+E       AssertionError: '0.3.5' != '0.3.6'
+E       - 0.3.5
+E       ?     ^
+E       + 0.3.6
+E       ?     ^
+
+tests/test_reminder_templates.py:49: AssertionError
+_ ReminderTemplateTests.test_the_question_names_the_source_and_both_choices_and_says_reminders_pause _
+
+self = <test_reminder_templates.ReminderTemplateTests testMethod=test_the_question_names_the_source_and_both_choices_and_says_reminders_pause>
+
+    def test_the_question_names_the_source_and_both_choices_and_says_reminders_pause(self):
+>       self.assertEqual(render('reminder.bom_meeting_question', QUESTION),
+                         'Họp BoM — Cổng bán hàng mẫu: tin IN-0A1B2C3D báo đổi giờ nhưng chưa rõ áp cho buổi ngày 26/11/2026 hay cho cả lịch định kỳ. '
+                         'Lịch này tạm ngừng nhắc đến khi một ghế BoM ghi lại trên web, mục «Lịch họp BoM».')
+E       AssertionError: 'refused: TEMPLATE_UNKNOWN' != 'Họp BoM — Cổng bán hàng mẫu: tin IN-0A1B2[160 chars]oM».'
+E       - refused: TEMPLATE_UNKNOWN
+E       + Họp BoM — Cổng bán hàng mẫu: tin IN-0A1B2C3D báo đổi giờ nhưng chưa rõ áp cho buổi ngày 26/11/2026 hay cho cả lịch định kỳ. Lịch này tạm ngừng nhắc đến khi một ghế BoM ghi lại trên web, mục «Lịch họp BoM».
+
+tests/test_reminder_templates.py:34: AssertionError
+=========================== short test summary info ============================
+SUBFAILED(template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': '@someone', 'project': 'Cổng bán hàng mẫu'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'a\nb', 'project': 'Cổng bán hàng mẫu'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': '/approve', 'noRequest': 'Nguyễn An, Trần Bình', 'project': 'Cổng bán hàng mẫu'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'noRequest': 'Nguyễn An, Trần Bình', 'project': 'Cổng bán hàng mẫu'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'Nguyễn An, Trần Bình', 'project': ''}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'Nguyễn An, Trần Bình', 'project': '<b>x</b>'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.golive_status', params={'date': '24/11/2026', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'Nguyễn An, Trần Bình', 'project': 'Cổng bán hàng mẫu'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.golive_status', params={'date': '2026-13-40', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': 'Nguyễn An, Trần Bình', 'project': 'Cổng bán hàng mẫu'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.golive_status', params={'date': '2026-11-24', 'noEvidence': 'Lê Chi (2 việc)', 'noRequest': None, 'project': 'Cổng bán hàng mẫu'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.bom_meeting', params={'date': '2026-11-26', 'project': 'Cổng bán hàng mẫu', 'source': 'IN-0A1B2C3D', 'time': '25:00'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.bom_meeting', params={'date': '2026-11-26', 'project': 'Cổng bán hàng mẫu', 'source': 'IN-0A1B2C3D', 'time': '9:00'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.bom_meeting', params={'date': '2026-11-26', 'project': 'Cổng bán hàng mẫu', 'source': 'IN-xyz', 'time': '14:00'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.bom_meeting', params={'date': '2026-11-26', 'project': 'Cổng bán hàng mẫu', 'source': '', 'time': '14:00'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+SUBFAILED(template='reminder.bom_meeting_question', params={'date': '2026-11-26', 'project': 'X', 'source': 'base'}) tests/test_reminder_templates.py::ReminderTemplateTests::test_bad_or_unsafe_parameters_are_refused
+FAILED tests/test_reminder_templates.py::ReminderTemplateTests::test_golive_status_names_who_has_not_filed_and_who_lacks_evidence
+FAILED tests/test_reminder_templates.py::ReminderTemplateTests::test_meeting_reminder_says_the_time_and_its_source
+FAILED tests/test_reminder_templates.py::ReminderTemplateTests::test_the_plugin_version_moved_with_the_new_messages
+FAILED tests/test_reminder_templates.py::ReminderTemplateTests::test_the_question_names_the_source_and_both_choices_and_says_reminders_pause
+18 failed, 1 passed in 0.10s
