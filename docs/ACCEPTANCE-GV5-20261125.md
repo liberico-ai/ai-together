@@ -1,6 +1,8 @@
-# Kịch bản nghiệm thu GIAO VIỆC 5 và 7 — tài khoản thật (0.9.2)
+# Kịch bản nghiệm thu GIAO VIỆC 5 và 7 — tài khoản thật (0.9.3)
 
-Version 1.1 · 25/11/2026 · bản 0.9.2 (merge `9cd6a13`) · biên nhận: `docs/DELIVERY-023-gv7-unlock-092-20261125.md` · runbook: `docs/RUNBOOK-092-20261125.md`
+Version 1.2 · 26/11/2026 · bản 0.9.3 (merge `cf1f2ca`) · biên nhận: `docs/DELIVERY-024-gv5-d-e-release-093-20261126.md` (D, E, B6), `docs/DELIVERY-023-gv7-unlock-092-20261125.md` · runbook: `docs/RUNBOOK-093-20261126.md`
+
+Bản 1.2 viết lại kịch bản 4 và 5 theo D và E đã merge, và thêm kịch bản 13 (gỡ liên kết, OQ-61 B6).
 
 Bản 1.0 viết cho 0.9.1 (merge `c3c9c4a`, `docs/DELIVERY-022-gv5-golive-tech-work-20261125.md`). Bản 1.1 sửa kịch bản 2 theo luật của 0.9.2 và thêm các kịch bản 8–12 (GIAO VIỆC 7).
 
@@ -52,13 +54,22 @@ Bản 1.0 viết cho 0.9.1 (merge `c3c9c4a`, `docs/DELIVERY-022-gv5-golive-tech-
 4. Một thành viên gửi tin tại LibeAI. Tin thành ứng viên như trước; ứng viên đã xác nhận lập được yêu cầu, ghế BoM duyệt.
 5. Lặp bước 1–3 với một dự án thuộc miền IBS HI. Người vận hành chạy truy vấn chỉ đọc: không cột nào giữ chữ của tin.
 
-## 4 · Ca lỗi cũ: bot trả đúng nguyên nhân
+## 4 · Ca lỗi cũ: bot trả đúng nguyên nhân (D, 0.9.3)
 
-Hạng mục D. Chạy khi D đã triển khai. Ca (a) `unauthorized` và ca (b) `SCOPE_DENIED`: người báo lặp lại đúng thao tác cũ; câu trả lời của bot nêu đúng nguyên nhân. Đối chiếu với tin gốc (EV-03, EV-04).
+Chạy sau khi web 0.9.3 và plugin 0.3.5 đã chạy. Mỗi người ghi: lệnh hay tin đã gửi, nhóm (tên hiển thị), câu bot trả **nguyên văn**, mã trong ngoặc.
 
-## 5 · Tệp thật của team
+1. `BoM-1` lặp lại ca (a) `unauthorized`, `BoM-2` lặp lại ca (b) `SCOPE_DENIED`. Câu bot trả phải khớp một dòng của `docs/BOT-GROUPS-20261126.md` §3. Người vận hành đối chiếu nguyên nhân thật (ghép Telegram, membership, cấu hình nhóm; EV-16, EV-17). Ca chỉ được đối chiếu khi người báo xác nhận trên tin gốc.
+2. Một tài khoản chưa ghép Telegram gõ `/libetech_check` → câu «chưa ghép», kèm cách ghép bằng `/libetech_link`.
+3. `Tech-1` hỏi ở nhóm chung Team Tech → câu «nhóm không gắn dự án».
+4. `Tech-1` hỏi một hồ sơ không có → câu «không thấy hồ sơ».
+5. Người chỉ thuộc dự án IBS HI hỏi ở nhóm gắn dự án Liberico → câu «không thuộc dự án của nhóm»; câu trả lời không có tên dự án nào.
+6. Trang «Dự án và việc Team Tech»: nhóm IBS HI không hiện ghi chú nguồn và có câu giải thích. LBRC và XECA vẫn hiện ghi chú.
 
-Hạng mục E. Chạy khi E đã triển khai. Tệp lớn, Excel, hết giờ chờ, quyền thư mục, với tệp do team cung cấp (EV-05).
+## 5 · Tệp thật của team (E, 0.9.3)
+
+1. Một thành viên gửi ở nhóm được ghi nhận, gọi bot, lần lượt một tệp quá 20 MB và một tệp loại không nhận. Câu trả lời nói đúng lý do và việc làm tiếp.
+2. `PM` chọn nhầm tệp `.xlsx` ở trang nhập → câu báo nói đó là Excel và cách tải CSV.
+3. Với ticket ngày 20/11: lặp lại với tệp thật hoặc tệp mẫu cùng loại, cùng kích thước (EV-05, EV-30, EV-31). «Quyền thư mục» cần EV-32. Không ghi ticket nào «đã đóng» nếu người báo chưa xác nhận.
 
 ## 6 · Lịch nhắc
 
@@ -132,6 +143,13 @@ Hạng mục F. Chạy khi F đã triển khai. Lịch nhắc GO LIVE và lịch
    - Gửi một yêu cầu, rồi thấy yêu cầu của mình.
    - Không thấy việc của dự án nào.
 4. Một tài khoản ngoài roster, chưa có membership, đăng nhập: bị từ chối `NO_PROJECT_ACCESS`. Câu báo nói nhờ người quản trị thêm vào dự án hoặc vào Team Tech.
+
+## 13 · Gỡ một liên kết sai (OQ-61 B6, 0.9.3)
+
+1. `Tech-1` nối một tin của nhóm chung vào một việc sai, rồi tự gỡ với lý do «Sai việc». Thẻ hiện «Đã gỡ bởi …»; chuỗi bước không còn «Đã liên kết»; việc và yêu cầu không đổi.
+2. `Tech-1` nối lại đúng cặp vừa gỡ → bị từ chối `LINK_REVOKED`. Nối sang việc đúng → được.
+3. Một thành viên Team Tech khác, không tạo liên kết và không giữ ghế BoM của dự án, thử gỡ một liên kết còn hiệu lực → `REVOKE_DENIED`, kèm câu nói nhờ ai.
+4. Gỡ liên kết duy nhất của một mục chọn nhầm dự án, rồi «Mở lại» → mục về «chưa gán dự án».
 
 ## Biên bản
 
