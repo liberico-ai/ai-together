@@ -16,7 +16,13 @@ const definers=async()=>(await h.operator.query<Fn>(`SELECT n.nspname||'.'||p.pr
  WHERE p.prosecdef AND n.nspname IN ('public','identity','analytics','intelligence')
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e')
  ORDER BY 1`)).rows;
-const pinned=(config:string)=>/(^|;)search_path=pg_catalog(,[a-z_]+)*,pg_temp(;|$)/.test(config.replace(/ /g,''));
+/** Pinned: the temporary schema is named once, last. A path that cannot be read entry by entry counts as not pinned. */
+const pinned=(config:string)=>{
+ const path=config.split(';').find(c=>c.startsWith('search_path='))?.slice('search_path='.length);
+ if(path===undefined||!/^([a-z_][a-z0-9_]*|"[^",]*")( *, *([a-z_][a-z0-9_]*|"[^",]*"))*$/.test(path)) return false;
+ const entries=path.split(',').map(e=>e.trim().replace(/^"|"$/g,'').toLowerCase());
+ return entries.at(-1)==='pg_temp'&&!entries.slice(0,-1).some(e=>e.startsWith('pg_temp'));
+};
 const lacking=async()=>(await definers()).filter(r=>!pinned(r.config)).map(r=>r.fn);
 const configOf=async(name:string)=>(await definers()).find(r=>r.fn.startsWith(name+'('))?.config.replace(/ /g,'');
 const sql=(p:string)=>readFile(path.join(process.cwd(),'migrations',p),'utf8').catch(()=>'SELECT 1');
@@ -48,13 +54,27 @@ describe('migration 032',()=>{
   expect(await lacking()).toEqual([]);
  });
 
- test('it stops, changing nothing, when any other privileged function is left unpinned',async()=>{
+ const probe=(path:string)=>h.operator.query(`CREATE FUNCTION public.zz_unpinned_probe() RETURNS int LANGUAGE sql SECURITY DEFINER SET search_path=${path} AS 'SELECT 1'`);
+ // a path where the temporary schema also appears earlier is searched there first, whatever comes last
+ for(const [label,path] of [['only the catalog','pg_catalog'],['the temporary schema earlier and again last','pg_catalog,pg_temp,public,pg_temp'],
+   ['a quoted temporary schema first','"pg_temp",pg_catalog,pg_temp'],['a temporary schema before a named one','pg_temp,pg_catalog']] as const)
+  test('it stops, changing nothing, when another privileged function is left unpinned: '+label,async()=>{
+   const above=await takeOffAbove(h,31);
+   await probe(path);
+   try {
+    await expect(exec(await sql('032_definer_search_path.sql'))).rejects.toThrow(/zz_unpinned_probe/);
+    expect((await lacking()).length).toBe(18);
+    expect((await h.operator.query("SELECT 1 FROM schema_migrations WHERE version='032'")).rows).toHaveLength(0);
+   } finally {await h.operator.query('DROP FUNCTION public.zz_unpinned_probe()');await putBack(h,above);}
+  });
+
+ test('a longer path that names the temporary schema once, last, passes',async()=>{
   const above=await takeOffAbove(h,31);
-  await h.operator.query("CREATE FUNCTION public.zz_unpinned_probe() RETURNS int LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog AS 'SELECT 1'");
+  await probe('pg_catalog,public,pg_temp');
   try {
-   await expect(exec(await sql('032_definer_search_path.sql'))).rejects.toThrow(/zz_unpinned_probe/);
-   expect((await lacking()).length).toBe(18);
-   expect((await h.operator.query("SELECT 1 FROM schema_migrations WHERE version='032'")).rows).toHaveLength(0);
+   await exec(await sql('032_definer_search_path.sql'));
+   expect(await lacking()).toEqual([]);
+   await exec(await sql('rollback/032_definer_search_path.sql'));
   } finally {await h.operator.query('DROP FUNCTION public.zz_unpinned_probe()');await putBack(h,above);}
  });
 });
