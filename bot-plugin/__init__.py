@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-VERSION = "0.3.4"
+VERSION = "0.3.5"
 EXPECTED_HOME = Path("/home/iptech/.hermes/profiles/libetech")
 ORIGIN = "http://127.0.0.1:3148"
 ENDPOINT = ORIGIN + "/api/bridge"
@@ -1093,16 +1093,28 @@ TEMPLATES = {
     "intake.pool_received": ("Đã nhận, mã {ref}. Chưa gán dự án. Đây chưa phải việc đã tạo.", ("ref",)),
     "account_approval.pending": ("Có phiếu Tech chờ anh/chị xác nhận. Gõ /duyet trong chat riêng này.", ()),
 }
+# Why a file was not stored (the server's fixed list): one sentence each, with what to do. Anything else keeps the general sentence above.
+ATTACHMENT_REPLIES = {
+    "TOO_LARGE": "Đã ghi nhận nội dung, mã {ref}, nhưng chưa lưu được tệp đính kèm vì tệp lớn hơn 20 MB. Gửi tệp nhỏ hơn, tách tệp, hoặc gửi đường dẫn tới tệp.",
+    "UNSUPPORTED_TYPE": "Đã ghi nhận nội dung, mã {ref}, nhưng chưa lưu được tệp đính kèm vì loại tệp này chưa được nhận. Bot nhận ảnh JPG, PNG, WebP; PDF; TXT; CSV; Word, Excel, PowerPoint (.docx, .xlsx, .pptx). Đổi sang một loại đó rồi gửi lại.",
+    "DOWNLOAD_UNAVAILABLE": "Đã ghi nhận nội dung, mã {ref}, nhưng chưa lưu được tệp đính kèm vì bot không tải được tệp từ Telegram. Gửi lại tệp; nếu vẫn lỗi, gửi đường dẫn tới tệp.",
+    "STORE_UNAVAILABLE": "Đã ghi nhận nội dung, mã {ref}, nhưng chưa lưu được tệp đính kèm vì máy chủ chưa lưu được tệp. Gửi lại sau ít phút; nếu vẫn lỗi, báo người vận hành kèm mã.",
+}
 TEMPLATE_PARAMS = {"ref": re.compile(r"IN-[0-9A-F]{8}\Z"),
                    "observedAt": re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})\Z")}
 
 def render(template, params):
-    """Fixed text per template; parameters are only a reference and a time, checked by shape. Other params are ignored."""
+    """Fixed text per template; parameters are only a reference and a time, checked by shape. A failed attachment picks its sentence by the fixed
+    `attachmentReason`. Other params are ignored."""
     if not isinstance(template, str) or template not in TEMPLATES:
         raise ValueError("TEMPLATE_UNKNOWN")
     text, names = TEMPLATES[template]
     if not isinstance(params, dict):
         raise ValueError("TEMPLATE_PARAMS_INVALID")
+    if template == "intake.attachment_failed":
+        reason = params.get("attachmentReason")
+        if isinstance(reason, str):
+            text = ATTACHMENT_REPLIES.get(reason, text)
     for name in names:
         value = params.get(name)
         if not isinstance(value, str) or not TEMPLATE_PARAMS[name].fullmatch(value):

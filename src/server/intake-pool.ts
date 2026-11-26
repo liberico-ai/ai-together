@@ -20,10 +20,17 @@ const fileSchema=submitSchema.extend({kind:z.literal('file_request'),expectedVer
 const linkSchema=z.object({kind:z.literal('link_work'),expectedVersion,projectId:uuid,classification,workId:uuid}).strict();
 const dismissSchema=z.object({kind:z.literal('dismiss'),expectedVersion,code:z.enum(DISMISS_CODES)}).strict();
 const reopenSchema=z.object({kind:z.literal('reopen'),expectedVersion}).strict();
-const commandSchema=z.discriminatedUnion('kind',[fileSchema,linkSchema,dismissSchema,reopenSchema]);
+// OQ-61 B6 (2): a wrong link is revoked with a fixed reason (never free text); the link row stays
+export const REVOKE_REASONS=['wrong_work','wrong_message','wrong_project','mistake'] as const;
+export type RevokeReason=typeof REVOKE_REASONS[number];
+export const revokeSchema=z.object({kind:z.literal('revoke_link'),expectedVersion,linkId:uuid,reasonCode:z.enum(REVOKE_REASONS)}).strict();
+const commandSchema=z.discriminatedUnion('kind',[fileSchema,linkSchema,dismissSchema,reopenSchema,revokeSchema]);
 const listSchema=z.object({state:z.enum(['unassigned','assigned','dismissed']).optional(),limit:z.number().int().min(1).max(200).default(50),offset:z.number().int().min(0).default(0)}).strict();
 export type PoolState='unassigned'|'assigned'|'dismissed';
-export type PoolLinkView={kind:'request'|'work';requestId:string|null;requestState:'pending'|'approved'|'rejected'|null;workCode:string|null;title:string|null;createdAt:string;createdByName:string};
+export type LinkRevocation={byName:string;at:string;reasonCode:RevokeReason};
+/** `canRevoke`: the viewer made this link or holds a BoM seat of its project, and it is not revoked yet. */
+export type PoolLinkView={linkId:string;kind:'request'|'work';requestId:string|null;requestState:'pending'|'approved'|'rejected'|null;workCode:string|null;title:string|null;createdAt:string;createdByName:string;
+ canRevoke:boolean;revoked:LinkRevocation|null};
 export type PoolCard={itemId:string;ref:string;state:PoolState;classification:'incident'|'request'|'document'|null;dismissCode:string|null;projectId:string|null;projectLabel:string|null;
  receivedAt:string;editedAt:string|null;revisionCount:number;senderName:string|null;forwarded:boolean;attachment:{mimeType:string;sizeBytes:number|null}|null;
  receipt:{state:OutboxState|null;deliveredAt:string|null};version:number;trail:IntakeTrail;links:PoolLinkView[]};
@@ -36,7 +43,7 @@ const PROJECT_LIST="string_to_array(coalesce(current_setting('app.project_ids',t
 type ItemRow={id:string;state:PoolState;classification:PoolCard['classification'];dismiss_code:string|null;project_id:string|null;observed_at:unknown;edited_at:unknown;revision_count:number;
  forwarded:boolean;attachment_mime:string|null;attachment_size:string|number|null;version:number;triaged_at:unknown;sender_name:string|null;triager_name:string|null;project_name:string|null;
  seat_open:boolean|null;outbox_state:OutboxState|null;delivered_at:unknown};
-export type LinkRow={project_id:string;pool_item_id:string|null;candidate_id:string|null;work_request_id:string|null;work_id:string|null;created_at:unknown;created_by_name:string;r_id:string|null;r_state:TrailRequest['state']|null;r_title:string|null;
+export type LinkRow={link_id:string;revoked_by_name:string|null;revoked_at:unknown;reason_code:RevokeReason|null;can_revoke:boolean|null;project_id:string;pool_item_id:string|null;candidate_id:string|null;work_request_id:string|null;work_id:string|null;created_at:unknown;created_by_name:string;r_id:string|null;r_state:TrailRequest['state']|null;r_title:string|null;
  r_filed:unknown;r_requester:string|null;r_decider:string|null;r_decided:unknown;r_work:string|null;work_code:string|null;work_visible:string|null};
 
 const ITEM_SQL=`SELECT i.id,i.state,i.classification,i.dismiss_code,i.project_id,i.observed_at,i.edited_at,i.revision_count,i.forwarded,i.attachment_mime,i.attachment_size,i.version,i.triaged_at,
@@ -56,15 +63,18 @@ export function summariseLinks(links:LinkRow[]) {
  const workLinks:{workCode:string|null;at:string}[]=[];
  let hidden=0;
  for(const l of links) {
+  // a revoked link stays on the card with who took it back and why, and counts for nothing in the trail
+  const revoked:LinkRevocation|null=l.revoked_at==null?null:{byName:l.revoked_by_name!,at:iso(l.revoked_at),reasonCode:l.reason_code!};
+  const common={linkId:l.link_id,createdAt:iso(l.created_at),createdByName:l.created_by_name,canRevoke:!revoked&&l.can_revoke===true,revoked};
   if(l.work_request_id) {
    // the request row is readable only to its requester, its decider and a BoM seat; for anybody else the link shows that something was filed and nothing more
-   if(!l.r_id) {hidden++;continue;}
-   requests.push({id:l.r_id,state:l.r_state!,filedAt:isoOrNull(l.r_filed),filedBy:l.r_requester,decidedBy:l.r_decider,decidedAt:isoOrNull(l.r_decided),workCode:l.work_code});
-   views.push({kind:'request',requestId:l.r_id,requestState:l.r_state,workCode:l.work_code,title:l.r_title,createdAt:iso(l.created_at),createdByName:l.created_by_name});
+   if(!l.r_id) {if(!revoked) hidden++;continue;}
+   if(!revoked) requests.push({id:l.r_id,state:l.r_state!,filedAt:isoOrNull(l.r_filed),filedBy:l.r_requester,decidedBy:l.r_decider,decidedAt:isoOrNull(l.r_decided),workCode:l.work_code});
+   views.push({...common,kind:'request',requestId:l.r_id,requestState:l.r_state,workCode:l.work_code,title:l.r_title});
   } else {
-   if(!l.work_visible) {hidden++;continue;}
-   workLinks.push({workCode:l.work_code,at:iso(l.created_at)});
-   views.push({kind:'work',requestId:null,requestState:null,workCode:l.work_code,title:null,createdAt:iso(l.created_at),createdByName:l.created_by_name});
+   if(!l.work_visible) {if(!revoked) hidden++;continue;}
+   if(!revoked) workLinks.push({workCode:l.work_code,at:iso(l.created_at)});
+   views.push({...common,kind:'work',requestId:null,requestState:null,workCode:l.work_code,title:null});
   }
  }
  return {views,requests,workLinks,hidden};
@@ -72,10 +82,13 @@ export function summariseLinks(links:LinkRow[]) {
 /** The links of messages (pool items or candidates) with the request and the work each points at, under the caller's row level security. */
 export async function loadLinkRows(tx:Queryable,column:'pool_item_id'|'candidate_id',ids:string[]):Promise<LinkRow[]> {
  return (await tx.query<LinkRow>(
-  `SELECT l.project_id,l.pool_item_id,l.candidate_id,l.work_request_id,l.work_id,l.created_at,l.created_by_name,
+  `SELECT l.id AS link_id,l.project_id,l.pool_item_id,l.candidate_id,l.work_request_id,l.work_id,l.created_at,l.created_by_name,
+    v.revoked_by_name,v.created_at AS revoked_at,v.reason_code,
+    (l.created_by=nullif(current_setting('app.person_id',true),'')::uuid OR public.work_request_seat(l.project_id)) AS can_revoke,
     r.id AS r_id,r.state AS r_state,r.title AS r_title,r.created_at AS r_filed,r.requester_name AS r_requester,r.decider_name AS r_decider,r.decided_at AS r_decided,r.work_id AS r_work,
     w.code AS work_code,w.id AS work_visible
    FROM intake_work_links l
+   LEFT JOIN intake_link_revocations v ON v.link_id=l.id AND v.tenant_id=l.tenant_id
    LEFT JOIN work_requests r ON r.id=l.work_request_id
    LEFT JOIN work_items w ON w.id=coalesce(l.work_id,r.work_id)
    WHERE l.${column}=ANY($1::uuid[]) ORDER BY l.created_at,l.id`,[ids])).rows;
@@ -91,6 +104,27 @@ function toCard(r:ItemRow,links:LinkRow[]):PoolCard {
   receivedAt:iso(r.observed_at),editedAt:isoOrNull(r.edited_at),revisionCount:r.revision_count,senderName:r.sender_name,forwarded:r.forwarded,
   attachment:r.attachment_mime!==null||r.attachment_size!==null?{mimeType:r.attachment_mime??'',sizeBytes:r.attachment_size==null?null:Number(r.attachment_size)}:null,
   receipt:{state:r.outbox_state,deliveredAt:isoOrNull(r.delivered_at)},version:r.version,trail,links:views};
+}
+
+/** Whether this message was linked to this work before: still linked, revoked (that pair is not linked again), or never. */
+export async function priorLink(tx:Queryable,column:'pool_item_id'|'candidate_id',sourceId:string,workId:string):Promise<'live'|'revoked'|'none'> {
+ const row=(await tx.query<{revoked:boolean}>(`SELECT EXISTS (SELECT 1 FROM intake_link_revocations v WHERE v.link_id=l.id) AS revoked
+   FROM intake_work_links l WHERE l.${column}=$1 AND l.work_id=$2`,[sourceId,workId])).rows[0];
+ return !row?'none':row.revoked?'revoked':'live';
+}
+export const LINK_REVOKED=()=>new AppError('LINK_REVOKED','Liên kết giữa tin này và việc đó đã bị gỡ nên không nối lại được. Chọn việc đúng.',409);
+/** A link of this message that the caller reads under its own row level security (else 404), and may revoke: its creator or a BoM seat of its project. */
+export async function revocableLink(tx:Queryable,p:Principal,column:'pool_item_id'|'candidate_id',sourceId:string,linkId:string):Promise<{id:string;projectId:string}> {
+ const row=(await tx.query<{id:string;project_id:string;created_by:string;seat:boolean}>(
+  `SELECT l.id,l.project_id,l.created_by,public.work_request_seat(l.project_id) AS seat FROM intake_work_links l WHERE l.id=$1 AND l.${column}=$2`,[linkId,sourceId])).rows[0];
+ if(!row) throw DENIED();
+ if(row.created_by!==p.id&&row.seat!==true) throw new AppError('REVOKE_DENIED','Chỉ người đã tạo liên kết hoặc một ghế BoM của dự án gỡ được. Nhờ một trong hai người đó gỡ.',403);
+ return {id:row.id,projectId:row.project_id};
+}
+/** Writes the revocation once (UNIQUE + ON CONFLICT); false when the link was already revoked. */
+export async function revokeLink(tx:Queryable,p:Principal,link:{id:string;projectId:string},reason:RevokeReason):Promise<boolean> {
+ return (await tx.query(`INSERT INTO intake_link_revocations(tenant_id,project_id,link_id,revoked_by,revoked_by_name,reason_code) VALUES($1,$2,$3,$4,$5,$6)
+   ON CONFLICT (tenant_id,link_id) DO NOTHING RETURNING id`,[p.tenantId,link.projectId,link.id,p.id,p.name,reason])).rows.length>0;
 }
 
 async function loadCards(tx:Queryable,where:string,params:unknown[],tail=''):Promise<PoolCard[]> {
@@ -197,11 +231,24 @@ export class PoolService {
      if(!(await tx.query('SELECT 1 FROM work_items WHERE id=$1 AND project_id=$2',[input.workId,input.projectId])).rows.length)
       throw new AppError('SCOPE_DENIED','Không tìm thấy việc trong phạm vi được cấp.',404);
      // the item is locked: a link read here is the link every concurrent caller would find; linking the same pair again changes nothing
-     if((await tx.query('SELECT 1 FROM intake_work_links WHERE pool_item_id=$1 AND work_id=$2',[id,input.workId])).rows.length) return settle();
+     const prior=await priorLink(tx,'pool_item_id',id,input.workId);
+     if(prior==='live') return settle();
+     if(prior==='revoked') throw LINK_REVOKED();
      await advance(input.projectId,input.classification);
      const made=await link(input.projectId,{workId:input.workId});
      invariant(made,'REVISION_CONFLICT','Mục đã thay đổi; tải lại rồi thao tác lại.',409);
      await event('pool.work_linked',{project_id:input.projectId,version_after:item.version+1});
+     return settle();
+    }
+    case 'revoke_link': {
+     const link=await revocableLink(tx,p,'pool_item_id',id,input.linkId);
+     // the insert decides: a link revoked before gives no row, and the card is answered as it stands; the version is checked only when something is written
+     if(!await revokeLink(tx,p,link,input.reasonCode)) return settle();
+     if(item.version!==input.expectedVersion) throw conflict();
+     const upd=await tx.query('UPDATE intake_pool_items SET version=version+1,updated_at=now() WHERE id=$1 AND version=$2 RETURNING id',[id,item.version]);
+     if(!upd.rows.length) throw conflict();
+     // every roster member reads pool events, link readers or not: the link and the reason live only in the revocation row, which follows the link's readers
+     await event('pool.link_revoked',{project_id:link.projectId,version_before:item.version,version_after:item.version+1});
      return settle();
     }
     case 'dismiss': {
@@ -219,9 +266,12 @@ export class PoolService {
       // The item opens only if every link it holds in this project is a rejected request that THIS caller can read. The caller's rejected requests are read under its
       // own row level security; a definer function then says, as one bit, whether any link lies outside them (it gives no number and names nothing). Pending, approved,
       // work links and links the caller cannot read all lie outside, so the one answer below says nothing about what a BoM seat decided.
-      const readableRejected=(await loadLinkRows(tx,'pool_item_id',[id])).filter(l=>l.project_id===item.project_id&&l.work_request_id!==null&&l.r_id!==null&&l.r_state==='rejected').map(l=>l.work_request_id as string);
+      const held=(await loadLinkRows(tx,'pool_item_id',[id])).filter(l=>l.project_id===item.project_id);
+      const readableRejected=held.filter(l=>l.revoked_at==null&&l.work_request_id!==null&&l.r_id!==null&&l.r_state==='rejected').map(l=>l.work_request_id as string);
+      // revoked links no longer hold the item (030); one the caller can read stands, like a rejected request, for «this caller knows what was here»
+      const readableRevoked=held.some(l=>l.revoked_at!=null);
       const outside=(await tx.query<{b:boolean|null}>('SELECT public.intake_pool_links_outside($1,$2,$3::uuid[]) AS b',[id,item.project_id,readableRejected])).rows[0].b;
-      if(outside!==false||readableRejected.length===0) throw new AppError('POOL_ASSIGNED','Không mở lại được mục này.',409);
+      if(outside!==false||(readableRejected.length===0&&!readableRevoked)) throw new AppError('POOL_ASSIGNED','Không mở lại được mục này.',409);
      }
      await tx.query("UPDATE intake_pool_items SET state='unassigned',project_id=NULL,classification=NULL,dismiss_code=NULL,triaged_by=NULL,triaged_at=NULL,version=version+1,updated_at=now() WHERE id=$1 AND version=$2",[id,item.version]);
      await event('pool.reopened',{state_before:item.state,state_after:'unassigned',version_before:item.version,version_after:item.version+1});

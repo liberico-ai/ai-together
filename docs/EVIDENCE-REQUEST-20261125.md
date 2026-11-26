@@ -29,4 +29,8 @@ Quy ước cho mọi câu trả lời:
 | EV-16 | Ca (a): chữ `unauthorized` đến từ đâu (hạng mục D) | Cấu hình gateway Hermes của bot LibeTech có lớp chặn người dùng chưa được phép không (có/không, tên khoá cấu hình, không in danh sách người). Với ca đã báo: dòng log của gateway cùng giờ có phải câu từ chối của gateway hay không, và tin đó có tới được plugin không | d1-ai1: cấu hình và journal của gateway Hermes | Codex |
 | EV-17 | Ca (b): `SCOPE_DENIED` rơi vào trường hợp nào (hạng mục D) | Với ca đã báo: loại hội thoại (tin riêng hay nhóm nào, theo tên hiển thị); nhóm đó có trong `chatScopes` không (có/không); người hỏi có membership ở dự án nhóm gắn tới không (có/không); lúc đó người hỏi có trong Team Tech không. Sau 0.9.3, gõ lại và ghi câu bot trả nguyên văn | `bridge.json` (chỉ có/không), `psql` chỉ đọc | Codex + người báo |
 
-Mục của hạng mục C: EV-10, EV-14; kịch bản 2: EV-15. Hạng mục D: EV-03, EV-04, EV-16, EV-17. Các mục của hạng mục E–F được bổ sung vào bảng này khi mỗi PR mở.
+| EV-30 | Ticket ngày 20/11 (hạng mục E) | Mã ticket trong sổ priority1; với mỗi ticket: triệu chứng đúng nguyên văn, loại tệp, kích thước, thời điểm, đường đi (nhóm nào, hay trang web), câu trả lời nhận được. Không chép nội dung tệp | Sổ ticket priority1 trên d1-ai1; người báo | Codex + người báo |
+| EV-31 | Tệp mẫu để thử lại | Một tệp thật gây lỗi cho mỗi ticket, hoặc tệp cùng loại và cùng kích thước không chứa dữ liệu kinh doanh. Lưu ngoài repo; ghi tên loại, kích thước, hash | Người báo | người báo |
+| EV-32 | «Quyền thư mục» | Thư mục nào (Drive, máy chủ, repo), ai cần quyền gì, lỗi hiện ra đúng nguyên văn. Repo này không đọc Drive | Người báo; quản trị Drive | Codex + người báo |
+
+Mục của hạng mục C: EV-10, EV-14; kịch bản 2: EV-15. Hạng mục D: EV-03, EV-04, EV-16, EV-17. Hạng mục E: EV-05, EV-30, EV-31, EV-32. Các mục của hạng mục F được bổ sung khi PR đó mở.

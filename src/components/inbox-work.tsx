@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { CandidateCard } from '../server/inbox';
 import { commandErrorMessage } from './inbox-view';
+import { LinkList } from './inbox-links';
 
 // GIAO VIỆC 5 B: the two actions of a confirmed candidate. «Lập yêu cầu việc» files a request (it waits for a BoM seat); «Nối với việc có sẵn» links the message to a work item of
 // the candidate's own project. Both send the existing candidate commands (file_request, link_work); the server decides who may do either and answers with its own code.
@@ -68,12 +69,15 @@ export function WorkPicker({ card, works, busy, error, onSubmit }: { card: Candi
 export function CandidateWork({ card, work }: { card: CandidateCard; work: WorkContext }) {
   const [mode, setMode] = useState<'file' | 'link' | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const offered = workCommands(card);
-  if (offered.length === 0) return null;
+  const links = card.links ?? [];
+  if (offered.length === 0 && links.length === 0) return null;
   async function send(body: Record<string, unknown>) {
     setBusy(true); setError('');
     try { await work.onCommand(body); setMode(null); } catch (e) { setError(commandErrorMessage(e)); } finally { setBusy(false); }
   }
   return <div className="inbox-work" aria-label="Từ tin thành việc">
+    <LinkList links={links} version={card.version} busy={busy} onCommand={body => void send(body)} />
+    {error && mode === null && <p role="alert" className="doc-problem">{error}</p>}
     <div className="inbox-actions">
       {offered.includes('file_request') && <button type="button" className="doc-action" disabled={busy} onClick={() => { setError(''); setMode(mode === 'file' ? null : 'file'); }}>Lập yêu cầu việc</button>}
       {offered.includes('link_work') && <button type="button" className="doc-action inbox-secondary" disabled={busy} onClick={() => { setError(''); setMode(mode === 'link' ? null : 'link'); }}>Nối với việc có sẵn</button>}

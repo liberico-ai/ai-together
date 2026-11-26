@@ -17,7 +17,7 @@ const pid = '22222222-2222-4222-8222-222222222222';
 const card = (over: Partial<CandidateCard> = {}): CandidateCard => ({ candidateId: '11111111-1111-4111-8111-111111111111', ref: 'IN-1111', projectId: pid,
   projectLabel: 'Dự án Thử', sourceRef: 'telegram:-1000000000001:42', receivedAt: '2026-11-13T01:00:00.000Z', classification: null, state: 'new', missingFields: [], duplicateCandidates: [],
   contentMode: 'excerpt', excerpt: 'Cổng thanh toán lỗi từ 9 giờ', forwarded: false, attachments: [], ticketRef: null, status: status(), version: 1,
-  trail: { label: 'Đã nhận — chưa thấy yêu cầu hay việc nào trong phạm vi của bạn', waitingOn: 'điều phối dự án', steps: [] }, ...over });
+  trail: { label: 'Đã nhận — chưa thấy yêu cầu hay việc nào trong phạm vi của bạn', waitingOn: 'điều phối dự án', steps: [] }, links: [], ...over });
 // Only the (state, classification) pairs InboxService produces: ingest → new/null; need_info → needs_info/null (classification
 // unchanged); confirm → confirmed/type; dismiss and mark_duplicate from an open card keep null; reopen → new/null.
 const fresh = (over: Partial<CandidateCard> = {}) => card(over);

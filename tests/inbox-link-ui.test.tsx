@@ -10,7 +10,7 @@ const card = (over: Partial<CandidateCard> = {}): CandidateCard => ({ candidateI
   sourceRef: 'telegram:-10012345:42', receivedAt: '2026-11-25T01:00:00.000Z', classification: 'request', state: 'confirmed', missingFields: [], duplicateCandidates: [], contentMode: 'pointer_only',
   excerpt: null, forwarded: false, attachments: [], ticketRef: null, version: 2,
   status: { receivedAt: '2026-11-25T01:00:00.000Z', persistedAt: '2026-11-25T01:00:01.000Z', projectedAt: null, deliveredAt: null, acknowledgedAt: null, outboxState: null },
-  trail: { label: 'Đã nhận — chưa thấy yêu cầu hay việc nào trong phạm vi của bạn', waitingOn: 'điều phối dự án', steps: [] }, ...over });
+  trail: { label: 'Đã nhận — chưa thấy yêu cầu hay việc nào trong phạm vi của bạn', waitingOn: 'điều phối dự án', steps: [] }, links: [], ...over });
 const works: WorkOption[] = [
   { id: 'a0000000-0000-4000-8000-000000000001', projectId: pid, code: 'LT-THU-001', title: 'Việc của dự án này' },
   { id: 'b0000000-0000-4000-8000-000000000002', projectId: other, code: 'LT-KHAC-002', title: 'Việc của dự án khác' },

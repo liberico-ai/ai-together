@@ -37,6 +37,10 @@ const MIME=/^[a-z0-9][\w.+-]{0,63}\/[a-z0-9][\w.+-]{0,63}$/i;
 const LOCATOR=/^gw:\/\/libetech\/attachments\/([a-f0-9]{64})$/;
 const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
 export const refOf=(id:string)=>'IN-'+id.slice(0,8).toUpperCase();
+/** Why a file of an addressed message was not stored, for the receipt: a fixed list only. A word from the wire that is not on it is not passed on. */
+const ATTACHMENT_REASONS=new Set(['TOO_LARGE','UNSUPPORTED_TYPE','DOWNLOAD_UNAVAILABLE','STORE_UNAVAILABLE']);
+const attachmentReason=(state:AttachmentState|undefined,wire:string|undefined):string|undefined=>
+ state==='too_large'?'TOO_LARGE':state==='unsupported_type'?'UNSUPPORTED_TYPE':state==='failed'&&wire&&ATTACHMENT_REASONS.has(wire)?wire:undefined;
 
 export class IntakeService {
  constructor(private db:Database,private tenantId:string,private principalId:string,private chatScopes:ChatScopes,private intake:{chats:readonly string[];excerptChats?:readonly string[];poolChats?:readonly string[]},
@@ -169,10 +173,11 @@ export class IntakeService {
    const ack:IntakeAck={sourceEventId:ev.id,revisionNo,candidateRef:candidateId?refOf(candidateId):null,replayed,persisted:true,receipt:'none'};
    if(!e.addressed) return ack;
    const notStored=Boolean(attState&&attState!=='stored');
+   const why=notStored?attachmentReason(attState,att?.state==='failed'?att.reasonCode:undefined):undefined;
    if(replayed||revisionNo>1) return notStored?{...ack,receipt:'withheld',reason:'ATTACHMENT_NOT_STORED'}:ack;
    // Only a new, addressed event queues anything. Params carry the reference and observedAt, never the message text.
    const queued=await this.enqueueReceipt(tx,{tenantId,projectId,sourceEventId:ev.id,candidateId:candidateId??null,chatId:c.chatId,topicId:c.topicId??'',replyToMessageId:c.messageId,
-    template:notStored?'intake.attachment_failed':e.spooled?'intake.recovered':'intake.received',params:{ref:candidateId?refOf(candidateId):'',observedAt:e.observedAt},traceId:ev.trace_id,correlationId:ev.correlation_id});
+    template:notStored?'intake.attachment_failed':e.spooled?'intake.recovered':'intake.received',params:{ref:candidateId?refOf(candidateId):'',observedAt:e.observedAt,...(why?{attachmentReason:why}:{})},traceId:ev.trace_id,correlationId:ev.correlation_id});
    // A failed file never claims success, whatever was queued.
    if(notStored) return {...ack,receipt:'withheld',reason:'ATTACHMENT_NOT_STORED'};
    const receipt=queued;
