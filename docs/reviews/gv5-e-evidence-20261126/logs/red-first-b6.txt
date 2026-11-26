@@ -1,0 +1,245 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/link-revoke.test.ts (9 tests | 9 failed) 5198ms
+   ❯ revoking a link of a pool item (5)
+     × the creator revokes: one revocation, one event, the version moves, the trail no longer says linked, the card says who and why 732ms
+     × a BoM seat of the project may revoke; another Team Tech member who reads the link may not; one who cannot read it learns nothing 560ms
+     × the same revoke twice writes once; a stale version writes nothing 536ms
+     × the revoked pair is not linked again; another work is 542ms
+     × an item whose only link was revoked opens again; before the revoke it does not 547ms
+   ❯ revoking a link of a candidate (1)
+     × the revoke writes candidate.link_revoked once for one key and the trail drops the link 552ms
+   ❯ the database keeps revocations append-only and in the actor's name (2)
+     × no update or delete, and no row in another person's name 566ms
+     × IBS HI: a revocation holds no free text but the name of who revoked, and no refusal names a project 568ms
+   × migration 030 applies twice; its rollback refuses while a revocation exists, then restores 025 and runs again 593ms
+ ❯ tests/link-revoke-ui.test.tsx (4 tests | 4 failed) 18ms
+   ❯ revoking a link on the page (4)
+     × pool card: the button and the reason list show only for a link the viewer may revoke 14ms
+     × pool card: a revoked link says who revoked it and why, with no button 2ms
+     × candidate card: the button and the reason list show only for a link the viewer may revoke 1ms
+     × candidate card: a revoked link says who revoked it and why, with no button 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 13 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/link-revoke-ui.test.tsx > revoking a link on the page > pool card: the button and the reason list show only for a link the viewer may revoke
+AssertionError: expected '<article class="inbox-card" aria-labe…' to contain 'Gỡ liên kết'
+
+Expected: "Gỡ liên kết"
+Received: "<article class="inbox-card" aria-label="Tin IN-33333333" data-state="assigned"><header class="inbox-head"><h3 class="doc-title">IN-33333333</h3><p class="inbox-badges"><span class="inbox-badge">Dự án Thử</span><span class="inbox-badge">Yêu cầu</span></p></header><p class="doc-meta">Tin ở nhóm chung chỉ giữ con trỏ, không giữ chữ. Tìm tin trong nhóm bằng mã IN ở câu trả lời biên nhận của bot.</p><dl class="inbox-life"><div><dt>Nhận lúc</dt><dd>07:00 26/11/2026</dd></div><div><dt>Người gửi</dt><dd>Tech thử</dd></div><div><dt>Biên nhận</dt><dd>Đã gửi biên nhận</dd></div></dl><section class="inbox-trail" aria-label="Các bước của tin này"><p class="inbox-trail-label"><strong>Đã liên kết việc LT-THU-001</strong></p><ol class="inbox-plain inbox-steps"></ol></section><ul class="inbox-plain" aria-label="Yêu cầu và liên kết"><li class="doc-wrap">Liên kết việc LT-THU-001 · Người tạo thử · 08:00 26/11/2026</li></ul><form class="inbox-actions"><label class="doc-field">Việc cần tạo (tiêu đề do anh/chị tự gõ)<input minLength="5" maxLength="200" name="title"/></label><label class="doc-field">Tiêu chí (không bắt buộc)<textarea name="criteria" maxLength="3000" class="inbox-textarea"></textarea></label><label class="doc-field">Mức ưu tiên<select name="priority"><option value="normal" selected="">Thường</option><option value="high">Cao</option></select></label><label class="doc-field">Hoặc liên kết việc đã có: mã nội bộ của việc<input name="workId"/></label><button type="submit" value="file" class="doc-action" name="mode">Tạo yêu cầu chờ BoM duyệt</button><button type="submit" value="link" class="doc-action inbox-secondary" name="mode">Liên kết việc đã có</button></form><div class="inbox-actions"><button type="button" class="doc-action inbox-secondary">Mở lại</button></div></article>"
+
+ ❯ tests/link-revoke-ui.test.tsx:26:19
+     24|     it(`${where}: the button and the reason list show only for a link …
+     25|       const may = html([link()]);
+     26|       expect(may).toContain('Gỡ liên kết');
+       |                   ^
+     27|       for (const label of ['Sai việc', 'Sai tin', 'Sai dự án', 'Nối nh…
+     28|       expect(html([link({ canRevoke: false })])).not.toContain('Gỡ liê…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/13]⎯
+
+ FAIL  tests/link-revoke-ui.test.tsx > revoking a link on the page > pool card: a revoked link says who revoked it and why, with no button
+AssertionError: expected '<article class="inbox-card" aria-labe…' to contain 'Đã gỡ bởi Người gỡ thử'
+
+Expected: "Đã gỡ bởi Người gỡ thử"
+Received: "<article class="inbox-card" aria-label="Tin IN-33333333" data-state="assigned"><header class="inbox-head"><h3 class="doc-title">IN-33333333</h3><p class="inbox-badges"><span class="inbox-badge">Dự án Thử</span><span class="inbox-badge">Yêu cầu</span></p></header><p class="doc-meta">Tin ở nhóm chung chỉ giữ con trỏ, không giữ chữ. Tìm tin trong nhóm bằng mã IN ở câu trả lời biên nhận của bot.</p><dl class="inbox-life"><div><dt>Nhận lúc</dt><dd>07:00 26/11/2026</dd></div><div><dt>Người gửi</dt><dd>Tech thử</dd></div><div><dt>Biên nhận</dt><dd>Đã gửi biên nhận</dd></div></dl><section class="inbox-trail" aria-label="Các bước của tin này"><p class="inbox-trail-label"><strong>Đã liên kết việc LT-THU-001</strong></p><ol class="inbox-plain inbox-steps"></ol></section><ul class="inbox-plain" aria-label="Yêu cầu và liên kết"><li class="doc-wrap">Liên kết việc LT-THU-001 · Người tạo thử · 08:00 26/11/2026</li></ul><form class="inbox-actions"><label class="doc-field">Việc cần tạo (tiêu đề do anh/chị tự gõ)<input minLength="5" maxLength="200" name="title"/></label><label class="doc-field">Tiêu chí (không bắt buộc)<textarea name="criteria" maxLength="3000" class="inbox-textarea"></textarea></label><label class="doc-field">Mức ưu tiên<select name="priority"><option value="normal" selected="">Thường</option><option value="high">Cao</option></select></label><label class="doc-field">Hoặc liên kết việc đã có: mã nội bộ của việc<input name="workId"/></label><button type="submit" value="file" class="doc-action" name="mode">Tạo yêu cầu chờ BoM duyệt</button><button type="submit" value="link" class="doc-action inbox-secondary" name="mode">Liên kết việc đã có</button></form><div class="inbox-actions"><button type="button" class="doc-action inbox-secondary">Mở lại</button></div></article>"
+
+ ❯ tests/link-revoke-ui.test.tsx:32:20
+     30|     it(`${where}: a revoked link says who revoked it and why, with no …
+     31|       const gone = html([link({ canRevoke: false, revoked })]);
+     32|       expect(gone).toContain('Đã gỡ bởi Người gỡ thử');
+       |                    ^
+     33|       expect(gone).toContain('Sai việc');
+     34|       expect(gone).not.toContain('Gỡ liên kết');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/13]⎯
+
+ FAIL  tests/link-revoke-ui.test.tsx > revoking a link on the page > candidate card: the button and the reason list show only for a link the viewer may revoke
+AssertionError: expected '<div class="inbox-work" aria-label="T…' to contain 'Gỡ liên kết'
+
+Expected: "Gỡ liên kết"
+Received: "<div class="inbox-work" aria-label="Từ tin thành việc"><div class="inbox-actions"><button type="button" class="doc-action">Lập yêu cầu việc</button><button type="button" class="doc-action inbox-secondary">Nối với việc có sẵn</button></div></div>"
+
+ ❯ tests/link-revoke-ui.test.tsx:26:19
+     24|     it(`${where}: the button and the reason list show only for a link …
+     25|       const may = html([link()]);
+     26|       expect(may).toContain('Gỡ liên kết');
+       |                   ^
+     27|       for (const label of ['Sai việc', 'Sai tin', 'Sai dự án', 'Nối nh…
+     28|       expect(html([link({ canRevoke: false })])).not.toContain('Gỡ liê…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/13]⎯
+
+ FAIL  tests/link-revoke-ui.test.tsx > revoking a link on the page > candidate card: a revoked link says who revoked it and why, with no button
+AssertionError: expected '<div class="inbox-work" aria-label="T…' to contain 'Đã gỡ bởi Người gỡ thử'
+
+Expected: "Đã gỡ bởi Người gỡ thử"
+Received: "<div class="inbox-work" aria-label="Từ tin thành việc"><div class="inbox-actions"><button type="button" class="doc-action">Lập yêu cầu việc</button><button type="button" class="doc-action inbox-secondary">Nối với việc có sẵn</button></div></div>"
+
+ ❯ tests/link-revoke-ui.test.tsx:32:20
+     30|     it(`${where}: a revoked link says who revoked it and why, with no …
+     31|       const gone = html([link({ canRevoke: false, revoked })]);
+     32|       expect(gone).toContain('Đã gỡ bởi Người gỡ thử');
+       |                    ^
+     33|       expect(gone).toContain('Sai việc');
+     34|       expect(gone).not.toContain('Gỡ liên kết');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/13]⎯
+
+ FAIL  tests/link-revoke.test.ts > revoking a link of a pool item > the creator revokes: one revocation, one event, the version moves, the trail no longer says linked, the card says who and why
+AssertionError: the card names its link: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ linked tests/link-revoke.test.ts:39:146
+
+ ❯ tests/link-revoke.test.ts:44:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/13]⎯
+
+ FAIL  tests/link-revoke.test.ts > revoking a link of a pool item > a BoM seat of the project may revoke; another Team Tech member who reads the link may not; one who cannot read it learns nothing
+AssertionError: the card names its link: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ linked tests/link-revoke.test.ts:39:146
+
+ ❯ tests/link-revoke.test.ts:57:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/13]⎯
+
+ FAIL  tests/link-revoke.test.ts > revoking a link of a pool item > the same revoke twice writes once; a stale version writes nothing
+AssertionError: the card names its link: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ linked tests/link-revoke.test.ts:39:146
+
+ ❯ tests/link-revoke.test.ts:65:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/13]⎯
+
+ FAIL  tests/link-revoke.test.ts > revoking a link of a pool item > the revoked pair is not linked again; another work is
+AssertionError: the card names its link: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ linked tests/link-revoke.test.ts:39:146
+
+ ❯ tests/link-revoke.test.ts:76:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/13]⎯
+
+ FAIL  tests/link-revoke.test.ts > revoking a link of a pool item > an item whose only link was revoked opens again; before the revoke it does not
+AssertionError: the card names its link: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ linked tests/link-revoke.test.ts:39:146
+
+ ❯ tests/link-revoke.test.ts:84:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/13]⎯
+
+ FAIL  tests/link-revoke.test.ts > revoking a link of a candidate > the revoke writes candidate.link_revoked once for one key and the trail drops the link
+AssertionError: the candidate card lists its links: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/link-revoke.test.ts:98:55
+     96|   const linkedCard=await inbox().command(pm,cid,{kind:'link_work',expe…
+     97|   const linkId=linkedCard.links?.[0]?.linkId;
+     98|   expect(linkId,'the candidate card lists its links').toBeTruthy();
+       |                                                       ^
+     99|   const key=rid(),body=revoke(linkedCard.version,linkId,'wrong_message…
+    100|   const after=await inbox().command(pm,cid,body,key,rid()) as unknown …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/13]⎯
+
+ FAIL  tests/link-revoke.test.ts > the database keeps revocations append-only and in the actor's name > no update or delete, and no row in another person's name
+AssertionError: the card names its link: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ linked tests/link-revoke.test.ts:39:146
+
+ ❯ tests/link-revoke.test.ts:110:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/13]⎯
+
+ FAIL  tests/link-revoke.test.ts > the database keeps revocations append-only and in the actor's name > IBS HI: a revocation holds no free text but the name of who revoked, and no refusal names a project
+AssertionError: the card names its link: expected undefined to be truthy
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ linked tests/link-revoke.test.ts:39:146
+
+ ❯ tests/link-revoke.test.ts:124:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/13]⎯
+
+ FAIL  tests/link-revoke.test.ts > migration 030 applies twice; its rollback refuses while a revocation exists, then restores 025 and runs again
+AssertionError: expected 'CREATE OR REPLACE FUNCTION public.int…' to match /intake_link_revocations/
+
+- Expected:
+/intake_link_revocations/
+
++ Received:
+"CREATE OR REPLACE FUNCTION public.intake_pool_links_outside(item uuid, target_project uuid, readable uuid[])
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+ SELECT CASE WHEN public.app_actor_is_tech_member() THEN
+  EXISTS (SELECT 1 FROM public.intake_work_links l
+   WHERE l.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND l.pool_item_id=item AND l.project_id=target_project
+    AND NOT coalesce(l.work_request_id = ANY(readable), false))
+ END
+$function$
+"
+
+ ❯ tests/link-revoke.test.ts:141:30
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/13]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  13 failed (13)
+   Start at  10:28:32
+   Duration  5.46s (tests 97%, import 1%, transform 1%)
+

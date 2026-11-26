@@ -1,0 +1,48 @@
+
+ RUN  v5.1.0 <repo>
+      Coverage enabled with v8
+
+ ❯ tests/intake-pool-isolation.test.ts (9 tests | 1 failed) 6128ms
+   × (6) the runtime and intake roles do not bypass RLS; the new functions belong to libetech_identity and are closed to PUBLIC 710ms
+ ❯ tests/tech-source-mask.test.ts (11 tests | 11 skipped) 794ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/tech-source-mask.test.ts [ tests/tech-source-mask.test.ts ]
+error: Roll back the later migrations before 029.
+ ❯ pe.Oe node_modules/@electric-sql/pg-protocol/src/parser.ts:442:11
+ ❯ pe.tt node_modules/@electric-sql/pg-protocol/src/parser.ts:220:16
+ ❯ pe.parse node_modules/@electric-sql/pg-protocol/src/parser.ts:104:21
+ ❯ q.Ce node_modules/@electric-sql/pglite/src/pglite.ts:795:26
+ ❯ node_modules/@electric-sql/pglite/src/pglite.ts:746:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/intake-pool-isolation.test.ts > (6) the runtime and intake roles do not bypass RLS; the new functions belong to libetech_identity and are closed to PUBLIC
+AssertionError: expected [ 'id', 'pool_item_id', …(3) ] to deeply equal [ 'pool_item_id', 'project_id', …(2) ]
+
+- Expected
++ Received
+
+  [
++   "id",
+    "pool_item_id",
+    "project_id",
+    "tenant_id",
+    "work_request_id",
+  ]
+
+ ❯ tests/intake-pool-isolation.test.ts:166:46
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 90 passed | 15 skipped (107)
+      Tests  1 failed | 1560 passed | 173 skipped (1734)
+   Start at  10:33:00
+   Duration  856.37s (tests 99%)
+

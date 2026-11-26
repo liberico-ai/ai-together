@@ -1,0 +1,100 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/link-revoke.test.ts (10 tests | 3 failed) 5938ms
+   ❯ revoking a link of a pool item (5)
+     × the creator revokes: one revocation, one event, the version moves, the trail no longer says linked, the card says who and why 743ms
+   ❯ the database keeps revocations append-only and in the actor's name (3)
+     × a creator who left Team Tech cannot revoke a pool link, not even straight under the runtime role (Codex gate, P1) 553ms
+   × migration 030 applies twice; its rollback refuses while a revocation exists, then restores 025 and runs again 532ms
+ ❯ tests/import-limits.test.ts (3 tests | 1 failed) 36ms
+   × another ZIP file is not called Excel (Codex gate, P2) 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/import-limits.test.ts > another ZIP file is not called Excel (Codex gate, P2)
+AssertionError: expected 'XLSX_NOT_SUPPORTED' to be 'ZIP_NOT_CSV' // Object.is equality
+
+Expected: "ZIP_NOT_CSV"
+Received: "XLSX_NOT_SUPPORTED"
+
+ ❯ tests/import-limits.test.ts:21:23
+     19| test('another ZIP file is not called Excel (Codex gate, P2)',()=>{
+     20|  const refused=refusalOf(zip('anh/chup.png'));
+     21|  expect(refused.code).toBe('ZIP_NOT_CSV');
+       |                       ^
+     22|  expect(refused.status).toBe(422);
+     23|  expect(refused.message).not.toContain('Excel (.xlsx), chưa');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/link-revoke.test.ts > revoking a link of a pool item > the creator revokes: one revocation, one event, the version moves, the trail no longer says linked, the card says who and why
+AssertionError: expected [ 'link_id', 'project_id', …(3) ] to deeply equal [ 'project_id', 'version_after', …(1) ]
+
+- Expected
++ Received
+
+  [
++   "link_id",
+    "project_id",
++   "reason_code",
+    "version_after",
+    "version_before",
+  ]
+
+ ❯ tests/link-revoke.test.ts:55:45
+     53|   // every roster member reads pool events, link readers or not: the e…
+     54|   const event=(await rows<{payload:Record<string,unknown>}>("SELECT pa…
+     55|   expect(Object.keys(event.payload).sort()).toEqual(['project_id','ver…
+       |                                             ^
+     56|   const seen=JSON.stringify((await pool().detail(techB,id)).events);
+     57|   expect(seen).not.toContain(linkId);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/link-revoke.test.ts > the database keeps revocations append-only and in the actor's name > a creator who left Team Tech cannot revoke a pool link, not even straight under the runtime role (Codex gate, P1)
+AssertionError: promise resolved "{ rows: [], fields: [], …(3) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "affectedRows": 1,
++   "command": "INSERT",
++   "fields": [],
++   "rowCount": 1,
++   "rows": [],
+  }
+
+ ❯ tests/link-revoke.test.ts:133:42
+    131|   await expect(asRole(h,'libetech_runtime',{projects:[ids.sales],perso…
+    132|    `INSERT INTO intake_link_revocations(tenant_id,project_id,link_id,r…
+    133|    [ids.tenant,ids.sales,linkId,pm.id]))).rejects.toThrow(/row-level s…
+       |                                          ^
+    134|  });
+    135|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/link-revoke.test.ts > migration 030 applies twice; its rollback refuses while a revocation exists, then restores 025 and runs again
+AssertionError: expected 'CHECK (((jsonb_typeof(payload) = \'ob…' not to match /link_id|reason_code/
+
+- Expected:
+/link_id|reason_code/
+
++ Received:
+"CHECK (((jsonb_typeof(payload) = 'object'::text) AND (octet_length((payload)::text) <= 2048) AND ((payload - ARRAY['state_before'::text, 'state_after'::text, 'version_before'::text, 'version_after'::text, 'project_id'::text, 'classification'::text, 'revision_no'::text, 'dismiss_code'::text, 'link_id'::text, 'reason_code'::text]) = '{}'::jsonb) AND (COALESCE(jsonb_typeof((payload -> 'state_before'::text)), 'string'::text) = 'string'::text) AND (COALESCE((payload ->> 'state_before'::text), 'unassigned'::text) = ANY (ARRAY['unassigned'::text, 'assigned'::text, 'dismissed'::text])) AND (COALESCE(jsonb_typeof((payload -> 'state_after'::text)), 'string'::text) = 'string'::text) AND (COALESCE((payload ->> 'state_after'::text), 'unassigned'::text) = ANY (ARRAY['unassigned'::text, 'assigned'::text, 'dismissed'::text])) AND (COALESCE(jsonb_typeof((payload -> 'version_before'::text)), 'number'::text) = 'number'::text) AND (COALESCE(jsonb_typeof((payload -> 'version_after'::text)), 'number'::text) = 'number'::text) AND (COALESCE(jsonb_typeof((payload -> 'revision_no'::text)), 'number'::text) = 'number'::text) AND (COALESCE(jsonb_typeof((payload -> 'project_id'::text)), 'string'::text) = ANY (ARRAY['string'::text, 'null'::text])) AND (COALESCE((payload ->> 'project_id'::text), '00000000-0000-4000-8000-000000000000'::text) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text) AND (COALESCE(jsonb_typeof((payload -> 'classification'::text)), 'string'::text) = ANY (ARRAY['string'::text, 'null'::text])) AND (COALESCE((payload ->> 'classification'::text), 'request'::text) = ANY (ARRAY['incident'::text, 'request'::text, 'document'::text])) AND (COALESCE(jsonb_typeof((payload -> 'dismiss_code'::text)), 'string'::text) = 'string'::text) AND (COALESCE((payload ->> 'dismiss_code'::text), 'not_work'::text) = ANY (ARRAY['not_work'::text, 'duplicate'::text, 'wrong_group'::text])) AND (COALESCE(jsonb_typeof((payload -> 'link_id'::text)), 'string'::text) = 'string'::text) AND (COALESCE((payload ->> 'link_id'::text), '00000000-0000-4000-8000-000000000000'::text) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text) AND (COALESCE(jsonb_typeof((payload -> 'reason_code'::text)), 'string'::text) = 'string'::text) AND (COALESCE((payload ->> 'reason_code'::text), 'mistake'::text) = ANY (ARRAY['wrong_work'::text, 'wrong_message'::text, 'wrong_project'::text, 'mistake'::text]))))"
+
+ ❯ tests/link-revoke.test.ts:159:34
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  4 failed | 9 passed (13)
+   Start at  11:03:22
+   Duration  6.22s (tests 98%, import 1%, transform 1%)
+
