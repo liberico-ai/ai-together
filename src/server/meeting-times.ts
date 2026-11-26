@@ -19,10 +19,13 @@ export type MeetingChange = { id: string; seq: number; kind: 'one_off' | 'recurr
 export type SessionTime = { time: string; sourceRef: string | null };
 const latest = (list: MeetingChange[]) => [...list].sort((a, b) => a.seq - b.seq).at(-1);
 
-/** The time of the session on `date`: a one-off change of that session wins; else the latest recurring change that has started; else the base time. Unclear changes apply nothing. */
+/** The change that sets the time of the session on `date`: a one-off change of that session wins, else the latest recurring change that has started. Unclear changes apply nothing. */
+export const sessionChange = (changes: MeetingChange[], date: string): MeetingChange | null => latest(changes.filter(c => c.kind === 'one_off' && c.sessionDate === date))
+  ?? latest(changes.filter(c => c.kind === 'recurring' && c.effectiveFrom !== null && c.effectiveFrom <= date)) ?? null;
+
+/** The time of the session on `date`: from that change, else the base time. */
 export function sessionTime(series: SeriesTimes, changes: MeetingChange[], date: string): SessionTime {
-  const chosen = latest(changes.filter(c => c.kind === 'one_off' && c.sessionDate === date))
-    ?? latest(changes.filter(c => c.kind === 'recurring' && c.effectiveFrom !== null && c.effectiveFrom <= date));
+  const chosen = sessionChange(changes, date);
   return chosen?.newTime ? { time: chosen.newTime, sourceRef: chosen.sourceRef } : { time: series.startTime, sourceRef: null };
 }
 

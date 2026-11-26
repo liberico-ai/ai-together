@@ -1,4 +1,4 @@
-import { loadBridgeConfig, intakeProjectIds } from '../src/server/bridge-config';
+import { loadBridgeConfig } from '../src/server/bridge-config';
 import { pooledDatabase } from '../src/server/db';
 import { reminderCounts, sendReminders } from '../src/server/reminders';
 
@@ -10,12 +10,11 @@ const db = pooledDatabase(url, true);
 try {
   if (process.argv.includes('--status')) console.log(JSON.stringify({ event: 'reminder_counts', counts: await reminderCounts(db, tenantId) }));
   else {
-    // the same project list the gateway pulls: a target outside it would sit unsent, so it is skipped and counted
+    // the server config (LIBETECH_BRIDGE_CONFIG) says which project each group serves; without it nothing is queued (intake_scope_unchecked)
     const config = await loadBridgeConfig().catch(() => null);
-    const intakeProjects = config ? intakeProjectIds(config) : null;
-    const run = await sendReminders(db, { tenantId, now: new Date(), intakeProjects });
-    console.log(JSON.stringify({ event: 'reminders_run', ...run, intakeScope: intakeProjects ? 'checked' : 'unchecked' }));
-    if (run.skipped.failed) process.exitCode = 1;
+    const run = await sendReminders(db, { tenantId, now: new Date(), config });
+    console.log(JSON.stringify({ event: 'reminders_run', ...run }));
+    if (run.skipped.failed || run.skipped.intake_scope_unchecked) process.exitCode = 1;
   }
 } catch (error) {
   console.error(JSON.stringify({ level: 'error', event: 'reminders_run_failed', errorType: error instanceof Error ? error.name : 'unknown' }));

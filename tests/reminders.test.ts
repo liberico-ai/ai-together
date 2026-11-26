@@ -13,6 +13,8 @@ import {MeetingService} from '../src/server/meetings';
 import {projectGoliveStatus} from '../src/server/golive-status';
 import {reminderCounts,sendReminders} from '../src/server/reminders';
 import {OutboxService} from '../src/server/outbox';
+import type {BridgeConfig} from '../src/server/bridge-config';
+import {addDays,vnParts,weekdayOf} from '../src/server/meeting-times';
 import * as bridgeConfigModule from '../src/server/bridge-config';
 import {ids} from '../src/server/identities';
 import {groupOther,groupSales,groupTransport,insertSeries,insertTarget,reminderRow,seedReminders,techA,techB} from './reminder-fixtures';
@@ -29,7 +31,10 @@ const vn=(local:string)=>new Date(local+':00+07:00');
 const TUE=vn('2026-11-24T08:35');
 type Sent={template:string;target_chat_id:string;project_id:string;payload:{params:Record<string,string>}};
 const sent=async()=>(await h.operator.query<Sent>('SELECT template,target_chat_id,project_id,payload FROM outbox_messages WHERE reminder_target_id IS NOT NULL ORDER BY created_at,dedupe_key').catch(()=>({rows:[] as Sent[]}))).rows;
-const run=(now:Date=TUE,intakeProjects:string[]|null=null)=>sendReminders(h.operator,{tenantId:ids.tenant,now,intakeProjects});
+/** The server config: each test group serves one project; the gateway pulls the sales and transport groups. */
+const routes:BridgeConfig={key:bridgeConfig.key,chatScopes:{[groupSales]:[ids.sales],[groupTransport]:[ids.transport],[groupOther]:[ids.sales]},
+ intake:{key:bridgeConfig.intake!.key,principalId:intakePrincipalId,chats:[groupSales,groupTransport]}};
+const run=(now:Date=TUE,config:BridgeConfig|null=routes)=>sendReminders(h.operator,{tenantId:ids.tenant,now,config});
 const target=(over:Parameters<typeof insertTarget>[1]={})=>insertTarget(h,over).catch(()=>'');
 /** Projects the status and stamps it as taken `minutes` before the pretend clock. */
 const projected=async(project:string=ids.sales,now:Date=TUE,minutes=5)=>{
@@ -66,7 +71,7 @@ describe('GO LIVE status reminder',()=>{
  test('no row means nothing to send; a target outside the intake scope, or on a project now IBS HI, sends nothing and says why',async()=>{
   await expect(run()).resolves.toMatchObject({queued:0,replayed:0});
   await target();await projected();
-  await expect(run(TUE,[ids.transport])).resolves.toMatchObject({queued:0,skipped:{not_in_intake_scope:1}});
+  await expect(run(TUE,{...routes,intake:{...routes.intake!,chats:[groupTransport]}})).resolves.toMatchObject({queued:0,skipped:{not_in_intake_scope:1}});
   await mapDomain(h,ids.sales,'IBS_HI',2);
   await expect(run()).resolves.toMatchObject({queued:0,skipped:{refused_project:1}});
   expect(await sent()).toEqual([]);
@@ -99,6 +104,21 @@ describe('GO LIVE status reminder',()=>{
   for(const r of rows) expect(Buffer.byteLength(JSON.stringify(r.payload))).toBeLessThanOrEqual(2048);
   // the engineer holds no work in transport: no «1 việc» entry there
   expect(rows.find(r=>r.project_id===ids.transport)?.payload.params.noEvidence??'x').not.toContain(member.name);
+ });
+});
+
+describe('the group of a reminder',()=>{
+ test('must serve the project of the reminder and no other: not another project\'s group, not a shared group, not a two-project group',async()=>{
+  await target();await projected();
+  for(const [label,scopes] of [['a group of another project',[ids.transport]],['a shared group with no project',[]],['a two-project group',[ids.sales,ids.transport]]] as const)
+   await expect(run(TUE,{...routes,chatScopes:{...routes.chatScopes,[groupSales]:[...scopes],'-10055509':[ids.sales]},intake:{...routes.intake!,chats:[...routes.intake!.chats,'-10055509']}}),label)
+    .resolves.toMatchObject({queued:0,skipped:{group_not_for_project:1}});
+  expect(await sent()).toEqual([]);
+ });
+ test('without a server config nothing is queued, and that is counted',async()=>{
+  await target();await projected();
+  await expect(run(TUE,null)).resolves.toMatchObject({queued:0,skipped:{intake_scope_unchecked:1}});
+  expect(await sent()).toEqual([]);
  });
 });
 
@@ -170,17 +190,81 @@ describe('the intake scope the scheduler checks',()=>{
  });
 });
 
-describe('delivery',()=>{
- const outbox=()=>new OutboxService(h.operator,{} as never,{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales]});
- test('a queued reminder is pulled for its target; one older than six hours expires with a visible code instead of going out late',async()=>{
+describe('delivery: everything is checked again when the gateway pulls',()=>{
+ const route=(config:BridgeConfig=routes)=>(chatId:string,projectId:string)=>(bridgeConfigModule as unknown as {reminderRoute:(c:BridgeConfig,a:string,b:string)=>string|null}).reminderRoute?.(config,chatId,projectId)??null;
+ // null: a pull wired without any route check (an undefined argument would take the default)
+ const outbox=(check:((c:string,p:string)=>string|null)|null=route())=>new OutboxService(h.operator,{} as never,{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales]},false,check??undefined);
+ const codes=async()=>(await h.operator.query<{dedupe_key:string;state:string;last_error_code:string|null}>('SELECT dedupe_key,state,last_error_code FROM outbox_messages WHERE reminder_target_id IS NOT NULL ORDER BY dedupe_key')).rows.map(r=>[r.dedupe_key,r.state,r.last_error_code]);
+ const today=()=>vnParts(new Date()).date;
+ // the intake of the confirming message queues its own receipt: only reminders are looked at here
+ const reminders=(d:Awaited<ReturnType<OutboxService['pull']>>['deliveries'])=>d.filter(x=>x.envelope.payload.template.startsWith('reminder.'));
+
+ test('a queued reminder is pulled for its target; one older than six hours, or a GO LIVE status of another day, expires with a visible code',async()=>{
   const t=await target();
   await reminderRow(h,{target:t,dedupe:'old'}).catch(()=>{});
   await h.operator.transaction(async tx=>{await tx.query("SET LOCAL session_replication_role = 'replica'");await tx.query("UPDATE outbox_messages SET created_at=now()-interval '7 hour' WHERE dedupe_key='old'");});
   await reminderRow(h,{target:t,dedupe:'fresh'}).catch(()=>{});
+  await reminderRow(h,{target:t,dedupe:'yesterday',payload:{params:{date:addDays(today(),-1)}}});
   const pulled=await outbox().pull({limit:10});
   expect(pulled.deliveries.map(d=>[d.chatId,d.envelope.payload.template,d.replyToMessageId])).toEqual([[groupSales,'reminder.golive_status',null]]);
-  const rows=(await h.operator.query<{dedupe_key:string;state:string;last_error_code:string|null}>('SELECT dedupe_key,state,last_error_code FROM outbox_messages ORDER BY dedupe_key')).rows;
-  expect(rows).toEqual([{dedupe_key:'fresh',state:'leased',last_error_code:null},{dedupe_key:'old',state:'dead',last_error_code:'REMINDER_EXPIRED'}]);
+  expect(await codes()).toEqual([['fresh','leased',null],['old','dead','REMINDER_EXPIRED'],['yesterday','dead','REMINDER_EXPIRED']]);
+ });
+
+ test('a target switched off or moved, a project now IBS HI, or a group that no longer serves the project: nothing is handed to the gateway',async()=>{
+  const t=await target();
+  await reminderRow(h,{target:t,dedupe:'a-off'});
+  await h.operator.query('UPDATE reminder_targets SET enabled=false WHERE id=$1',[t]);
+  expect((await outbox().pull({limit:10})).deliveries).toEqual([]);
+  await h.operator.query('UPDATE reminder_targets SET enabled=true WHERE id=$1',[t]);
+  await reminderRow(h,{target:t,dedupe:'b-moved'});
+  await h.operator.query('UPDATE reminder_targets SET chat_id=$1 WHERE id=$2',[groupOther,t]);
+  expect((await outbox().pull({limit:10})).deliveries).toEqual([]);
+  await h.operator.query('UPDATE reminder_targets SET chat_id=$1 WHERE id=$2',[groupSales,t]);
+  await reminderRow(h,{target:t,dedupe:'c-route'});
+  expect((await outbox(route({...routes,chatScopes:{...routes.chatScopes,[groupSales]:[ids.transport]}})).pull({limit:10})).deliveries).toEqual([]);
+  await reminderRow(h,{target:t,dedupe:'d-nocheck'});
+  expect((await outbox(null).pull({limit:10})).deliveries).toEqual([]);
+  await reminderRow(h,{target:t,dedupe:'e-ibs'});
+  await mapDomain(h,ids.sales,'IBS_HI',2);
+  expect((await outbox().pull({limit:10})).deliveries).toEqual([]);
+  expect(await codes()).toEqual([['a-off','dead','REMINDER_TARGET_CHANGED'],['b-moved','dead','REMINDER_TARGET_CHANGED'],
+   ['c-route','dead','REMINDER_ROUTE_REFUSED'],['d-nocheck','dead','REMINDER_ROUTE_REFUSED'],['e-ibs','dead','REMINDER_PROJECT_REFUSED']]);
+ });
+
+ test('a meeting reminder whose time changed, or whose session already started, is not handed out; the new time goes',async()=>{
+  const tomorrow=addDays(today(),1),noon=vn(today()+'T12:00');
+  const series=await insertSeries(h,{weekday:weekdayOf(tomorrow)});
+  const t=await target({kind:'bom_meeting',chat:groupOther});
+  await expect(run(noon)).resolves.toMatchObject({queued:1});
+  const ref=(await new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:[chatSales]}).ingest(messageEvent())).candidateRef!;
+  const meetings=new MeetingService(h.db);
+  const move=(newTime:string,version:number)=>meetings.record(pm,{seriesId:series,requestKey:randomUUID(),kind:'one_off',sessionDate:tomorrow,newTime,sourceRef:ref,resolvesChangeId:null,expectedVersion:version});
+  await move('14:00',1);
+  await expect(run(noon)).resolves.toMatchObject({queued:1});
+  const pulled=await outbox().pull({limit:10});
+  expect(reminders(pulled.deliveries).map(d=>d.envelope.payload.params.time)).toEqual(['14:00']);
+  expect((await codes()).map(c=>c[2]).sort()).toEqual(['REMINDER_SUPERSEDED',null].sort());
+  // back to 09:00 after the 09:00 message was dropped: a new message, not blocked by the old one
+  await move('09:00',2);
+  await expect(run(noon)).resolves.toMatchObject({queued:1});
+  expect(reminders((await outbox().pull({limit:10})).deliveries).map(d=>d.envelope.payload.params.time)).toEqual(['09:00']);
+  // a session that has started
+  await reminderRow(h,{target:t,chat:groupOther,template:'reminder.bom_meeting',dedupe:'z-started',payload:{params:{project:'x',date:today(),time:'00:00',source:'base'},reminder:{seriesId:await insertSeries(h,{title:'Họp hôm nay',weekday:weekdayOf(today()),time:'00:00'})}}});
+  expect(reminders((await outbox().pull({limit:10})).deliveries)).toEqual([]);
+  expect((await codes()).at(-1)).toEqual(['z-started','dead','REMINDER_EXPIRED']);
+ });
+
+ test('a question already answered is not asked',async()=>{
+  const tomorrow=addDays(today(),1),noon=vn(today()+'T12:00');
+  const series=await insertSeries(h,{weekday:weekdayOf(tomorrow)});
+  await target({kind:'bom_meeting',chat:groupOther});
+  const ref=(await new IntakeService(h.operator,ids.tenant,intakePrincipalId,bridgeConfig.chatScopes,{chats:bridgeConfig.intake!.chats,excerptChats:[chatSales]}).ingest(messageEvent())).candidateRef!;
+  const meetings=new MeetingService(h.db);
+  const asked=await meetings.record(pm,{seriesId:series,requestKey:randomUUID(),kind:'unclear',sessionDate:null,newTime:'14:00',sourceRef:ref,resolvesChangeId:null,expectedVersion:1});
+  await expect(run(noon)).resolves.toMatchObject({queued:1});
+  await meetings.record(pm,{seriesId:series,requestKey:randomUUID(),kind:'one_off',sessionDate:tomorrow,newTime:'14:00',sourceRef:ref,resolvesChangeId:asked.changeId,expectedVersion:2});
+  expect(reminders((await outbox().pull({limit:10})).deliveries)).toEqual([]);
+  expect((await codes()).map(c=>c[2])).toEqual(['REMINDER_SUPERSEDED']);
  });
 });
 
@@ -193,17 +277,24 @@ describe('operator scripts (deploy/reminder-targets.sql, deploy/meeting-series.s
  };
  const rows=async(sql:string)=>(await h.operator.query<Record<string,unknown>>(sql).catch(()=>({rows:[{missing:true}]}))).rows;
  test('the target script writes and updates one target per project and kind, and records each real change with its source',async()=>{
-  const vars={tenant_id:ids.tenant,project_id:ids.sales,kind:'golive_status',chat_id:groupSales,topic_id:'',send_time:'08:30',lead_days:'1',enabled:'true',source:'Biên bản thử A'};
+  const vars={tenant_id:ids.tenant,project_id:ids.sales,kind:'golive_status',chat_id:groupSales,topic_id:'',send_time:'08:30',lead_days:'1',enabled:'true',source:'Biên bản thử A',expected_version:'0'};
   await script('reminder-targets.sql',vars);await script('reminder-targets.sql',vars);
-  await script('reminder-targets.sql',{...vars,enabled:'false',source:'Biên bản thử B'});
+  await script('reminder-targets.sql',{...vars,enabled:'false',source:'Biên bản thử B',expected_version:'1'});
+  // a command prepared before that change does not switch the target on again
+  await expect(script('reminder-targets.sql',{...vars,source:'Biên bản cũ',expected_version:'1'})).rejects.toThrow();
+  await h.exec('ROLLBACK').catch(()=>{});
+  await expect(script('reminder-targets.sql',{...vars,kind:'bom_meeting',expected_version:'3'}),'a target that does not exist is version 0').rejects.toThrow();
+  await h.exec('ROLLBACK').catch(()=>{});
   expect(await rows('SELECT kind,chat_id,enabled FROM reminder_targets')).toEqual([{kind:'golive_status',chat_id:groupSales,enabled:false}]);
   expect(await rows('SELECT op,source FROM reminder_config_events ORDER BY seq')).toEqual([{op:'INSERT',source:'Biên bản thử A'},{op:'UPDATE',source:'Biên bản thử B'}]);
   await expect(script('reminder-targets.sql',{...vars,source:'x'})).rejects.toThrow();
   await h.exec('ROLLBACK').catch(()=>{});
  });
  test('the series script writes and updates one series per project and title',async()=>{
-  const vars={tenant_id:ids.tenant,project_id:ids.sales,title:'Họp BoM',weekday:'4',start_time:'09:00',enabled:'true',source:'Lịch gốc thử'};
-  await script('meeting-series.sql',vars);await script('meeting-series.sql',{...vars,start_time:'10:00'});await script('meeting-series.sql',{...vars,start_time:'10:00'});
+  const vars={tenant_id:ids.tenant,project_id:ids.sales,title:'Họp BoM',weekday:'4',start_time:'09:00',enabled:'true',source:'Lịch gốc thử',expected_version:'0'};
+  await script('meeting-series.sql',vars);await script('meeting-series.sql',{...vars,start_time:'10:00',expected_version:'1'});await script('meeting-series.sql',{...vars,start_time:'10:00',expected_version:'1'});
+  await expect(script('meeting-series.sql',{...vars,start_time:'07:00',expected_version:'1'})).rejects.toThrow();
+  await h.exec('ROLLBACK').catch(()=>{});
   expect(await rows("SELECT weekday,to_char(start_time,'HH24:MI') t,enabled,version FROM meeting_series")).toEqual([{weekday:4,t:'10:00',enabled:true,version:2}]);
   expect(await rows('SELECT op FROM reminder_config_events ORDER BY seq')).toEqual([{op:'INSERT'},{op:'UPDATE'}]);
  });

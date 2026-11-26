@@ -106,5 +106,10 @@ Ngày 26/11/2026 · nền `libetech-ai-os` @ `ce27e9f` (0.9.3) · PR 6. **Đã d
   - Bộ hẹn giờ bỏ qua đích nằm ngoài phạm vi mà gateway kéo tin, và ghi `not_in_intake_scope`, để tin không nằm mãi ở hàng đi.
   - Trạng thái GO LIVE quá 2 giờ, hoặc chiếu từ hôm trước, thì không gửi (`stale_status`).
   - Tên dự án và tên người được làm sạch ký tự nhắc tên, lệnh, ký tự ẩn, ngoặc nhọn; danh sách dài được cắt kèm «và N người nữa».
-- Điểm còn để ngỏ: Q-GV5F-1…5 cuối `docs/OPEN-QUESTIONS.md`.
+- Sau cổng Codex (một vòng, 2 P0 và 3 P1, sửa cả năm):
+  - Nhóm đích phải phục vụ đúng một dự án, là dự án của đích; không có cấu hình máy chủ thì không xếp tin (P0).
+  - Lúc gateway kéo tin, kiểm lại đích, dự án, nhóm, giờ và buổi (P0, và hai P1 về giờ cũ và tin muộn).
+  - Khoá chống trùng mang cả mã thay đổi đặt giờ.
+  - Hai tệp SQL vận hành đòi `expected_version` (P1).
+- Điểm còn để ngỏ: Q-GV5F-1…6 cuối `docs/OPEN-QUESTIONS.md`.
 

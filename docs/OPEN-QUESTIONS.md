@@ -1319,8 +1319,11 @@ Chairman duyệt viết mã F với đề xuất Q-F1…Q-F4 của `docs/plans/g
   - «Chưa có bằng chứng» là việc đang mở, giao cho người đó, chưa có bằng chứng nào ở bản sửa hiện tại.
   - Không ai thiếu thì không gửi tin; lượt chạy ghi `nothing_missing`.
   - Phương án: (1) giữ; (2) chỉ tính yêu cầu từ ngày GO LIVE, hoặc gửi cả tin «đủ». Tạm: (1).
-- **Q-GV5F-5. Tin nhắc quá hạn.** Tin chưa gửi được sau 6 giờ bị bỏ, với mã `REMINDER_EXPIRED`, thay vì gửi muộn.
+- **Q-GV5F-5. Tin nhắc quá hạn hay đã cũ.** Tin chưa gửi được sau 6 giờ, trạng thái GO LIVE của ngày khác, hay buổi họp đã bắt đầu bị bỏ với `REMINDER_EXPIRED` thay vì gửi muộn. Giờ họp đã đổi, lịch đang chờ trả lời hay câu hỏi đã được trả lời thì bỏ với `REMINDER_SUPERSEDED`.
   - GO LIVE chỉ xếp hàng trong 3 giờ kể từ giờ của đích; lỡ khung thì ghi `window_passed`.
   - Tin họp chỉ xếp hàng từ 07:00 đến 21:00.
   - Phương án: (1) giữ; (2) đổi các mốc này. Tạm: (1).
+- **Q-GV5F-6. Nhóm chung Team Tech nhận tin nhắc không.** Sau cổng Codex (P0), tin nhắc chỉ đi tới nhóm phục vụ đúng một dự án, là dự án của đích. Nhóm chung (Dragon Forge) bị từ chối, vì tin nêu tên dự án và tên người.
+  - Biên nhận ở nhóm chung hiện nay cố ý không nêu tên dự án.
+  - Phương án: (1) giữ; (2) cho nhóm chung nhận tin nhắc của dự án miền Liberico BU, do Chairman chốt. Tạm: (1).
 

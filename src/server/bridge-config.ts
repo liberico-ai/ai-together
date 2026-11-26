@@ -28,6 +28,19 @@ export function parseBridgeConfig(raw:unknown):BridgeConfig {
 }
 /** The projects the gateway's outbox pull serves: those of the intake chats, each once. Null without an intake principal. */
 export const intakeProjectIds=(c:BridgeConfig):string[]|null=>c.intake?[...new Set(c.intake.chats.flatMap(x=>c.chatScopes[x]??[]))]:null;
+/**
+ * Why a reminder of a project may not go to a group under this server config (GIAO VIỆC 5 F), or null. The gateway must pull the project, and the group must serve
+ * that project and no other: a group of another project, a shared group or a group of several projects would show the project's names to people outside it.
+ * Without a config nothing can be checked, so nothing goes.
+ */
+export function reminderRoute(c:BridgeConfig|null,chatId:string,projectId:string):'intake_scope_unchecked'|'not_in_intake_scope'|'group_not_for_project'|null {
+ const pulled=c?intakeProjectIds(c):null;
+ if(!c||!pulled) return 'intake_scope_unchecked';
+ const project=projectId.toLowerCase();
+ if(!pulled.includes(project)) return 'not_in_intake_scope';
+ const served=c.chatScopes[chatId]??[];
+ return served.length===1&&served[0]===project?null:'group_not_for_project';
+}
 export async function loadBridgeConfig():Promise<BridgeConfig|null> {
  const file=process.env.LIBETECH_BRIDGE_CONFIG;
  if(!file) return null;

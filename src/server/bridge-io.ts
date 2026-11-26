@@ -1,6 +1,6 @@
 import type {Database,Queryable} from './db';
 import type {IdentityService} from './identity';
-import {intakeProjectIds,type BridgeConfig} from './bridge-config';
+import {intakeProjectIds,reminderRoute,type BridgeConfig} from './bridge-config';
 import {verifySigned} from './bridge-auth';
 import {AppError,invariant} from './errors';
 import {IntakeService,type EnqueueReceipt} from './intake';
@@ -25,6 +25,7 @@ export async function handleBridgeIo(request:Request,parts:string[],deps:IoDeps)
  // Pull scope is the union of the projects of the configured intake chats; empty fails closed in intakeScoped.
  const i=deps.config.intake;
  const projectIds=intakeProjectIds(deps.config)??[];
- const outbox=new OutboxService(deps.intakeDb,deps.identity,{id:i.principalId,tenantId:deps.tenantId,projectIds},Boolean(i.poolChats?.length));
+ // a queued reminder is checked against this config again before it is handed out
+ const outbox=new OutboxService(deps.intakeDb,deps.identity,{id:i.principalId,tenantId:deps.tenantId,projectIds},Boolean(i.poolChats?.length),(chat,project)=>reminderRoute(deps.config,chat,project));
  return route==='/api/bridge/outbox/pull'?outbox.pull(JSON.parse(raw)):outbox.report(JSON.parse(raw));
 }

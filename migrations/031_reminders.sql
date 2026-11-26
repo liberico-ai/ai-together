@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS reminder_targets (
  send_time time NOT NULL DEFAULT '08:30',
  lead_days smallint NOT NULL DEFAULT 1 CHECK (lead_days BETWEEN 0 AND 7),
  enabled boolean NOT NULL DEFAULT false,
+ version integer NOT NULL DEFAULT 1 CHECK (version>0),
  FOREIGN KEY (project_id,tenant_id) REFERENCES projects(id,tenant_id),
  UNIQUE (tenant_id,project_id,kind), UNIQUE (id,tenant_id,project_id)
 );
@@ -338,6 +339,28 @@ BEGIN
   RETURN NEW;
 END $$;
 
+-- What the gateway's pull checks again before a reminder goes out: the target as it is now, whether the project may still get reminders, and for a meeting
+-- message the series and its changes. Ids, times and IN codes only; no chat id comes back. Only rows of the caller's tenant and project scope.
+CREATE OR REPLACE FUNCTION public.reminder_delivery_facts(target_row uuid) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+ SELECT jsonb_build_object(
+  'now', now(),
+  'targetOk', EXISTS (SELECT 1 FROM public.reminder_targets t WHERE t.id=o.reminder_target_id AND t.tenant_id=o.tenant_id AND t.project_id=o.project_id
+    AND t.enabled AND t.chat_id=o.target_chat_id AND t.topic_id=o.target_topic_id),
+  'projectAllowed', public.reminder_project_allowed(o.tenant_id,o.project_id),
+  'params', o.payload->'params',
+  'reminder', o.payload->'reminder',
+  'series', (SELECT jsonb_build_object('weekday',s.weekday,'startTime',to_char(s.start_time,'HH24:MI'),'enabled',s.enabled) FROM public.meeting_series s
+    WHERE s.tenant_id=o.tenant_id AND s.project_id=o.project_id AND s.id::text=o.payload->'reminder'->>'seriesId'),
+  'changes', coalesce((SELECT jsonb_agg(jsonb_build_object('id',c.id,'seq',c.seq,'kind',c.kind,'sessionDate',to_char(c.session_date,'YYYY-MM-DD'),
+     'effectiveFrom',to_char(c.effective_from,'YYYY-MM-DD'),'newTime',to_char(c.new_time,'HH24:MI'),'resolvesChangeId',c.resolves_change_id,
+     'sourceRef','IN-'||upper(left(coalesce(c.source_candidate_id,c.source_pool_item_id)::text,8))) ORDER BY c.seq)
+    FROM public.meeting_changes c WHERE c.tenant_id=o.tenant_id AND c.project_id=o.project_id AND c.series_id::text=o.payload->'reminder'->>'seriesId'),'[]'::jsonb))
+ FROM public.outbox_messages o
+ WHERE o.id=target_row AND o.reminder_target_id IS NOT NULL AND o.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid
+  AND o.project_id=ANY(string_to_array(coalesce(current_setting('app.project_ids',true),''),',')::uuid[])
+$$;
+
 -- The scheduler: its own reminder rows, inside the transaction's project scope.
 DROP POLICY IF EXISTS reminder_select ON outbox_messages;
 CREATE POLICY reminder_select ON outbox_messages FOR SELECT TO libetech_reminder
@@ -351,13 +374,14 @@ CREATE POLICY reminder_insert ON outbox_messages FOR INSERT TO libetech_reminder
 
 DO $$ DECLARE f text; BEGIN
  FOREACH f IN ARRAY ARRAY['public.reminder_project_allowed(uuid,uuid)','public.reminder_targets_guard()','public.meeting_changes_guard()',
-   'public.meeting_source(uuid,text)','public.reminder_config_record()','public.tech_roster_members()'] LOOP
+   'public.meeting_source(uuid,text)','public.reminder_config_record()','public.tech_roster_members()','public.reminder_delivery_facts(uuid)'] LOOP
   EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC',f);
  END LOOP;
 END $$;
 GRANT EXECUTE ON FUNCTION public.reminder_project_allowed(uuid,uuid) TO libetech_reminder, libetech_projector;
 GRANT EXECUTE ON FUNCTION public.meeting_source(uuid,text) TO libetech_runtime;
 GRANT EXECUTE ON FUNCTION public.tech_roster_members() TO libetech_projector;
+GRANT EXECUTE ON FUNCTION public.reminder_delivery_facts(uuid) TO libetech_intake;
 
 GRANT USAGE ON SCHEMA public, analytics TO libetech_reminder;
 GRANT SELECT ON reminder_targets, meeting_series, meeting_changes, analytics.golive_member_status TO libetech_reminder;

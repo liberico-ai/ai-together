@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { reminderRoute, type BridgeConfig } from './bridge-config';
 import type { Database, Queryable } from './db';
 import { seriesChanges } from './meetings';
-import { addDays, minutesOf, nextSession, openQuestions, vnParts } from './meeting-times';
+import { addDays, minutesOf, nextSession, openQuestions, sessionChange, sessionTime, vnParts, weekdayOf, type MeetingChange } from './meeting-times';
 
 // The reminder scheduler (GIAO VIỆC 5 F, Q-F1..F4). One pass: for each enabled target, decide what is due now and queue it once (dedupe key + ON CONFLICT);
 // the gateway's outbox pass sends it. It runs as libetech_reminder, which can only queue reminder rows to enabled targets. Messages carry fixed template
@@ -42,10 +43,10 @@ async function asReminder<T>(db: Database, tenantId: string, projectId: string, 
   });
 }
 const exists = async (tx: Queryable, dedupe: string) => (await tx.query('SELECT 1 FROM outbox_messages WHERE dedupe_key=$1', [dedupe])).rows.length > 0;
-async function enqueue(tx: Queryable, tenantId: string, t: Target, template: string, params: Record<string, string>, dedupe: string, count: Count) {
+async function enqueue(tx: Queryable, tenantId: string, t: Target, template: string, params: Record<string, string>, dedupe: string, count: Count, reminder?: { seriesId: string; changeId?: string }) {
   const r = await tx.query(`INSERT INTO outbox_messages(tenant_id,project_id,reminder_target_id,event_id,event_type,trace_id,correlation_id,audience,target_chat_id,target_topic_id,template,payload,dedupe_key)
     VALUES($1,$2,$3,$4,$5,$6,$7,'group',$8,$9,$5,$10,$11) ON CONFLICT(tenant_id,dedupe_key) DO NOTHING RETURNING id`,
-    [tenantId, t.project_id, t.id, randomUUID(), template, randomUUID(), randomUUID(), t.chat_id, t.topic_id, JSON.stringify({ params }), dedupe]);
+    [tenantId, t.project_id, t.id, randomUUID(), template, randomUUID(), randomUUID(), t.chat_id, t.topic_id, JSON.stringify(reminder ? { params, reminder } : { params }), dedupe]);
   count(r.rows.length ? 'queued' : 'replayed');
 }
 
@@ -68,7 +69,7 @@ async function golive(tx: Queryable, tenantId: string, t: Target, project: strin
 
 /**
  * Per series: an unanswered unclear change pauses its reminders and asks once. Otherwise the next session is reminded once from `lead_days` before at the target's
- * time until it starts; a changed time is a new message, because the key carries the time.
+ * time until it starts; a changed time is a new message, because the key carries the time and the change that set it.
  */
 async function meeting(tx: Queryable, tenantId: string, t: Target, project: string, now: Date, count: Count) {
   const local = vnParts(now);
@@ -82,23 +83,47 @@ async function meeting(tx: Queryable, tenantId: string, t: Target, project: stri
     if (open.length) {
       count('blocked_unclear');
       if (daytime) for (const q of open)
-        await enqueue(tx, tenantId, t, 'reminder.bom_meeting_question', { project, source: q.sourceRef, date: nextSession(times, all, now).date }, `reminder:bom_meeting_question:${t.id}:${q.id}`, count);
+        await enqueue(tx, tenantId, t, 'reminder.bom_meeting_question', { project, source: q.sourceRef, date: nextSession(times, all, now).date }, `reminder:bom_meeting_question:${t.id}:${q.id}`, count, { seriesId: s.id, changeId: q.id });
       continue;
     }
     if (!daytime) continue;
     const next = nextSession(times, all, now);
     const from = addDays(next.date, -t.lead_days);
     if (local.date < from || (local.date === from && local.minutes < minutesOf(t.send_time))) continue;
+    // the key carries the change that set the time: a time changed away and back is a new message, even after the first one was dropped
     await enqueue(tx, tenantId, t, 'reminder.bom_meeting', { project, date: next.date, time: next.time, source: next.sourceRef ?? 'base' },
-      `reminder:bom_meeting:${t.id}:${s.id}:${next.date}:${next.time}`, count);
+      `reminder:bom_meeting:${t.id}:${s.id}:${next.date}:${next.time}:${sessionChange(all, next.date)?.id ?? 'base'}`, count, { seriesId: s.id });
   }
 }
 
+export type DeliveryFacts = { now: string; targetOk: boolean; projectAllowed: boolean; params: Record<string, string> | null; reminder: { seriesId?: string; changeId?: string } | null;
+  series: { weekday: number; startTime: string; enabled: boolean } | null; changes: MeetingChange[] };
+
 /**
- * `intakeProjects`: the projects the gateway's intake principal pulls (null when the server config is not readable here). A target outside it would sit unsent,
- * so it is skipped and counted instead.
+ * Why a queued reminder must not go out now, or null. The gateway's pull asks this for every reminder it leases (public.reminder_delivery_facts): the target,
+ * the project, the group, and for a meeting message the time and the session as they are now.
  */
-export async function sendReminders(db: Database, opts: { tenantId: string; now: Date; intakeProjects: string[] | null }): Promise<ReminderRun> {
+export function deliveryBlock(template: string, f: DeliveryFacts | null, route: string | null): string | null {
+  if (!f || !f.targetOk) return 'REMINDER_TARGET_CHANGED';
+  if (!f.projectAllowed) return 'REMINDER_PROJECT_REFUSED';
+  if (route) return 'REMINDER_ROUTE_REFUSED';
+  const local = vnParts(new Date(f.now)), date = f.params?.date ?? '', time = f.params?.time ?? '';
+  if (template === 'reminder.golive_status') return date === local.date ? null : 'REMINDER_EXPIRED';
+  const series = f.series;
+  if (!series?.enabled) return 'REMINDER_SUPERSEDED';
+  if (template === 'reminder.bom_meeting_question') {
+    if (!openQuestions(f.changes).some(q => q.id === f.reminder?.changeId)) return 'REMINDER_SUPERSEDED';
+    return date >= local.date ? null : 'REMINDER_EXPIRED';
+  }
+  if (openQuestions(f.changes).length || weekdayOf(date) !== series.weekday || sessionTime(series, f.changes, date).time !== time) return 'REMINDER_SUPERSEDED';
+  return date > local.date || (date === local.date && minutesOf(time) > local.minutes) ? null : 'REMINDER_EXPIRED';
+}
+
+/**
+ * `config`: the server's bridge config (null when it cannot be read here: then nothing is queued). A target whose group does not serve exactly its project,
+ * or whose project the gateway does not pull, is skipped and counted.
+ */
+export async function sendReminders(db: Database, opts: { tenantId: string; now: Date; config: BridgeConfig | null }): Promise<ReminderRun> {
   const run: ReminderRun = { queued: 0, replayed: 0, skipped: {} };
   const add = (into: ReminderRun): Count => what => {
     if (what === 'queued') into.queued++;
@@ -108,7 +133,8 @@ export async function sendReminders(db: Database, opts: { tenantId: string; now:
   const targets = await asReminder(db, opts.tenantId, '', async tx => (await tx.query<Target>(
     "SELECT id,project_id,kind,chat_id,topic_id,to_char(send_time,'HH24:MI') AS send_time,lead_days FROM reminder_targets WHERE enabled ORDER BY project_id,kind")).rows);
   for (const t of targets) {
-    if (opts.intakeProjects && !opts.intakeProjects.includes(t.project_id)) { add(run)('not_in_intake_scope'); continue; }
+    const refused = reminderRoute(opts.config, t.chat_id, t.project_id);
+    if (refused) { add(run)(refused); continue; }
     // counted apart and merged only after the commit: a transaction that fails counts nothing but its failure
     const part: ReminderRun = { queued: 0, replayed: 0, skipped: {} };
     try {

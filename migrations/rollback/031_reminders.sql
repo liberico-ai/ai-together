@@ -89,6 +89,7 @@ DROP FUNCTION IF EXISTS public.reminder_config_record();
 DROP FUNCTION IF EXISTS public.reminder_targets_guard();
 DROP FUNCTION IF EXISTS public.reminder_project_allowed(uuid,uuid);
 DROP FUNCTION IF EXISTS public.tech_roster_members();
+DROP FUNCTION IF EXISTS public.reminder_delivery_facts(uuid);
 
 -- a table-level revoke also takes the column grants away
 REVOKE ALL ON projects FROM libetech_reminder;

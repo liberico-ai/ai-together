@@ -1,6 +1,7 @@
 // Synthetic fixtures for GIAO VIỆC 5 F. Short fake group ids only; nothing here is a real group or person.
 import {randomUUID} from 'node:crypto';
 import {ids} from '../src/server/identities';
+import {vnParts} from '../src/server/meeting-times';
 import type {Principal} from '../src/server/types';
 import type {Harness} from './slice1-db';
 import {intakePrincipalId} from './slice2-fixtures';
@@ -54,10 +55,11 @@ export function as<T>(h:Harness,role:AsRole,projects:string[],fn:(q:<R=Record<st
 }
 
 /** One reminder row the way the scheduler writes it. */
-export const reminderRow=(h:Harness,o:{target:string|null;project?:string;chat?:string;topic?:string;template?:string;dedupe?:string;reply?:string|null;scope?:string[]})=>{
+export const reminderRow=(h:Harness,o:{target:string|null;project?:string;chat?:string;topic?:string;template?:string;dedupe?:string;reply?:string|null;scope?:string[];payload?:unknown})=>{
   const project=o.project??ids.sales,template=o.template??'reminder.golive_status';
   return as(h,'libetech_reminder',o.scope??[project],q=>q<{id:string}>(
     `INSERT INTO outbox_messages(tenant_id,project_id,reminder_target_id,event_id,event_type,trace_id,correlation_id,audience,target_chat_id,target_topic_id,reply_to_message_id,template,payload,dedupe_key)
-     VALUES($1,$2,$3,$4,$5,$6,$7,'group',$8,$9,$10,$5,'{"params":{}}',$11) ON CONFLICT(tenant_id,dedupe_key) DO NOTHING RETURNING id`,
-    [ids.tenant,project,o.target,randomUUID(),template,randomUUID(),randomUUID(),o.chat??groupSales,o.topic??'',o.reply??null,o.dedupe??'reminder:test:'+randomUUID()]));
+     VALUES($1,$2,$3,$4,$5,$6,$7,'group',$8,$9,$10,$5,$12,$11) ON CONFLICT(tenant_id,dedupe_key) DO NOTHING RETURNING id`,
+    [ids.tenant,project,o.target,randomUUID(),template,randomUUID(),randomUUID(),o.chat??groupSales,o.topic??'',o.reply??null,o.dedupe??'reminder:test:'+randomUUID(),
+     JSON.stringify(o.payload??{params:{date:vnParts(new Date()).date}})]));
 };
