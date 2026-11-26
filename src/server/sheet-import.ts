@@ -10,6 +10,7 @@ import { cellsFingerprint, dueIssue } from './source-snapshot';
 import { projectRole } from './types';
 import type { Principal } from './types';
 import { requestScope } from './work-requests';
+import { ibsLabel } from './ibs-label';
 
 // Import of the PM's team work list (tab «Đầu việc Tech», exported as CSV): a preview that writes nothing, then a commit that files every valid row as a pending
 // work request (origin 'import') for a BoM seat to approve, exactly as PR A's rule says (migration 024). Identity and tenant come from the principal only. The cells
@@ -55,8 +56,6 @@ const scopeDenied = () => new AppError('SCOPE_DENIED', 'Không tìm thấy dự 
 const notFound = () => new AppError('NOT_FOUND', 'Không tìm thấy biên nhận trong phạm vi được cấp. Mở lại biên nhận từ lần nhập của chính bạn.', 404);
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 const chars = (v: string) => [...v].length;
-/** Fail-closed IBS test of a label or a project BU: anything that contains «ibs» once normalised (NFKC, lower case, letters and digits only). SQL twin: work_import_is_ibs_text. */
-const ibsLabel = (v: string | null | undefined) => (v ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '').includes('ibs');
 const KNOWN_STATUS = new Set(['Chưa làm', 'Đang làm', 'Hoàn thành', 'Tạm dừng']);
 const STT = /^[A-Za-z0-9._-]{1,40}$/;
 /** Flags that record a policy of this import, not a defect of the sheet: they do not lower the quality score. */

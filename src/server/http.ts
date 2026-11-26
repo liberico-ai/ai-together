@@ -10,7 +10,7 @@ import { SheetImportService, workImportEnabled } from './sheet-import';
 import { SHEET_LIMITS } from './csv';
 export function success(data:unknown, status=200, requestId:string=randomUUID()) { return Response.json({data,error:null,meta:{requestId}},{status,headers:{'Cache-Control':'no-store'}}); }
 export function failure(error:unknown, requestId:string=randomUUID()) {
-  if(error instanceof AppError) return Response.json({data:null,error:{code:error.code,message:error.message},meta:{requestId}},{status:error.status,headers:{'Cache-Control':'no-store'}});
+  if(error instanceof AppError) return Response.json({data:null,error:{code:error.code,message:error.message,...(error.reason?{reason:error.reason}:{})},meta:{requestId}},{status:error.status,headers:{'Cache-Control':'no-store'}});
   if(error instanceof ZodError || error instanceof SyntaxError) return Response.json({data:null,error:{code:'INVALID_INPUT',message:'Dữ liệu không hợp lệ. Kiểm tra các trường và không gửi trường định danh ngoài biểu mẫu.'},meta:{requestId}},{status:422});
   if((error as {code?:string})?.code === '23505') return Response.json({data:null,error:{code:'DUPLICATE_CODE',message:'Mã việc đã tồn tại trong dự án.'},meta:{requestId}},{status:409});
   console.error(JSON.stringify({level:'error',event:'request_failed',requestId,errorType:error instanceof Error?error.name:'unknown'}));

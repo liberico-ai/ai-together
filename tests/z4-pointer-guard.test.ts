@@ -274,7 +274,8 @@ describe('migration 022: the pointer-only guard',()=>{
     expect(await names('intelligence.ai_drafts')).toEqual(['ai_drafts_declared_scope_guard','ai_drafts_immutable','ai_drafts_pointer_only_guard']);
     // 023 adds one AFTER INSERT trigger to the decision table; the BEFORE INSERT triggers of 021 and 022 are the same two
     expect(await names('public.draft_decisions')).toEqual(['draft_decisions_guard','draft_decisions_immutable','draft_decisions_pointer_only_guard','draft_decisions_subject_order_guard']);
-    expect(await names('public.project_domain_mappings')).toEqual(['project_domain_mappings_draft_lock','project_domain_mappings_immutable']);
+    // 029 adds one AFTER INSERT trigger to the mapping table (it holds the notes of a project confirmed IBS_HI); the BEFORE INSERT lock of 022 is the same one
+    expect(await names('public.project_domain_mappings')).toEqual(['project_domain_mappings_draft_lock','project_domain_mappings_immutable','tech_source_hold_on_mapping']);
     // the order they fire in: BEFORE INSERT row triggers of one table fire by name, so the scope guard answers before the definer guard reads anything
     expect((await rows<{tgname:string}>("SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid='intelligence.ai_drafts'::regclass AND tgtype=7 ORDER BY tgname")).map(r=>r.tgname))
       .toEqual(['ai_drafts_declared_scope_guard','ai_drafts_pointer_only_guard']);

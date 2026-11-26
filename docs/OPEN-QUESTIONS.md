@@ -1283,3 +1283,16 @@ Cùng đề còn ghi «Dragon Forge = nhóm Telegram chung của cả Team Tech 
     - Muốn một BoM Tech ngoài roster phân loại tin, hay nhập bảng mà không là điều phối dự án nào, thì người vận hành thêm người đó vào roster (`deploy/tech-roster.sql`).
     - Màn hình nhập gửi tên tệp đã chọn, sau khi bỏ dấu đường dẫn và ký tự điều khiển, tối đa 255 ký tự. Gọi lại cùng mã thao tác mà khác tên tệp là `IDEMPOTENCY_CONFLICT`.
     - Phương án: (1) giữ; (2) cho BoM Tech ngoài roster phân loại tin và nhập bảng.
+
+## GV-5 D–F (26/11/2026) — cách hiểu tạm, chờ phiên điều phối
+
+Phiên PR ghi cách hiểu tạm dưới đây để không bị chặn. Đây không phải phương án được chọn.
+
+- **Q-GV5D-1. Tin gọi bot bị từ chối lúc tiếp nhận** (chưa ghép Telegram, không trong roster, nhóm chưa ghi sổ) vẫn không có câu trả lời của bot trong nhóm.
+  - Muốn trả lời thì cần một đường gửi mới, không gắn tin đã lưu, và bot sẽ nói trong nhóm về người chưa được ghi sổ.
+  - Người đó biết nguyên nhân khi hỏi bot hoặc gõ `/libetech_check`.
+  - Phương án: (1) giữ; (2) thêm câu từ chối trong nhóm. Tạm: (1).
+- **Q-GV5D-2. Cách che ghi chú IBS HI ở Z2** (OQ-62 câu 4 (b)): chuyển chữ sang bảng chỉ người vận hành đọc (`analytics.tech_source_notes_held`, migration 029), để trống cột ở bảng nguồn.
+  - Xác nhận một dự án thành `IBS_HI`, hoặc người vận hành đổi nhãn BU thành IBS HI, thì ghi chú của dự án đó cũng được chuyển. Mỗi bản chữ khác nhau của một dòng được giữ riêng.
+  - Đổi miền khỏi `IBS_HI` về sau **không** tự trả chữ về.
+  - Phương án: (1) giữ; (2) quyền theo cột kèm hàm đọc. Tạm: (1).
