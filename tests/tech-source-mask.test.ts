@@ -91,14 +91,56 @@ test('applying 029 twice keeps one held copy per row',async()=>{
  expect((await q("SELECT count(*)::int n FROM schema_migrations WHERE version='029'"))[0]).toEqual({n:1});
 });
 
-test('029 stops when it cannot hold a note without losing another held text',async()=>{
- // a row that carries other text than the one held for it (written with the triggers off, as a restore could)
- await h.operator.transaction(async tx=>{await tx.query('SET LOCAL session_replication_role = replica');
-  await tx.query("UPDATE analytics.tech_source_tasks SET source_note='bản chữ khác' WHERE project_id=$1 AND source_row=2",[projects.ibs]);});
- await expect(exec(await forward())).rejects.toThrow(/still holds a note/);
+const mapping=(project:string,domain:string,version:number)=>h.operator.query(`INSERT INTO project_domain_mappings(id,tenant_id,project_id,domain_code,confirmed_by,source,mapping_version)
+  VALUES($1,$2,$3,$4,$5,'Biên bản thử 26/11',$6)`,[randomUUID(),ids.tenant,project,domain,demoProfiles.manager.id,version]);
+const rawNote=(project:string,row:number,note:string)=>h.operator.transaction(async tx=>{await tx.query('SET LOCAL session_replication_role = replica');
+  await tx.query('UPDATE analytics.tech_source_tasks SET source_note=$3 WHERE project_id=$1 AND source_row=$2',[project,row,note]);});
+const dropRow=async(project:string,row:number)=>{
+  await h.operator.query('DELETE FROM analytics.tech_source_notes_held WHERE project_id=$1 AND source_row=$2',[project,row]).catch(()=>{});
+  await h.operator.query('DELETE FROM analytics.tech_source_tasks WHERE project_id=$1 AND source_row=$2',[project,row]);
+};
+
+// Codex gate, P0: IBS_HI, then another domain, a new note, then IBS_HI again. The row already has a held note; the new one must not stay readable.
+test('a project confirmed IBS HI again holds the newer note too and shows neither',async()=>{
+ const row=200;
+ await mapping(projects.other,'LIBERICO_BU',2);
+ await h.operator.query("UPDATE analytics.tech_source_tasks SET source_note=$3 WHERE project_id=$1 AND source_row=$2",[projects.other,4,'ghi chú B sau khi đổi miền']);
+ await insert(projects.other,'ghi chú dòng mới',row);
+ await expect(mapping(projects.other,'IBS_HI',3)).resolves.toBeDefined();
+ expect(await noteOf(projects.other)).toEqual(['','']);
+ expect((await held()).filter(r=>r.project_id===projects.other).map(r=>r.source_note).sort())
+  .toEqual(['ghi chú B sau khi đổi miền',notes.other,'ghi chú dòng mới'].sort());
+ expect(JSON.stringify(await asRole('libetech_runtime','SELECT * FROM analytics.tech_source_tasks'))).not.toContain('ghi chú B sau khi đổi miền');
+ await dropRow(projects.other,row);
+ // two texts held for one row: giving one back would lose the other, so the rollback refuses
  await expect(exec(await rollback())).rejects.toThrow(/would lose/);
- await h.operator.transaction(async tx=>{await tx.query('SET LOCAL session_replication_role = replica');
-  await tx.query("UPDATE analytics.tech_source_tasks SET source_note='' WHERE project_id=$1 AND source_row=2",[projects.ibs]);});
+ await h.operator.query("DELETE FROM analytics.tech_source_notes_held WHERE project_id=$1 AND source_note=$2",[projects.other,'ghi chú B sau khi đổi miền']).catch(()=>{});
+});
+
+test('renaming a project to an IBS HI label holds its notes in the same statement',async()=>{
+ const row=300;
+ await insert(projects.lbrc,'ghi chú trước khi đổi nhãn',row);
+ await h.operator.query("UPDATE projects SET bu='IBS HI' WHERE id=$1",[projects.lbrc]);
+ try{
+  expect((await noteOf(projects.lbrc)).every(n=>n==='')).toBe(true);
+  expect((await held()).map(r=>r.source_note)).toContain('ghi chú trước khi đổi nhãn');
+ }finally{
+  await h.operator.query("UPDATE projects SET bu='LBRC' WHERE id=$1",[projects.lbrc]);
+  // give the LBRC rows back as they were for the cases below
+  await h.operator.query(`UPDATE analytics.tech_source_tasks t SET source_note=k.source_note FROM analytics.tech_source_notes_held k WHERE t.project_id=$1 AND k.project_id=t.project_id AND k.source_row=t.source_row AND k.source_id=t.source_id`,[projects.lbrc]).catch(()=>{});
+  await h.operator.query('DELETE FROM analytics.tech_source_notes_held WHERE project_id=$1',[projects.lbrc]).catch(()=>{});
+  await dropRow(projects.lbrc,row);
+ }
+});
+
+// a row that carries other text than the one already held for it (written with the triggers off, as a restore could)
+test('applying 029 again holds that second text as well; the rollback then refuses rather than lose either',async()=>{
+ await rawNote(projects.ibs,2,'bản chữ khác');
+ await expect(exec(await forward())).resolves.toBeUndefined();
+ expect((await noteOf(projects.ibs))[0]).toBe('');
+ expect((await held()).filter(r=>r.project_id===projects.ibs).map(r=>r.source_note).sort()).toEqual([notes.ibs,'bản chữ khác'].sort());
+ await expect(exec(await rollback())).rejects.toThrow(/would lose/);
+ await h.operator.query("DELETE FROM analytics.tech_source_notes_held WHERE source_note='bản chữ khác'");
 });
 
 test('rollback 029 refuses while a later migration is recorded or a held note has no source row, gives the text back, and runs again',async()=>{

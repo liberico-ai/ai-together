@@ -49,7 +49,7 @@ Ngày 26/11/2026 · nền `libetech-ai-os` @ `8d1e7a4` (0.9.2) · PR 4.
 - `REPLIES` trong `bot-plugin/__init__.py`. Tra theo thứ tự: (mã, reason) → (mã, status) → mã → câu dự phòng có kèm mã.
 - Mỗi câu nói **nguyên nhân** và **việc làm tiếp**, và kết thúc bằng `(mã X)` để người vận hành tra được.
 - Không câu nào nêu tên dự án, BU, nhóm hay người. Không câu nào viết «chờ Chairman quyết».
-- `BackendError` giữ thêm `reason`. Chỉ nhận chuỗi dạng `[A-Z_]{2,40}`.
+- `BackendError` giữ thêm `reason`. Chỉ nhận đúng một trong năm giá trị ở §2.1; giá trị khác bị bỏ, không tới câu trả lời hay mô hình (sửa sau cổng Codex).
 - `/libetech-link`, `/libetech-check`, `/libetech-access-*` và `/duyet` trả câu trong bảng, không trả mã trơ.
 - `libetech_os_read` trả `{ok:false, error, reason?, reply, instruction}`. `instruction` yêu cầu mô hình gửi nguyên văn `reply` và không tự giải thích mã. Mô tả công cụ bỏ cụm «chat/project scope».
 - `safe_error` giữ nguyên hình dạng, vì đường intake và outbox dùng nó để ghi log.
@@ -69,14 +69,17 @@ Ngày 26/11/2026 · nền `libetech-ai-os` @ `8d1e7a4` (0.9.2) · PR 4.
   - Chữ còn trong CSDL (đúng phương án (b) «che», không phải (c) xoá).
   - Vai ứng dụng và projector không đọc được. Trang và mã đọc không cần đổi quyền cột.
 - Bảng `analytics.tech_source_notes_held`:
-  - cột `tenant_id`, `project_id`, `source_id`, `source_row`, `source_note`, `held_at`; UNIQUE(`tenant_id`,`source_id`,`source_row`);
+  - cột `tenant_id`, `project_id`, `source_id`, `source_row`, `source_note`, `held_at`;
+  - UNIQUE theo (`tenant_id`, `source_id`, `source_row`, md5 của chữ): mỗi bản chữ khác nhau của một dòng được giữ một lần (sửa sau cổng Codex);
   - RLS ENABLE và FORCE, **không có policy**; REVOKE ALL với PUBLIC và mọi vai `libetech_*`.
 - **Thế nào là dòng IBS HI:** dự án có `bu` khớp `work_import_is_ibs_text`, hoặc xác nhận miền mới nhất là `IBS_HI`. Đúng luật của 027.
 - Hàm `public.tech_source_hold_notes(tenant, project)`, `SECURITY DEFINER`, chủ là login migration, `row_security=off`: chuyển ghi chú của một dự án IBS HI.
   - Migration gọi cho mọi dự án IBS HI (điền bù).
-  - Trigger `AFTER INSERT` trên `project_domain_mappings` gọi khi một dự án được xác nhận `IBS_HI`.
+  - Trigger `AFTER INSERT` trên `project_domain_mappings` gọi khi một dự án được xác nhận `IBS_HI`, kể cả xác nhận lại sau khi đã đổi miền.
+  - Trigger `AFTER UPDATE OF bu` trên `projects` gọi khi người vận hành đổi nhãn BU thành nhãn IBS HI.
+  - Hàm xong mà dự án còn dòng giữ chữ thì lệnh gọi bị từ chối (`LTZ01`).
 - Trigger `BEFORE INSERT OR UPDATE` trên `analytics.tech_source_tasks`: dòng IBS HI mang ghi chú thì bị từ chối (`LTZ01`).
-- Điền bù xong mà còn dòng IBS HI giữ chữ thì migration dừng (fail-closed). Ví dụ: bảng giữ đã có một bản ghi chú khác cho cùng dòng.
+- Điền bù xong mà còn dòng IBS HI giữ chữ thì migration dừng (fail-closed). Chạy lại 029 khi một dòng đã có thêm một bản chữ khác thì giữ cả hai.
 - Importer `scripts/import-team-tech-catalog.ts` ghi ghi chú rỗng cho dòng IBS HI. Không chép chữ vào bảng giữ.
 - `collaborators`, tiêu đề, người phụ trách, trạng thái, hạn: giữ nguyên (câu 4 (1)).
 - Trang `/portfolio`: nhóm IBS HI ghi một câu «Dòng IBS HI không hiện ghi chú nguồn; xem bảng nguồn.»
@@ -84,7 +87,7 @@ Ngày 26/11/2026 · nền `libetech-ai-os` @ `8d1e7a4` (0.9.2) · PR 4.
 - **Hoàn tác** `rollback/029`:
   - Từ chối khi:
     - có migration lớn hơn 029;
-    - một ghi chú đang giữ không còn dòng nguồn, hoặc dòng đó đang giữ chữ khác (hoàn tác sẽ làm mất chữ).
+    - một ghi chú đang giữ không còn dòng nguồn, dòng đó đang giữ chữ khác, hoặc một dòng có hai bản chữ đang giữ (hoàn tác sẽ làm mất chữ).
   - Khi chạy được: trả chữ về, bỏ trigger, hàm và bảng. Chạy lần hai không lỗi.
 
 ## 3. Tệp chạm

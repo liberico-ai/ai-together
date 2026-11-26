@@ -87,6 +87,32 @@ class CommandReplyTests(unittest.TestCase):
         with patch.object(bridge, 'call_backend', side_effect=refuse):
             return self.handlers[command](arguments, source=SimpleNamespace(**source))
 
+    def test_the_read_tool_never_passes_on_an_unknown_reason(self):
+        class Var:
+            def __init__(self, value):
+                self.value = value
+
+            def get(self):
+                return self.value
+        values = {'PLATFORM': 'telegram', 'PROFILE': 'libetech', 'USER_ID': '123', 'CHAT_ID': '123', 'CHAT_TYPE': 'private',
+                  'MESSAGE_ID': '456', 'ID': 'session-1', 'KEY': 'session-key'}
+        session = SimpleNamespace(_UNSET=object(), _VAR_MAP={'HERMES_SESSION_' + k: Var(v) for k, v in values.items()})
+        body = json.dumps({'data': None, 'error': {'code': 'SCOPE_DENIED', 'reason': 'SECRET_API_KEY'}}).encode()
+
+        class Opener:
+            def open(self, _request, timeout):
+                response = FakeResponse(body)
+                response.status = 403
+                return response
+        with profile_home() as home:
+            registered, _ = register_with(home)
+            tool = next(kwargs['handler'] for name, kwargs in registered if name == 'tool')
+            with patch.dict('sys.modules', {'gateway': SimpleNamespace(session_context=session)}), \
+                 patch.object(bridge.urllib.request, 'build_opener', return_value=Opener()):
+                out = tool({'code': 'LBRC014', 'source_sha': 'a' * 40})
+        self.assertNotIn('SECRET_API_KEY', out)
+        self.assertIn('(mã SCOPE_DENIED)', json.loads(out)['reply'])
+
     def test_commands_answer_with_the_cause_and_the_next_step(self):
         check = self.answer('libetech-check', 'LBRC014 ' + 'a' * 40, backend_error('TELEGRAM_NOT_LINKED', 403))
         self.assertEqual(check, reply_for('TELEGRAM_NOT_LINKED', 403))
@@ -140,7 +166,8 @@ class BackendReasonTests(unittest.TestCase):
     def test_the_backend_error_keeps_a_wellformed_reason_only(self):
         ok = self.refused({'data': None, 'error': {'code': 'SCOPE_DENIED', 'reason': 'CHAT_NOT_MAPPED'}}, 403)
         self.assertEqual((str(ok), ok.status, getattr(ok, 'reason', None)), ('SCOPE_DENIED', 403, 'CHAT_NOT_MAPPED'))
-        for reason in ['secret token: x', 12, None, 'A' * 41, '']:
+        # Codex gate, P1: a well-shaped word the server was never meant to send is dropped too, so it can never reach the model
+        for reason in ['secret token: x', 12, None, 'A' * 41, '', 'SECRET_API_KEY', 'RECORD_NOT_FOUND_X']:
             bad = self.refused({'data': None, 'error': {'code': 'SCOPE_DENIED', 'reason': reason}}, 403)
             self.assertIsNone(getattr(bad, 'reason', 'missing'), repr(reason))
 

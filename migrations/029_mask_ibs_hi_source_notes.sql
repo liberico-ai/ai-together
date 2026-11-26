@@ -3,8 +3,9 @@
 --    is emptied. «Che», not «xoá»: the text stays in the database for the operator. The held table has row level security with no policy and no grant:
 --    no application role reads it, the web login, the projector and the identity role included.
 -- 2. A row is IBS HI when its project's BU matches work_import_is_ibs_text (027) or its latest confirmed domain is IBS_HI. The same rule as the 027 guard.
--- 3. From now on such a row takes no note (LTZ01), and confirming a project as IBS_HI moves the notes it already has, in the same transaction.
---    Other columns (title, owner, collaborators, status, due) are Tech work metadata and stay (câu 4 (1)).
+-- 3. From now on such a row takes no note (LTZ01). Confirming a project as IBS_HI, or renaming its BU to an IBS HI label, moves the notes it already has in
+--    the same transaction. Every distinct text of a row is held (a project may be confirmed, moved to another domain, edited and confirmed again), so nothing
+--    stays readable and nothing is lost. Other columns (title, owner, collaborators, status, due) are Tech work metadata and stay (câu 4 (1)).
 -- Rollback: migrations/rollback/029_mask_ibs_hi_source_notes.sql gives the text back; it refuses when giving it back would lose text.
 BEGIN;
 -- A login that row level security binds would move 0 rows and report success: with row_security off it errors instead.
@@ -14,9 +15,10 @@ CREATE TABLE IF NOT EXISTS analytics.tech_source_notes_held (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL, project_id uuid NOT NULL,
  source_id text NOT NULL, source_row integer NOT NULL, source_note text NOT NULL CHECK(source_note <> ''),
  held_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
- FOREIGN KEY (project_id,tenant_id) REFERENCES public.projects(id,tenant_id),
- UNIQUE (tenant_id,source_id,source_row)
+ FOREIGN KEY (project_id,tenant_id) REFERENCES public.projects(id,tenant_id)
 );
+-- one held copy per distinct text of a row
+CREATE UNIQUE INDEX IF NOT EXISTS tech_source_notes_held_text_key ON analytics.tech_source_notes_held(tenant_id,source_id,source_row,md5(source_note));
 CREATE INDEX IF NOT EXISTS tech_source_notes_held_project_idx ON analytics.tech_source_notes_held(tenant_id,project_id,created_at);
 ALTER TABLE analytics.tech_source_notes_held ENABLE ROW LEVEL SECURITY;
 ALTER TABLE analytics.tech_source_notes_held FORCE ROW LEVEL SECURITY;
@@ -38,7 +40,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog SET row_security
    OR (SELECT m.domain_code FROM public.project_domain_mappings m WHERE m.tenant_id=p.tenant_id AND m.project_id=p.id ORDER BY m.mapping_version DESC LIMIT 1)='IBS_HI'))
 $$;
 
--- Moves the notes of one pointer-only project. A row whose key is already held with another text keeps its note: the caller decides what that means.
+-- Moves the notes of one pointer-only project. Each distinct text is held once; a row is emptied only after exactly its text is held. If any row of the project
+-- still shows a note afterwards (two texts with one md5), the statement fails rather than leave it readable.
 CREATE OR REPLACE FUNCTION public.tech_source_hold_notes(target_tenant uuid, target_project uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp SET row_security=off AS $$
 BEGIN
@@ -46,10 +49,14 @@ BEGIN
  INSERT INTO analytics.tech_source_notes_held(tenant_id,project_id,source_id,source_row,source_note)
   SELECT t.tenant_id,t.project_id,t.source_id,t.source_row,t.source_note FROM analytics.tech_source_tasks t
   WHERE t.tenant_id=target_tenant AND t.project_id=target_project AND t.source_note<>''
-  ON CONFLICT(tenant_id,source_id,source_row) DO NOTHING;
- UPDATE analytics.tech_source_tasks t SET source_note='', updated_at=now() FROM analytics.tech_source_notes_held k
+  ON CONFLICT (tenant_id,source_id,source_row,(md5(source_note))) DO NOTHING;
+ UPDATE analytics.tech_source_tasks t SET source_note='', updated_at=now()
   WHERE t.tenant_id=target_tenant AND t.project_id=target_project AND t.source_note<>''
-   AND k.tenant_id=t.tenant_id AND k.source_id=t.source_id AND k.source_row=t.source_row AND k.source_note=t.source_note;
+   AND EXISTS (SELECT 1 FROM analytics.tech_source_notes_held k
+    WHERE k.tenant_id=t.tenant_id AND k.source_id=t.source_id AND k.source_row=t.source_row AND k.source_note=t.source_note);
+ IF EXISTS (SELECT 1 FROM analytics.tech_source_tasks t WHERE t.tenant_id=target_tenant AND t.project_id=target_project AND t.source_note<>'') THEN
+  RAISE EXCEPTION 'An IBS HI row still holds a note after holding it. Compare the held texts as the operator.' USING ERRCODE='LTZ01';
+ END IF;
 END $$;
 
 DO $$ DECLARE r record; BEGIN
@@ -58,7 +65,7 @@ DO $$ DECLARE r record; BEGIN
  END LOOP;
  -- fail closed: nothing of 029 is kept if one pointer-only row still shows its note
  IF EXISTS (SELECT 1 FROM analytics.tech_source_tasks t WHERE t.source_note<>'' AND public.tech_source_project_is_ibs(t.tenant_id,t.project_id)) THEN
-  RAISE EXCEPTION 'An IBS HI row still holds a note: its key is held with another text. Compare the two as the operator, then apply 029.';
+  RAISE EXCEPTION 'An IBS HI row still holds a note. Compare the held texts as the operator, then apply 029.';
  END IF;
 END $$;
 
@@ -97,11 +104,25 @@ DROP TRIGGER IF EXISTS tech_source_hold_on_mapping ON public.project_domain_mapp
 CREATE TRIGGER tech_source_hold_on_mapping AFTER INSERT ON public.project_domain_mappings
  FOR EACH ROW EXECUTE FUNCTION public.tech_source_hold_on_mapping();
 
+-- An operator renaming a project's BU to an IBS HI label holds its notes too (the app has no such command).
+CREATE OR REPLACE FUNCTION public.tech_source_hold_on_project() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+ IF public.work_import_is_ibs_text(NEW.bu) THEN
+  PERFORM public.tech_source_hold_notes(NEW.tenant_id,NEW.id);
+ END IF;
+ RETURN NULL;
+END $$;
+DROP TRIGGER IF EXISTS tech_source_hold_on_project ON public.projects;
+CREATE TRIGGER tech_source_hold_on_project AFTER UPDATE OF bu ON public.projects
+ FOR EACH ROW WHEN (NEW.bu IS DISTINCT FROM OLD.bu) EXECUTE FUNCTION public.tech_source_hold_on_project();
+
 -- only the triggers and the migration call these
 REVOKE ALL ON FUNCTION public.tech_source_project_is_ibs(uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.tech_source_hold_notes(uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.tech_source_tasks_guard() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.tech_source_hold_on_mapping() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.tech_source_hold_on_project() FROM PUBLIC;
 
 INSERT INTO schema_migrations(version) VALUES('029') ON CONFLICT(version) DO NOTHING;
 COMMIT;

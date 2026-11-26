@@ -1293,6 +1293,6 @@ Phiên PR ghi cách hiểu tạm dưới đây để không bị chặn. Đây k
   - Người đó biết nguyên nhân khi hỏi bot hoặc gõ `/libetech_check`.
   - Phương án: (1) giữ; (2) thêm câu từ chối trong nhóm. Tạm: (1).
 - **Q-GV5D-2. Cách che ghi chú IBS HI ở Z2** (OQ-62 câu 4 (b)): chuyển chữ sang bảng chỉ người vận hành đọc (`analytics.tech_source_notes_held`, migration 029), để trống cột ở bảng nguồn.
-  - Xác nhận một dự án thành `IBS_HI` thì ghi chú của dự án đó cũng được chuyển.
+  - Xác nhận một dự án thành `IBS_HI`, hoặc người vận hành đổi nhãn BU thành IBS HI, thì ghi chú của dự án đó cũng được chuyển. Mỗi bản chữ khác nhau của một dòng được giữ riêng.
   - Đổi miền khỏi `IBS_HI` về sau **không** tự trả chữ về.
   - Phương án: (1) giữ; (2) quyền theo cột kèm hàm đọc. Tạm: (1).

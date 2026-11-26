@@ -128,8 +128,8 @@ class BackendError(ValueError):
     def __init__(self, code, status, reason=None):
         super().__init__(code)
         self.status = status
-        # a fixed upper-case word only: anything else from the wire is dropped, never echoed
-        self.reason = reason if isinstance(reason, str) and re.fullmatch(r"[A-Z_]{2,40}", reason) else None
+        # one of the reasons the bot has a sentence for, or nothing: any other word from the wire is dropped and never reaches a reply or the model
+        self.reason = reason if isinstance(reason, str) and reason in SCOPE_REPLIES else None
 
 def _encode(payload):
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
