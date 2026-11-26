@@ -17,6 +17,7 @@
 BEGIN;
 SELECT CASE WHEN length(:'source') BETWEEN 3 AND 300 THEN 1 ELSE 1/0 END AS source_ok;
 SELECT set_config('libetech.reminder_source', :'source', true) IS NOT NULL AS source_set;
+SELECT set_config('libetech.request_id', gen_random_uuid()::text, true) IS NOT NULL AS request_named;
 -- the divisor is the CASE itself: a constant 1/0 in a branch would be folded by the planner even when not taken
 SELECT 1 / (CASE WHEN :'expected_version'::int = 0 OR EXISTS (SELECT 1 FROM reminder_targets
   WHERE tenant_id = :'tenant_id'::uuid AND project_id = :'project_id'::uuid AND kind = :'kind') THEN 1 ELSE 0 END) AS target_known;

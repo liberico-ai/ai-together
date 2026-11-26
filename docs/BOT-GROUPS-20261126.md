@@ -29,7 +29,7 @@ Ngày 26/11/2026 · theo mã `libetech-ai-os` (0.9.3). Cấu hình thật nằm 
 
 - Đây là loại tin duy nhất không trả lời một tin nào. Nó chỉ đi tới nhóm mà **người vận hành** khai trong `reminder_targets` (`deploy/reminder-targets.sql`), và cơ sở dữ liệu buộc đúng nhóm, đúng chủ đề, đúng loại tin của đích đó.
 - Nhóm đích phải phục vụ **đúng một dự án**, là dự án của đích, theo `chatScopes` trên máy chủ. Nhóm của dự án khác, nhóm gắn hai dự án và nhóm chung không gắn dự án (Dragon Forge) đều bị từ chối, để tên người không ra ngoài dự án (Q-GV5F-6).
-- Dự án của đích phải được một nhóm `intake.chats` phục vụ, và nhóm đích nằm trong `chats` của `intake.json` ở gateway. Bộ hẹn giờ không đọc được cấu hình máy chủ thì không xếp tin nào.
+- Dự án của đích phải được một nhóm `intake.chats` phục vụ, và nhóm đích nằm trong `chats` của `intake.json` ở gateway. Gateway từ chối tin nhắc tới `poolChats` hay tin riêng. Bộ hẹn giờ không đọc được cấu hình máy chủ thì không xếp tin nào.
 - Lúc gateway kéo tin, máy chủ kiểm lại toàn bộ: đích còn bật và đúng nhóm, dự án còn được phép, nhóm còn đúng dự án, giờ và buổi họp còn như tin nói, buổi chưa bắt đầu. Tin không đạt thì không gửi, ghi mã lý do (`REMINDER_…`).
 - Ba loại tin:
   - trạng thái GO LIVE: chỉ tên người chưa gửi yêu cầu hoặc có việc chưa có bằng chứng;

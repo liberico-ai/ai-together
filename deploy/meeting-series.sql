@@ -10,12 +10,13 @@
 BEGIN;
 SELECT CASE WHEN length(:'source') BETWEEN 3 AND 300 THEN 1 ELSE 1/0 END AS source_ok;
 SELECT set_config('libetech.reminder_source', :'source', true) IS NOT NULL AS source_set;
+SELECT set_config('libetech.request_id', gen_random_uuid()::text, true) IS NOT NULL AS request_named;
 SELECT 1 / (CASE WHEN :'expected_version'::int = 0 OR EXISTS (SELECT 1 FROM meeting_series
   WHERE tenant_id = :'tenant_id'::uuid AND project_id = :'project_id'::uuid AND title = :'title') THEN 1 ELSE 0 END) AS series_known;
 INSERT INTO meeting_series AS s(tenant_id, project_id, title, weekday, start_time, enabled)
  VALUES (:'tenant_id'::uuid, :'project_id'::uuid, :'title', :'weekday'::smallint, :'start_time'::time, :'enabled'::boolean)
  ON CONFLICT (tenant_id, project_id, title) DO UPDATE SET weekday = EXCLUDED.weekday, start_time = EXCLUDED.start_time, enabled = EXCLUDED.enabled,
-  version = s.version + 1, updated_at = now()
+  base_revision = s.base_revision + 1, version = s.version + 1, updated_at = now()
  WHERE (s.weekday, s.start_time, s.enabled) IS DISTINCT FROM (EXCLUDED.weekday, EXCLUDED.start_time, EXCLUDED.enabled) AND s.version = :'expected_version'::int;
 SELECT 1 / (CASE WHEN EXISTS (SELECT 1 FROM meeting_series WHERE tenant_id = :'tenant_id'::uuid AND project_id = :'project_id'::uuid AND title = :'title'
   AND (weekday, start_time, enabled) IS NOT DISTINCT FROM (:'weekday'::smallint, :'start_time'::time, :'enabled'::boolean)) THEN 1 ELSE 0 END) AS written;

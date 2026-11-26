@@ -1314,10 +1314,11 @@ def _delivery_target(item):
         raise ValueError("DELIVERY_INVALID")
     return chat, topic or None, reply, payload.get("template"), payload.get("params")
 
-def _deliver(item, send, journal, summary, allowed):
-    """`allowed`: the group chat ids of intake.json "chats". A group target outside it is refused before anything is
+def _deliver(item, send, journal, summary, allowed, reminder_chats=frozenset()):
+    """`allowed`: the group chat ids of intake.json "chats" and "poolChats". A group target outside it is refused before anything is
     journaled or sent (Security M5: the target comes from the backend; this is defence in depth). DM targets are the
-    linked private chats the backend checks, not group chats, so the list does not apply to them."""
+    linked private chats the backend checks, not group chats, so the list does not apply to them. A reminder (a message
+    that answers nothing) goes only to a group of "chats": never to a shared group or a private chat."""
     key = _attempt_key(item)
     lease = item.get("leaseToken") if key else None
     if key is None or not isinstance(lease, str) or not UUID.fullmatch(lease):
@@ -1339,6 +1340,8 @@ def _deliver(item, send, journal, summary, allowed):
     try:
         chat_id, topic_id, reply_to, template, params = _delivery_target(item)
         if item.get("audience") == "group" and chat_id not in allowed:
+            raise ValueError("TARGET_NOT_ALLOWED")
+        if isinstance(template, str) and template.startswith("reminder.") and (item.get("audience") != "group" or chat_id not in reminder_chats):
             raise ValueError("TARGET_NOT_ALLOWED")
         text = render(template, params)
     except ValueError as error:
@@ -1478,7 +1481,8 @@ def drain_outbox(home, send, journal, *, limit=10):
             raise ValueError("OUTBOX_RESPONSE_INVALID")
         config = _intake_config(home) if pulled["deliveries"] else None
         allowed = (config["chats"] | config["poolChats"]) if config else frozenset()
-        fresh = [receipt for receipt in (_deliver(item, send, journal, summary, allowed) for item in pulled["deliveries"]) if receipt]
+        reminder_chats = config["chats"] if config else frozenset()
+        fresh = [receipt for receipt in (_deliver(item, send, journal, summary, allowed, reminder_chats) for item in pulled["deliveries"]) if receipt]
         fresh += [receipt for receipt in (_reconcile(item, journal, summary) for item in pulled["reconcile"]) if receipt]
         _report(home, journal, fresh, summary)
     except Exception as error:

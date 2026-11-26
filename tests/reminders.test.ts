@@ -11,7 +11,7 @@ import {mapDomain} from './slice3-fixtures';
 import {IntakeService} from '../src/server/intake';
 import {MeetingService} from '../src/server/meetings';
 import {projectGoliveStatus} from '../src/server/golive-status';
-import {reminderCounts,sendReminders} from '../src/server/reminders';
+import {deliveryBlock,reminderCounts,sendReminders} from '../src/server/reminders';
 import {OutboxService} from '../src/server/outbox';
 import type {BridgeConfig} from '../src/server/bridge-config';
 import {addDays,vnParts,weekdayOf} from '../src/server/meeting-times';
@@ -40,6 +40,13 @@ const target=(over:Parameters<typeof insertTarget>[1]={})=>insertTarget(h,over).
 const projected=async(project:string=ids.sales,now:Date=TUE,minutes=5)=>{
  await projectGoliveStatus(h.operator,ids.tenant,project);
  await h.operator.query('UPDATE analytics.golive_member_status SET projected_at=$1 WHERE project_id=$2',[new Date(now.getTime()-minutes*60000).toISOString(),project]).catch(()=>{});
+};
+
+// psql is not part of the test: the script text is run with its variables written in as literals; meta-commands (the \getenv of the chat id) are dropped
+const script=async(file:string,vars:Record<string,string>)=>{
+ let sql=await readFile(path.join(process.cwd(),'deploy',file),'utf8').catch(()=>'SELECT 1');
+ for(const [k,v] of Object.entries(vars)) sql=sql.replaceAll(`:'${k}'`,"'"+v.replaceAll("'","''")+"'");
+ await h.exec(sql.split('\n').filter(l=>!l.startsWith('\\')).join('\n'));
 };
 
 describe('GO LIVE status reminder',()=>{
@@ -190,10 +197,48 @@ describe('the intake scope the scheduler checks',()=>{
  });
 });
 
+describe('a dropped reminder is not lost for good, and a base time changed back is sent again',()=>{
+ const WED=vn('2026-11-25T08:35');
+ test('a message dropped as dead is queued again while it is due, three times in all, then counted as given up',async()=>{
+  await insertSeries(h);const t=await target({kind:'bom_meeting',chat:groupOther});
+  const drop=async()=>{await new OutboxService(h.operator,{} as never,{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales]},false,()=>'group_not_for_project').pull({limit:10});};
+  for(const attempt of [1,2,3]){await expect(run(WED),'attempt '+attempt).resolves.toMatchObject({queued:1});await drop();}
+  await expect(run(WED)).resolves.toMatchObject({queued:0,skipped:{gave_up:1}});
+  expect((await h.operator.query<{n:string}>('SELECT count(*) n FROM outbox_messages WHERE reminder_target_id=$1',[t])).rows[0].n.toString()).toBe('3');
+ });
+ test('the base time changed away and back by the operator sends each current time',async()=>{
+  const vars={tenant_id:ids.tenant,project_id:ids.sales,title:'Họp BoM',weekday:'4',start_time:'09:00',enabled:'true',source:'Lịch gốc thử',expected_version:'0'};
+  await script('meeting-series.sql',vars);await target({kind:'bom_meeting',chat:groupOther});
+  await expect(run(WED)).resolves.toMatchObject({queued:1});
+  await script('meeting-series.sql',{...vars,start_time:'10:00',expected_version:'1'});
+  await expect(run(WED)).resolves.toMatchObject({queued:1});
+  await script('meeting-series.sql',{...vars,start_time:'09:00',expected_version:'2'});
+  await expect(run(WED)).resolves.toMatchObject({queued:1});
+  expect((await sent()).map(r=>r.payload.params.time)).toEqual(['09:00','10:00','09:00']);
+ });
+});
+
+describe('the send-time rules on their own',()=>{
+ const rules=(over:Record<string,unknown>={})=>({now:vn('2026-11-26T12:00').toISOString(),ageMinutes:5,targetOk:true,projectAllowed:true,params:{date:'2026-11-27',time:'09:00'},
+  reminder:{seriesId:'s'},series:{weekday:weekdayOf('2026-11-27'),startTime:'09:00',enabled:true},changes:[],...over}) as never;
+ test('meeting messages go out between 07:00 and 21:00 only',()=>{
+  expect(deliveryBlock('reminder.bom_meeting',rules(),null)).toBeNull();
+  for(const at of ['2026-11-26T21:00','2026-11-26T23:30','2026-11-27T06:59'])
+   expect(deliveryBlock('reminder.bom_meeting',rules({now:vn(at).toISOString()}),null),at).toBe('REMINDER_OUTSIDE_HOURS');
+  expect(deliveryBlock('reminder.bom_meeting_question',rules({now:vn('2026-11-26T22:00').toISOString(),reminder:{seriesId:'s',changeId:'q'},changes:[{id:'q',seq:1,kind:'unclear',sessionDate:null,effectiveFrom:null,newTime:null,sourceRef:'IN-0A1B2C3D',resolvesChangeId:null}]}),null)).toBe('REMINDER_OUTSIDE_HOURS');
+ });
+ test('a GO LIVE status goes out within an hour of being queued',()=>{
+  const golive=(ageMinutes:number)=>deliveryBlock('reminder.golive_status',rules({params:{date:'2026-11-26'},ageMinutes}),null);
+  expect(golive(60)).toBeNull();
+  expect(golive(61)).toBe('REMINDER_EXPIRED');
+ });
+});
+
 describe('delivery: everything is checked again when the gateway pulls',()=>{
  const route=(config:BridgeConfig=routes)=>(chatId:string,projectId:string)=>(bridgeConfigModule as unknown as {reminderRoute:(c:BridgeConfig,a:string,b:string)=>string|null}).reminderRoute?.(config,chatId,projectId)??null;
- // null: a pull wired without any route check (an undefined argument would take the default)
- const outbox=(check:((c:string,p:string)=>string|null)|null=route())=>new OutboxService(h.operator,{} as never,{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales]},false,check??undefined);
+ // null: a pull wired without any route check (an undefined argument would take the default). The send-time rules see noon today, whatever hour the tests run.
+ const outbox=(check:((c:string,p:string)=>string|null)|null=route())=>new OutboxService(h.operator,{} as never,{id:intakePrincipalId,tenantId:ids.tenant,projectIds:[ids.sales]},false,check??undefined,
+  ()=>vn(vnParts(new Date()).date+'T12:00'));
  const codes=async()=>(await h.operator.query<{dedupe_key:string;state:string;last_error_code:string|null}>('SELECT dedupe_key,state,last_error_code FROM outbox_messages WHERE reminder_target_id IS NOT NULL ORDER BY dedupe_key')).rows.map(r=>[r.dedupe_key,r.state,r.last_error_code]);
  const today=()=>vnParts(new Date()).date;
  // the intake of the confirming message queues its own receipt: only reminders are looked at here
@@ -269,12 +314,6 @@ describe('delivery: everything is checked again when the gateway pulls',()=>{
 });
 
 describe('operator scripts (deploy/reminder-targets.sql, deploy/meeting-series.sql)',()=>{
- // psql is not part of the test: the script text is run with its variables written in as literals; meta-commands (the \getenv of the chat id) are dropped
- const script=async(file:string,vars:Record<string,string>)=>{
-  let sql=await readFile(path.join(process.cwd(),'deploy',file),'utf8').catch(()=>'SELECT 1');
-  for(const [k,v] of Object.entries(vars)) sql=sql.replaceAll(`:'${k}'`,"'"+v.replaceAll("'","''")+"'");
-  await h.exec(sql.split('\n').filter(l=>!l.startsWith('\\')).join('\n'));
- };
  const rows=async(sql:string)=>(await h.operator.query<Record<string,unknown>>(sql).catch(()=>({rows:[{missing:true}]}))).rows;
  test('the target script writes and updates one target per project and kind, and records each real change with its source',async()=>{
   const vars={tenant_id:ids.tenant,project_id:ids.sales,kind:'golive_status',chat_id:groupSales,topic_id:'',send_time:'08:30',lead_days:'1',enabled:'true',source:'Biên bản thử A',expected_version:'0'};

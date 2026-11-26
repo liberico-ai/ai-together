@@ -1,7 +1,8 @@
 # GIAO VIỆC 5 F: three fixed reminder sentences. Every parameter is checked by shape; a name list that could mention someone or run a command is refused.
 import unittest
+from unittest.mock import patch
 
-from test_bot_bridge import bridge
+from test_bot_bridge import GROUP, LEASE_A, LEASE_B, LEASE_C, OUTBOX_A, OUTBOX_B, OUTBOX_C, SENDER, FakeBackend, bridge, delivery, profile_home
 
 GOLIVE = {'project': 'Cổng bán hàng mẫu', 'date': '2026-11-24', 'noRequest': 'Nguyễn An, Trần Bình', 'noEvidence': 'Lê Chi (2 việc)'}
 MEETING = {'project': 'Cổng bán hàng mẫu', 'date': '2026-11-26', 'time': '14:00', 'source': 'IN-0A1B2C3D'}
@@ -47,6 +48,24 @@ class ReminderTemplateTests(unittest.TestCase):
 
     def test_the_plugin_version_moved_with_the_new_messages(self):
         self.assertEqual(bridge.VERSION, '0.3.6')
+
+
+class ReminderDeliveryGuardTests(unittest.TestCase):
+    def test_a_reminder_goes_only_to_a_normal_group_of_the_gateway_never_the_shared_group_or_a_private_chat(self):
+        shared = '-10055504'
+        with profile_home(chats=[GROUP], poolChats=[shared]) as home:
+            question = dict(template='reminder.bom_meeting_question', params=QUESTION, reply=None)
+            sent = []
+            backend = FakeBackend([{'deliveries': [delivery(OUTBOX_A, LEASE_A, **question),
+                                                   delivery(OUTBOX_B, LEASE_B, chat=shared, **question),
+                                                   delivery(OUTBOX_C, LEASE_C, audience='dm', chat=SENDER, **question)],
+                                    'reconcile': []}])
+            with patch.object(bridge, 'call_backend', side_effect=backend):
+                bridge.drain_outbox(home, lambda *args: (sent.append(args[0]), 9004)[1], bridge.SendJournal(home))
+            self.assertEqual(sent, [GROUP])
+            self.assertEqual([(r['outboxId'], r['outcome'], r.get('errorCode')) for r in backend.reports[0]],
+                             [(OUTBOX_A, 'delivered', None), (OUTBOX_B, 'failed_permanent', 'TARGET_NOT_ALLOWED'),
+                              (OUTBOX_C, 'failed_permanent', 'TARGET_NOT_ALLOWED')])
 
 
 if __name__ == '__main__':

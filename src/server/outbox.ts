@@ -114,8 +114,9 @@ const envelopeOf=(r:Row):Envelope=>({event_id:r.event_id,event_type:r.event_type
 
 export class OutboxService {
  /** poolEnabled: the operator configured a pool group, so an empty project list is a tenant-level scope (pool receipts only) and not a missing scope.
-  * reminderRoute: why the current server config does not let a reminder of a project go to a group (null = it may). Without it no reminder is handed out. */
- constructor(private intakeDb:Database,private identity:IdentityService,private p:IntakePrincipal,private poolEnabled=false,private reminderRoute?:(chatId:string,projectId:string)=>string|null) {}
+  * reminderRoute: why the current server config does not let a reminder of a project go to a group (null = it may). Without it no reminder is handed out.
+  * clock: the time the send-time rules of a reminder see; by default the database's own now(). */
+ constructor(private intakeDb:Database,private identity:IdentityService,private p:IntakePrincipal,private poolEnabled=false,private reminderRoute?:(chatId:string,projectId:string)=>string|null,private clock?:()=>Date) {}
  private scope<T>(fn:(tx:Queryable)=>Promise<T>):Promise<T> {
   return this.poolEnabled&&this.p.projectIds.length===0?intakePoolScoped(this.intakeDb,this.p,fn):intakeScoped(this.intakeDb,this.p,fn);
  }
@@ -131,7 +132,7 @@ export class OutboxService {
  private async reminderBlock(tx:Queryable,r:Row,expired:boolean):Promise<string|null> {
   if(expired||!r.project_id) return 'REMINDER_EXPIRED';
   const facts=(await tx.query<{f:DeliveryFacts|null}>('SELECT public.reminder_delivery_facts($1) AS f',[r.id])).rows[0]?.f??null;
-  return deliveryBlock(r.template,facts,this.reminderRoute?this.reminderRoute(r.target_chat_id,r.project_id):'intake_scope_unchecked');
+  return deliveryBlock(r.template,facts&&this.clock?{...facts,now:this.clock().toISOString()}:facts,this.reminderRoute?this.reminderRoute(r.target_chat_id,r.project_id):'intake_scope_unchecked');
  }
 
  async pull(raw:unknown):Promise<{deliveries:Delivery[];reconcile:{outboxId:string;attemptNo:number}[]}> {

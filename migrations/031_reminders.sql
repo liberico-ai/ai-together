@@ -14,6 +14,7 @@
 --    stored message of that project as the source).
 -- 5. public.reminder_config_events: every change of a target or a series, with its source (E-DB-13).
 -- 6. analytics.golive_member_status (Z2), written only by the GO LIVE projector (operator login, OQ-22).
+-- Every SECURITY DEFINER function here names the temporary schema last in its search path, so nothing a caller creates there is ever resolved first.
 BEGIN;
 
 DO $$ BEGIN
@@ -44,7 +45,7 @@ END $$;
 
 -- A project may receive reminders: its latest confirmed domain is a Liberico BU or Xeca, and nothing names it IBS HI (the 029 test). Q-F3.
 CREATE OR REPLACE FUNCTION public.reminder_project_allowed(target_tenant uuid, target_project uuid) RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog SET row_security=off AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp SET row_security=off AS $$
  SELECT coalesce((SELECT m.domain_code IN ('LIBERICO_BU','XECA') FROM public.project_domain_mappings m
     WHERE m.tenant_id=target_tenant AND m.project_id=target_project ORDER BY m.mapping_version DESC LIMIT 1),false)
   AND NOT public.tech_source_project_is_ibs(target_tenant,target_project)
@@ -84,6 +85,8 @@ CREATE TABLE IF NOT EXISTS meeting_series (
  start_time time NOT NULL,
  enabled boolean NOT NULL DEFAULT true,
  version integer NOT NULL DEFAULT 1 CHECK (version>0),
+ -- moved by the operator when the base day, time or switch changes: it is part of the reminder key, so a time changed away and back is sent again
+ base_revision integer NOT NULL DEFAULT 1 CHECK (base_revision>0),
  FOREIGN KEY (project_id,tenant_id) REFERENCES projects(id,tenant_id),
  UNIQUE (tenant_id,project_id,title), UNIQUE (id,tenant_id,project_id)
 );
@@ -119,7 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_meeting_changes_created ON meeting_changes(create
 DROP TRIGGER IF EXISTS immutable_history ON meeting_changes;
 CREATE TRIGGER immutable_history BEFORE UPDATE OR DELETE ON meeting_changes FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 -- Owned by the migration superuser, so row level security does not hide the rows it checks.
-CREATE OR REPLACE FUNCTION public.meeting_changes_guard() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+CREATE OR REPLACE FUNCTION public.meeting_changes_guard() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
  IF NEW.resolves_change_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.meeting_changes c
    WHERE c.id=NEW.resolves_change_id AND c.series_id=NEW.series_id AND c.tenant_id=NEW.tenant_id AND c.kind='unclear') THEN
@@ -137,7 +140,7 @@ CREATE TRIGGER meeting_changes_guard BEFORE INSERT ON meeting_changes FOR EACH R
 -- The stored message an IN code names, in one project, for someone who may record a change there: a candidate of the project, or a shared-group message
 -- assigned to it. No row for anybody else. No text, no chat, only the id.
 CREATE OR REPLACE FUNCTION public.meeting_source(target_project uuid, ref text) RETURNS TABLE(candidate_id uuid, pool_item_id uuid)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
  SELECT c.id, NULL::uuid FROM public.intake_candidates c
   WHERE public.work_request_seat(target_project) AND c.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND c.project_id=target_project
    AND 'IN-'||upper(left(c.id::text,8))=ref
@@ -153,7 +156,7 @@ CREATE TABLE IF NOT EXISTS reminder_config_events (
  seq bigint GENERATED ALWAYS AS IDENTITY,
  entity text NOT NULL CHECK (entity IN ('reminder_target','meeting_series')), entity_id uuid NOT NULL,
  op text NOT NULL CHECK (op IN ('INSERT','UPDATE','DELETE')), old_value jsonb, new_value jsonb,
- source text NOT NULL, db_role text NOT NULL,
+ source text NOT NULL, db_role text NOT NULL, request_id uuid NOT NULL, trace_id uuid NOT NULL,
  FOREIGN KEY (project_id,tenant_id) REFERENCES projects(id,tenant_id)
 );
 CREATE INDEX IF NOT EXISTS idx_reminder_config_events_entity ON reminder_config_events(entity,entity_id,seq);
@@ -161,16 +164,18 @@ CREATE INDEX IF NOT EXISTS idx_reminder_config_events_created ON reminder_config
 DROP TRIGGER IF EXISTS immutable_history ON reminder_config_events;
 CREATE TRIGGER immutable_history BEFORE UPDATE OR DELETE ON reminder_config_events FOR EACH ROW EXECUTE FUNCTION reject_history_mutation();
 -- A version bump (a recorded meeting change) is not a configuration change. The operator names the source in libetech.reminder_source.
-CREATE OR REPLACE FUNCTION public.reminder_config_record() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
-DECLARE o jsonb; n jsonb; r jsonb;
+CREATE OR REPLACE FUNCTION public.reminder_config_record() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE o jsonb; n jsonb; r jsonb; req uuid;
 BEGIN
  o := CASE WHEN TG_OP<>'INSERT' THEN to_jsonb(OLD) - ARRAY['version','updated_at'] END;
  n := CASE WHEN TG_OP<>'DELETE' THEN to_jsonb(NEW) - ARRAY['version','updated_at'] END;
  IF TG_OP='UPDATE' AND o=n THEN RETURN NULL; END IF;
  r := coalesce(n,o);
- INSERT INTO public.reminder_config_events(tenant_id,project_id,entity,entity_id,op,old_value,new_value,source,db_role)
+ -- the operator script names one request id per run; an operator change has no upstream trace, so it traces to itself (E-DB-13)
+ req := coalesce(nullif(current_setting('libetech.request_id',true),'')::uuid,gen_random_uuid());
+ INSERT INTO public.reminder_config_events(tenant_id,project_id,entity,entity_id,op,old_value,new_value,source,db_role,request_id,trace_id)
  VALUES ((r->>'tenant_id')::uuid,(r->>'project_id')::uuid,TG_ARGV[0],(r->>'id')::uuid,TG_OP,o,n,
-  coalesce(nullif(current_setting('libetech.reminder_source',true),''),'unstated'),session_user);
+  coalesce(nullif(current_setting('libetech.reminder_source',true),''),'unstated'),session_user,req,req);
  RETURN NULL;
 END $$;
 DROP TRIGGER IF EXISTS reminder_config_record ON reminder_targets;
@@ -194,7 +199,7 @@ CREATE INDEX IF NOT EXISTS idx_golive_member_status_created ON analytics.golive_
 
 -- Team Tech members who are active and activated: id and name, for the projector only.
 CREATE OR REPLACE FUNCTION public.tech_roster_members() RETURNS TABLE(user_id uuid, name text)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
  SELECT u.id,u.name FROM identity.tech_roster r JOIN identity.users u ON u.id=r.user_id AND u.tenant_id=r.tenant_id
   WHERE r.tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND u.active AND u.password_hash IS NOT NULL
 $$;
@@ -342,9 +347,10 @@ END $$;
 -- What the gateway's pull checks again before a reminder goes out: the target as it is now, whether the project may still get reminders, and for a meeting
 -- message the series and its changes. Ids, times and IN codes only; no chat id comes back. Only rows of the caller's tenant and project scope.
 CREATE OR REPLACE FUNCTION public.reminder_delivery_facts(target_row uuid) RETURNS jsonb
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
  SELECT jsonb_build_object(
   'now', now(),
+  'ageMinutes', floor(extract(epoch FROM now()-o.created_at)/60)::int,
   'targetOk', EXISTS (SELECT 1 FROM public.reminder_targets t WHERE t.id=o.reminder_target_id AND t.tenant_id=o.tenant_id AND t.project_id=o.project_id
     AND t.enabled AND t.chat_id=o.target_chat_id AND t.topic_id=o.target_topic_id),
   'projectAllowed', public.reminder_project_allowed(o.tenant_id,o.project_id),

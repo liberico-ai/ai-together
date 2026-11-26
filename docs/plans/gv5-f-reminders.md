@@ -111,5 +111,12 @@ Ngày 26/11/2026 · nền `libetech-ai-os` @ `ce27e9f` (0.9.3) · PR 6. **Đã d
   - Lúc gateway kéo tin, kiểm lại đích, dự án, nhóm, giờ và buổi (P0, và hai P1 về giờ cũ và tin muộn).
   - Khoá chống trùng mang cả mã thay đổi đặt giờ.
   - Hai tệp SQL vận hành đòi `expected_version` (P1).
-- Điểm còn để ngỏ: Q-GV5F-1…6 cuối `docs/OPEN-QUESTIONS.md`.
+- Sau lượt đọc độc lập (không có P0; sửa các điểm đã nêu):
+  - hàm quyền cao mới ghim đường tìm tên với lược đồ tạm ở cuối;
+  - tin đã bỏ được xếp lại khi còn đến hạn, tối đa ba lần;
+  - giờ gửi tin họp 07:00–21:00 được kiểm cả lúc gửi, và trạng thái GO LIVE chỉ gửi trong 60 phút;
+  - đổi giờ gốc rồi đổi lại thì gửi lại (`base_revision`);
+  - nhật ký cấu hình có `request_id` và `trace_id`;
+  - gateway chỉ gửi tin nhắc vào nhóm trong `chats`, không bao giờ vào nhóm chung hay tin riêng.
+- Điểm còn để ngỏ: Q-GV5F-1…7 cuối `docs/OPEN-QUESTIONS.md`.
 

@@ -87,12 +87,27 @@ describe('the send guard',()=>{
   const series=await insertSeries(h);
   // a version bump alone (what a recorded change does) is not a configuration change
   await h.operator.query('UPDATE meeting_series SET version=version+1,updated_at=now() WHERE id=$1',[series]);
-  const events=(await h.operator.query<{entity:string;op:string;source:string}>('SELECT entity,op,source FROM reminder_config_events ORDER BY seq')).rows;
+  const ids_=(await h.operator.query<{r:string|null;t:string|null}>('SELECT to_jsonb(e)->>$1 AS r,to_jsonb(e)->>$2 AS t FROM reminder_config_events e',['request_id','trace_id'])).rows;
+  expect(ids_.every(x=>x.r&&x.t),'every event carries a request id and a trace id').toBe(true);
+  const run=randomUUID();
+  await h.operator.transaction(async tx=>{await tx.query("SELECT set_config('libetech.reminder_source','Biên bản thử C',true),set_config('libetech.request_id',$1,true)",[run]);
+   await tx.query('UPDATE reminder_targets SET send_time=$2,updated_at=now() WHERE id=$1',[target,'09:00']);});
+  expect((await h.operator.query<{r:string|null}>("SELECT to_jsonb(e)->>'request_id' AS r FROM reminder_config_events e WHERE source='Biên bản thử C'")).rows).toEqual([{r:run}]);
+  await h.operator.query('UPDATE reminder_targets SET send_time=$2,updated_at=now() WHERE id=$1',[target,'08:30']);
+  const events=(await h.operator.query<{entity:string;op:string;source:string}>("SELECT entity,op,source FROM reminder_config_events WHERE source NOT IN ('Biên bản thử C','unstated') ORDER BY seq")).rows;
   expect(events).toEqual([{entity:'reminder_target',op:'INSERT',source:'Biên bản thử A'},{entity:'reminder_target',op:'UPDATE',source:'Biên bản thử B'},{entity:'meeting_series',op:'INSERT',source:'Lịch gốc thử'}]);
   for(const role of ['libetech_reminder','libetech_runtime','libetech_intake'] as const)
    expect(await refused(as(h,role,[ids.sales],async q=>{const r=await q('SELECT id FROM reminder_config_events');if(!r.length)throw new Error('nothing visible');return r;})),role).toBe(true);
   expect(await refused(h.operator.query('DELETE FROM reminder_config_events'))).toBe(true);
  });
+});
+
+test('every privileged function of this migration pins its search path with the temporary schema last',async()=>{
+ await tables();
+ const names=['reminder_project_allowed','meeting_changes_guard','meeting_source','reminder_config_record','tech_roster_members','reminder_delivery_facts'];
+ const rows=(await h.operator.query<{proname:string;config:string}>("SELECT proname,coalesce(array_to_string(proconfig,';'),'') AS config FROM pg_proc WHERE proname=ANY($1::text[]) AND prosecdef ORDER BY proname",[names])).rows;
+ expect(rows.map(r=>r.proname).sort()).toEqual([...names].sort());
+ for(const r of rows) expect(r.config.split(';').find(c=>c.startsWith('search_path='))?.replace(/ /g,''),r.proname).toBe('search_path=pg_catalog,pg_temp');
 });
 
 describe('migration 031',()=>{
