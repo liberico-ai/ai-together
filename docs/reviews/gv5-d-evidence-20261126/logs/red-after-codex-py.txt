@@ -1,0 +1,51 @@
+......FF                                                                 [100%]
+=================================== FAILURES ===================================
+____ CommandReplyTests.test_the_read_tool_never_passes_on_an_unknown_reason ____
+
+self = <test_bot_replies.CommandReplyTests testMethod=test_the_read_tool_never_passes_on_an_unknown_reason>
+
+    def test_the_read_tool_never_passes_on_an_unknown_reason(self):
+        class Var:
+            def __init__(self, value):
+                self.value = value
+    
+            def get(self):
+                return self.value
+        values = {'PLATFORM': 'telegram', 'PROFILE': 'libetech', 'USER_ID': '123', 'CHAT_ID': '123', 'CHAT_TYPE': 'private',
+                  'MESSAGE_ID': '456', 'ID': 'session-1', 'KEY': 'session-key'}
+        session = SimpleNamespace(_UNSET=object(), _VAR_MAP={'HERMES_SESSION_' + k: Var(v) for k, v in values.items()})
+        body = json.dumps({'data': None, 'error': {'code': 'SCOPE_DENIED', 'reason': 'SECRET_API_KEY'}}).encode()
+    
+        class Opener:
+            def open(self, _request, timeout):
+                response = FakeResponse(body)
+                response.status = 403
+                return response
+        with profile_home() as home:
+            registered, _ = register_with(home)
+            tool = next(kwargs['handler'] for name, kwargs in registered if name == 'tool')
+            with patch.dict('sys.modules', {'gateway': SimpleNamespace(session_context=session)}), \
+                 patch.object(bridge.urllib.request, 'build_opener', return_value=Opener()):
+                out = tool({'code': 'LBRC014', 'source_sha': 'a' * 40})
+>       self.assertNotIn('SECRET_API_KEY', out)
+E       AssertionError: 'SECRET_API_KEY' unexpectedly found in '{"ok": false, "error": "SCOPE_DENIED", "bridgeVersion": "0.3.4", "reason": "SECRET_API_KEY", "reply": "AI OS không cho đọc ở cuộc trò chuyện này: nhóm chưa gắn dự án, hoặc bạn không thuộc dự án của nhóm. Hỏi trong tin nhắn riêng với bot; nếu vẫn bị từ chối, nhờ người quản trị thêm bạn vào dự án. (mã SCOPE_DENIED)", "instruction": "Gửi cho người dùng nguyên văn câu trong \\"reply\\". Không tự giải thích mã lỗi và không đoán nguyên nhân khác."}'
+
+tests/test_bot_replies.py:113: AssertionError
+___ BackendReasonTests.test_the_backend_error_keeps_a_wellformed_reason_only ___
+
+self = <test_bot_replies.BackendReasonTests testMethod=test_the_backend_error_keeps_a_wellformed_reason_only>
+
+    def test_the_backend_error_keeps_a_wellformed_reason_only(self):
+        ok = self.refused({'data': None, 'error': {'code': 'SCOPE_DENIED', 'reason': 'CHAT_NOT_MAPPED'}}, 403)
+        self.assertEqual((str(ok), ok.status, getattr(ok, 'reason', None)), ('SCOPE_DENIED', 403, 'CHAT_NOT_MAPPED'))
+        # Codex gate, P1: a well-shaped word the server was never meant to send is dropped too, so it can never reach the model
+        for reason in ['secret token: x', 12, None, 'A' * 41, '', 'SECRET_API_KEY', 'RECORD_NOT_FOUND_X']:
+            bad = self.refused({'data': None, 'error': {'code': 'SCOPE_DENIED', 'reason': reason}}, 403)
+>           self.assertIsNone(getattr(bad, 'reason', 'missing'), repr(reason))
+E           AssertionError: 'SECRET_API_KEY' is not None : 'SECRET_API_KEY'
+
+tests/test_bot_replies.py:172: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_bot_replies.py::CommandReplyTests::test_the_read_tool_never_passes_on_an_unknown_reason
+FAILED tests/test_bot_replies.py::BackendReasonTests::test_the_backend_error_keeps_a_wellformed_reason_only
+2 failed, 6 passed in 0.18s

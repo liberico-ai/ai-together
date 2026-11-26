@@ -1,0 +1,124 @@
+
+ RUN  v5.1.0 <repo>
+      Coverage enabled with v8
+
+ ❯ tests/suggestions.test.ts (122 tests | 3 failed | 1 skipped) 84841ms
+   ❯ Z4 drafts: IBS HI is refused at write (OQ-45 point 3) (4)
+     × a draft for an IBS HI project is refused when it is written: POINTER_ONLY_PROJECT, nothing stored, no database error text 704ms
+   ❯ Z4 drafts: a candidate draft is confirmed only against the thread it read (OQ-53) (9)
+     × K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text 665ms
+     × K3b a message without a number, committed after the checks of the service and before its write, is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text 656ms
+ ❯ tests/z4-pointer-guard.test.ts (40 tests | 1 failed | 11 skipped) 19118ms
+   ❯ migration 022: the pointer-only guard (40)
+     × G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role 711ms
+ ❯ tests/rls-catalog.test.ts (2 tests | 1 failed) 871ms
+   × migrations from 013 create tables, and every one has FORCE RLS plus USING and WITH CHECK from the catalog 27ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/rls-catalog.test.ts > migrations from 013 create tables, and every one has FORCE RLS plus USING and WITH CHECK from the catalog
+AssertionError: analytics.tech_source_notes_held has a policy: expected 0 to be greater than 0
+ ❯ tests/rls-catalog.test.ts:37:42
+     35|     const pol=(await h.operator.query<{policyname:string;cmd:string;qu…
+     36|       'SELECT policyname,cmd,qual,with_check FROM pg_policies WHERE sc…
+     37|     expect(pol.length,t+' has a policy').toBeGreaterThan(0);
+       |                                          ^
+     38|     for(const p of pol){
+     39|       if(['INSERT','UPDATE','ALL'].includes(p.cmd)) expect(p.with_chec…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: IBS HI is refused at write (OQ-45 point 3) > a draft for an IBS HI project is refused when it is written: POINTER_ONLY_PROJECT, nothing stored, no database error text
+AssertionError: expected [ 'code', 'reason', 'status' ] to deeply equal [ 'code', 'status' ]
+
+- Expected
++ Received
+
+  [
+    "code",
++   "reason",
+    "status",
+  ]
+
+ ❯ tests/suggestions.test.ts:1350:33
+    1348|   expect((e as {cause?:unknown}).cause).toBeUndefined();
+    1349|   // allow-list: the own enumerable keys are exactly those an AppError…
+    1350|   expect(Object.keys(e).sort()).toEqual(['code','status']);
+       |                                 ^
+    1351|   for(const s of [d.record.id,ids.transport,'pointer-only']) expect(e.…
+    1352|   expect(await n('intelligence.ai_drafts')).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a candidate draft is confirmed only against the thread it read (OQ-53) > K3 the guard's refusal is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+AssertionError: expected [ 'code', 'reason', 'status' ] to deeply equal [ 'code', 'status' ]
+
+- Expected
++ Received
+
+  [
+    "code",
++   "reason",
+    "status",
+  ]
+
+ ❯ tests/suggestions.test.ts:1802:33
+    1800|   expect(e.message).not.toMatch(/LTZ03|thread|[0-9a-f]{8}-/);
+    1801|   expect(e).toBeInstanceOf(AppError);expect((e as {cause?:unknown}).ca…
+    1802|   expect(Object.keys(e).sort()).toEqual(['code','status']);
+       |                                 ^
+    1803|   await zeroDecisions();
+    1804|   expect(await n('document_commands')).toBe(cmds);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/suggestions.test.ts > Z4 drafts: a candidate draft is confirmed only against the thread it read (OQ-53) > K3b a message without a number, committed after the checks of the service and before its write, is the hold SUBJECT_CHANGED: no decision, the key stays free, no database text
+AssertionError: expected [ 'code', 'reason', 'status' ] to deeply equal [ 'code', 'status' ]
+
+- Expected
++ Received
+
+  [
+    "code",
++   "reason",
+    "status",
+  ]
+
+ ❯ tests/suggestions.test.ts:1824:33
+    1822|   expect(e.message).not.toMatch(/LTZ03|thread|[0-9a-f]{8}-/);
+    1823|   expect(e).toBeInstanceOf(AppError);expect((e as {cause?:unknown}).ca…
+    1824|   expect(Object.keys(e).sort()).toEqual(['code','status']);
+       |                                 ^
+    1825|   await zeroDecisions();
+    1826|   expect(await n('document_commands')).toBe(cmds);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/z4-pointer-guard.test.ts > migration 022: the pointer-only guard > G12 running 022 again changes nothing: the exact triggers of the three tables (four triggers), four functions with pinned settings and the order they fire in, no grant; the file inserts no data and creates no role
+AssertionError: expected [ …(3) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+    "project_domain_mappings_draft_lock",
+    "project_domain_mappings_immutable",
++   "tech_source_hold_on_mapping",
+  ]
+
+ ❯ tests/z4-pointer-guard.test.ts:277:59
+    275|     // 023 adds one AFTER INSERT trigger to the decision table; the BE…
+    276|     expect(await names('public.draft_decisions')).toEqual(['draft_deci…
+    277|     expect(await names('public.project_domain_mappings')).toEqual(['pr…
+       |                                                           ^
+    278|     // the order they fire in: BEFORE INSERT row triggers of one table…
+    279|     expect((await rows<{tgname:string}>("SELECT tgname FROM pg_trigger…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  3 failed | 85 passed | 15 skipped (103)
+      Tests  5 failed | 1547 passed | 162 skipped (1714)
+   Start at  09:16:00
+   Duration  829.84s (tests 99%, import 1%)
+
