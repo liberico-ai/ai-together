@@ -16,13 +16,8 @@ const definers=async()=>(await h.operator.query<Fn>(`SELECT n.nspname||'.'||p.pr
  WHERE p.prosecdef AND n.nspname IN ('public','identity','analytics','intelligence')
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e')
  ORDER BY 1`)).rows;
-/** Pinned: the temporary schema is named once, last. A path that cannot be read entry by entry counts as not pinned. */
-const pinned=(config:string)=>{
- const path=config.split(';').find(c=>c.startsWith('search_path='))?.slice('search_path='.length);
- if(path===undefined||!/^([a-z_][a-z0-9_]*|"[^",]*")( *, *([a-z_][a-z0-9_]*|"[^",]*"))*$/.test(path)) return false;
- const entries=path.split(',').map(e=>e.trim().replace(/^"|"$/g,'').toLowerCase());
- return entries.at(-1)==='pg_temp'&&!entries.slice(0,-1).some(e=>e.startsWith('pg_temp'));
-};
+/** Pinned: the temporary schema is named once, last, and every name is plain, unquoted and lower case (a quoted name keeps its case and may be an ordinary schema). */
+const pinned=(config:string)=>config.split(';').some(c=>/^search_path=([a-z_][a-z0-9_]* *, *)*pg_temp$/.test(c)&&!/(=|, *)pg_temp[a-z0-9_]* *,/.test(c));
 const lacking=async()=>(await definers()).filter(r=>!pinned(r.config)).map(r=>r.fn);
 const configOf=async(name:string)=>(await definers()).find(r=>r.fn.startsWith(name+'('))?.config.replace(/ /g,'');
 const sql=(p:string)=>readFile(path.join(process.cwd(),'migrations',p),'utf8').catch(()=>'SELECT 1');
@@ -57,7 +52,9 @@ describe('migration 032',()=>{
  const probe=(path:string)=>h.operator.query(`CREATE FUNCTION public.zz_unpinned_probe() RETURNS int LANGUAGE sql SECURITY DEFINER SET search_path=${path} AS 'SELECT 1'`);
  // a path where the temporary schema also appears earlier is searched there first, whatever comes last
  for(const [label,path] of [['only the catalog','pg_catalog'],['the temporary schema earlier and again last','pg_catalog,pg_temp,public,pg_temp'],
-   ['a quoted temporary schema first','"pg_temp",pg_catalog,pg_temp'],['a temporary schema before a named one','pg_temp,pg_catalog']] as const)
+   ['a quoted temporary schema first','"pg_temp",pg_catalog,pg_temp'],['a temporary schema before a named one','pg_temp,pg_catalog'],
+   // quoted names keep their case: "PG_TEMP" is an ordinary schema, so the temporary one is not named at all and is searched first
+   ['a quoted upper-case name in the last place','pg_catalog,"PG_TEMP"'],['one string holding the whole list','\'pg_catalog,pg_temp\'']] as const)
   test('it stops, changing nothing, when another privileged function is left unpinned: '+label,async()=>{
    const above=await takeOffAbove(h,31);
    await probe(path);

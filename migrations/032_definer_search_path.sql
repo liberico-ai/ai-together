@@ -24,18 +24,15 @@ ALTER FUNCTION public.work_request_project_seat(uuid) SET search_path = pg_catal
 ALTER FUNCTION public.work_request_seat(uuid) SET search_path = pg_catalog, pg_temp;
 
 -- Nothing may be left over, including a function made outside the migrations: this file stops, changing nothing, and names it. Pinned means the temporary
--- schema is named once, last: named earlier as well, it is searched at its first place. A path that cannot be read entry by entry (anything but plain names and
--- quoted names without a comma or quote) counts as not pinned. substr(c,13) is the text after «search_path=».
+-- schema is named once, last: named earlier as well, it is searched at its first place. Only plain, unquoted, lower-case names are accepted, because a quoted
+-- name keeps its case and may be an ordinary schema ("PG_TEMP" is not the temporary one): any other way of writing the path counts as not pinned.
 DO $$ DECLARE left_open text; BEGIN
  SELECT string_agg(n.nspname||'.'||p.proname, ', ' ORDER BY n.nspname, p.proname) INTO left_open
    FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
   WHERE p.prosecdef AND n.nspname IN ('public','identity','analytics','intelligence')
     AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend d WHERE d.classid='pg_catalog.pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e')
     AND NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) c
-      CROSS JOIN LATERAL (SELECT ARRAY(SELECT lower(btrim(btrim(u.entry),'"')) FROM unnest(string_to_array(substr(c,13),',')) WITH ORDINALITY AS u(entry,place) ORDER BY u.place) AS path) s
-      WHERE starts_with(c,'search_path=') AND substr(c,13) ~ '^([a-z_][a-z0-9_]*|"[^",]*")( *, *([a-z_][a-z0-9_]*|"[^",]*"))*$'
-        AND s.path[cardinality(s.path)]='pg_temp'
-        AND NOT EXISTS (SELECT 1 FROM unnest(s.path[1:cardinality(s.path)-1]) AS earlier(name) WHERE starts_with(earlier.name,'pg_temp')));
+      WHERE c ~ '^search_path=([a-z_][a-z0-9_]* *, *)*pg_temp$' AND c !~ '(=|, *)pg_temp[a-z0-9_]* *,');
  IF left_open IS NOT NULL THEN
   RAISE EXCEPTION '032: privileged functions without the temporary schema last in their search path: %. Pin or remove them, then run 032 again.', left_open;
  END IF;
