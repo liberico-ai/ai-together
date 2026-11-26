@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-VERSION = "0.3.3"
+VERSION = "0.3.4"
 EXPECTED_HOME = Path("/home/iptech/.hermes/profiles/libetech")
 ORIGIN = "http://127.0.0.1:3148"
 ENDPOINT = ORIGIN + "/api/bridge"
@@ -124,10 +124,12 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise ValueError("BRIDGE_REDIRECT_DENIED")
 
 class BackendError(ValueError):
-    """An error answer from the backend. str() is the code; `status` is the HTTP status (0 if unknown)."""
-    def __init__(self, code, status):
+    """An error answer from the backend. str() is the code; `status` is the HTTP status (0 if unknown); `reason` narrows a code with several causes."""
+    def __init__(self, code, status, reason=None):
         super().__init__(code)
         self.status = status
+        # a fixed upper-case word only: anything else from the wire is dropped, never echoed
+        self.reason = reason if isinstance(reason, str) and re.fullmatch(r"[A-Z_]{2,40}", reason) else None
 
 def _encode(payload):
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
@@ -185,7 +187,8 @@ def call_backend(home, payload, *, path="/api/bridge", key_file="bridge.json", t
         error = result.get("error") if isinstance(result, dict) else None
         if not isinstance(result, dict) or error:
             code = error.get("code") if isinstance(error, dict) else None
-            raise BackendError(str(code or "BRIDGE_UNAVAILABLE"), status)
+            reason = error.get("reason") if isinstance(error, dict) else None
+            raise BackendError(str(code or "BRIDGE_UNAVAILABLE"), status, reason)
         return result["data"]
 
 def _failure_kind(error):
@@ -234,6 +237,77 @@ def safe_error(error):
     if not re.fullmatch(r"[A-Z][A-Z0-9_]{1,80}", code):
         code = "BRIDGE_UNAVAILABLE"
     return {"ok": False, "error": code, "bridgeVersion": VERSION}
+
+# ---- What a person is told (GIAO VIỆC 5 D) ----
+# One sentence per refusal code: the cause and the next step, ending with the code so an operator can look it up. No sentence names a project, a business unit,
+# a group or a person, and none carries anything the server sent: only the code and the fixed `reason` choose it.
+REPLIES = {
+    "BRIDGE_UNCONFIGURED": "Máy chủ AI OS chưa bật cầu nối cho bot. Báo người vận hành.",
+    "IDENTITY_UNAVAILABLE": "Máy chủ AI OS chưa bật phần đăng nhập. Báo người vận hành.",
+    "BRIDGE_AUTH_DENIED": "AI OS không nhận chữ ký của bot (cấu hình cầu nối hoặc đồng hồ máy chủ, không phải quyền của bạn). Báo người vận hành.",
+    "BRIDGE_REPLAY": "AI OS coi yêu cầu này là gửi lại. Gõ lại lệnh một lần nữa.",
+    "RATE_LIMITED": "Đã gửi quá nhiều yêu cầu trong thời gian ngắn. Đợi vài phút rồi thử lại.",
+    "PAYLOAD_TOO_LARGE": "Nội dung gửi lên quá lớn. Gửi ngắn hơn.",
+    "INVALID_INPUT": "AI OS không đọc được yêu cầu này. Kiểm lại cú pháp lệnh rồi gửi lại.",
+    "INTERNAL_ERROR": "AI OS gặp lỗi nội bộ khi xử lý. Thử lại sau; nếu vẫn lỗi, báo người vận hành kèm giờ gửi.",
+    "TELEGRAM_NOT_LINKED": "Tài khoản Telegram này chưa ghép với tài khoản AI OS. Đăng nhập AI OS, mở mục «Ghép tài khoản Telegram», tạo mã, rồi gửi /libetech_link <mã> trong tin nhắn riêng với bot.",
+    "NO_PROJECT_ACCESS": "Tài khoản AI OS của bạn chưa được giao dự án và chưa có trong danh sách Team Tech. Nhờ người quản trị thêm bạn vào một dự án hoặc vào danh sách Team Tech.",
+    "UNAUTHENTICATED": "Tài khoản AI OS đã ghép với Telegram này đang không hoạt động. Nhờ người quản trị kiểm tra tài khoản.",
+    "PAIRING_INVALID": "Mã ghép đã hết hạn hoặc đã dùng. Tạo mã mới trong AI OS rồi gửi /libetech_link <mã> trong tin nhắn riêng.",
+    "INVALID_PAIRING_CODE": "Mã ghép chưa đúng dạng (43 ký tự). Chép lại nguyên dòng lệnh từ AI OS.",
+    "IDENTITY_CONFLICT": "Telegram này hoặc tài khoản AI OS này đã ghép ở chỗ khác. Gỡ liên kết cũ trong AI OS, hoặc nhờ người quản trị.",
+    "PRIVATE_CHAT_REQUIRED": "Lệnh này chỉ dùng trong tin nhắn riêng với bot. Mở chat riêng rồi gửi lại.",
+    "APPROVER_REQUIRED": "Tài khoản của bạn không phải người duyệt phiếu cấp tài khoản này. Nếu bạn cho là sai, nhờ người quản trị kiểm tra.",
+    "APPROVAL_NOT_FOUND": "Không có phiếu duyệt này. Gõ /duyet để xem phiếu đang chờ bạn.",
+    "APPROVERS_NOT_READY": "Phiếu chưa mở được vì chưa đủ người duyệt đã ghép Telegram. Nhờ các người duyệt ghép Telegram rồi thử lại.",
+    "APPROVERS_CHANGED": "Danh sách người duyệt đã đổi nên phiếu cũ không còn dùng. Nhờ người đề xuất lập phiếu mới.",
+    "APPROVAL_NOT_READY": "Phiếu chưa đủ số xác nhận còn hiệu lực. Chờ đủ xác nhận rồi áp.",
+    "APPROVAL_CLOSED": "Phiếu này đã kết thúc hoặc hết hạn. Gõ /duyet để xem phiếu còn chờ.",
+    "VOTE_LOCKED": "Lựa chọn của bạn cho phiếu này đã ghi và không đổi được. Gõ /duyet để xem phiếu còn lại.",
+    "BRIDGE_UNAVAILABLE": "Bot chưa nhận được câu trả lời của AI OS (mất kết nối, quá thời gian chờ hoặc trả lời hỏng). Thử lại sau ít phút; nếu kéo dài, báo người vận hành.",
+    "BRIDGE_RESPONSE_TOO_LARGE": "AI OS trả lời quá lớn nên bot không đọc được. Báo người vận hành.",
+    "BRIDGE_REDIRECT_DENIED": "Địa chỉ AI OS của bot bị chuyển hướng nên bot dừng gửi. Báo người vận hành.",
+    "BRIDGE_NOT_CONFIGURED": "Cầu nối của bot chưa được cấu hình trên máy chủ gateway. Báo người vận hành.",
+    "BRIDGE_CONFIG_PERMISSIONS": "Tệp cấu hình cầu nối của bot sai quyền truy cập nên bot không dùng. Báo người vận hành.",
+    "PROFILE_SCOPE_MISMATCH": "Bot này không chạy đúng hồ sơ được phép gọi AI OS. Dùng đúng bot AI OS; nếu đúng bot đó, báo người vận hành.",
+    "BRIDGE_ROUTE_DENIED": "Bot bị chặn gọi đường này của AI OS. Báo người vận hành.",
+    "USE_CODE_AND_FULL_SHA": "Cú pháp: /libetech_check <mã việc> <SHA đầy đủ 40 ký tự>.",
+    "USE_APPROVAL_ID": "Gõ /duyet để chọn phiếu, hoặc gửi đúng mã phiếu sau lệnh.",
+    "NO_ARGUMENTS_EXPECTED": "Lệnh này không nhận thêm chữ sau tên lệnh. Gõ lại chỉ tên lệnh.",
+    "INVALID_REQUEST": "Mã việc hoặc SHA chưa đúng dạng. Mã việc gồm chữ hoa, số và gạch nối; SHA đủ 40 ký tự.",
+    "BOUND_SESSION_REQUIRED": "Bot chưa nhận được phiên chat đã xác thực từ gateway. Gửi lại tin; nếu vẫn lỗi, báo người vận hành.",
+    "BOUND_TELEGRAM_REQUIRED": "Bot không xác định được người gửi Telegram đã xác thực. Gửi lại trực tiếp từ tài khoản của bạn, không qua bot khác.",
+    "CHAT_IDENTITY_MISMATCH": "Người gửi không khớp với loại cuộc trò chuyện. Gửi lại trực tiếp từ tài khoản của bạn.",
+    "APPROVAL_INVALID": "Phiếu đọc về không đúng dạng nên bot không hỏi bạn. Báo người vận hành.",
+    "APPROVAL_SCOPE_UNAVAILABLE": "Bot không đọc được đủ phạm vi quyền của phiếu nên không cho bấm. Duyệt trong AI OS hoặc báo người vận hành.",
+    "APPROVAL_SCOPE_TOO_LONG": "Phiếu có quá nhiều quyền để hiện trong một thẻ. Duyệt trong AI OS.",
+}
+# SCOPE_DENIED has several causes; the server names the one that happened.
+SCOPE_REPLIES = {
+    "CHAT_SOURCE_INVALID": "AI OS không nhận cuộc trò chuyện này vì người gửi và chat không khớp. Gửi lại trực tiếp trong tin nhắn riêng với bot.",
+    "NO_PROJECT_YET": "Bạn chưa thuộc dự án nào trên AI OS nên chưa đọc được hồ sơ. Nhờ người quản trị thêm bạn vào dự án.",
+    "NOT_PROJECT_MEMBER": "Bạn không thuộc dự án gắn với nhóm này. Nhờ người quản trị thêm bạn vào dự án, hoặc hỏi trong tin nhắn riêng với bot về dự án của bạn.",
+    "CHAT_NOT_MAPPED": "Nhóm này không gắn với dự án nào trên AI OS nên bot không đọc hồ sơ ở đây. Hỏi trong tin nhắn riêng với bot hoặc trong nhóm đã gắn dự án.",
+    "RECORD_NOT_FOUND": "Không thấy hồ sơ đúng mã việc và SHA trong phạm vi bạn được đọc. Kiểm lại mã việc và SHA đầy đủ 40 ký tự.",
+}
+# A server without `reason` (0.9.2 and older): the status still separates "no such record" from the access causes.
+SCOPE_BY_STATUS = {
+    404: SCOPE_REPLIES["RECORD_NOT_FOUND"],
+    403: "AI OS không cho đọc ở cuộc trò chuyện này: nhóm chưa gắn dự án, hoặc bạn không thuộc dự án của nhóm. Hỏi trong tin nhắn riêng với bot; nếu vẫn bị từ chối, nhờ người quản trị thêm bạn vào dự án.",
+}
+FALLBACK_REPLY = "AI OS từ chối yêu cầu và bot chưa có câu giải thích cho mã này. Báo người vận hành kèm mã."
+RELAY_INSTRUCTION = "Gửi cho người dùng nguyên văn câu trong \"reply\". Không tự giải thích mã lỗi và không đoán nguyên nhân khác."
+
+def reply_for(code, status=0, reason=None):
+    if code == "SCOPE_DENIED":
+        text = SCOPE_REPLIES.get(reason) or SCOPE_BY_STATUS.get(status) or SCOPE_BY_STATUS[403]
+    else:
+        text = REPLIES.get(code, FALLBACK_REPLY)
+    return f"{text} (mã {code})"
+
+def reply_to(error):
+    """The sentence for a failure caught on a command or tool path; the code comes from safe_error, so free text never reaches it."""
+    return reply_for(safe_error(error)["error"], getattr(error, "status", 0), getattr(error, "reason", None))
 
 def read_request(params, context):
     if (not isinstance(params, dict) or set(params) != {"code", "source_sha"}
@@ -1502,7 +1576,9 @@ def register(ctx):
             result = call_backend(home, read_request(params, tool_context()))
             return json.dumps({"ok": True, "data": result, "bridgeVersion": VERSION}, ensure_ascii=False)
         except Exception as error:
-            return json.dumps(safe_error(error))
+            reason = getattr(error, "reason", None)
+            return json.dumps({**safe_error(error), **({"reason": reason} if reason else {}),
+                               "reply": reply_to(error), "instruction": RELAY_INSTRUCTION}, ensure_ascii=False)
 
     def link(raw_args, *, source=None):
         try:
@@ -1515,7 +1591,7 @@ def register(ctx):
             call_backend(home, {"operation": "pair", "context": context, "code": code})
             return "Đã xác minh và ghép Telegram với tài khoản LibeTech AI OS. Quyền dự án giữ nguyên."
         except Exception as error:
-            return safe_error(error)["error"]
+            return reply_to(error)
 
     def check(raw_args, *, source=None):
         try:
@@ -1525,7 +1601,7 @@ def register(ctx):
             result = call_backend(home, read_request({"code": parts[0], "source_sha": parts[1]}, command_context(source)))
             return json.dumps({"ok": True, "data": result, "bridgeVersion": VERSION}, ensure_ascii=False)
         except Exception as error:
-            return safe_error(error)["error"]
+            return reply_to(error)
 
     def access_pending(raw_args, *, source=None):
         try:
@@ -1537,7 +1613,7 @@ def register(ctx):
             result = call_backend(home, {"operation": "account_approval_pending", "context": context})
             return json.dumps({"ok": True, "pending": result}, ensure_ascii=False)
         except Exception as error:
-            return safe_error(error)["error"]
+            return reply_to(error)
 
     def access_vote(raw_args, *, source=None, choice):
         try:
@@ -1551,7 +1627,7 @@ def register(ctx):
                                          "approvalId": approval_id, "choice": choice})
             return json.dumps({"ok": True, "approval": result}, ensure_ascii=False)
         except Exception as error:
-            return safe_error(error)["error"]
+            return reply_to(error)
 
     def access_review(raw_args, *, source=None):
         """One short DM command, then one Yes/No card per pending ballot."""
@@ -1585,10 +1661,10 @@ def register(ctx):
                         else "Chưa tự áp quyền mới." if kinds == {"access_change"} else "Chưa tự cấp lời mời.")
             return "Đã ghi lựa chọn Telegram: " + "; ".join(recorded) + ". " + not_done
         except Exception as error:
-            return safe_error(error)["error"]
+            return reply_to(error)
 
     ctx.register_tool(name="libetech_os_read", toolset="libetech-ai-os-bridge", handler=read, schema={
-        "name": "libetech_os_read", "description": "Read an AI OS reconciliation at the exact full SHA. Backend verifies linked Telegram identity and chat/project scope. Read only; a source closure is not acceptance.",
+        "name": "libetech_os_read", "description": "Read an AI OS reconciliation at the exact full SHA for the linked Telegram user. Read only; a source closure is not acceptance. When the result has ok=false, send the user the sentence in reply exactly as written and do not explain the error code yourself.",
         "parameters": {"type": "object", "properties": {"code": {"type": "string"}, "source_sha": {"type": "string"}}, "required": ["code", "source_sha"], "additionalProperties": False}})
     # Native commands prevent the pairing secret from entering the model/tool argument history.
     ctx.register_command("libetech-link", handler=link, description="Ghép tài khoản AI OS trong tin nhắn riêng", args_hint="<mã ghép>")

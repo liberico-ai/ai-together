@@ -4,6 +4,7 @@ import {identityService,SESSION_COOKIE} from '@/server/identity';
 import {database} from '@/server/db';
 import {teamCatalog} from '@/server/team-catalog';
 import {AppError} from '@/server/errors';
+import {sourceNoteNotice} from '@/server/ibs-label';
 export const dynamic='force-dynamic';
 const sourceUrl='https://docs.google.com/spreadsheets/d/1Vr1ykZUtwm5Wvj1oAQRjpzMgleDa6Fhu-WiPv-L61Vc/edit';
 const buOrder=['LBRC','XECA','IBS HI'];
@@ -22,6 +23,7 @@ export default async function PortfolioPage() {
     const work=tasks.filter(t=>t.bu===bu),systems=platforms.filter(s=>s.bu===bu);
     return <section key={bu} className="panel team-form"><h2>{bu} · {work.length} việc</h2>
       <p>Danh mục nền tảng từ nguồn 26/10: {systems.length?systems.map(s=>s.name).join(' · '):'chưa có trong bảng nền tảng'}</p>
+      {sourceNoteNotice(bu)&&<p>{sourceNoteNotice(bu)}</p>}
       <div style={{overflowX:'auto'}}><table><thead><tr><th>STT</th><th>Đầu việc</th><th>Phụ trách nguồn</th><th>Trạng thái nguồn</th><th>Hạn nguồn</th><th>Căn cứ</th></tr></thead>
       <tbody>{work.map(t=><tr key={t.source_ref}><td>{t.stt}</td><td><strong>{t.title}</strong>
        {(t.collaborators||t.source_note)&&<details><summary>Phối hợp và ghi chú nguồn</summary>

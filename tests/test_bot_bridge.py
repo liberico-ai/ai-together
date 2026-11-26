@@ -41,13 +41,13 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(len(registered),7)
         source=SimpleNamespace(**self.context())
         check=next(kwargs['handler'] for name,kwargs in registered if name=='libetech-check')
-        self.assertEqual(check('LBRC014 '+'a'*40,source=source),'PROFILE_SCOPE_MISMATCH')
+        self.assertEqual(check('LBRC014 '+'a'*40,source=source),bridge.reply_for('PROFILE_SCOPE_MISMATCH'))
         pending=next(kwargs['handler'] for name,kwargs in registered if name=='libetech-access-pending')
-        self.assertEqual(pending('',source=source),'PROFILE_SCOPE_MISMATCH')
+        self.assertEqual(pending('',source=source),bridge.reply_for('PROFILE_SCOPE_MISMATCH'))
         group=SimpleNamespace(**self.context(chat_id='-1001',chat_type='group'))
-        self.assertEqual(pending('',source=group),'PRIVATE_CHAT_REQUIRED')
+        self.assertEqual(pending('',source=group),bridge.reply_for('PRIVATE_CHAT_REQUIRED'))
         approve=next(kwargs['handler'] for name,kwargs in registered if name=='libetech-access-approve')
-        self.assertEqual(approve('not-an-id',source=source),'USE_APPROVAL_ID')
+        self.assertEqual(approve('not-an-id',source=source),bridge.reply_for('USE_APPROVAL_ID'))
     def test_short_review_asks_yes_no_without_exposing_ids_or_bypassing_dm(self):
         import sys
         from unittest.mock import patch
@@ -84,7 +84,7 @@ class BridgeTests(unittest.TestCase):
             self.assertEqual([choice['value'] for choice in questions[0][1]],['yes','no'])
             requests.clear()
             group=SimpleNamespace(**self.context(chat_id='-1001',chat_type='group'))
-            self.assertEqual(review('',source=group),'PRIVATE_CHAT_REQUIRED')
+            self.assertEqual(review('',source=group),bridge.reply_for('PRIVATE_CHAT_REQUIRED'))
             self.assertEqual(requests,[])
     def test_short_review_cancel_and_unknown_scope_never_vote(self):
         import sys
@@ -108,7 +108,7 @@ class BridgeTests(unittest.TestCase):
             self.assertEqual([r['operation'] for r in requests],['account_approval_pending'])
             row['grant_details'][0]['role']='unknown'
             requests.clear()
-            self.assertEqual(review('',source=SimpleNamespace(**self.context())),'APPROVAL_SCOPE_UNAVAILABLE')
+            self.assertEqual(review('',source=SimpleNamespace(**self.context())),bridge.reply_for('APPROVAL_SCOPE_UNAVAILABLE'))
             self.assertEqual([r['operation'] for r in requests],['account_approval_pending'])
     def test_error_does_not_echo_secrets(self):
         self.assertEqual(bridge.safe_error(ValueError('secret token: hidden'))['error'],'BRIDGE_UNAVAILABLE')
@@ -1076,7 +1076,7 @@ class IntakeAdapterTests(unittest.TestCase):
             registered,_=register_with(Path('/tmp/hermes-probe'),ask_choice=lambda question,choices:(asked.append(question),'yes')[1])
             review=next(kwargs['handler'] for name,kwargs in registered if name=='duyet')
             with patch.object(bridge,'call_backend',side_effect=lambda _home,payload:(requests.append(payload),[row])[1]):
-                self.assertEqual(review('',source=SimpleNamespace(**DM)),code)
+                self.assertEqual(review('',source=SimpleNamespace(**DM)),bridge.reply_for(code))
             self.assertEqual(asked,[])
             self.assertEqual([r['operation'] for r in requests],['account_approval_pending'])
 
@@ -1087,7 +1087,7 @@ class IntakeAdapterTests(unittest.TestCase):
             return next(kwargs['handler'] for name,kwargs in registered if name=='duyet')
         requests=[]
         with patch.object(bridge,'call_backend',side_effect=lambda _home,payload:(requests.append(payload),[row])[1]):
-            self.assertEqual(review_with('yes')('',source=SimpleNamespace(**DM|dict(chat_id=GROUP,chat_type='group'))),'PRIVATE_CHAT_REQUIRED')
+            self.assertEqual(review_with('yes')('',source=SimpleNamespace(**DM|dict(chat_id=GROUP,chat_type='group'))),bridge.reply_for('PRIVATE_CHAT_REQUIRED'))
             self.assertEqual(requests,[])
         def closed(_home,payload):
             requests.append(payload)
@@ -1095,7 +1095,7 @@ class IntakeAdapterTests(unittest.TestCase):
             return [row]
         with patch.object(bridge,'call_backend',side_effect=closed):
             result=review_with('yes')('',source=SimpleNamespace(**DM))
-        self.assertEqual(result,'APPROVAL_CLOSED');self.assertNotIn('Đã ghi',result)
+        self.assertEqual(result,bridge.reply_for('APPROVAL_CLOSED'));self.assertNotIn('Đã ghi',result)
         requests.clear()
         with patch.object(bridge,'call_backend',side_effect=lambda _home,payload:(requests.append(payload),[row])[1]):
             self.assertIn('Đã dừng',review_with(None)('',source=SimpleNamespace(**DM)))
@@ -1719,7 +1719,7 @@ class IntakeAnswerTests(unittest.TestCase):
                 registered,_=register_with(home)
                 check=next(kwargs['handler'] for name,kwargs in registered if name=='libetech-check')
                 with patch.object(bridge.urllib.request,'build_opener',return_value=AnswerOpener({'/api/bridge':(200,body)})):
-                    self.assertEqual(check('LBRC014 '+'a'*40,source=SimpleNamespace(**DM)),read_answer)
+                    self.assertEqual(check('LBRC014 '+'a'*40,source=SimpleNamespace(**DM)),read_answer if read_answer.startswith('{') else bridge.reply_for(read_answer))
                 send=Mock(return_value=601)
                 with patch.object(bridge.urllib.request,'build_opener',return_value=AnswerOpener({bridge.PULL_PATH:(200,body)})):
                     summary=bridge.drain_outbox(home,send,bridge.SendJournal(home))
@@ -1748,7 +1748,7 @@ class DocumentApprovalCodeTests(unittest.TestCase):
         registered,_=register_with(Path('/tmp/hermes-probe'),ask_choice=lambda question,choices:(asked.append(question),'yes')[1])
         review=next(kwargs['handler'] for name,kwargs in registered if name=='duyet')
         with patch.object(bridge,'call_backend',side_effect=lambda _home,payload:(requests.append(payload),[row])[1]):
-            self.assertEqual(review('',source=SimpleNamespace(**DM)),'APPROVAL_SCOPE_UNAVAILABLE')
+            self.assertEqual(review('',source=SimpleNamespace(**DM)),bridge.reply_for('APPROVAL_SCOPE_UNAVAILABLE'))
         self.assertEqual(asked,[])
         self.assertEqual([r['operation'] for r in requests],['account_approval_pending'])
         self.assertNotIn('account_approval_vote',[r['operation'] for r in requests])

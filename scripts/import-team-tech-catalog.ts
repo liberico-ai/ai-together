@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {Pool} from 'pg';
 import {z} from 'zod';
 import {inspectSourceSnapshot,sourceSnapshot} from '../src/server/source-snapshot';
+import {storedSourceNote} from '../src/server/ibs-label';
 
 const catalogSchema=z.object({
  snapshot:sourceSnapshot,
@@ -44,7 +45,7 @@ async function main() {
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       ON CONFLICT DO NOTHING RETURNING id`,
       [tenant,project.get(bu),catalog.snapshot.source_id,row.row,stt,row.source_ref,report.snapshot_hash,
-       row.fingerprint,catalog.snapshot.source_modified_at,title,owner,collaborators,status,due,note]);
+       row.fingerprint,catalog.snapshot.source_modified_at,title,owner,collaborators,status,due,storedSourceNote(bu,note??'')]);
     tasksInserted+=result.rowCount??result.rows.length;
    }
   }
