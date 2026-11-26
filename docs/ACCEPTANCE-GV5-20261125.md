@@ -1,6 +1,8 @@
-# Kịch bản nghiệm thu GIAO VIỆC 5 và 7 — tài khoản thật (0.9.3)
+# Kịch bản nghiệm thu GIAO VIỆC 5 và 7 — tài khoản thật (0.9.4)
 
-Version 1.2 · 26/11/2026 · bản 0.9.3 (merge `cf1f2ca`) · biên nhận: `docs/DELIVERY-024-gv5-d-e-release-093-20261126.md` (D, E, B6), `docs/DELIVERY-023-gv7-unlock-092-20261125.md` · runbook: `docs/RUNBOOK-093-20261126.md`
+Version 1.3 · 26/11/2026 · bản 0.9.4 (merge `ad500f5`) · biên nhận: `docs/DELIVERY-025-gv5-f-release-094-20261126.md` (F), `docs/DELIVERY-024-gv5-d-e-release-093-20261126.md` (D, E, B6), `docs/DELIVERY-023-gv7-unlock-092-20261125.md` · runbook: `docs/RUNBOOK-094-20261126.md`
+
+Bản 1.3 viết kịch bản 6 theo F đã merge.
 
 Bản 1.2 viết lại kịch bản 4 và 5 theo D và E đã merge, và thêm kịch bản 13 (gỡ liên kết, OQ-61 B6).
 
@@ -71,9 +73,24 @@ Chạy sau khi web 0.9.3 và plugin 0.3.5 đã chạy. Mỗi người ghi: lện
 2. `PM` chọn nhầm tệp `.xlsx` ở trang nhập → câu báo nói đó là Excel và cách tải CSV.
 3. Với ticket ngày 20/11: lặp lại với tệp thật hoặc tệp mẫu cùng loại, cùng kích thước (EV-05, EV-30, EV-31). «Quyền thư mục» cần EV-32. Không ghi ticket nào «đã đóng» nếu người báo chưa xác nhận.
 
-## 6 · Lịch nhắc
+## 6 · Lịch nhắc (F, 0.9.4)
 
-Hạng mục F. Chạy khi F đã triển khai. Lịch nhắc GO LIVE và lịch BoM tới đúng nhóm, đúng nội dung, có nguồn (EV-07, EV-08).
+Chạy khi 0.9.4 và plugin 0.3.6 đã chạy, và Chairman đã cho bật một đích ở một nhóm dùng để thử (runbook §5). Mỗi bước ghi giờ, nhóm (tên hiển thị), và tin nhận được **nguyên văn**.
+
+1. **Ai ghi được lịch.** `PM` (một ghế BoM của dự án thử) và một BoM Tech mở «Lịch họp BoM» và thấy lịch. `Tech-1` mở thì không thấy lịch nào.
+2. **Đổi một buổi.** Gửi tin xác nhận đổi giờ trong nhóm của dự án, gọi bot, lấy mã IN. `PM` ghi «Chỉ một buổi» kèm mã đó. Trang hiện buổi tới theo giờ mới, buổi sau giữ giờ gốc.
+3. **Đổi cả lịch.** Ghi «Cả lịch định kỳ» với một mã IN khác. Các buổi từ buổi kế tiếp theo giờ mới.
+4. **Không rõ.** Ghi «Chưa rõ áp cho buổi nào». Nhóm nhận đúng một câu hỏi nêu mã IN. Lịch đó ngừng nhắc tới khi trả lời trên web.
+5. **Mã sai.** Dùng mã IN của một dự án khác: trang báo không tìm thấy tin trong dự án.
+6. **Tin nhắc họp.** Trước buổi một ngày, trong khung giờ, nhóm đích nhận một tin nêu ngày, giờ và nguồn (lịch gốc hoặc mã IN). Chạy lại lượt hẹn giờ thì không có tin thứ hai.
+7. **Đổi giờ sau khi đã nhắc.** Đổi giờ buổi đó: lượt sau gửi một tin mới với giờ mới.
+8. **Trạng thái GO LIVE.** Buổi sáng ngày làm việc, nhóm đích nhận danh sách tên người chưa gửi yêu cầu và người có việc chưa có bằng chứng.
+   - Đối chiếu với trang việc của dự án: đúng từng người.
+   - Tin không có tiêu đề hay mã việc.
+9. **Đúng nhóm.** Chỉ nhóm đích nhận tin; nhóm chung Team Tech và tin riêng không nhận gì. `send-reminders.ts --status` đếm đúng số tin `delivered` (EV-36).
+10. **Tắt.** Tắt đích: không còn tin nào nữa; tin còn chờ chuyển sang `dead`, mã `REMINDER_TARGET_CHANGED`.
+
+Ca (e) và (f) chỉ được đối chiếu khi người báo xác nhận trên tin gốc (EV-07, EV-08).
 
 ## 7 · PM nhập bảng
 
