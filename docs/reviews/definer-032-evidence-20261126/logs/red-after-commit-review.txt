@@ -1,0 +1,36 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/definer-search-path.test.ts (10 tests | 1 failed) 789ms
+   ❯ migration 032 (8)
+     × it stops, changing nothing, when another privileged function is left unpinned: a quoted upper-case name in the last place 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/definer-search-path.test.ts > migration 032 > it stops, changing nothing, when another privileged function is left unpinned: a quoted upper-case name in the last place
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ tests/definer-search-path.test.ts:67:65
+     65|    await probe(path);
+     66|    try {
+     67|     await expect(exec(await sql('032_definer_search_path.sql'))).rejec…
+       |                                                                 ^
+     68|     expect((await lacking()).length).toBe(18);
+     69|     expect((await h.operator.query("SELECT 1 FROM schema_migrations WH…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  23:37:55
+   Duration  875ms (tests 96%, import 2%, transform 2%)
+
