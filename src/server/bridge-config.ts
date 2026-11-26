@@ -26,6 +26,8 @@ export function parseBridgeConfig(raw:unknown):BridgeConfig {
  // A project id listed twice for one group is operator noise: lowercase (canonical uuid form), keep the first of each, in order (OQ-27 counts distinct projects).
  return {...c,chatScopes:Object.fromEntries(Object.entries(c.chatScopes).map(([k,v])=>[k,[...new Set(v.map(x=>x.toLowerCase()))]]))};
 }
+/** The projects the gateway's outbox pull serves: those of the intake chats, each once. Null without an intake principal. */
+export const intakeProjectIds=(c:BridgeConfig):string[]|null=>c.intake?[...new Set(c.intake.chats.flatMap(x=>c.chatScopes[x]??[]))]:null;
 export async function loadBridgeConfig():Promise<BridgeConfig|null> {
  const file=process.env.LIBETECH_BRIDGE_CONFIG;
  if(!file) return null;

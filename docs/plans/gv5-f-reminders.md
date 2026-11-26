@@ -1,6 +1,6 @@
 # Kế hoạch GIAO VIỆC 5 · hạng mục F — Lịch nhắc có ngữ cảnh
 
-Ngày 26/11/2026 · nền `libetech-ai-os` @ `ce27e9f` (0.9.3) · PR 6. **Chờ duyệt trước khi viết mã** (§6).
+Ngày 26/11/2026 · nền `libetech-ai-os` @ `ce27e9f` (0.9.3) · PR 6. **Đã duyệt** 26/11/2026 theo các đề xuất ở §6 (§7).
 
 ## 1. Hiện trạng (#fact, đọc mã)
 
@@ -97,3 +97,14 @@ Ngày 26/11/2026 · nền `libetech-ai-os` @ `ce27e9f` (0.9.3) · PR 6. **Chờ 
 - **Q-F4. Giờ nhắc.**
   - Đề xuất: GO LIVE 08:30 các ngày làm việc; họp BoM nhắc trước một ngày.
   - Cấu hình được trên đích.
+
+## 7. Duyệt và bổ sung khi viết mã
+
+- **26/11/2026, Chairman:** «Yes, build F», sau khi phiên trình bốn đề xuất Q-F1…Q-F4 ở §6. Q-F1 mở đường gửi, đích do người vận hành ghi. Q-F2 gửi vào nhóm, chỉ nêu tên. Q-F3 từ chối IBS HI. Q-F4 GO LIVE 08:30 ngày làm việc, họp nhắc trước một ngày.
+- Bổ sung, cùng hướng an toàn hơn:
+  - Tin nhắc quá 6 giờ chưa gửi thì bỏ (`REMINDER_EXPIRED`), để không gửi nhắc họp muộn.
+  - Bộ hẹn giờ bỏ qua đích nằm ngoài phạm vi mà gateway kéo tin, và ghi `not_in_intake_scope`, để tin không nằm mãi ở hàng đi.
+  - Trạng thái GO LIVE quá 2 giờ, hoặc chiếu từ hôm trước, thì không gửi (`stale_status`).
+  - Tên dự án và tên người được làm sạch ký tự nhắc tên, lệnh, ký tự ẩn, ngoặc nhọn; danh sách dài được cắt kèm «và N người nữa».
+- Điểm còn để ngỏ: Q-GV5F-1…5 cuối `docs/OPEN-QUESTIONS.md`.
+

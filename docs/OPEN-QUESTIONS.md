@@ -1301,3 +1301,26 @@ Phiên PR ghi cách hiểu tạm dưới đây để không bị chặn. Đây k
   - Phương án: (1) giữ; (2) thêm điều phối dự án.
 - **Q-GV5E-2. Không nối lại đúng cặp đã gỡ.** Khoá duy nhất của 025 giữ nguyên. Muốn nối lại đúng cặp thì phải đổi khoá đó.
   - Phương án: (1) giữ; (2) cho nối lại.
+
+## GV-5 F (26/11/2026) — lịch nhắc: cách hiểu tạm
+
+Chairman duyệt viết mã F với đề xuất Q-F1…Q-F4 của `docs/plans/gv5-f-reminders.md` («Yes, build F», 26/11/2026). Các điểm dưới đây phát sinh khi viết mã. Phiên PR ghi cách hiểu tạm để không bị chặn.
+
+- **Q-GV5F-1. Bộ chiếu GO LIVE chạy theo lịch bằng login vận hành** (OQ-22). Muốn có số mới mỗi sáng thì unit `libetech-ai-os-golive-status` giữ login vận hành trên d1-ai1.
+  - Unit được giao ở trạng thái tắt. Bật lên là thêm một việc chạy theo lịch có quyền cao nhất.
+  - Phương án: (1) bật unit này khi Chairman đồng ý; (2) người vận hành chạy tay mỗi sáng trước khung 08:30–11:30; (3) tạo một login chỉ thuộc `libetech_projector`. Vai này còn ghi bảng điểm bằng chứng, nên cần tách quyền trước.
+  - Tạm: chưa bật; chờ lời Chairman.
+- **Q-GV5F-2. Chỉ đổi giờ.** Dời buổi họp sang ngày khác chưa ghi được trên web. Đổi thứ của cả lịch thì người vận hành sửa bằng `deploy/meeting-series.sql`.
+  - Phương án: (1) giữ; (2) thêm «dời sang ngày». Tạm: (1).
+- **Q-GV5F-3. Không có lịch nghỉ lễ.** Nhắc GO LIVE chạy từ thứ Hai đến thứ Sáu, kể cả ngày lễ. Muốn nghỉ thì tắt đích.
+  - Phương án: (1) giữ; (2) thêm bảng ngày nghỉ. Tạm: (1).
+- **Q-GV5F-4. Cách tính trạng thái GO LIVE.**
+  - «Đã gửi yêu cầu» là đã gửi ít nhất một yêu cầu việc trong dự án đó, bất kỳ lúc nào, bất kỳ kết quả.
+  - «Chưa có bằng chứng» là việc đang mở, giao cho người đó, chưa có bằng chứng nào ở bản sửa hiện tại.
+  - Không ai thiếu thì không gửi tin; lượt chạy ghi `nothing_missing`.
+  - Phương án: (1) giữ; (2) chỉ tính yêu cầu từ ngày GO LIVE, hoặc gửi cả tin «đủ». Tạm: (1).
+- **Q-GV5F-5. Tin nhắc quá hạn.** Tin chưa gửi được sau 6 giờ bị bỏ, với mã `REMINDER_EXPIRED`, thay vì gửi muộn.
+  - GO LIVE chỉ xếp hàng trong 3 giờ kể từ giờ của đích; lỡ khung thì ghi `window_passed`.
+  - Tin họp chỉ xếp hàng từ 07:00 đến 21:00.
+  - Phương án: (1) giữ; (2) đổi các mốc này. Tạm: (1).
+

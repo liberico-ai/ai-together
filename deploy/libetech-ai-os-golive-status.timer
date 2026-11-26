@@ -1,0 +1,12 @@
+# Installed disabled. It holds the operator login, so enabling it needs the Chairman's word (docs/OPEN-QUESTIONS.md Q-GV5F-1).
+[Unit]
+Description=LibeTech AI OS GO LIVE status projection, every 15 minutes, five minutes before each scheduler pass
+
+[Timer]
+OnCalendar=*-*-* *:05/15:00
+AccuracySec=30s
+Persistent=no
+Unit=libetech-ai-os-golive-status.service
+
+[Install]
+WantedBy=timers.target

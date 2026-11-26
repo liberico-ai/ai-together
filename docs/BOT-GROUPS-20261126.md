@@ -25,6 +25,17 @@ Ngày 26/11/2026 · theo mã `libetech-ai-os` (0.9.3). Cấu hình thật nằm 
 | Đổi người thực hiện sau duyệt | phiếu 3/3 của dự án |
 | Đọc hồ sơ qua bot | chỉ đọc; bot không tạo, không duyệt, không đổi gì |
 
+## 2b. Tin bot tự gửi (0.9.4, hạng mục F)
+
+- Đây là loại tin duy nhất không trả lời một tin nào. Nó chỉ đi tới nhóm mà **người vận hành** khai trong `reminder_targets` (`deploy/reminder-targets.sql`), và cơ sở dữ liệu buộc đúng nhóm, đúng chủ đề, đúng loại tin của đích đó.
+- Nhóm đích vẫn phải nằm trong `chats` hoặc `poolChats` của `intake.json` ở gateway. Dự án của đích phải được một nhóm `intake.chats` phục vụ.
+- Ba loại tin:
+  - trạng thái GO LIVE: chỉ tên người chưa gửi yêu cầu hoặc có việc chưa có bằng chứng;
+  - nhắc họp BoM: ngày, giờ và nguồn (lịch gốc hoặc mã IN);
+  - câu hỏi khi một lần đổi giờ chưa rõ phạm vi.
+- Không tin nào nêu tiêu đề việc, chữ của tin hay mã nhóm. Dự án IBS HI, hoặc chưa xác nhận miền, không nhận tin nhắc.
+- Đổi giờ họp chỉ ghi trên trang «Lịch họp BoM», bởi ghế BoM của dự án hoặc BoM Tech, kèm mã IN của tin xác nhận. Bot không đọc chữ tin để đổi lịch.
+
 ## 3. Bot trả lời khi bị từ chối
 
 Bảng đầy đủ là `REPLIES` và `SCOPE_REPLIES` trong `bot-plugin/__init__.py` (plugin 0.3.4). Mỗi câu nêu nguyên nhân, việc làm tiếp, và mã trong ngoặc. Không câu nào nêu tên dự án, BU, nhóm hay người.

@@ -10,6 +10,8 @@ import {AppError} from './errors';
 export type OutboxState='pending'|'leased'|'delivered'|'uncertain'|'dead'|'abandoned';
 export type OutboxSignal='lease'|'delivered'|'failed_retryable'|'failed_permanent'|'uncertain'|'lease_expired'|'reconciled_delivered'|'reconciled_not_sent'|'requeue'|'abandon';
 export const MAX_ATTEMPTS=6,LEASE_SECONDS=60,OVERDUE_SECONDS=600;
+/** A reminder is about a day or a time: one not sent within this long is dropped with a visible code instead of going out late (GIAO VIỆC 5 F). */
+export const REMINDER_EXPIRY_HOURS=6;
 export const backoffSeconds=(attemptNo:number)=>Math.min(30*2**(attemptNo-1),900);
 
 export function outboxTransition(state:OutboxState,signal:OutboxSignal,attemptNo:number):OutboxState {
@@ -138,14 +140,22 @@ export class OutboxService {
     await this.audit(tx,r,'outbox.uncertain',requestId,{attemptNo:r.attempt_no,reason:'lease_expired'});
    }
    // (2) lease a batch; concurrent pulls skip rows another pull holds.
-   const due=(await tx.query<Row>(`SELECT ${COLS} FROM outbox_messages WHERE tenant_id=$1 AND state='pending' AND next_attempt_at<=now() ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED`,[t,limit])).rows;
+   const due=(await tx.query<Row&{expired:boolean}>(`SELECT ${COLS},(left(template,9)='reminder.' AND created_at<now()-make_interval(hours => $3::int)) AS expired
+     FROM outbox_messages WHERE tenant_id=$1 AND state='pending' AND next_attempt_at<=now() ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED`,[t,limit,REMINDER_EXPIRY_HOURS])).rows;
    const leased:{row:Row;attemptNo:number;leaseToken:string}[]=[];
    for(const r of due) {
     const leaseToken=randomUUID();
     const attemptNo=r.attempt_no+1;
     await applyOutboxSignal(tx,r,'lease',ctx,{set:{attempt_no:attemptNo,lease_token:leaseToken},leaseExpiresInSeconds:LEASE_SECONDS});
     await this.audit(tx,r,'outbox.leased',requestId,{attemptNo});
-    leased.push({row:{...r,state:'leased',attempt_no:attemptNo,version:r.version+1},attemptNo,leaseToken});
+    const now:Row={...r,state:'leased',attempt_no:attemptNo,version:r.version+1};
+    if(r.expired) {
+     // the only way out of pending is through a lease: the row goes to dead at once and is never handed out
+     await applyOutboxSignal(tx,now,'failed_permanent',ctx,{set:{last_error_code:'REMINDER_EXPIRED',lease_token:null,lease_expires_at:null}});
+     await this.audit(tx,r,'outbox.dead',requestId,{attemptNo,errorCode:'REMINDER_EXPIRED'});
+     continue;
+    }
+    leased.push({row:now,attemptNo,leaseToken});
    }
    // (4) uncertain rows are handed back for reconciliation, never for resend.
    const reconcile=(await tx.query<{id:string;attempt_no:number}>(`SELECT id,attempt_no FROM outbox_messages WHERE tenant_id=$1 AND state='uncertain' ORDER BY created_at LIMIT 10`,[t])).rows

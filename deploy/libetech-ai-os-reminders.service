@@ -1,0 +1,15 @@
+[Unit]
+Description=LibeTech AI OS reminder scheduler pass (reminder login only)
+After=network-online.target libetech-ai-os.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/iptech/.local/share/libetech-ai-os/app
+# REMINDER_DATABASE_URL (libetech_reminder_svc), LIBETECH_TENANT_ID, LIBETECH_BRIDGE_CONFIG; owner-only file made by the operator
+EnvironmentFile=/home/iptech/.local/share/libetech-ai-os/config/reminders.env
+ExecStart=/home/iptech/.local/share/libetech-ai-os/node/bin/node --import tsx scripts/send-reminders.ts
+TimeoutStartSec=55
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+UMask=0077

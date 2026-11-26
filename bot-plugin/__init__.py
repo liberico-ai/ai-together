@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-VERSION = "0.3.5"
+VERSION = "0.3.6"
 EXPECTED_HOME = Path("/home/iptech/.hermes/profiles/libetech")
 ORIGIN = "http://127.0.0.1:3148"
 ENDPOINT = ORIGIN + "/api/bridge"
@@ -1092,6 +1092,13 @@ TEMPLATES = {
     "intake.attachment_failed": ("Đã ghi nhận nội dung, mã {ref}, nhưng chưa lưu được tệp đính kèm. Vui lòng gửi lại tệp.", ("ref",)),
     "intake.pool_received": ("Đã nhận, mã {ref}. Chưa gán dự án. Đây chưa phải việc đã tạo.", ("ref",)),
     "account_approval.pending": ("Có phiếu Tech chờ anh/chị xác nhận. Gõ /duyet trong chat riêng này.", ()),
+    # Reminders (GIAO VIỆC 5 F): the only messages that answer nothing. The server sends them only to groups the operator configured.
+    "reminder.golive_status": ("Nhắc GO LIVE — {project}, ngày {date}.\nChưa gửi yêu cầu việc: {noRequest}.\n"
+                               "Có việc đang mở chưa có bằng chứng: {noEvidence}.", ("project", "date", "noRequest", "noEvidence")),
+    "reminder.bom_meeting": ("Nhắc họp BoM — {project}: ngày {date} lúc {time} (giờ Việt Nam). Nguồn giờ họp: {source}.",
+                             ("project", "date", "time", "source")),
+    "reminder.bom_meeting_question": ("Họp BoM — {project}: tin {source} báo đổi giờ nhưng chưa rõ áp cho buổi ngày {date} hay cho cả lịch định kỳ. "
+                                      "Lịch này tạm ngừng nhắc đến khi một ghế BoM ghi lại trên web, mục «Lịch họp BoM».", ("project", "source", "date")),
 }
 # Why a file was not stored (the server's fixed list): one sentence each, with what to do. Anything else keeps the general sentence above.
 ATTACHMENT_REPLIES = {
@@ -1102,10 +1109,44 @@ ATTACHMENT_REPLIES = {
 }
 TEMPLATE_PARAMS = {"ref": re.compile(r"IN-[0-9A-F]{8}\Z"),
                    "observedAt": re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})\Z")}
+PLACEHOLDER = re.compile(r"\{(\w+)\}")
+REMINDER_DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
+REMINDER_TIME = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\Z")
+
+def _plain_line(value, shortest, longest):
+    """One line of names for a group message: no control, invisible or line-separator character, and nothing that mentions, runs a command or opens a placeholder."""
+    return (isinstance(value, str) and shortest <= len(value) <= longest and not any(c in "@<>/\\{}" for c in value)
+            and not any(unicodedata.category(c) in ("Cc", "Cf", "Zl", "Zp") for c in value))
+
+def _reminder_value(template, name, value):
+    """The text a reminder parameter puts in the message, or None when it does not have the expected shape."""
+    if name == "project":
+        return value if _plain_line(value, 1, 80) else None
+    if name in ("noRequest", "noEvidence"):
+        return (value or "không có") if _plain_line(value, 0, 900) else None
+    if not isinstance(value, str):
+        return None
+    if name == "date":
+        if not REMINDER_DATE.fullmatch(value):
+            return None
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except ValueError:
+            return None
+    if name == "time":
+        return value if REMINDER_TIME.fullmatch(value) else None
+    if name == "source":
+        # the meeting reminder may name the base schedule; the question always names the message that raised it
+        if template == "reminder.bom_meeting":
+            if value == "base":
+                return "lịch gốc"
+            return "tin " + value if TEMPLATE_PARAMS["ref"].fullmatch(value) else None
+        return value if TEMPLATE_PARAMS["ref"].fullmatch(value) else None
+    return None
 
 def render(template, params):
-    """Fixed text per template; parameters are only a reference and a time, checked by shape. A failed attachment picks its sentence by the fixed
-    `attachmentReason`. Other params are ignored."""
+    """Fixed text per template; parameters are references, times, dates and (for reminders) a project name and name lists, each checked by shape. A failed
+    attachment picks its sentence by the fixed `attachmentReason`. Other params are ignored."""
     if not isinstance(template, str) or template not in TEMPLATES:
         raise ValueError("TEMPLATE_UNKNOWN")
     text, names = TEMPLATES[template]
@@ -1115,12 +1156,18 @@ def render(template, params):
         reason = params.get("attachmentReason")
         if isinstance(reason, str):
             text = ATTACHMENT_REPLIES.get(reason, text)
+    values = {}
     for name in names:
         value = params.get(name)
-        if not isinstance(value, str) or not TEMPLATE_PARAMS[name].fullmatch(value):
+        if template.startswith("reminder."):
+            value = _reminder_value(template, name, value)
+        elif not isinstance(value, str) or not TEMPLATE_PARAMS[name].fullmatch(value):
+            value = None
+        if value is None:
             raise ValueError("TEMPLATE_PARAMS_INVALID")
-        text = text.replace("{" + name + "}", value)
-    return text
+        values[name] = value
+    # one pass: a value is never read again as a placeholder
+    return PLACEHOLDER.sub(lambda match: values.get(match.group(1), match.group(0)), text)
 
 class SendRejected(Exception):
     """Raised by a send adapter when Telegram refuses for good: bot blocked, removed from the chat, chat not found."""
