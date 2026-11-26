@@ -1,0 +1,15 @@
+[Unit]
+Description=LibeTech AI OS GO LIVE status projection (Z1 to Z2, operator login, OQ-22)
+After=libetech-ai-os.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/iptech/.local/share/libetech-ai-os/app
+# MIGRATION_DATABASE_URL (operator login) and LIBETECH_TENANT_ID; owner-only file made by the operator
+EnvironmentFile=/home/iptech/.local/share/libetech-ai-os/config/golive-status.env
+ExecStart=/home/iptech/.local/share/libetech-ai-os/node/bin/node --import tsx scripts/project-golive-status.ts
+TimeoutStartSec=55
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+UMask=0077

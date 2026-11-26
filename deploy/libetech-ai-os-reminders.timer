@@ -1,0 +1,12 @@
+# Installed disabled. Enable only after the operator configured targets and the Chairman approved sending (docs/RUNBOOK-094-20261126.md).
+[Unit]
+Description=LibeTech AI OS reminder scheduler, every 15 minutes (the script keeps each message to its own time window)
+
+[Timer]
+OnCalendar=*-*-* *:10/15:00
+AccuracySec=30s
+Persistent=no
+Unit=libetech-ai-os-reminders.service
+
+[Install]
+WantedBy=timers.target

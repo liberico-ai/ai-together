@@ -39,7 +39,7 @@ export async function embeddedDatabase(dataDir?: string): Promise<Database> {
 export async function assertRestrictedLogin(q: Queryable): Promise<void> {
   const row = (await q.query(`SELECT r.rolsuper,r.rolbypassrls,r.rolcreatedb,r.rolcreaterole,
       EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.relowner=r.oid AND n.nspname IN ('public','identity','analytics','intelligence')) AS owns_tables,
-      (SELECT count(*) FROM pg_roles g WHERE g.rolname IN ('libetech_runtime','libetech_intake','libetech_identity','libetech_outbox_audit')
+      (SELECT count(*) FROM pg_roles g WHERE g.rolname IN ('libetech_runtime','libetech_intake','libetech_identity','libetech_outbox_audit','libetech_reminder')
         AND pg_has_role(r.oid,g.oid,'MEMBER'))>1 AS several_app_roles,
       EXISTS(SELECT 1 FROM pg_roles g WHERE g.rolname='libetech_outbox_audit' AND pg_has_role(r.oid,g.oid,'MEMBER')) AS audit_role,
       EXISTS(SELECT 1 FROM pg_roles g WHERE g.rolname='libetech_ai' AND pg_has_role(r.oid,g.oid,'MEMBER')) AS ai_role

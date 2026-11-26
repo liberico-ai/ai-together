@@ -1,0 +1,618 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/meetings.test.ts (9 tests | 9 failed) 5881ms
+   ❯ who records a change (2)
+     × a BoM seat of the project and a BoM Tech may; a member without a seat, a Team Tech member and a bot may not 787ms
+     × the database refuses a change written by anyone else, and a recorded change never changes 594ms
+   ❯ what a change applies to (4)
+     × a one-off change moves exactly that session; the following ones keep the base time 571ms
+     × a recurring change applies from the next session that has not started; after today's session it starts a week later 737ms
+     × a one-off change of a session wins over a recurring one, whichever was recorded first 623ms
+     × an unclear change applies nothing and stays open until a one-off or recurring change answers it, once 715ms
+   ❯ the source and the input (3)
+     × the source is a stored message of this project: a candidate, or a shared-group message assigned to it 623ms
+     × the same request twice writes once; the same key with other content, or a stale version, writes nothing 598ms
+     × a one-off names a coming session of the series and a time; identity comes from the session only 632ms
+ ❯ tests/reminders.test.ts (9 tests | 9 failed) 5584ms
+   ❯ GO LIVE status reminder (5)
+     × one weekday message per target per day, with names only, and a second run queues nothing 898ms
+     × nothing outside weekday mornings; a missed window and a stale status are counted, never silent 594ms
+     × no row means nothing to send; a target outside the intake scope, or on a project now IBS HI, sends nothing and says why 597ms
+     × everybody has filed and has evidence: no message 578ms
+     × a message of one project names nobody of another, and long or unsafe names are cut and cleaned, never silently 611ms
+   ❯ BoM meeting reminder (3)
+     × one message the day before at the target time, with the base time; a changed time sends one more with its IN code 581ms
+     × no message at night, nor after the session started; a session the timer missed the day before is sent that morning 591ms
+     × an unclear change stops the reminder and asks once; after the answer the reminder carries the answered time 570ms
+   ❯ delivery (1)
+     × a queued reminder is pulled for its target; one older than six hours expires with a visible code instead of going out late 563ms
+ ❯ tests/reminder-schema.test.ts (5 tests | 5 failed) 3081ms
+   ❯ the send guard (4)
+     × a reminder goes only to the enabled target of its project, kind, chat and topic, and answers no message 786ms
+     × no application role writes a target or a series, and no role but the scheduler queues a reminder 633ms
+     × IBS HI and unconfirmed-domain projects get no reminder, even through a target made while they were allowed 566ms
+     × every change of a target or a series leaves an audit row with its source; no application role reads it 543ms
+   ❯ migration 031 (1)
+     × the rollback refuses while a reminder or its configuration exists; on a clean copy it rolls back and applies again 552ms
+ ❯ tests/golive-status.test.ts (4 tests | 4 failed) 2633ms
+   ❯ GO LIVE member status (4)
+     × each roster member has one row: requests filed in this project, open work, and open work without evidence at its current revision 846ms
+     × evidence of an older revision does not count, and done work is not open work 573ms
+     × a person taken off the roster leaves the projection at the next run; another project keeps its own rows 655ms
+     × an IBS HI or unconfirmed-domain project is refused and gets no row 559ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 27 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/golive-status.test.ts > GO LIVE member status > each roster member has one row: requests filed in this project, open work, and open work without evidence at its current revision
+AssertionError: expected { members: -1, projectedAt: '' } to match object { members: 4 }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "members": 4,
++   "members": -1,
+  }
+
+ ❯ tests/golive-status.test.ts:30:69
+     28|   await file(techA,ids.sales);
+     29|   await file(pm,ids.transport);// another project: it does not count f…
+     30|   await expect(projectGoliveStatus(h.operator,ids.tenant,ids.sales)).r…
+       |                                                                     ^
+     31|   const rows=await status();
+     32|   expect(rows.map(r=>r.member_id).sort()).toEqual([member.id,pm.id,tec…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/27]⎯
+
+ FAIL  tests/golive-status.test.ts > GO LIVE member status > evidence of an older revision does not count, and done work is not open work
+AssertionError: expected { members: -1, projectedAt: '' } to match object { members: 4 }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "members": 4,
++   "members": -1,
+  }
+
+ ❯ tests/golive-status.test.ts:42:69
+     40|   await h.operator.query("UPDATE work_items SET revision=2 WHERE id=$1…
+     41|   await h.operator.query("UPDATE work_items SET state='done' WHERE cod…
+     42|   await expect(projectGoliveStatus(h.operator,ids.tenant,ids.sales)).r…
+       |                                                                     ^
+     43|   expect(await byId(member.id)).toMatchObject({open_work:1,open_withou…
+     44|   await h.operator.query(`INSERT INTO evidence(tenant_id,project_id,wo…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/27]⎯
+
+ FAIL  tests/golive-status.test.ts > GO LIVE member status > a person taken off the roster leaves the projection at the next run; another project keeps its own rows
+AssertionError: expected { members: -1, projectedAt: '' } to match object { members: 3 }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "members": 3,
++   "members": -1,
+  }
+
+ ❯ tests/golive-status.test.ts:54:69
+     52|   await projectGoliveStatus(h.operator,ids.tenant,ids.transport);
+     53|   await h.operator.query('DELETE FROM identity.tech_roster WHERE user_…
+     54|   await expect(projectGoliveStatus(h.operator,ids.tenant,ids.sales)).r…
+       |                                                                     ^
+     55|   expect((await status()).map(r=>r.member_id)).not.toContain(techB.id);
+     56|   expect((await status(ids.transport)).map(r=>r.member_id)).toContain(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/27]⎯
+
+ FAIL  tests/golive-status.test.ts > GO LIVE member status > an IBS HI or unconfirmed-domain project is refused and gets no row
+AssertionError: promise resolved "{ members: -1, projectedAt: '' }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "members": -1,
++   "projectedAt": "",
+  }
+
+ ❯ tests/golive-status.test.ts:60:73
+     58|
+     59|  test('an IBS HI or unconfirmed-domain project is refused and gets no …
+     60|   await expect(projectGoliveStatus(h.operator,ids.tenant,sameBuProject…
+       |                                                                         ^
+     61|   await mapDomain(h,ids.transport,'IBS_HI',2);
+     62|   await expect(projectGoliveStatus(h.operator,ids.tenant,ids.transport…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/27]⎯
+
+ FAIL  tests/meetings.test.ts > who records a change > a BoM seat of the project and a BoM Tech may; a member without a seat, a Team Tech member and a bot may not
+AssertionError: promise resolved "{ changeId: '', replayed: false, …(1) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "changeId": "",
++   "replayed": false,
++   "series": null,
+  }
+
+ ❯ tests/meetings.test.ts:37:48
+     35|   for(const p of [member,techA]) {
+     36|    expect((await svc().list(p)).series.map(s=>s.id)).toEqual([]);
+     37|    await expect(svc().record(p,await change())).rejects.toMatchObject(…
+       |                                                ^
+     38|   }
+     39|   await expect(svc().record(bot,await change())).rejects.toMatchObject…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/27]⎯
+
+ FAIL  tests/meetings.test.ts > who records a change > the database refuses a change written by anyone else, and a recorded change never changes
+AssertionError: expected -1 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ -1
+
+ ❯ tests/meetings.test.ts:48:21
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/27]⎯
+
+ FAIL  tests/meetings.test.ts > what a change applies to > a one-off change moves exactly that session; the following ones keep the base time
+AssertionError: expected undefined to match object { date: '2026-11-26', time: '14:00' }
+
+- Expected:
+{
+  "date": "2026-11-26",
+  "time": "14:00",
+}
+
++ Received:
+undefined
+
+ ❯ tests/meetings.test.ts:61:19
+     59|   await expect(svc().record(pm,await change())).resolves.toMatchObject…
+     60|   const s=await view();
+     61|   expect(s?.next).toMatchObject({date:'2026-11-26',time:'14:00'});
+       |                   ^
+     62|   expect(s?.next?.sourceRef).toMatch(/^IN-[0-9A-F]{8}$/);
+     63|   expect((await view(pm,new Date('2026-11-27T02:00:00Z')))?.next).toEq…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/27]⎯
+
+ FAIL  tests/meetings.test.ts > what a change applies to > a recurring change applies from the next session that has not started; after today's session it starts a week later
+AssertionError: expected undefined to deeply equal { date: '2026-11-26', …(2) }
+
+- Expected:
+{
+  "date": "2026-11-26",
+  "sourceRef": "IN-E9BED473",
+  "time": "10:00",
+}
+
++ Received:
+undefined
+
+ ❯ tests/meetings.test.ts:68:32
+     66|   const ref=await code();
+     67|   await svc().record(pm,await change({kind:'recurring',sessionDate:nul…
+     68|   expect((await view())?.next).toEqual({date:'2026-11-26',time:'10:00'…
+       |                                ^
+     69|   expect((await view(pm,new Date('2026-12-02T02:00:00Z')))?.next).toEq…
+     70|   // recorded Thursday 26/11 at 11:00 VN, after that day's session: it…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/27]⎯
+
+ FAIL  tests/meetings.test.ts > what a change applies to > a one-off change of a session wins over a recurring one, whichever was recorded first
+AssertionError: expected undefined to deeply equal { date: '2026-11-26', …(2) }
+
+- Expected:
+{
+  "date": "2026-11-26",
+  "sourceRef": "IN-BF520F4B",
+  "time": "14:00",
+}
+
++ Received:
+undefined
+
+ ❯ tests/meetings.test.ts:81:32
+     79|   await svc().record(pm,await change({sourceRef:one})).catch(()=>{});
+     80|   await svc().record(pm,await change({kind:'recurring',sessionDate:nul…
+     81|   expect((await view())?.next).toEqual({date:'2026-11-26',time:'14:00'…
+       |                                ^
+     82|  });
+     83|  test('an unclear change applies nothing and stays open until a one-of…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/27]⎯
+
+ FAIL  tests/meetings.test.ts > what a change applies to > an unclear change applies nothing and stays open until a one-off or recurring change answers it, once
+AssertionError: expected undefined to deeply equal { date: '2026-11-26', …(2) }
+
+- Expected:
+{
+  "date": "2026-11-26",
+  "sourceRef": null,
+  "time": "09:00",
+}
+
++ Received:
+undefined
+
+ ❯ tests/meetings.test.ts:87:19
+     85|   await expect(svc().record(pm,await change({kind:'unclear',sessionDat…
+     86|   let s=await view();
+     87|   expect(s?.next).toEqual({date:'2026-11-26',time:'09:00',sourceRef:nu…
+       |                   ^
+     88|   expect(s?.openQuestions).toMatchObject([{sourceRef:ref}]);
+     89|   const q=s?.openQuestions[0]?.id??randomUUID();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/27]⎯
+
+ FAIL  tests/meetings.test.ts > the source and the input > the source is a stored message of this project: a candidate, or a shared-group message assigned to it
+AssertionError: promise resolved "{ changeId: '', replayed: false, …(1) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "changeId": "",
++   "replayed": false,
++   "series": null,
+  }
+
+ ❯ tests/meetings.test.ts:102:73
+    100|  test('the source is a stored message of this project: a candidate, or…
+    101|   const other=await code(chatTransport);
+    102|   await expect(svc().record(pm,await change({sourceRef:'IN-0000000F'})…
+       |                                                                         ^
+    103|   await expect(svc().record(pm,await change({sourceRef:other}))).rejec…
+    104|   const item=await insertPoolItem(h,{chat:chatPool});
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/27]⎯
+
+ FAIL  tests/meetings.test.ts > the source and the input > the same request twice writes once; the same key with other content, or a stale version, writes nothing
+AssertionError: expected { changeId: '', replayed: false, …(1) } to match object { replayed: true }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "replayed": true,
++   "replayed": false,
+  }
+
+ ❯ tests/meetings.test.ts:113:38
+    111|   const body=await change();
+    112|   await expect(svc().record(pm,body)).resolves.toMatchObject({replayed…
+    113|   await expect(svc().record(pm,body)).resolves.toMatchObject({replayed…
+       |                                      ^
+    114|   await expect(svc().record(pm,{...body,newTime:'16:00'})).rejects.toM…
+    115|   await expect(svc().record(pm,await change({},1))).rejects.toMatchObj…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/27]⎯
+
+ FAIL  tests/meetings.test.ts > the source and the input > a one-off names a coming session of the series and a time; identity comes from the session only
+AssertionError: promise resolved "{ changeId: '', replayed: false, …(1) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "changeId": "",
++   "replayed": false,
++   "series": null,
+  }
+
+ ❯ tests/meetings.test.ts:120:82
+    118|  test('a one-off names a coming session of the series and a time; iden…
+    119|   for(const sessionDate of ['2026-11-25','2026-11-19','2026-13-01',nul…
+    120|    await expect(svc().record(pm,await change({sessionDate})),String(se…
+       |                                                                                  ^
+    121|   await expect(svc().record(pm,await change({newTime:null}))).rejects.…
+    122|   await expect(svc().record(pm,await change({newTime:'24:10'}))).rejec…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/27]⎯
+
+ FAIL  tests/reminder-schema.test.ts > the send guard > a reminder goes only to the enabled target of its project, kind, chat and topic, and answers no message
+AssertionError: public.reminder_targets exists: expected null not to be null
+ ❯ tables tests/reminder-schema.test.ts:20:47
+     18| const count=async(sql:string,p:unknown[]=[])=>Number((await h.operator…
+     19| const tables=async()=>{for(const t of ['public.reminder_targets','publ…
+     20|   expect(await regclass(h,t),t+' exists').not.toBeNull();};
+       |                                               ^
+     21|
+     22| describe('the send guard',()=>{
+ ❯ tests/reminder-schema.test.ts:24:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/27]⎯
+
+ FAIL  tests/reminder-schema.test.ts > the send guard > no application role writes a target or a series, and no role but the scheduler queues a reminder
+AssertionError: public.reminder_targets exists: expected null not to be null
+ ❯ tables tests/reminder-schema.test.ts:20:47
+     18| const count=async(sql:string,p:unknown[]=[])=>Number((await h.operator…
+     19| const tables=async()=>{for(const t of ['public.reminder_targets','publ…
+     20|   expect(await regclass(h,t),t+' exists').not.toBeNull();};
+       |                                               ^
+     21|
+     22| describe('the send guard',()=>{
+ ❯ tests/reminder-schema.test.ts:46:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/27]⎯
+
+ FAIL  tests/reminder-schema.test.ts > the send guard > IBS HI and unconfirmed-domain projects get no reminder, even through a target made while they were allowed
+AssertionError: public.reminder_targets exists: expected null not to be null
+ ❯ tables tests/reminder-schema.test.ts:20:47
+     18| const count=async(sql:string,p:unknown[]=[])=>Number((await h.operator…
+     19| const tables=async()=>{for(const t of ['public.reminder_targets','publ…
+     20|   expect(await regclass(h,t),t+' exists').not.toBeNull();};
+       |                                               ^
+     21|
+     22| describe('the send guard',()=>{
+ ❯ tests/reminder-schema.test.ts:70:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/27]⎯
+
+ FAIL  tests/reminder-schema.test.ts > the send guard > every change of a target or a series leaves an audit row with its source; no application role reads it
+AssertionError: public.reminder_targets exists: expected null not to be null
+ ❯ tables tests/reminder-schema.test.ts:20:47
+     18| const count=async(sql:string,p:unknown[]=[])=>Number((await h.operator…
+     19| const tables=async()=>{for(const t of ['public.reminder_targets','publ…
+     20|   expect(await regclass(h,t),t+' exists').not.toBeNull();};
+       |                                               ^
+     21|
+     22| describe('the send guard',()=>{
+ ❯ tests/reminder-schema.test.ts:84:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/27]⎯
+
+ FAIL  tests/reminder-schema.test.ts > migration 031 > the rollback refuses while a reminder or its configuration exists; on a clean copy it rolls back and applies again
+AssertionError: public.reminder_targets exists: expected null not to be null
+ ❯ tables tests/reminder-schema.test.ts:20:47
+     18| const count=async(sql:string,p:unknown[]=[])=>Number((await h.operator…
+     19| const tables=async()=>{for(const t of ['public.reminder_targets','publ…
+     20|   expect(await regclass(h,t),t+' exists').not.toBeNull();};
+       |                                               ^
+     21|
+     22| describe('the send guard',()=>{
+ ❯ tests/reminder-schema.test.ts:102:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/27]⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > one weekday message per target per day, with names only, and a second run queues nothing
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: 1, replayed: +0 }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 1,
+-   "replayed": 0,
++   "queued": -1,
++   "replayed": -1,
+  }
+
+ ❯ tests/reminders.test.ts:39:22
+     37|  test('one weekday message per target per day, with names only, and a …
+     38|   await target();await projected();
+     39|   await expect(run()).resolves.toMatchObject({queued:1,replayed:0});
+       |                      ^
+     40|   await expect(run(vn('2026-11-24T09:20'))).resolves.toMatchObject({qu…
+     41|   const rows=await sent();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/27]⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > nothing outside weekday mornings; a missed window and a stale status are counted, never silent
+AssertionError: 2026-11-24T07:59: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
++   "queued": -1,
+  }
+
+ ❯ tests/reminders.test.ts:54:107
+     52|  test('nothing outside weekday mornings; a missed window and a stale s…
+     53|   await target();await projected();
+     54|   for(const at of ['2026-11-24T07:59','2026-11-28T08:35','2026-11-29T0…
+       |                                                                                                           ^
+     55|   await projected(ids.sales,vn('2026-11-24T12:00'));
+     56|   await expect(run(vn('2026-11-24T12:00'))).resolves.toMatchObject({qu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/27]⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > no row means nothing to send; a target outside the intake scope, or on a project now IBS HI, sends nothing and says why
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0, replayed: +0 }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
+-   "replayed": 0,
++   "queued": -1,
++   "replayed": -1,
+  }
+
+ ❯ tests/reminders.test.ts:63:22
+     61|
+     62|  test('no row means nothing to send; a target outside the intake scope…
+     63|   await expect(run()).resolves.toMatchObject({queued:0,replayed:0});
+       |                      ^
+     64|   await target();await projected();
+     65|   await expect(run(TUE,[ids.transport])).resolves.toMatchObject({queue…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/27]⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > everybody has filed and has evidence: no message
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0, skipped: { …(1) } }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
+-   "skipped": {
+-     "nothing_missing": 1,
+-   },
++   "queued": -1,
++   "skipped": {},
+  }
+
+ ❯ tests/reminders.test.ts:77:22
+     75|     [ids.tenant,ids.sales,techA.id,techA.name,randomUUID(),'a'.repeat(…
+     76|   await target();await projected();
+     77|   await expect(run()).resolves.toMatchObject({queued:0,skipped:{nothin…
+       |                      ^
+     78|  });
+     79|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/27]⎯
+
+ FAIL  tests/reminders.test.ts > GO LIVE status reminder > a message of one project names nobody of another, and long or unsafe names are cut and cleaned, never silently
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: 2 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 2,
++   "queued": -1,
+  }
+
+ ❯ tests/reminders.test.ts:88:22
+     86|   }
+     87|   await target();await target({project:ids.transport,chat:groupTranspo…
+     88|   await expect(run()).resolves.toMatchObject({queued:2});
+       |                      ^
+     89|   const rows=await sent();
+     90|   const sales=rows.find(r=>r.project_id===ids.sales)?.payload.params??…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/27]⎯
+
+ FAIL  tests/reminders.test.ts > BoM meeting reminder > one message the day before at the target time, with the base time; a changed time sends one more with its IN code
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
++   "queued": -1,
+  }
+
+ ❯ tests/reminders.test.ts:108:44
+    106|
+    107|  test('one message the day before at the target time, with the base ti…
+    108|   await expect(run(vn('2026-11-25T08:00'))).resolves.toMatchObject({qu…
+       |                                            ^
+    109|   await expect(run(WED)).resolves.toMatchObject({queued:1});
+    110|   await expect(run(vn('2026-11-25T15:00'))).resolves.toMatchObject({qu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/27]⎯
+
+ FAIL  tests/reminders.test.ts > BoM meeting reminder > no message at night, nor after the session started; a session the timer missed the day before is sent that morning
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: +0 }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 0,
++   "queued": -1,
+  }
+
+ ❯ tests/reminders.test.ts:121:44
+    119|
+    120|  test('no message at night, nor after the session started; a session t…
+    121|   await expect(run(vn('2026-11-25T22:30'))).resolves.toMatchObject({qu…
+       |                                            ^
+    122|   await expect(run(vn('2026-11-26T06:30'))).resolves.toMatchObject({qu…
+    123|   await expect(run(vn('2026-11-26T09:05'))).resolves.toMatchObject({qu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[25/27]⎯
+
+ FAIL  tests/reminders.test.ts > BoM meeting reminder > an unclear change stops the reminder and asks once; after the answer the reminder carries the answered time
+AssertionError: expected { queued: -1, replayed: -1, …(1) } to match object { queued: 1, skipped: { …(1) } }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "queued": 1,
+-   "skipped": {
+-     "blocked_unclear": 1,
+-   },
++   "queued": -1,
++   "skipped": {},
+  }
+
+ ❯ tests/reminders.test.ts:130:25
+    128|   const ref=await code();
+    129|   await record({kind:'unclear',sessionDate:null,sourceRef:ref},vn('202…
+    130|   await expect(run(WED)).resolves.toMatchObject({queued:1,skipped:{blo…
+       |                         ^
+    131|   await expect(run(vn('2026-11-25T10:00'))).resolves.toMatchObject({qu…
+    132|   expect(await sent()).toMatchObject([{template:'reminder.bom_meeting_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[26/27]⎯
+
+ FAIL  tests/reminders.test.ts > delivery > a queued reminder is pulled for its target; one older than six hours expires with a visible code instead of going out late
+AssertionError: expected [] to deeply equal [ [ '-10055501', …(2) ] ]
+
+- Expected
++ Received
+
+- [
+-   [
+-     "-10055501",
+-     "reminder.golive_status",
+-     null,
+-   ],
+- ]
++ []
+
+ ❯ tests/reminders.test.ts:149:95
+    147|   await reminderRow(h,{target:t,dedupe:'fresh'}).catch(()=>{});
+    148|   const pulled=await outbox().pull({limit:10});
+    149|   expect(pulled.deliveries.map(d=>[d.chatId,d.envelope.payload.templat…
+       |                                                                                               ^
+    150|   const rows=(await h.operator.query<{dedupe_key:string;state:string;l…
+    151|   expect(rows).toEqual([{dedupe_key:'fresh',state:'leased',last_error_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[27/27]⎯
+
+
+ Test Files  4 failed (4)
+      Tests  27 failed (27)
+   Start at  19:02:43
+   Duration  17.68s (tests 98%, import 1%)
+

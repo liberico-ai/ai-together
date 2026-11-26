@@ -1,0 +1,70 @@
+
+ RUN  v5.1.0 <repo>
+
+stderr | tests/reminders.test.ts > operating the scheduler > one target that fails is counted as failed and does not stop the others
+{"level":"error","event":"reminder_target_failed","errorType":"error"}
+
+ ❯ tests/reminders.test.ts (15 tests | 2 failed | 13 skipped) 1405ms
+   ❯ operating the scheduler (2)
+     × the status check counts queued reminders by message and state, and nothing else 791ms
+     × one target that fails is counted as failed and does not stop the others 613ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/reminders.test.ts > operating the scheduler > the status check counts queued reminders by message and state, and nothing else
+AssertionError: expected [] to deeply equal [ { …(3) }, { …(3) } ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "n": 1,
+-     "state": "pending",
+-     "template": "reminder.bom_meeting",
+-   },
+-   {
+-     "n": 1,
+-     "state": "pending",
+-     "template": "reminder.golive_status",
+-   },
+- ]
++ []
+
+ ❯ tests/reminders.test.ts:151:54
+    149|   await reminderRow(h,{target:await target()});
+    150|   await reminderRow(h,{target:await target({kind:'bom_meeting',chat:gr…
+    151|   await expect(reminderCounts(h.operator,ids.tenant)).resolves.toEqual…
+       |                                                      ^
+    152|    {template:'reminder.bom_meeting',state:'pending',n:1},{template:'re…
+    153|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/reminders.test.ts > operating the scheduler > one target that fails is counted as failed and does not stop the others
+AssertionError: promise rejected "error: permission denied for table golive… { …(18) }" instead of resolving
+ ❯ tests/reminders.test.ts:159:50
+    157|   // the status table closes to the scheduler for this case only: the …
+    158|   await h.operator.query('REVOKE SELECT ON analytics.golive_member_sta…
+    159|   try { await expect(run(vn('2026-11-25T08:35'))).resolves.toMatchObje…
+       |                                                  ^
+    160|   finally { await h.operator.query('GRANT SELECT ON analytics.golive_m…
+    161|   expect((await sent()).map(r=>r.template)).toEqual(['reminder.bom_mee…
+
+Caused by: error: permission denied for table golive_member_status
+ ❯ pe.Oe node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:18174
+ ❯ pe.tt node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:15560
+ ❯ pe.parse node_modules/@electric-sql/pglite/dist/chunk-7WWLJV32.js:1:14234
+ ❯ q.Ce node_modules/@electric-sql/pglite/dist/chunk-O74Z5DUS.js:5:1759
+ ❯ node_modules/@electric-sql/pglite/dist/chunk-O74Z5DUS.js:5:1151
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 108, severity: 'ERROR', code: '42501', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: undefined, schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'aclchk.c', routine: 'aclcheck_error', query: 'SELECT member_name,requests_filed,open_without_evidence,projected_at FROM analytics.golive_member_status WHERE project_id=$1 ORDER BY member_name,member_id', params: [ '11000000-0000-4000-8000-000000000001' ], queryOptions: undefined }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 13 skipped (15)
+   Start at  19:47:31
+   Duration  1.55s (tests 94%, import 4%, transform 2%)
+

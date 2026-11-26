@@ -1,0 +1,31 @@
+.....F                                                   [100%]
+=================================== FAILURES ===================================
+_ ReminderDeliveryGuardTests.test_a_reminder_goes_only_to_a_normal_group_of_the_gateway_never_the_shared_group_or_a_private_chat _
+
+self = <test_reminder_templates.ReminderDeliveryGuardTests testMethod=test_a_reminder_goes_only_to_a_normal_group_of_the_gateway_never_the_shared_group_or_a_private_chat>
+
+    def test_a_reminder_goes_only_to_a_normal_group_of_the_gateway_never_the_shared_group_or_a_private_chat(self):
+        shared = '<test-chat>'
+        with profile_home(chats=[GROUP], poolChats=[shared]) as home:
+            question = dict(template='reminder.bom_meeting_question', params=QUESTION, reply=None)
+            sent = []
+            backend = FakeBackend([{'deliveries': [delivery(OUTBOX_A, LEASE_A, **question),
+                                                   delivery(OUTBOX_B, LEASE_B, chat=shared, **question),
+                                                   delivery(OUTBOX_C, LEASE_C, audience='dm', chat=SENDER, **question)],
+                                    'reconcile': []}])
+            with patch.object(bridge, 'call_backend', side_effect=backend):
+                bridge.drain_outbox(home, lambda *args: (sent.append(args[0]), 9004)[1], bridge.SendJournal(home))
+>           self.assertEqual(sent, [GROUP])
+E           AssertionError: Lists differ: ['<test-chat>', '<test-chat>', '900000001'] != ['<test-chat>']
+E           
+E           First list contains 2 additional elements.
+E           First extra element 1:
+E           '<test-chat>'
+E           
+E           - ['<test-chat>', '<test-chat>', '900000001']
+E           + ['<test-chat>']
+
+tests/test_reminder_templates.py:65: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reminder_templates.py::ReminderDeliveryGuardTests::test_a_reminder_goes_only_to_a_normal_group_of_the_gateway_never_the_shared_group_or_a_private_chat
+1 failed, 5 passed, 16 subtests passed in 0.09s

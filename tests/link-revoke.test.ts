@@ -4,6 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {openHarness,type Harness} from './slice1-db';
+import {putBack,takeOffAbove} from './migration-stack';
 import {member,pm,seedSlice1} from './slice1-fixtures';
 import {bridgeConfig,chatSales,chatTransport,intakePrincipalId,messageEvent} from './slice2-fixtures';
 import {mapDomain,reviewer,seedMembers} from './slice3-fixtures';
@@ -149,6 +150,7 @@ test('migration 030 applies twice; its rollback refuses while a revocation exist
  const sql=(p:string)=>readFile(path.join(process.cwd(),'migrations',p),'utf8').catch(()=>'');
  const exec=async(text:string)=>{try{await h.exec(text);}catch(error){await h.exec('ROLLBACK');throw error;}};
  const forward=await sql('030_intake_link_revocations.sql'),rollback=await sql('rollback/030_intake_link_revocations.sql');
+ const above=await takeOffAbove(h,30);// each rollback refuses while a later migration is recorded
  await exec(forward);await exec(forward);
  const outsideBody=async()=>(await rows<{d:string}>("SELECT pg_get_functiondef('public.intake_pool_links_outside(uuid,uuid,uuid[])'::regprocedure) d"))[0].d;
  const kinds=async()=>(await rows<{d:string}>("SELECT pg_get_constraintdef(oid) d FROM pg_constraint WHERE conrelid='public.intake_pool_events'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%pool.reopened%'")).map(r=>r.d);
@@ -167,4 +169,5 @@ test('migration 030 applies twice; its rollback refuses while a revocation exist
  expect((await kinds())[0]).not.toMatch(/pool\.link_revoked/);
  expect(await rows("SELECT to_regclass('public.intake_link_revocations')::text t")).toEqual([{t:null}]);
  await exec(rollback);await exec(forward);
+ await putBack(h,above);
 });
