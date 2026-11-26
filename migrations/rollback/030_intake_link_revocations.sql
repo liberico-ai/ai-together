@@ -1,6 +1,6 @@
 -- Rollback of 030 only. Throwaway test copy use; never run against a serving database without Chairman approval.
 -- Refuses while a later migration is recorded, and while a link revocation or its pool event exists: those rows are history and this file does not delete it.
--- It restores the 025 body of intake_pool_links_outside and the 025 kinds and payload rule of intake_pool_events, then drops the table. It runs again once 030 is gone. No CASCADE.
+-- It restores the 025 body of intake_pool_links_outside and the 025 kinds of intake_pool_events, then drops the table. It runs again once 030 is gone. No CASCADE.
 BEGIN;
 -- A login that row level security binds would count 0 rows and drop history: with row_security off it errors instead.
 SET LOCAL row_security = off;
@@ -35,21 +35,6 @@ $b$ $f$;
     END LOOP;
     EXECUTE $q$ALTER TABLE public.intake_pool_events ADD CONSTRAINT intake_pool_events_kind_check
       CHECK (kind IN ('pool.received','pool.revised','pool.triaged','pool.request_filed','pool.work_linked','pool.dismissed','pool.reopened'))$q$;
-  END IF;
-  IF to_regclass('public.intake_pool_events') IS NOT NULL THEN
-    FOR c IN SELECT conname FROM pg_constraint WHERE conrelid='public.intake_pool_events'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%dismiss_code%' LOOP
-      EXECUTE format('ALTER TABLE public.intake_pool_events DROP CONSTRAINT %I',c);
-    END LOOP;
-    EXECUTE $q$ALTER TABLE public.intake_pool_events ADD CONSTRAINT intake_pool_events_payload_check CHECK (jsonb_typeof(payload)='object' AND octet_length(payload::text)<=2048
-  AND payload - ARRAY['state_before','state_after','version_before','version_after','project_id','classification','revision_no','dismiss_code']::text[] = '{}'::jsonb
-  AND coalesce(jsonb_typeof(payload->'state_before'),'string')='string' AND coalesce(payload->>'state_before','unassigned') IN ('unassigned','assigned','dismissed')
-  AND coalesce(jsonb_typeof(payload->'state_after'),'string')='string' AND coalesce(payload->>'state_after','unassigned') IN ('unassigned','assigned','dismissed')
-  AND coalesce(jsonb_typeof(payload->'version_before'),'number')='number' AND coalesce(jsonb_typeof(payload->'version_after'),'number')='number'
-  AND coalesce(jsonb_typeof(payload->'revision_no'),'number')='number'
-  AND coalesce(jsonb_typeof(payload->'project_id'),'string') IN ('string','null')
-  AND coalesce(payload->>'project_id','00000000-0000-4000-8000-000000000000') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-  AND coalesce(jsonb_typeof(payload->'classification'),'string') IN ('string','null') AND coalesce(payload->>'classification','request') IN ('incident','request','document')
-  AND coalesce(jsonb_typeof(payload->'dismiss_code'),'string')='string' AND coalesce(payload->>'dismiss_code','not_work') IN ('not_work','duplicate','wrong_group'))$q$;
   END IF;
   -- the column grant 030 added (the 025 grant lists the other columns)
   IF to_regclass('public.intake_work_links') IS NOT NULL THEN

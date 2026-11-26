@@ -21,7 +21,7 @@ Ngày 26/11/2026 · nền `libetech-ai-os` @ `d9a2318` (sau PR 4) · PR 5.
 - **Lý do của tệp hỏng:** máy chủ thêm tham số `attachmentReason` vào biên nhận `intake.attachment_failed`. Giá trị là một trong `TOO_LARGE`, `UNSUPPORTED_TYPE`, `DOWNLOAD_UNAVAILABLE`, `STORE_UNAVAILABLE`; lý do khác thì không gửi.
   - Plugin 0.3.5 có một câu cho mỗi lý do, nêu giới hạn 20 MB và loại được nhận.
   - Plugin cũ bỏ qua tham số lạ, nên gửi câu chung như trước.
-- **Tệp Excel:** tệp bắt đầu bằng chữ ký ZIP ra mã `XLSX_NOT_SUPPORTED` (422). Câu báo nói cách tải CSV từ Google Sheets.
+- **Tệp Excel và tệp nén:** tệp ZIP có chứa workbook ra `XLSX_NOT_SUPPORTED`, tệp ZIP khác ra `ZIP_NOT_CSV` (422, sửa sau cổng Codex). Câu báo nói cách tải CSV từ Google Sheets.
   - Không thêm thư viện đọc `.xlsx`.
 - **Thời hạn của màn hình nhập:** mỗi lệnh nhập chờ tối đa 60 giây, quá thì báo `CLIENT_TIMEOUT`.
   - Câu báo nói rõ lần ghi **có thể đã xong**. Bấm lại thì dùng cùng mã thao tác nên không tạo trùng.
@@ -44,7 +44,10 @@ Ngày 26/11/2026 · nền `libetech-ai-os` @ `d9a2318` (sau PR 4) · PR 5.
   - Gọi lần hai không ghi thêm gì.
   - Sai quyền thì `REVOKE_DENIED`, kèm câu báo nói nhờ ai.
   - Lệch phiên bản thì `REVISION_CONFLICT`.
-- **Sự kiện:** `pool.link_revoked` (mở rộng CHECK của `intake_pool_events`) hoặc `candidate.link_revoked`. Payload gồm mã liên kết, lý do và phiên bản trước, sau.
+- **Sự kiện:** `pool.link_revoked` (mở rộng CHECK loại của `intake_pool_events`) hoặc `candidate.link_revoked`.
+  - Sự kiện pool chỉ ghi dự án và phiên bản trước, sau, vì mọi thành viên roster đọc được sự kiện pool. Mã liên kết và lý do nằm ở dòng gỡ, theo quyền đọc liên kết (sửa sau cổng Codex).
+  - Sự kiện của ứng viên, đọc theo quyền dự án, ghi mã liên kết và lý do.
+- RLS ghi dòng gỡ còn đòi thành viên Team Tech khi liên kết thuộc nhóm chung (sửa sau cổng Codex).
 - **Giao diện:** mỗi liên kết còn hiệu lực mà người xem gỡ được có nút «Gỡ liên kết» kèm chọn lý do. Thẻ ứng viên có thêm danh sách liên kết.
 - **Hoàn tác 030:** từ chối khi còn dòng gỡ hoặc sự kiện `pool.link_revoked` (đó là lịch sử), hoặc khi có migration lớn hơn 030.
 

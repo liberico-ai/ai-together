@@ -50,6 +50,12 @@ describe('revoking a link of a pool item',()=>{
   expect(after.links[0]).toMatchObject({linkId,canRevoke:false,revoked:{byName:pm.name,reasonCode:'wrong_work'}});
   expect(await n('intake_link_revocations')).toBe(1);
   expect((await poolEventKinds(id)).at(-1)).toBe('pool.link_revoked');
+  // every roster member reads pool events, link readers or not: the event names no link and no reason (Codex gate, P0)
+  const event=(await rows<{payload:Record<string,unknown>}>("SELECT payload FROM intake_pool_events WHERE pool_item_id=$1 AND kind='pool.link_revoked'",[id]))[0];
+  expect(Object.keys(event.payload).sort()).toEqual(['project_id','version_after','version_before']);
+  const seen=JSON.stringify((await pool().detail(techB,id)).events);
+  expect(seen).not.toContain(linkId);
+  expect(seen).not.toContain('wrong_work');
   expect(await n('intake_work_links')).toBe(1);// the link row stays as history
  });
 
@@ -119,6 +125,14 @@ describe('the database keeps revocations append-only and in the actor\'s name',(
   await expect(h.operator.query("UPDATE intake_link_revocations SET reason_code='mistake'")).rejects.toThrow(/Append-only/);
  });
 
+ test('a creator who left Team Tech cannot revoke a pool link, not even straight under the runtime role (Codex gate, P1)',async()=>{
+  const {linkId}=await linked();
+  await h.operator.query('DELETE FROM identity.tech_roster WHERE user_id=$1',[pm.id]);
+  await expect(asRole(h,'libetech_runtime',{projects:[ids.sales],person:pm.id},tx=>tx.query(
+   `INSERT INTO intake_link_revocations(tenant_id,project_id,link_id,revoked_by,revoked_by_name,reason_code) VALUES($1,$2,$3,$4,'Tên thử','mistake')`,
+   [ids.tenant,ids.sales,linkId,pm.id]))).rejects.toThrow(/row-level security/);
+ });
+
  test('IBS HI: a revocation holds no free text but the name of who revoked, and no refusal names a project',async()=>{
   await mapDomain(h,ids.sales,'IBS_HI');
   const {id,card,linkId}=await linked();
@@ -140,8 +154,9 @@ test('migration 030 applies twice; its rollback refuses while a revocation exist
  const kinds=async()=>(await rows<{d:string}>("SELECT pg_get_constraintdef(oid) d FROM pg_constraint WHERE conrelid='public.intake_pool_events'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%pool.reopened%'")).map(r=>r.d);
  expect(await outsideBody()).toMatch(/intake_link_revocations/);
  expect((await kinds())[0]).toMatch(/pool\.link_revoked/);
+ // the closed payload rule of 025 is not widened: no event can carry a link id or a reason
  const payloadRule=async()=>(await rows<{d:string}>("SELECT pg_get_constraintdef(oid) d FROM pg_constraint WHERE conrelid='public.intake_pool_events'::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%dismiss_code%'"))[0].d;
- expect(await payloadRule()).toMatch(/link_id/);
+ expect(await payloadRule()).not.toMatch(/link_id|reason_code/);
  const {id,card,linkId}=await linked();await cmd(pm,id,revoke(card.version,linkId));
  await expect(exec(rollback)).rejects.toThrow(/revocation/i);
  // clean the history (test copy only) and roll back: the 025 function and check come back
@@ -150,7 +165,6 @@ test('migration 030 applies twice; its rollback refuses while a revocation exist
  await exec(rollback);
  expect(await outsideBody()).not.toMatch(/intake_link_revocations/);
  expect((await kinds())[0]).not.toMatch(/pool\.link_revoked/);
- expect(await payloadRule()).not.toMatch(/link_id|reason_code/);
  expect(await rows("SELECT to_regclass('public.intake_link_revocations')::text t")).toEqual([{t:null}]);
  await exec(rollback);await exec(forward);
 });

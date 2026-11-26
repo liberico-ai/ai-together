@@ -5,12 +5,22 @@ import {api} from '../src/components/api';
 
 afterEach(()=>{vi.unstubAllGlobals();});
 
+// a ZIP local header, then the given entry names as the central directory holds them: uncompressed text
+const zip=(...entries:string[])=>new Uint8Array([0x50,0x4b,0x03,0x04,0x14,0x00,0x06,0x00,0x08,0x00,0xff,0xfe,0x00,...new TextEncoder().encode(entries.join('|'))]);
+const refusalOf=(bytes:Uint8Array)=>{try{readSheetCsv(bytes);return {} as {code?:string;message?:string;status?:number};}catch(error){return error as {code?:string;message?:string;status?:number};}};
+
 test('an .xlsx upload is refused as Excel, with the way to export CSV',()=>{
- const xlsx=new Uint8Array([0x50,0x4b,0x03,0x04,0x14,0x00,0x06,0x00,0x08,0x00,0xff,0xfe,0x00]);
- let refused:{code?:string;message?:string;status?:number}={};
- try{readSheetCsv(xlsx);}catch(error){refused=error as typeof refused;}
+ const refused=refusalOf(zip('[Content_Types].xml','xl/workbook.xml'));
  expect(refused.code).toBe('XLSX_NOT_SUPPORTED');
  expect(refused.status).toBe(422);
+ expect(refused.message).toContain('.csv');
+});
+
+test('another ZIP file is not called Excel (Codex gate, P2)',()=>{
+ const refused=refusalOf(zip('anh/chup.png'));
+ expect(refused.code).toBe('ZIP_NOT_CSV');
+ expect(refused.status).toBe(422);
+ expect(refused.message).not.toContain('Excel (.xlsx), chưa');
  expect(refused.message).toContain('.csv');
 });
 

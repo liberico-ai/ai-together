@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {openHarness,type Harness} from './slice1-db';
+import {putBack,takeOffAbove} from './migration-stack';
 import {seed} from '../src/server/seed';
 import {ids,demoProfiles} from '../src/server/identities';
 import {teamCatalog} from '../src/server/team-catalog';
@@ -14,6 +15,8 @@ const migration=(p:string)=>readFile(path.join(process.cwd(),'migrations',p),'ut
 const projects={ibs:'11000000-0000-4000-8000-0000000000e1',lbrc:'11000000-0000-4000-8000-0000000000e2',other:'11000000-0000-4000-8000-0000000000e3'};
 const notes={ibs:'Ghi chú nghiệp vụ IBS thử',lbrc:'Ghi chú LBRC thử',other:'Ghi chú dự án sẽ xác nhận IBS'};
 let h:Harness;
+// the migrations above 029 are off while this file rolls 029 back and forward; they go back at the end
+let later:string[]=[];
 const q=async<T=Record<string,unknown>>(sql:string,p:unknown[]=[])=>(await h.operator.query<T>(sql,p)).rows;
 let nextRow=100;
 const insert=(project:string,note:string,row=++nextRow)=>h.operator.query(
@@ -34,12 +37,13 @@ beforeAll(async()=>{
  h=await openHarness();await h.reset();await seed(h.operator);
  for(const [id,name,bu] of [[projects.ibs,'Dự án IBS thử','IBS HI'],[projects.lbrc,'Dự án LBRC thử','LBRC'],[projects.other,'Dự án khác thử','BU Khác']] as const)
   await h.operator.query('INSERT INTO projects(id,tenant_id,name,bu) VALUES($1,$2,$3,$4)',[id,ids.tenant,name,bu]);
+ later=await takeOffAbove(h,29);
  // rows written before 029, as the 0.9.2 importer wrote them
  await exec(await rollback());
  await insert(projects.ibs,notes.ibs,2);await insert(projects.lbrc,notes.lbrc,3);await insert(projects.other,notes.other,4);
  await exec(await forward());
 },120000);
-afterAll(async()=>{await h.reset();await h.close();});
+afterAll(async()=>{await putBack(h,later);await h.reset();await h.close();});
 
 test('029 moves the old IBS HI note to the held table and leaves every other column and row as it was',async()=>{
  expect(await noteOf(projects.ibs)).toEqual(['']);

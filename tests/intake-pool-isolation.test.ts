@@ -163,7 +163,8 @@ test('(6) the runtime and intake roles do not bypass RLS; the new functions belo
     expect((await rows<{ok:boolean}>('SELECT has_table_privilege($1,$2,\'DELETE\') ok',[r,t]))[0].ok,r+' '+t).toBe(false);
   // the identity role reads four columns of the links (to say whether a link lies outside the requests the caller names) and nothing of the requests
   const colPriv=async(t:string)=>(await rows<{c:string}>("SELECT column_name c FROM information_schema.column_privileges WHERE grantee='libetech_identity' AND table_name=$1 AND privilege_type='SELECT' ORDER BY 1",[t])).map(r=>r.c);
-  expect(await colPriv('intake_work_links')).toEqual(['pool_item_id','project_id','tenant_id','work_request_id']);
+  // 030 adds the id, so the same definer function can leave out revoked links; an id is a random key and names nothing
+  expect(await colPriv('intake_work_links')).toEqual(['id','pool_item_id','project_id','tenant_id','work_request_id']);
   expect(await colPriv('work_requests')).toEqual([]);
   expect(Number((await rows<{n:string}>("SELECT count(*) n FROM pg_policies WHERE tablename='work_requests' AND policyname='identity_blockers'"))[0].n)).toBe(0);
   // the sender function: the roster member with Telegram linked, nobody else

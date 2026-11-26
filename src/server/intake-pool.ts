@@ -247,7 +247,8 @@ export class PoolService {
      if(item.version!==input.expectedVersion) throw conflict();
      const upd=await tx.query('UPDATE intake_pool_items SET version=version+1,updated_at=now() WHERE id=$1 AND version=$2 RETURNING id',[id,item.version]);
      if(!upd.rows.length) throw conflict();
-     await event('pool.link_revoked',{project_id:link.projectId,link_id:input.linkId,reason_code:input.reasonCode,version_before:item.version,version_after:item.version+1});
+     // every roster member reads pool events, link readers or not: the link and the reason live only in the revocation row, which follows the link's readers
+     await event('pool.link_revoked',{project_id:link.projectId,version_before:item.version,version_after:item.version+1});
      return settle();
     }
     case 'dismiss': {
