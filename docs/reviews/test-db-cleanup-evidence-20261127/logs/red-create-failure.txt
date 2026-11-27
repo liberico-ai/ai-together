@@ -1,0 +1,36 @@
+# tree 819d6d6. final cases, with tests/test-databases.ts of e21dd10 (the tree Codex read): vitest exit 1
+
+ RUN  v5.1.0 <repo>
+
+ ✓ tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > removes a database whose DROP DATABASE takes longer than 10 s 12070ms
+ ✓ tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > goes on to the next database when the connection of a drop is ended, and names the one that is left 193ms
+ ✓ tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names a database it could not drop, with the reason, and still drops the others 101ms
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names the database of a CREATE DATABASE that failed, and leaves alone a database that it did not create 50ms
+   → expected 'database "slice1_verify_1795755715767…' to contain 'CREATE DATABASE "slice1_verify_179575…'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names the database of a CREATE DATABASE that failed, and leaves alone a database that it did not create
+AssertionError: expected 'database "slice1_verify_1795755715767…' to contain 'CREATE DATABASE "slice1_verify_179575…'
+
+Expected: "CREATE DATABASE "slice1_verify_179575571576701" failed: database "slice1_verify_179575571576701" already exists"
+Received: "database "slice1_verify_179575571576701" already exists"
+
+ ❯ tests/test-databases.test.ts:97:26
+     95|     vi.spyOn(Date,'now').mockReturnValueOnce(at);
+     96|     const outcome=await databases.create().then(()=>'create resolved',…
+     97|     expect.soft(outcome).toContain(`CREATE DATABASE "${theirs}" failed…
+       |                          ^
+     98|     await databases.dropAll();
+     99|     expect.soft(await exists(theirs),'a database that create() did not…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed (4)
+   Start at  12:01:43
+   Duration  12.49s (tests 100%)
+
+# AssertionError lines: 1; lines with 'timed out' or 'PGlite is closed': 0
+databases of the run that are still there: 0

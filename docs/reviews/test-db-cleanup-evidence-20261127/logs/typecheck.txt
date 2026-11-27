@@ -1,0 +1,5 @@
+# tree 819d6d6. npm run typecheck: exit 0
+
+> libetech-ai-os@0.9.6 typecheck
+> tsc --noEmit
+

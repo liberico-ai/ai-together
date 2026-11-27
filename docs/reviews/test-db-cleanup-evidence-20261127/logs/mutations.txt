@@ -1,0 +1,36 @@
+# tree 819d6d6. one change in tests/test-databases.ts per run, then restored (mutate.py)
+
+== M1-10s-statement-timeout: vitest exit 1 | Tests  1 failed | 3 passed (4) | AssertionError=3 timeouts=0
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > removes a database whose DROP DATABASE takes longer than 10 s 12083ms
+   → expected 'Test databases not dropped (1), drop …' to be 'dropAll resolved' // Object.is equality
+   → the database is gone: expected true to be false // Object.is equality
+   → the drop was really held past 10 s: expected 10013 to be greater than or equal to 11000
+databases of the run that are still there: 0
+
+== M2-swallow-failures: vitest exit 1 | Tests  2 failed | 2 passed (4) | AssertionError=2 timeouts=0
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > goes on to the next database when the connection of a drop is ended, and names the one that is left 193ms
+   → expected 'dropAll resolved' to contain 'slice1_verify_179575574141801: '
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names a database it could not drop, with the reason, and still drops the others 98ms
+   → expected 'dropAll resolved' to contain 'slice1_verify_179575574161101: cannot…'
+databases of the run that are still there: 0
+
+== M3-stop-at-first-failure: vitest exit 1 | Tests  2 failed | 2 passed (4) | AssertionError=2 timeouts=0
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > goes on to the next database when the connection of a drop is ended, and names the one that is left 220ms
+   → the other database is gone: expected true to be false // Object.is equality
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names a database it could not drop, with the reason, and still drops the others 78ms
+   → the other database is gone: expected true to be false // Object.is equality
+databases of the run that are still there: 0
+
+== M4-one-client-for-all-drops: vitest exit 1 | Tests  1 failed | 3 passed (4) | AssertionError=2 timeouts=0
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > goes on to the next database when the connection of a drop is ended, and names the one that is left 206ms
+   → only the database that is left is named: expected 'Test databases not dropped (2), drop …' not to contain 'slice1_verify_179575576727902'
+   → the other database is gone: expected true to be false // Object.is equality
+databases of the run that are still there: 0
+
+== M5-no-error-listener: vitest exit 0 | Tests  4 passed (4) | AssertionError=0 timeouts=0
+databases of the run that are still there: 0
+
+== M6-name-kept-before-create: vitest exit 1 | Tests  1 failed | 3 passed (4) | AssertionError=1 timeouts=0
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names the database of a CREATE DATABASE that failed, and leaves alone a database that it did not create 54ms
+   → a database that create() did not make is still there: expected false to be true // Object.is equality
+databases of the run that are still there: 0
