@@ -1,0 +1,9 @@
+# Quy tắc tách của src/server/sheet-import.ts tại bde2d05 so với quy tắc của bản vá, trên 300000 ghi chú ghép ngẫu nhiên từ các mảnh chữ (hạt giống 20261127).
+# «mine» = bản 0.9.7. Trường cuối đếm ghi chú mà bản 0.9.7 nhận một mã bản vá đã bỏ.
+{
+  notes: 300000,
+  notesWhereMineDropsAReference: 416,
+  notesReadDifferentlyFromHotfix: 179,
+  notesWhereMineClaimsACodeTheHotfixDropped: 0,
+  examples: []
+}

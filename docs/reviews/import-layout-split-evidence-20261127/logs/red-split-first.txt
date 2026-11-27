@@ -1,0 +1,262 @@
+# src/server/sheet-import.ts of e64794c (base) + tests/sheet-import.test.ts of c6587ba (first three GV-9 cases)
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/sheet-import.test.ts (45 tests | 2 failed | 42 skipped) 2164ms
+   × (GV-9) STT 31 keeps LBRC015 and STT 43, whose note says «Tách LBRC015», gets no code of its own: neither row is a duplicate, both are filed, and the note is stored as written 801ms
+   × (GV-9) a row whose only codes stand in a split phrase has no code, even with the original row absent from the file: every letter case, «từ», «khỏi», «ra», «mã (việc)», a colon, any white space, decomposed Vietnamese, and a list of codes 785ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/sheet-import.test.ts > (GV-9) STT 31 keeps LBRC015 and STT 43, whose note says «Tách LBRC015», gets no code of its own: neither row is a duplicate, both are filed, and the note is stored as written
+AssertionError: expected [ [ '31', 'LBRC015', …(3) ], …(3) ] to deeply equal [ …(4) ]
+
+- Expected
++ Received
+
+  [
+    [
+      "31",
+      "LBRC015",
+-     "valid",
+-     [],
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
+      [
+        "CODE_FROM_NOTE",
+      ],
+    ],
+    [
+      "43",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "52",
+-     "LBRC052",
++     null,
+      "valid",
+      [],
+      [
++       "MULTI_CODE",
+        "CODE_FROM_NOTE",
+      ],
+    ],
+    [
+      "53",
+-     "LBRC053",
++     null,
+      "valid",
+      [],
+      [
++       "MULTI_CODE",
+        "CODE_FROM_NOTE",
+      ],
+    ],
+  ]
+
+ ❯ tests/sheet-import.test.ts:839:25
+    837|     row8({stt:'53',title:'Việc chia thêm, mã riêng đứng trước',note:'L…
+    838|   ]);
+    839|   expect(readings(pre)).toEqual([
+       |                         ^
+    840|     ['31','LBRC015','valid',[],['CODE_FROM_NOTE']],
+    841|     ['43',null,'valid',[],[]],
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/sheet-import.test.ts > (GV-9) a row whose only codes stand in a split phrase has no code, even with the original row absent from the file: every letter case, «từ», «khỏi», «ra», «mã (việc)», a colon, any white space, decomposed Vietnamese, and a list of codes
+AssertionError: expected [ [ '61', 'LBRC015', …(3) ], …(10) ] to deeply equal [ …(11) ]
+
+- Expected
++ Received
+
+  [
+    [
+      "61",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
+      ],
+      [
++       "CODE_FROM_NOTE",
++     ],
++   ],
++   [
+      "62",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
+      ],
++   ],
+    [
+      "63",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
+      ],
++   ],
+    [
+      "64",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "65",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "66",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
+      ],
+      [
++       "CODE_FROM_NOTE",
++     ],
++   ],
++   [
+      "67",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "68",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
+      ],
+      [
++       "CODE_FROM_NOTE",
++     ],
++   ],
++   [
+      "69",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "70",
+      null,
+      "valid",
+      [],
+-     [],
++     [
++       "MULTI_CODE",
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "71",
+      null,
+      "valid",
+      [],
+-     [],
++     [
++       "MULTI_CODE",
++       "CODE_FROM_NOTE",
++     ],
+    ],
+  ]
+
+ ❯ tests/sheet-import.test.ts:866:25
+    864|   ];
+    865|   const pre=await svc().preview(tech,envelope(noteRows(notes)));
+    866|   expect(readings(pre)).toEqual(notes.map((_,i)=>[String(61+i),null,'v…
+       |                         ^
+    867| });
+    868|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed | 42 skipped (45)
+   Start at  12:33:51
+   Duration  2.48s (tests 89%, transform 5%, import 5%)
+
+# exit 1

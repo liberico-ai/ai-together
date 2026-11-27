@@ -1,0 +1,25 @@
+# Đo bố cục trang /work-import trong trình duyệt (máy cục bộ, phiên mô phỏng, CSV tự đặt), 27/11/2026.
+# Giá trị chép từ kết quả trả về của công cụ trình duyệt; script đo chạy trong trang, không nằm trong repo.
+# "ngoài thẻ" = số phần con trực tiếp của thẻ có mép vượt mép thẻ quá 1 px. "nút" = nút ghi (xem trước) hoặc liên kết cuối (biên nhận).
+# "kiểu gốc" lần đầu đo trên globals.css và work-import.tsx chưa đổi; các lần sau là gỡ lớp work-import-result trên trang đang chạy
+# (mọi CSS mới chỉ chọn lớp đó).
+
+Xem trước · 1440 px
+  kiểu gốc ............ flex row · ngoài thẻ 3/10 · thẻ 156–1284, scrollWidth 1251 / clientWidth 1126 · nút 1364–1408 (rộng 44), không nằm trong thẻ
+  bản 0.9.7 ........... flex column · ngoài thẻ 0/10 · scrollWidth 1126 / 1126 · nút 173–396 (rộng 223), trong thẻ · 3 bảng đều 1094 / 1094
+
+Xem trước · 390 px · số dòng của ô «BU» (chữ LBRC) trong bảng «Từng dòng», ba dòng
+  kiểu gốc ............ 1, 1, 1   (bảng rộng 921, cuộn trong khung của bảng)
+  CSS của bản vá ...... 3, 3, 3   (bảng rộng 881; «LBRC» hiện thành «LB / R / C»)  — overflow-wrap:anywhere
+  bản 0.9.7 ........... 1, 1, 1   (bảng rộng 921, cuộn trong khung của bảng)       — overflow-wrap:break-word
+  bản 0.9.7 ........... flex column · ngoài thẻ 0/10 · thẻ 16–374, scrollWidth 356 / 356 · nút 29–361 (rộng 332), trong thẻ
+  khoá bảng thử 100 ký tự (đổi chữ trên trang): ngoài thẻ 0 · mép phải của chữ 360 < mép thẻ 374 · scrollWidth 356 / 356
+
+Biên nhận · lệnh ghi được thay bằng một trả lời tự đặt trong trình duyệt (xem ghi chú dưới)
+  1440 px, kiểu gốc ... flex row · khung của bảng kết quả rộng 7 px (không đọc được dòng nào) · liên kết cuối 1221–1267 (rộng 46)
+  1440 px, bản 0.9.7 .. flex column · ngoài thẻ 0/7 · 3 bảng đều 1094 / 1094
+  390 px, kiểu gốc .... flex column · ngoài thẻ 0/7   (máy hẹp vốn không lỗi)
+  390 px, bản 0.9.7 ... flex column · ngoài thẻ 0/7
+
+Ghi chú: ở phiên mô phỏng, lệnh ghi thật trả 500: INSERT vào work_import_batches bị RLS từ chối (42501), vì người mô phỏng không có trong bảng
+danh tính. Mã nhập của nhánh nền cũng trả đúng lỗi đó. Lỗi có sẵn, chỉ ở phiên mô phỏng, không sửa trong việc này.

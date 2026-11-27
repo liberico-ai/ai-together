@@ -1,0 +1,193 @@
+# the hotfix patch applied to src/server/sheet-import.ts of e64794c + the same three GV-9 cases
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/sheet-import.test.ts (45 tests | 1 failed | 42 skipped) 1921ms
+   × (GV-9) a row whose only codes stand in a split phrase has no code, even with the original row absent from the file: every letter case, «từ», «khỏi», «ra», «mã (việc)», a colon, any white space, decomposed Vietnamese, and a list of codes 575ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/sheet-import.test.ts > (GV-9) a row whose only codes stand in a split phrase has no code, even with the original row absent from the file: every letter case, «từ», «khỏi», «ra», «mã (việc)», a colon, any white space, decomposed Vietnamese, and a list of codes
+AssertionError: expected [ …(11) ] to deeply equal [ …(11) ]
+
+- Expected
++ Received
+
+@@ -6,74 +6,112 @@
+      [],
+      [],
+    ],
+    [
+      "62",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "63",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
+      ],
++   ],
+    [
+      "64",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
+      ],
+      [
++       "CODE_FROM_NOTE",
++     ],
++   ],
++   [
+      "65",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "66",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "67",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
+      ],
+      [
++       "CODE_FROM_NOTE",
++     ],
++   ],
++   [
+      "68",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "69",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC015",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "70",
+      null,
+      "valid",
+-     [],
+      [],
++     [
++       "MULTI_CODE",
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "71",
+      null,
+      "valid",
+      [],
+-     [],
++     [
++       "MULTI_CODE",
++       "CODE_FROM_NOTE",
++     ],
+    ],
+  ]
+
+ ❯ tests/sheet-import.test.ts:866:25
+    864|   ];
+    865|   const pre=await svc().preview(tech,envelope(noteRows(notes)));
+    866|   expect(readings(pre)).toEqual(notes.map((_,i)=>[String(61+i),null,'v…
+       |                         ^
+    867| });
+    868|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed | 42 skipped (45)
+   Start at  12:33:54
+   Duration  2.06s (tests 96%, import 3%, transform 2%)
+
+# exit 1
+
+# The hotfix's rule applied to each note of the second case alone: row number, then the codes the row would still claim
+61 []
+62 ["LBRC015"]
+63 ["LBRC015"]
+64 ["LBRC015"]
+65 ["LBRC015"]
+66 ["LBRC015"]
+67 ["LBRC015"]
+68 ["LBRC015"]
+69 ["LBRC015"]
+70 ["LBRC016","LBRC017"]
+71 ["LBRC016","LBRC017","LBRC018"]

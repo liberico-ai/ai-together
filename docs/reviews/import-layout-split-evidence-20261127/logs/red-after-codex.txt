@@ -1,0 +1,134 @@
+# src/server/sheet-import.ts of f5d3b76 (the tree Codex read) + tests/sheet-import.test.ts of bde2d05
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/sheet-import.test.ts (45 tests | 2 failed | 42 skipped) 2138ms
+   × (GV-9) a row whose only codes stand in a split phrase has no code, even with the original row absent from the file: every letter case, «từ», «khỏi», «ra», «mã (việc)», a colon, any white space, decomposed Vietnamese, and a list of codes 635ms
+   × (GV-9) outside a split phrase the note is read as before: a plain note code, «tách» as an ordinary word, a word without a digit after «khỏi», the title winning over the note, two codes of its own, a code the note states is the row's new or own one after a split list, and an IBS HI row read by its title only 595ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/sheet-import.test.ts > (GV-9) a row whose only codes stand in a split phrase has no code, even with the original row absent from the file: every letter case, «từ», «khỏi», «ra», «mã (việc)», a colon, any white space, decomposed Vietnamese, and a list of codes
+AssertionError: expected [ …(15) ] to deeply equal [ …(15) ]
+
+- Expected
++ Received
+
+@@ -76,28 +76,40 @@
+      [],
+      [],
+    ],
+    [
+      "72",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC016",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "73",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC016",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "74",
+-     null,
+-     "valid",
+-     [],
+-     [],
++     "LBRC016",
++     "needs_reconciliation",
++     [
++       "DUPLICATE_CODE_IN_FILE",
++     ],
++     [
++       "CODE_FROM_NOTE",
++     ],
+    ],
+    [
+      "75",
+      null,
+      "valid",
+
+ ❯ tests/sheet-import.test.ts:871:25
+    869|   ];
+    870|   const pre=await svc().preview(tech,envelope(noteRows(notes)));
+    871|   expect(readings(pre)).toEqual(notes.map((_,i)=>[String(61+i),null,'v…
+       |                         ^
+    872| });
+    873|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/sheet-import.test.ts > (GV-9) outside a split phrase the note is read as before: a plain note code, «tách» as an ordinary word, a word without a digit after «khỏi», the title winning over the note, two codes of its own, a code the note states is the row's new or own one after a split list, and an IBS HI row read by its title only
+AssertionError: expected [ …(9) ] to deeply equal [ …(9) ]
+
+- Expected
++ Received
+
+@@ -45,25 +45,21 @@
+        "CODE_FROM_NOTE",
+      ],
+    ],
+    [
+      "66",
+-     "LBRC054",
++     null,
+      "valid",
++     [],
+      [],
+-     [
+-       "CODE_FROM_NOTE",
+-     ],
+    ],
+    [
+      "67",
+-     "LBRC055",
++     null,
+      "valid",
+      [],
+-     [
+-       "CODE_FROM_NOTE",
+-     ],
++     [],
+    ],
+    [
+      "80",
+      "LBRC049",
+      "valid",
+
+ ❯ tests/sheet-import.test.ts:881:25
+    879|     row8({stt:'81',bu:'IBS HI',title:'Việc Tech cho IBS900 đủ dài',not…
+    880|   ]));
+    881|   expect(readings(pre)).toEqual([
+       |                         ^
+    882|     ['61','LBRC043','valid',[],['CODE_FROM_NOTE']],
+    883|     ['62','LBRC044','valid',[],['CODE_FROM_NOTE']],
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed | 42 skipped (45)
+   Start at  12:33:56
+   Duration  2.31s (tests 95%, transform 3%, import 2%)
+
+# exit 1

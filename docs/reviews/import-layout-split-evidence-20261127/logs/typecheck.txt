@@ -1,0 +1,6 @@
+# tree bde2d05. npm run typecheck (tsc --noEmit): exit 0
+
+> libetech-ai-os@0.9.7 typecheck
+> tsc --noEmit
+
+# same tree, npx tsc --noEmit --incremental false: exit 0, no output
