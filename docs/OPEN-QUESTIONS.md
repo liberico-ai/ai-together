@@ -1330,3 +1330,23 @@ Chairman duyệt viết mã F với đề xuất Q-F1…Q-F4 của `docs/plans/g
   - Phương án: (1) giữ, vì GO LIVE là đợt chung của cả Team Tech; (2) chỉ xét người có membership hay việc được giao trong dự án; (3) người vận hành khai danh sách người theo dõi cho mỗi đích.
   - Tạm: (1). Chưa đích nào được bật, nên chưa tin nào được gửi.
 
+---
+
+## V1 — Kiểm trước khi cài (`deploy/preflight.py`, 0.9.8, 28/11/2026)
+
+Các điểm phải suy đoán do thiếu tệp/mã ngoài repo trong lát V1 (GIAO VIỆC 11). Ghi nối cuối tệp để giữ nguyên số dòng các mục trước.
+
+- **OQ-63 — Danh sách thư mục quét plugin và thứ tự thắng của Hermes trên d1-ai1.**
+  - Repo chỉ nêu ba đường dẫn liên quan plugin Hermes: `/home/iptech/.hermes/profiles/libetech/plugins` (`install-d1.sh`, `BRIDGE-INSTALL-20261108.log`), `/home/iptech/.hermes/plugins` (suy từ `dashboard-plugin`), và `/home/iptech/.hermes/hermes-agent/plugins` (`TELEGRAM-CHECK-20261108T220013.json`). Mã nguồn trình nạp plugin của Hermes không nằm trong repo này nên chưa kiểm chứng được danh sách quét đầy đủ và luật ưu tiên chính xác giữa các thư mục.
+  - Hành vi tạm trong `deploy/preflight.py`: quét mặc định 3 thư mục trên (cho phép truyền `--plugin-scan-dir` tường minh theo thứ tự), **chặn mọi bản trùng `name`** (fail-closed bất kể thứ tự thắng), và báo bản thắng theo `last-wins` sau khi sắp tên (khớp hiện trạng D: bản sao lưu `.bak`/cũ đè `libetech-ai-os-bridge` 0.3.6; hỗ trợ `--precedence first-wins`).
+  - Cần xác nhận (Codex trên d1-ai1): danh sách đầy đủ thư mục Hermes quét và luật nạp (`last-wins` hay `first-wins`) để ghim chính xác.
+- **OQ-64 — Lược đồ và vị trí tệp `release.env` trên d1-ai1 (và thiếu `RUNBOOK-097` trong repo).**
+  - Giao việc 11 nêu đọc `RUNBOOK-097` và kiểm `release.env` khớp gói (digest/version). Kiểm thực tế cây `543ba01`: `docs/RUNBOOK-097` **không tồn tại** (chỉ có `RUNBOOK-091`–`RUNBOOK-095`; `0.9.6`/`0.9.7` có hồ sơ ở `docs/reviews/*-evidence-20261127/`), và chuỗi `release.env` chưa xuất hiện ở tệp nào trong repo (repo chỉ có `web.env` mang `LIBETECH_BUILD_DIGEST`).
+  - Hành vi tạm trong `deploy/preflight.py`: ở `--mode upgrade`, bắt buộc truyền `--release-env` (hoặc `LIBETECH_RELEASE_ENV`) chứa cặp digest (`LIBETECH_BUILD_DIGEST` hoặc `LIBETECH_BUNDLE_TREE_SHA256`) và phiên bản (`LIBETECH_RELEASE_VERSION` hoặc `RELEASE_VERSION`), tuỳ chọn `LIBETECH_PLUGIN_VERSION`, `LIBETECH_ARCHIVE_SHA256`, `SOURCE_SHA`; chỉ đọc khoá allowlist, chặn symlink và tệp world-writable. Ở `--mode install` (`install-d1.sh`), dùng `--expected-digest` khi chưa có `release.env` và kiểm thêm `release.env` nếu biến `LIBETECH_RELEASE_ENV` được đặt.
+  - Cần xác nhận (Cowork / Codex): tên khoá thật và đường dẫn chuẩn của `release.env` đang dùng trên d1-ai1 (nếu đã có từ `DEPLOY-006/007/008` ngoài repo).
+- **OQ-65 — Chế độ unit đang chạy trên d1-ai1 (`systemd --user` dưới `iptech` so với system unit dưới `libetech-os`).**
+  - `deploy/install-d1.sh` cài system unit `User=libetech-os` vào `/etc/systemd/system/`, còn `deploy/install-user.py`, `deploy/libetech-ai-os-outbox.service`, `reminders.service`, `golive-status.service` nhắm tuyến `systemd --user` dưới `iptech` (và finding P0 về unit outbox ở `DELIVERY-020` chưa có xác nhận trong repo).
+  - Hành vi tạm trong `deploy/preflight.py`: kiểm đồng thời `/etc/systemd/system` và `/home/iptech/.config/systemd/user` (gồm drop-in `*.service.d/*.conf`), chặn system unit thiếu `User=` hoặc chạy `root`/`0`, chặn user unit khai `User=`/`Group=`, và chặn trùng cùng tên unit ở hai phạm vi.
+  - Cần xác nhận (Codex trên d1-ai1): danh sách unit và phạm vi (`system` hay `user`) đang chạy thực tế trên d1-ai1.
+
+

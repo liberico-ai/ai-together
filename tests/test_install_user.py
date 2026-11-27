@@ -384,7 +384,7 @@ class RestoreSteps(unittest.TestCase):
         files={}
         def add(rel,data=b'x'):
             p=root/rel;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data);files[rel]=hashlib.sha256(data).hexdigest()
-        for rel in ('deploy/pre-restore.sql','deploy/post-restore.sql','deploy/restore-plan.py','deploy/install-d1.sh','migrations/001_a.sql','migrations/023_thread_order.sql','migrations/rollback/023_thread_order.sql','package.json'):
+        for rel in ('deploy/pre-restore.sql','deploy/post-restore.sql','deploy/restore-plan.py','deploy/preflight.py','deploy/install-d1.sh','migrations/001_a.sql','migrations/023_thread_order.sql','migrations/rollback/023_thread_order.sql','package.json'):
             if rel not in skip:add(rel,rel.encode())
         manifest={'files':files,'treeSha256':hashlib.sha256(json.dumps(files,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
         (root/'deploy/BUNDLE-MANIFEST.json').write_text(json.dumps(manifest));return manifest
@@ -421,8 +421,11 @@ class RestoreSteps(unittest.TestCase):
             with self.subTest(name=name),tempfile.TemporaryDirectory() as d:
                 root=Path(d);self.make_bundle(root);mutate(root)
                 r=self.run_checker(root);self.assertNotEqual(r.returncode,0);self.assertEqual(r.stdout,'')
-        with self.subTest(name='a restore file that the manifest does not list'),tempfile.TemporaryDirectory() as d:
+        with self.subTest(name='a restore or preflight file that the manifest does not list'),tempfile.TemporaryDirectory() as d:
             root=Path(d);self.make_bundle(root,skip=('deploy/pre-restore.sql',))
+            r=self.run_checker(root);self.assertNotEqual(r.returncode,0)
+        with self.subTest(name='deploy/preflight.py missing from manifest'),tempfile.TemporaryDirectory() as d:
+            root=Path(d);self.make_bundle(root,skip=('deploy/preflight.py',))
             r=self.run_checker(root);self.assertNotEqual(r.returncode,0)
         with self.subTest(name='a consistent manifest for a changed file passes the checker, and is what the digest of the release is for'),tempfile.TemporaryDirectory() as d:
             root=Path(d);before=self.make_bundle(root);swapped_manifest(root)
