@@ -12,7 +12,11 @@ try {
  for(const file of (await readdir('migrations')).filter(f=>/^\d+.*\.sql$/.test(f)).sort()) {
   const version=file.match(/^\d+/)?.[0];
   if(version&&applied.has(version)) continue;
-  await client.query(await readFile('migrations/'+file,'utf8'));
+  try {await client.query(await readFile('migrations/'+file,'utf8'));}
+  catch(error) {console.error(JSON.stringify({event:'migration_failed',file}));throw error;}
   console.log(JSON.stringify({event:'migration_applied',file}));
  }
-} finally {await client.query("SELECT pg_advisory_unlock(hashtext('libetech-ai-os-migrations'))");client.release();await pool.end();}
+ // Unlock on success only. After a failure the connection may still be inside the file's aborted transaction, or gone, and a query sent on it (this one, or a ROLLBACK first) raises an error
+ // that takes the place of the migration's own. Closing the connection ends the session: PostgreSQL then rolls the open transaction back and releases the advisory lock.
+ await client.query("SELECT pg_advisory_unlock(hashtext('libetech-ai-os-migrations'))");
+} finally {client.release();await pool.end();}
