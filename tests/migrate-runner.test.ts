@@ -4,10 +4,10 @@ import {connect,createServer,type AddressInfo,type Server} from 'node:net';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {Client} from 'pg';
 import {afterAll,beforeAll,describe,expect,it} from 'vitest';
 import {pooledDatabase} from '../src/server/db';
 import {assertIsolated,native} from './slice1-db';
+import {testDatabases,DROP_HOOK_TIMEOUT_MS} from './test-databases';
 
 // scripts/migrate.ts run as the operator runs it: a process of its own with one pg connection. The other migration tests hand each file to the database themselves, so none of them reaches the
 // runner's error path. The runner reads `migrations/` from its working directory, so each case gives it a directory of synthetic files and a new empty database.
@@ -46,28 +46,23 @@ async function cuttingProxy(upstream:URL,marker:string){
 const CUT='migrate-runner: the connection drops here';
 
 describe.skipIf(!native)('scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection)',()=>{
-  // A plain client, not pooledDatabase: DROP DATABASE waits for a checkpoint, and after a full suite that wait can pass the helper's 10 s statement timeout.
-  let admin:Client,serial=0;
-  const databases:string[]=[],directories:string[]=[],proxies:Server[]=[];
-  beforeAll(async()=>{
+  let databases:ReturnType<typeof testDatabases>;
+  const directories:string[]=[],proxies:Server[]=[];
+  beforeAll(()=>{
     const url=process.env.SLICE1_TEST_DATABASE_URL!;
     assertIsolated(url);
-    admin=new Client({connectionString:url});
-    await admin.connect();
+    databases=testDatabases(url);
   });
   afterAll(async()=>{
-    for(const proxy of proxies) proxy.close();
-    for(const directory of directories) await rm(directory,{recursive:true,force:true});
-    for(const name of databases) await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
-    await admin?.end();
-  },180000);
+    // as in restore-rehearsal.test.ts: the drops run also when a step before them throws, and a database that is not dropped fails this hook, with its name
+    try{
+      for(const proxy of proxies) proxy.close();
+      for(const directory of directories) await rm(directory,{recursive:true,force:true});
+    }finally{await databases?.dropAll();}
+  },DROP_HOOK_TIMEOUT_MS);
 
   async function target(files:Record<string,string>,cutOn?:string){
-    const url=new URL(process.env.SLICE1_TEST_DATABASE_URL!),name=`slice1_verify_${Date.now()}${String(++serial).padStart(2,'0')}`;
-    url.pathname='/'+name;
-    assertIsolated(url.toString());
-    await admin.query(`CREATE DATABASE "${name}"`);
-    databases.push(name);
+    const url=new URL(databases.urlOf(await databases.create()));
     const directory=await mkdtemp(path.join(tmpdir(),'migrate-runner-'));
     directories.push(directory);
     await mkdir(path.join(directory,'migrations'));
