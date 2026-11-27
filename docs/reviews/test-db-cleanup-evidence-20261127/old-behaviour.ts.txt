@@ -1,0 +1,24 @@
+import {pooledDatabase,type Database} from '../src/server/db';
+import {assertIsolated} from './slice1-db';
+
+// What tests/restore-rehearsal.test.ts did at 36baa8e, moved into a helper with no change of behaviour. The red runs put this file in place of tests/test-databases.ts for the run.
+export function testDatabases(serverUrl:string){
+  const created:string[]=[];
+  let serial=0;
+  const urlOf=(db:string)=>{const u=new URL(serverUrl);u.pathname='/'+db;return u.toString();};
+  const admin:Database=pooledDatabase(urlOf('postgres'));
+  return {
+    urlOf,
+    async create():Promise<string>{
+      const name=`slice1_verify_${Date.now()}${String(++serial).padStart(2,'0')}`;
+      assertIsolated(urlOf(name));
+      await admin.query(`CREATE DATABASE "${name}"`);
+      created.push(name);
+      return name;
+    },
+    async dropAll():Promise<void>{
+      for(const name of created) await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`).catch(()=>{});
+      await admin.close();
+    },
+  };
+}

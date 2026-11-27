@@ -1,0 +1,68 @@
+# python3 -I cause.py <docker logs libetech-slice1-pg> "2026-11-27 04:20:30"   (lines up to the time of the first capture, before any run of this branch)
+log: 2026-11-20 10:38:27 -> 2026-11-27 04:20:20 UTC
+
+DROP DATABASE of a test-named database that ended in an error: 12
+by message: {'canceling statement due to statement timeout': 12}
+
+slice1_verify_179535603090901 WITH (FORCE)
+  cancelled 11-22 14:00:48 ("canceling statement due to statement timeout"), so sent about 14:00:38
+  latest checkpoint start before the cancel: 14:00:25 checkpoint starting: wal
+  first checkpoint complete after the DROP was sent: 14:00:54, 15.9 s later (buffers=1086 write=13.570s sync=13.436s total=29.482s)
+
+slice1_verify_179535756592301 WITH (FORCE)
+  cancelled 11-22 14:26:24 ("canceling statement due to statement timeout"), so sent about 14:26:14
+  latest checkpoint start before the cancel: 14:23:51 checkpoint starting: time
+  first checkpoint complete after the DROP was sent: 14:26:36, 22.3 s later (buffers=2531 write=143.263s sync=20.879s total=165.579s)
+
+slice1_verify_179535756620202 WITH (FORCE)
+  cancelled 11-22 14:26:34 ("canceling statement due to statement timeout"), so sent about 14:26:24
+  latest checkpoint start before the cancel: 14:23:51 checkpoint starting: time
+  first checkpoint complete after the DROP was sent: 14:26:36, 12.3 s later (buffers=2531 write=143.263s sync=20.879s total=165.579s)
+
+slice1_verify_179559141434301 WITH (FORCE)
+  cancelled 11-25 07:23:54 ("canceling statement due to statement timeout"), so sent about 07:23:44
+  latest checkpoint start before the cancel: 07:23:44 checkpoint starting: immediate force wait
+  first checkpoint complete after the DROP was sent: 07:23:56, 11.9 s later (buffers=13044 write=0.138s sync=10.740s total=11.882s)
+
+slice1_verify_179559731853701 WITH (FORCE)
+  cancelled 11-25 09:02:18 ("canceling statement due to statement timeout"), so sent about 09:02:08
+  latest checkpoint start before the cancel: 09:00:39 checkpoint starting: wal
+  first checkpoint complete after the DROP was sent: 09:02:18, 10.1 s later (buffers=1624 write=89.006s sync=7.536s total=99.082s)
+
+slice1_verify_179561261968201 WITH (FORCE)
+  cancelled 11-25 13:17:22 ("canceling statement due to statement timeout"), so sent about 13:17:12
+  latest checkpoint start before the cancel: 13:14:08 checkpoint starting: time
+  first checkpoint complete after the DROP was sent: 13:17:31, 18.6 s later (buffers=635 write=184.144s sync=16.864s total=202.721s)
+
+slice1_verify_179566109438101 WITH (FORCE)
+  cancelled 11-26 02:45:15 ("canceling statement due to statement timeout"), so sent about 02:45:05
+  latest checkpoint start before the cancel: 02:44:54 checkpoint starting: wal
+  first checkpoint complete after the DROP was sent: 02:45:16, 11.2 s later (buffers=566 write=10.678s sync=8.704s total=21.882s)
+
+slice1_verify_179566568346001 WITH (FORCE)
+  cancelled 11-26 04:01:46 ("canceling statement due to statement timeout"), so sent about 04:01:36
+  latest checkpoint start before the cancel: 04:00:31 checkpoint starting: time
+  first checkpoint complete after the DROP was sent: 04:01:50, 14.1 s later (buffers=524 write=65.730s sync=12.744s total=79.847s)
+
+slice1_verify_179566753728601 WITH (FORCE)
+  cancelled 11-26 04:32:41 ("canceling statement due to statement timeout"), so sent about 04:32:31
+  latest checkpoint start before the cancel: 04:31:51 checkpoint starting: time
+  first checkpoint complete after the DROP was sent: 04:32:41, 10.7 s later (buffers=616 write=39.708s sync=8.614s total=50.368s)
+
+slice1_verify_179569818289201 WITH (FORCE)
+  cancelled 11-26 13:03:25 ("canceling statement due to statement timeout"), so sent about 13:03:15
+  latest checkpoint start before the cancel: 13:02:38 checkpoint starting: time
+  first checkpoint complete after the DROP was sent: 13:03:27, 12.8 s later (buffers=312 write=36.109s sync=11.103s total=48.911s)
+
+slice1_verify_179571084003901 WITH (FORCE)
+  cancelled 11-26 16:34:25 ("canceling statement due to statement timeout"), so sent about 16:34:15
+  latest checkpoint start before the cancel: 16:34:11 checkpoint starting: wal
+  first checkpoint complete after the DROP was sent: 16:34:28, 13.1 s later (buffers=6435 write=4.116s sync=11.588s total=17.144s)
+
+slice1_verify_179575097649901 WITH (FORCE)
+  cancelled 11-27 03:43:07 ("canceling statement due to statement timeout"), so sent about 03:42:57
+  latest checkpoint start before the cancel: 03:40:08 checkpoint starting: wal time
+  first checkpoint complete after the DROP was sent: 03:43:13, 15.9 s later (buffers=6273 write=168.788s sync=10.328s total=184.697s)
+
+all checkpoints: n=949 median=0.0s p99=303.4s max=1338.1s over 10 s: 112
+checkpoints that started as immediate: n=824 median=0.0s p99=2.8s max=11.9s over 10 s: 1
