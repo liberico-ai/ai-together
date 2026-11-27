@@ -1,5 +1,6 @@
 import {execFile} from 'node:child_process';
 import {mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {connect,createServer,type AddressInfo,type Server} from 'node:net';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -26,21 +27,39 @@ INSERT INTO public.schema_migrations VALUES ('001');`);
 const REFUSAL='002: refused, a person has to decide about these rows first';
 const refuse=`DO $$ BEGIN RAISE EXCEPTION '${REFUSAL}'; END $$;`;
 
+/** A pass-through to the test server that drops the runner's connection when it sends `marker`, with no word from the server: a network cut or a server that dies, not a refusal. */
+async function cuttingProxy(upstream:URL,marker:string){
+  const server=createServer(runner=>{
+    const database=connect(Number(upstream.port),upstream.hostname);
+    for(const socket of [runner,database]) socket.on('error',()=>{runner.destroy();database.destroy();});
+    runner.on('data',chunk=>{
+      if(chunk.includes(marker)){runner.destroy();database.destroy();}
+      else database.write(chunk);
+    });
+    runner.on('close',()=>database.destroy());
+    database.pipe(runner);
+  });
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  return {server,port:String((server.address() as AddressInfo).port)};
+}
+const CUT='migrate-runner: the connection drops here';
+
 describe.skipIf(!native)('scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection)',()=>{
   let admin:Database,serial=0;
-  const databases:string[]=[],directories:string[]=[];
+  const databases:string[]=[],directories:string[]=[],proxies:Server[]=[];
   beforeAll(()=>{
     const url=process.env.SLICE1_TEST_DATABASE_URL!;
     assertIsolated(url);
     admin=pooledDatabase(url);
   });
   afterAll(async()=>{
+    for(const proxy of proxies) proxy.close();
     for(const name of databases) await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
     await admin?.close();
     for(const directory of directories) await rm(directory,{recursive:true,force:true});
   });
 
-  async function target(files:Record<string,string>){
+  async function target(files:Record<string,string>,cutOn?:string){
     const url=new URL(process.env.SLICE1_TEST_DATABASE_URL!),name=`slice1_verify_${Date.now()}${String(++serial).padStart(2,'0')}`;
     url.pathname='/'+name;
     assertIsolated(url.toString());
@@ -51,8 +70,14 @@ describe.skipIf(!native)('scripts/migrate.ts as a process (native PostgreSQL onl
     await mkdir(path.join(directory,'migrations'));
     const write=(file:string,sql:string)=>writeFile(path.join(directory,'migrations',file),sql);
     for(const [file,sql] of Object.entries(files)) await write(file,sql);
+    const runnerUrl=new URL(url);
+    if(cutOn){
+      const proxy=await cuttingProxy(url,cutOn);
+      proxies.push(proxy.server);
+      runnerUrl.port=proxy.port;
+    }
     // A hang is not a refusal: the timeout reports -1, and the cases ask for the exit code by value.
-    const run=()=>new Promise<Run>(resolve=>execFile(process.execPath,RUNNER,{cwd:directory,encoding:'utf8',timeout:20000,env:{...process.env,MIGRATION_DATABASE_URL:url.toString()}},
+    const run=()=>new Promise<Run>(resolve=>execFile(process.execPath,RUNNER,{cwd:directory,encoding:'utf8',timeout:20000,env:{...process.env,MIGRATION_DATABASE_URL:runnerUrl.toString()}},
       (error,stdout,stderr)=>resolve({code:error?(typeof error.code==='number'?error.code:-1):0,stdout,stderr})));
     const state=async()=>{
       const db=pooledDatabase(url.toString());
@@ -80,8 +105,10 @@ describe.skipIf(!native)('scripts/migrate.ts as a process (native PostgreSQL onl
     {shape:'a refusal in a file without BEGIN',sql:step('002','half_applied',refuse),message:REFUSAL},
     // The server ends the session, so nothing more can be sent on it: whatever the runner does while it closes must not take the place of this message.
     {shape:'a failure that ends the connection',sql:inTransaction(step('002','half_applied','SELECT pg_terminate_backend(pg_backend_pid());')),message:'terminating connection due to administrator command'},
-  ])('shows the database message and the failed file for $shape, applies nothing of it, and runs again once corrected',async({sql,message})=>{
-    const db=await target({'001_ledger.sql':LEDGER,'002_fails.sql':sql,'003_later.sql':inTransaction(step('003','later'))});
+    // The file's statement never reaches the server here. The client learns of the drop from the socket alone, and raises it on itself before the running query is rejected.
+    {shape:'a connection that drops with no word from the server',sql:inTransaction(step('002','half_applied',`-- ${CUT}`)),message:'Connection terminated unexpectedly',cutOn:CUT},
+  ])('shows the database message and the failed file for $shape, applies nothing of it, and runs again once corrected',async({sql,message,cutOn})=>{
+    const db=await target({'001_ledger.sql':LEDGER,'002_fails.sql':sql,'003_later.sql':inTransaction(step('003','later'))},cutOn);
     const run=await db.run();
     expect(run.code,run.stderr).toBe(1);
     expect.soft(run.stderr).toContain(message);

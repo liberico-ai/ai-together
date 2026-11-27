@@ -3,6 +3,9 @@ import {Pool} from 'pg';
 if(!process.env.MIGRATION_DATABASE_URL) throw new Error('MIGRATION_DATABASE_URL is required; do not use the web runtime login.');
 const pool=new Pool({connectionString:process.env.MIGRATION_DATABASE_URL,max:1});
 const client=await pool.connect();
+// With no listener, an 'error' event of this client stops the process before the failed file is named. A running query still rejects with its own error; between two queries this line is the
+// only place the cause shows.
+client.on('error',error=>console.error(JSON.stringify({event:'migration_connection_error',message:error.message})));
 try {
  await client.query("SELECT pg_advisory_lock(hashtext('libetech-ai-os-migrations'))");
  const existing=await client.query<{table_name:string|null}>("SELECT to_regclass('public.schema_migrations')::text AS table_name");
