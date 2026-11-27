@@ -49,7 +49,7 @@ for directory,dirs,names in os.walk(root):
         if os.path.islink(path) or n.endswith((".pyc",".pyo")):sys.exit("symlink or bytecode in bundle")
         present.add(os.path.relpath(path,root))
 if present-(set(files)|{"deploy/BUNDLE-MANIFEST.json","docs/SOURCE-MANIFEST.json"}):sys.exit("unlisted file in bundle")
-for need in ("deploy/pre-restore.sql","deploy/post-restore.sql","deploy/restore-plan.py","migrations/023_thread_order.sql"):
+for need in ("deploy/pre-restore.sql","deploy/post-restore.sql","deploy/restore-plan.py","deploy/preflight.py","migrations/023_thread_order.sql"):
     if need not in files:sys.exit("restore file not listed")
 print(tree)
 PY
@@ -58,6 +58,12 @@ mkdir "$snap"
 cp -a "$bundle/." "$snap/"
 tree=$(check_bundle "$snap") || { echo 'The bundle does not pass the checks of the installer (manifest, hashes, unlisted files, restore files); package the release again. Nothing was installed.' >&2; exit 1; }
 [[ "$tree" == "$release_sha" ]] || { echo 'The bundle is not the release that LIBETECH_BUNDLE_TREE_SHA256 names; nothing was installed.' >&2; exit 1; }
+# V1 operational preflight: duplicate Hermes plugins, bundle/release.env digest & version, migration files/rollbacks, unit user, backup dir outside Hermes scan paths.
+preflight_args=(--mode install --bundle "$snap" --expected-digest "$release_sha" --expected-web-user libetech-os --backup-dir "${LIBETECH_BACKUP_DIR:-/var/lib/libetech-ai-os/backups}" --skip-bundle-file-hashes)
+if [[ -n "${LIBETECH_RELEASE_ENV:-}" ]]; then
+ preflight_args+=(--release-env "$LIBETECH_RELEASE_ENV")
+fi
+python3 -I "$snap/deploy/preflight.py" "${preflight_args[@]}" || { echo 'Operational preflight failed; nothing was installed. Inspect the JSON report above.' >&2; exit 1; }
 # Group IDs live on the server (LIBETECH_PILOT_CHATS, pass it through sudo); validate before creating anything.
 python3 "$snap/deploy/provision-server.py" --preflight
 # The archive is read ONCE. It is loaded with the rights of a superuser and with every guard of the database off, and it lies where the account that the gateway shares can write it. So: copy it
