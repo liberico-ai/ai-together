@@ -1,0 +1,12 @@
+runner exit: 1 · applied lines: 0
+runner output names the function: false
+runner output has the 032 message: false
+error lines shown:
+  Error.captureStackTrace(err)
+  error: current transaction is aborted, commands ignored until end of transaction block
+  code: '25P02',
+after stop: versions 031 · not pinned 18
+psql exit: 3
+  ERROR:  032: privileged functions without the temporary schema last in their search path: public.zz_made_by_hand. Pin or remove them, then run 032 again.
+after psql stop: versions 031 · not pinned 18
+scratch database dropped; left behind: 0

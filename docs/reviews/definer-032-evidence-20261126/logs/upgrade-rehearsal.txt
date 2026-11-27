@@ -1,0 +1,8 @@
+migration login is superuser: true
+0.9.4 runner: exit 0 · applied 31 · last {"event":"migration_applied","file":"031_reminders.sql"}
+before: versions 031 · definer functions 35 · not pinned 17
+0.9.5 runner: exit 0 · applied 1
+  {"event":"migration_applied","file":"032_definer_search_path.sql"}
+after:  versions 031, 032 · definer functions 35 · not pinned 0
+0.9.5 runner again: exit 0 · applied 0
+scratch database dropped; left behind: 0

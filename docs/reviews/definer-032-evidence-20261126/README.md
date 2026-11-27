@@ -43,6 +43,17 @@ Lượt đủ bộ đầu tiên trên PostgreSQL 16 cục bộ bị 032 chặn, 
 | PGlite với coverage | 98 tệp đạt, 15 bỏ qua; 1632 ca đạt, 162 bỏ qua; câu lệnh 96,23 %, nhánh 91,88 % | `logs/pglite-coverage.txt` |
 | PostgreSQL 16 (container cục bộ) | 113 tệp, 1794 ca đạt, không ca nào bỏ qua | `logs/native.txt` |
 
+## Sau merge: tập dượt nâng bản và một câu phải sửa (27/11/2026)
+
+CSDL tạm được tạo trong container thử rồi xoá. Runner `scripts/migrate.ts` chạy thật từ hai gói phát hành đã giải nén (0.9.4 và 0.9.5), bằng login superuser của container thử. Hai script tạm điều khiển lượt này không nằm trong repo; log là phần in ra của chúng.
+
+| Log | Kết quả |
+|---|---|
+| `logs/upgrade-rehearsal.txt` | 0.9.4 áp 31 tệp; 17 trong 35 hàm chưa ghim. 0.9.5 áp đúng 032; còn 0. Chạy lại không áp gì |
+| `logs/runner-hides-refusal.txt` | Với một hàm tạo tay: runner thoát 1 và chỉ in `25P02`, không có câu của 032, không có tên hàm; CSDL không đổi. `psql` chạy đúng tệp 032 thì in đủ câu và tên hàm; CSDL vẫn không đổi |
+
+**Sửa một câu đã viết:** «032 dừng và nêu tên» đúng cho tệp SQL. Qua runner thì câu đó **bị che**. Các ca test áp tệp trực tiếp nên không thấy. Cách đọc câu thật: `docs/RUNBOOK-095-20261127.md` §4. Runner chưa được sửa.
+
 ## Chưa chứng minh được
 
-Chưa triển khai. Trên máy chủ, nếu có hàm quyền cao nào tạo ngoài migration thì 032 dừng và nêu tên, không đổi gì.
+Chưa triển khai. Trên máy chủ, nếu có hàm quyền cao nào tạo hoặc sửa ngoài migration thì tệp 032 từ chối và không đổi gì; tên hàm chỉ đọc được khi chạy tệp bằng `psql`.
