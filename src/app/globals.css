@@ -91,6 +91,10 @@ html,body{max-width:100%;overflow-x:clip}
 @media(min-width:950px){.doc-card{flex-direction:row;flex-wrap:wrap;align-items:flex-start}.doc-main{flex:2 1 280px;min-width:0}.doc-revs{flex:1 1 200px}.doc-source{flex:1 1 200px}.doc-actions{flex:0 0 auto}}
 @media(min-width:1200px){.doc-card{flex-wrap:nowrap;gap:24px}.doc-main{flex:0 0 32%}.doc-revs{flex:0 0 24%}.doc-source{flex:1 1 auto}.doc-actions{flex:0 0 auto}}
 
+/* Nhập bảng việc: xem trước và biên nhận xếp dọc ở mọi bề rộng. break-word, không phải anywhere: anywhere bóp cột bảng tới mức chữ bị cắt giữa từ trên máy hẹp. */
+.doc-card.work-import-result{flex-direction:column;gap:12px;align-items:stretch;overflow-wrap:break-word}
+.work-import-result>.doc-action{align-self:flex-start}
+
 /* Chi tiết tài liệu (.doc-*) */
 .doc-detail-head{margin-bottom:12px}
 .doc-pointers{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
