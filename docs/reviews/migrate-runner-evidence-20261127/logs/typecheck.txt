@@ -1,0 +1,2 @@
+# tree 69005f5
+npx tsc --noEmit: exit 0, no output

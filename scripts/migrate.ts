@@ -3,6 +3,9 @@ import {Pool} from 'pg';
 if(!process.env.MIGRATION_DATABASE_URL) throw new Error('MIGRATION_DATABASE_URL is required; do not use the web runtime login.');
 const pool=new Pool({connectionString:process.env.MIGRATION_DATABASE_URL,max:1});
 const client=await pool.connect();
+// With no listener, an 'error' event of this client stops the process before the failed file is named. A running query still rejects with its own error; between two queries this line is the
+// only place the cause shows.
+client.on('error',error=>console.error(JSON.stringify({event:'migration_connection_error',message:error.message})));
 try {
  await client.query("SELECT pg_advisory_lock(hashtext('libetech-ai-os-migrations'))");
  const existing=await client.query<{table_name:string|null}>("SELECT to_regclass('public.schema_migrations')::text AS table_name");
@@ -12,7 +15,11 @@ try {
  for(const file of (await readdir('migrations')).filter(f=>/^\d+.*\.sql$/.test(f)).sort()) {
   const version=file.match(/^\d+/)?.[0];
   if(version&&applied.has(version)) continue;
-  await client.query(await readFile('migrations/'+file,'utf8'));
+  try {await client.query(await readFile('migrations/'+file,'utf8'));}
+  catch(error) {console.error(JSON.stringify({event:'migration_failed',file}));throw error;}
   console.log(JSON.stringify({event:'migration_applied',file}));
  }
-} finally {await client.query("SELECT pg_advisory_unlock(hashtext('libetech-ai-os-migrations'))");client.release();await pool.end();}
+ // Unlock on success only. After a failure the connection may still be inside the file's aborted transaction, or gone, and a query sent on it (this one, or a ROLLBACK first) raises an error
+ // that takes the place of the migration's own. Closing the connection ends the session: PostgreSQL then rolls the open transaction back and releases the advisory lock.
+ await client.query("SELECT pg_advisory_unlock(hashtext('libetech-ai-os-migrations'))");
+} finally {client.release();await pool.end();}

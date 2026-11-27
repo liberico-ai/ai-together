@@ -1,0 +1,28 @@
+# red after the Codex round. scripts/migrate.ts as at 790a89f (the tree Codex read); the test with the dropped-connection case added. npx vitest run tests/migrate-runner.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/migrate-runner.test.ts (5 tests | 1 failed) 1008ms
+   ❯ scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection) (5)
+     × shows the database message and the failed file for a connection that drops with no word fr…, applies nothing of it, and runs again once corrected 172ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrate-runner.test.ts > scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection) > shows the database message and the failed file for a connection that drops with no word fr…, applies nothing of it, and runs again once corrected
+AssertionError: expected [ 'node:events:497', …(18) ] to include '{"event":"migration_failed","file":"0…'
+ ❯ tests/migrate-runner.test.ts:115:36
+    113|     expect(run.code,run.stderr).toBe(1);
+    114|     expect.soft(run.stderr).toContain(message);
+    115|     expect.soft(lines(run.stderr)).toContain(failed('002_fails.sql'));
+       |                                    ^
+    116|     expect(lines(run.stdout)).toEqual([applied('001_ledger.sql')]);
+    117|     expect(await db.state()).toEqual({tables:['schema_migrations'],ver…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  10:13:39
+   Duration  1.10s (tests 96%, import 2%, transform 2%)
+
