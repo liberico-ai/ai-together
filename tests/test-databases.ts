@@ -29,7 +29,10 @@ export function testDatabases(serverUrl:string){
     async create():Promise<string>{
       const name=`slice1_verify_${Date.now()}${String(++serial).padStart(2,'0')}`;
       assertIsolated(urlOf(name));
-      await onServer(`CREATE DATABASE "${name}"`);
+      // After a failure the name is not kept: dropAll drops only what was seen to be created, and the server is shared. When the connection ends before the server answers, the database may
+      // exist all the same; nothing then shows whose it is, so the error names it for a person to look at.
+      try{await onServer(`CREATE DATABASE "${name}"`);}
+      catch(error){throw new Error(`CREATE DATABASE "${name}" failed: ${(error as Error).message}. dropAll will not drop it; if the connection ended before the answer, look for it on the server.`,{cause:error});}
       created.push(name);
       return name;
     },
