@@ -1,0 +1,103 @@
+# tree 819d6d6. final cases of tests/test-databases.test.ts, with old-behaviour.ts.txt (the cleanup of 36baa8e) in place of tests/test-databases.ts: vitest exit 1
+
+ RUN  v5.1.0 <repo>
+
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > removes a database whose DROP DATABASE takes longer than 10 s 12072ms
+   → the database is gone: expected true to be false // Object.is equality
+   → the drop was really held past 10 s: expected 10005 to be greater than or equal to 11000
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > goes on to the next database when the connection of a drop is ended, and names the one that is left 188ms
+   → expected 'dropAll resolved' to contain 'slice1_verify_179575570258801: '
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names a database it could not drop, with the reason, and still drops the others 87ms
+   → expected 'dropAll resolved' to contain 'slice1_verify_179575570277601: cannot…'
+ × tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names the database of a CREATE DATABASE that failed, and leaves alone a database that it did not create 38ms
+   → expected 'database "slice1_verify_1795755702863…' to contain 'CREATE DATABASE "slice1_verify_179575…'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > removes a database whose DROP DATABASE takes longer than 10 s
+AssertionError: the database is gone: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/test-databases.test.ts:53:60
+     51|     await released;
+     52|     expect.soft(outcome).toBe('dropAll resolved');
+     53|     expect.soft(await exists(name),'the database is gone').toBe(false);
+       |                                                            ^
+     54|     expect.soft(waited,'the drop was really held past 10 s').toBeGreat…
+     55|   },180000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > removes a database whose DROP DATABASE takes longer than 10 s
+AssertionError: the drop was really held past 10 s: expected 10005 to be greater than or equal to 11000
+ ❯ tests/test-databases.test.ts:54:62
+     52|     expect.soft(outcome).toBe('dropAll resolved');
+     53|     expect.soft(await exists(name),'the database is gone').toBe(false);
+     54|     expect.soft(waited,'the drop was really held past 10 s').toBeGreat…
+       |                                                              ^
+     55|   },180000);
+     56|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > goes on to the next database when the connection of a drop is ended, and names the one that is left
+AssertionError: expected 'dropAll resolved' to contain 'slice1_verify_179575570258801: '
+
+Expected: "slice1_verify_179575570258801: "
+Received: "dropAll resolved"
+
+ ❯ tests/test-databases.test.ts:71:26
+     69|     const outcome=await dropping;
+     70|     await holder.query('ROLLBACK');
+     71|     expect.soft(outcome).toContain(`${cut}: `);
+       |                          ^
+     72|     expect.soft(outcome,'only the database that is left is named').not…
+     73|     expect.soft(await exists(other),'the other database is gone').toBe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names a database it could not drop, with the reason, and still drops the others
+AssertionError: expected 'dropAll resolved' to contain 'slice1_verify_179575570277601: cannot…'
+
+Expected: "slice1_verify_179575570277601: cannot drop a template database"
+Received: "dropAll resolved"
+
+ ❯ tests/test-databases.test.ts:83:26
+     81|     await onServer(c=>c.query(`ALTER DATABASE "${stuck}" IS_TEMPLATE t…
+     82|     const outcome=await databases.dropAll().then(()=>'dropAll resolved…
+     83|     expect.soft(outcome).toContain(`${stuck}: cannot drop a template d…
+       |                          ^
+     84|     expect.soft(outcome,'only the database that is left is named').not…
+     85|     expect.soft(await exists(other),'the other database is gone').toBe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/test-databases.test.ts > removal of the databases a test creates (native PostgreSQL only) > names the database of a CREATE DATABASE that failed, and leaves alone a database that it did not create
+AssertionError: expected 'database "slice1_verify_1795755702863…' to contain 'CREATE DATABASE "slice1_verify_179575…'
+
+Expected: "CREATE DATABASE "slice1_verify_179575570286301" failed: database "slice1_verify_179575570286301" already exists"
+Received: "database "slice1_verify_179575570286301" already exists"
+
+ ❯ tests/test-databases.test.ts:97:26
+     95|     vi.spyOn(Date,'now').mockReturnValueOnce(at);
+     96|     const outcome=await databases.create().then(()=>'create resolved',…
+     97|     expect.soft(outcome).toContain(`CREATE DATABASE "${theirs}" failed…
+       |                          ^
+     98|     await databases.dropAll();
+     99|     expect.soft(await exists(theirs),'a database that create() did not…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  12:01:30
+   Duration  12.47s (tests 100%)
+
+# AssertionError lines: 5; lines with 'timed out' or 'PGlite is closed': 0
+databases of the run that are still there: 0

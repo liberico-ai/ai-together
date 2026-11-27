@@ -1,0 +1,45 @@
+# tree 819d6d6. injected faults (fault.py), one per run, then restored. The last run is the runner test as the base has it (e64794c), before this branch moved it to tests/test-databases.ts
+
+== rehearsal-template, tests/restore-rehearsal.test.ts of this tree: vitest exit 1
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+Error: Test databases not dropped (1), drop each by hand: slice1_verify_179575579497501: cannot drop a template database
+     46|       if(left.length) throw new Error(`Test databases not dropped (${l…
+ Test Files  1 failed (1)
+      Tests  19 passed (19)
+databases of the run that are still there: 1
+  slice1_verify_179575579497501|-1|t   (name|datconnlimit|template)
+removed by this script (owned by this session's login): slice1_verify_179575579497501
+
+== rehearsal-reset, tests/restore-rehearsal.test.ts of this tree: vitest exit 1
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+Error: injected fault: the reset before the drops failed
+ Test Files  1 failed (1)
+      Tests  19 passed (19)
+databases of the run that are still there: 0
+
+== runner-template, tests/migrate-runner.test.ts of this tree: vitest exit 1
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+Error: Test databases not dropped (1), drop each by hand: slice1_verify_179575583232401: cannot drop a template database
+     46|       if(left.length) throw new Error(`Test databases not dropped (${l…
+ Test Files  1 failed (1)
+      Tests  5 passed (5)
+databases of the run that are still there: 1
+  slice1_verify_179575583232401|-1|t   (name|datconnlimit|template)
+removed by this script (owned by this session's login): slice1_verify_179575583232401
+
+== runner-template, tests/migrate-runner.test.ts of e64794c (before): vitest exit 1
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+error: cannot drop a template database
+ Test Files  1 failed (1)
+      Tests  5 passed (5)
+databases of the run that are still there: 5
+  slice1_verify_179575583394601|-1|t   (name|datconnlimit|template)
+  slice1_verify_179575583411102|-1|f   (name|datconnlimit|template)
+  slice1_verify_179575583427503|-1|f   (name|datconnlimit|template)
+  slice1_verify_179575583443004|-1|f   (name|datconnlimit|template)
+  slice1_verify_179575583458705|-1|f   (name|datconnlimit|template)
+removed by this script (owned by this session's login): slice1_verify_179575583394601
+removed by this script (owned by this session's login): slice1_verify_179575583411102
+removed by this script (owned by this session's login): slice1_verify_179575583427503
+removed by this script (owned by this session's login): slice1_verify_179575583443004
+removed by this script (owned by this session's login): slice1_verify_179575583458705
