@@ -156,7 +156,7 @@ test('(6) the runtime and intake roles do not bypass RLS; the new functions belo
   expect(fns.map(f=>f.n)).toEqual(['intake_link_allowed','intake_pool_links_outside','intake_pool_sender','tech_roster_names']);
   for(const f of fns){
     expect(f.owner,f.n).toBe('libetech_identity');expect(f.definer,f.n).toBe(true);expect(f.public_exec,f.n).toBe(false);
-    expect(f.cfg?.some(c=>c==='search_path=pg_catalog'),f.n).toBe(true);
+    expect(f.cfg?.some(c=>c.replace(/ /g,'')==='search_path=pg_catalog,pg_temp'),f.n).toBe(true);// 032 names the temporary schema last
   }
   // no DELETE on any of the three tables for any application role
   for(const t of TABLES) for(const r of ['libetech_runtime','libetech_intake','libetech_identity'])

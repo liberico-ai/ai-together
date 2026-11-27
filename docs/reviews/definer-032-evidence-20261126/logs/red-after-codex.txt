@@ -1,0 +1,38 @@
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/definer-search-path.test.ts (8 tests | 2 failed) 719ms
+   ❯ migration 032 (6)
+     × it stops, changing nothing, when another privileged function is left unpinned: the temporary schema earlier and again last 5ms
+     × it stops, changing nothing, when another privileged function is left unpinned: a quoted temporary schema first 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/definer-search-path.test.ts > migration 032 > it stops, changing nothing, when another privileged function is left unpinned: the temporary schema earlier and again last
+ FAIL  tests/definer-search-path.test.ts > migration 032 > it stops, changing nothing, when another privileged function is left unpinned: a quoted temporary schema first
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ tests/definer-search-path.test.ts:65:65
+     63|    await probe(path);
+     64|    try {
+     65|     await expect(exec(await sql('032_definer_search_path.sql'))).rejec…
+       |                                                                 ^
+     66|     expect((await lacking()).length).toBe(18);
+     67|     expect((await h.operator.query("SELECT 1 FROM schema_migrations WH…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 passed (8)
+   Start at  23:00:23
+   Duration  801ms (tests 96%, import 2%, transform 2%)
+
