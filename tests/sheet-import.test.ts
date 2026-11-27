@@ -861,13 +861,19 @@ test('(GV-9) a row whose only codes stand in a split phrase has no code, even wi
     'Tách từ LBRC015 theo yêu cầu mới.'.normalize('NFD'),
     'Tách LBRC015, LBRC016 và LBRC017.',
     'Tách từ LBRC015 + LBRC016/LBRC017 & LBRC018',
+    'Tách từ LBRC015 và từ LBRC016',
+    'Tách khỏi LBRC015, khỏi LBRC016.',
+    'TÁCH RA TỪ LBRC015 VÀ RA KHỎI MÃ VIỆC LBRC016',
+    // a comma does not say where the list ends: unless the note states a code is the row's own, the cell stays blank rather than guessed
+    'Tách LBRC015, LBRC016 là hai việc gốc.',
   ];
   const pre=await svc().preview(tech,envelope(noteRows(notes)));
   expect(readings(pre)).toEqual(notes.map((_,i)=>[String(61+i),null,'valid',[],[]]));
 });
 
-test('(GV-9) outside a split phrase the note is read as before: a plain note code, «tách» as an ordinary word, a word without a digit after «khỏi», the title winning over the note, two codes of its own, and an IBS HI row read by its title only',async()=>{
-  const plain=noteRows(['LBRC043. Đang làm.','Chờ LBRC044 rồi tách sau.','Tách phần thanh toán, mã LBRC045.','Tách khỏi XECA, LBRC046 là mã của việc này.','LBRC047 và LBRC048']);
+test('(GV-9) outside a split phrase the note is read as before: a plain note code, «tách» as an ordinary word, a word without a digit after «khỏi», the title winning over the note, two codes of its own, a code the note states is the row\'s new or own one after a split list, and an IBS HI row read by its title only',async()=>{
+  const plain=noteRows(['LBRC043. Đang làm.','Chờ LBRC044 rồi tách sau.','Tách phần thanh toán, mã LBRC045.','Tách khỏi XECA, LBRC046 là mã của việc này.','LBRC047 và LBRC048',
+    'Tách LBRC015, LBRC054 là mã mới.','Tách từ LBRC015 và LBRC016, LBRC055 LÀ MÃ VIỆC RIÊNG của dòng.']);
   const pre=await svc().preview(tech,envelope([...plain,
     row8({stt:'80',title:'Việc có mã ở tiêu đề LBRC049',note:'Tách LBRC015'}),
     row8({stt:'81',bu:'IBS HI',title:'Việc Tech cho IBS900 đủ dài',note:'Tách IBS901. IBS902'}),
@@ -878,6 +884,8 @@ test('(GV-9) outside a split phrase the note is read as before: a plain note cod
     ['63','LBRC045','valid',[],['CODE_FROM_NOTE']],
     ['64','LBRC046','valid',[],['CODE_FROM_NOTE']],
     ['65',null,'valid',[],['MULTI_CODE','CODE_FROM_NOTE']],
+    ['66','LBRC054','valid',[],['CODE_FROM_NOTE']],
+    ['67','LBRC055','valid',[],['CODE_FROM_NOTE']],
     ['80','LBRC049','valid',[],[]],
     ['81','IBS900','valid',[],[]],
   ]);

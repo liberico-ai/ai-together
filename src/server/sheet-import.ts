@@ -76,15 +76,20 @@ type Facts = {
   blocks: string[]; existing: string | null;
 };
 const CODE_TOKEN = /(?<![A-Za-z0-9-])[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*(?![A-Za-z0-9-])/g;
-// «Tách LBRC015», «tách ra khỏi mã LBRC015, LBRC016»: in a note, the codes right after the split words name the work this row was split from. They are references,
-// never the row's own code. The words match in any letter case; a code stays upper case, as in codesIn, and needs a digit here, so «tách khỏi XECA, LBRC046» takes
-// nothing. Any other wording is read as before: two rows that then claim one code both wait.
+// «Tách LBRC015», «tách ra khỏi mã LBRC015, LBRC016», «tách từ LBRC015 và từ LBRC016»: in a note, the codes right after the split words name the work this row was
+// split from. They are references, never the row's own code. The words match in any letter case; a code stays upper case, as in codesIn, and needs a digit here, so
+// «tách khỏi XECA, LBRC046» takes nothing. A comma does not say where such a list ends: a code it adds is dropped too (an unclear cell stays blank, never guessed),
+// unless the note goes on to say it is the row's new or own one («LBRC052 là mã mới»). Any other wording is read as before: two rows that then claim one code both wait.
 const anyCase = (word: string) => [...word].map(c => `[${c}${c.toUpperCase()}]`).join('');
 const REFERENCE_CODE = String.raw`(?=[A-Z0-9-]*\d)${CODE_TOKEN.source}`;
+const FROM = String.raw`(?:${anyCase('từ')}|${anyCase('khỏi')})`;
+const CODE_WORD = String.raw`${anyCase('mã')}(?:\s+${anyCase('việc')})?`;
+// what may stand between two codes of the list: a joint, and with it the lead words again («và từ», «, ra khỏi mã»)
+const LIST_JOINT = String.raw`\s*(?:[,/&+]|${anyCase('và')})\s*(?:(?:${anyCase('ra')}\s+)?${FROM}\s+(?:${CODE_WORD}\s+)?)?`;
+const NOT_STATED_OWN = String.raw`(?!\s+${anyCase('là')}\s+${CODE_WORD}\s+(?:${anyCase('mới')}|${anyCase('riêng')})(?![\p{L}\p{N}]))`;
 const SPLIT_REFERENCE = new RegExp([
-  String.raw`(?<![\p{L}\p{N}_-])${anyCase('tách')}`,
-  String.raw`(?:\s+${anyCase('ra')})?(?:\s+(?:${anyCase('từ')}|${anyCase('khỏi')}))?(?:\s+${anyCase('mã')}(?:\s+${anyCase('việc')})?)?`,
-  String.raw`\s*(?::\s*)?${REFERENCE_CODE}(?:\s*(?:[,/&+]|${anyCase('và')})\s*${REFERENCE_CODE})*`,
+  String.raw`(?<![\p{L}\p{N}_-])${anyCase('tách')}(?:\s+${anyCase('ra')})?(?:\s+${FROM})?(?:\s+${CODE_WORD})?`,
+  String.raw`\s*(?::\s*)?${REFERENCE_CODE}(?:${LIST_JOINT}${REFERENCE_CODE}${NOT_STATED_OWN})*`,
 ].join(''), 'gu');
 /** The note as its own codes are read from it: in NFC, so a decomposed «tách» is the same word, and without the split references. The stored note is not changed. */
 const withoutSplitReferences = (note: string) => note.normalize('NFC').replace(SPLIT_REFERENCE, ' ');
