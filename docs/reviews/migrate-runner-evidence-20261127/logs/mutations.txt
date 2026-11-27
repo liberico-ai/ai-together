@@ -1,0 +1,32 @@
+tests/migrate-runner.test.ts at commit 69005f5; scripts/migrate.ts mutated one way at a time, then restored. base-runner = scripts/migrate.ts of 36baa8e.
+
+== base-runner: vitest exit=1 | Tests  4 failed | 1 passed (5) | AssertionError lines=5 | timeouts=0
+   red: a refusal inside the file's own BEGIN
+   red: a refusal in a file without BEGIN
+   red: a failure that ends the connection
+   red: a connection that drops with no word fr…
+   AssertionError: expected '<repo……' to contain '002: refused, a person has to decide …'
+   AssertionError: expected [ …(26) ] to include '{"event":"migration_failed","file":"0…'
+   AssertionError: expected 'node:events:497\n      throw er; // U…' to contain 'terminating connection due to adminis…'
+   AssertionError: expected [ 'node:events:497', …(18) ] to include '{"event":"migration_failed","file":"0…'
+   AssertionError: expected [ 'node:events:497', …(18) ] to include '{"event":"migration_failed","file":"0…'
+
+== no-failed-line: vitest exit=1 | Tests  4 failed | 1 passed (5) | AssertionError lines=2 | timeouts=0
+   red: a refusal inside the file's own BEGIN
+   red: a refusal in a file without BEGIN
+   red: a failure that ends the connection
+   red: a connection that drops with no word fr…
+   AssertionError: expected [ …(26) ] to include '{"event":"migration_failed","file":"0…'
+   AssertionError: expected [ …(9) ] to include '{"event":"migration_failed","file":"0…'
+
+== no-error-listener: vitest exit=1 | Tests  1 failed | 4 passed (5) | AssertionError lines=1 | timeouts=0
+   red: a connection that drops with no word fr…
+   AssertionError: expected [ 'node:events:497', …(18) ] to include '{"event":"migration_failed","file":"0…'
+
+== rollback-in-finally: vitest exit=1 | Tests  1 failed | 4 passed (5) | AssertionError lines=1 | timeouts=0
+   red: a failure that ends the connection
+   AssertionError: expected '{"event":"migration_failed","file":"0…' to contain 'terminating connection due to adminis…'
+
+== swallow: vitest exit=1 | Tests  1 failed | 4 passed (5) | AssertionError lines=1 | timeouts=0
+   red: a refusal in a file without BEGIN
+   AssertionError: {"event":"migration_failed","file":"002_fails.sql"}

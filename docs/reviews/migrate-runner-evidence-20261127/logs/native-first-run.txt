@@ -1,0 +1,55 @@
+# first full native run, tree bb252e0: every case passed, the new file failed in afterAll. npx vitest run, with the native test database
+
+ RUN  v5.1.0 <repo>
+
+(node:64287) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:70697) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:72192) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:77572) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:79060) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:80551) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:83420) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:83540) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:85875) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ❯ tests/migrate-runner.test.ts (5 tests) 10826ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrate-runner.test.ts > scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection)
+error: canceling statement due to statement timeout
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ Object.query src/server/db.ts:73:91
+     71|   const queryOn = (client: PoolClient): Queryable => ({ query: async <…
+     72|   return {
+     73|     query: async <T>(sql: string, params?: unknown[]) => { await check…
+       |                                                                                           ^
+     74|     async transaction(fn) {
+     75|       await check();
+ ❯ tests/migrate-runner.test.ts:57:34
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 113 passed (114)
+      Tests  1799 passed (1799)
+   Start at  10:30:29
+   Duration  827.78s (tests 99%, import 1%)
+
+
+# server log of the test container, same run (UTC): only the checkpoint lines around the cancelled statement, and the cancelled statement
+2026-11-27 03:40:08.429 UTC [33] LOG:  checkpoint complete: wrote 7423 buffers (45.3%); 0 WAL file(s) added, 6 removed, 27 recycled; write=268.261 s, sync=73.039 s, total=345.733 s; sync files=1230231, longest=2.048 s, average=0.001 s; distance=536294 kB, estimate=536294 kB; lsn=1B/75EBC318, redo lsn=1B/52011D20
+2026-11-27 03:40:08.558 UTC [33] LOG:  checkpoint starting: wal time
+2026-11-27 03:43:07.318 UTC [65659] ERROR:  canceling statement due to statement timeout
+2026-11-27 03:43:07.318 UTC [65659] STATEMENT:  DROP DATABASE IF EXISTS "slice1_verify_<n>" WITH (FORCE)
+2026-11-27 03:43:13.254 UTC [33] LOG:  checkpoint complete: wrote 6273 buffers (38.3%); 0 WAL file(s) added, 0 removed, 36 recycled; write=168.788 s, sync=10.328 s, total=184.697 s; sync files=424234, longest=0.007 s, average=0.001 s; distance=591108 kB, estimate=591108 kB; lsn=1B/839953F8, redo lsn=1B/76152E60
+2026-11-27 03:43:13.300 UTC [33] LOG:  checkpoint starting: immediate force wait
+2026-11-27 03:43:15.391 UTC [33] LOG:  checkpoint complete: wrote 8244 buffers (50.3%); 0 WAL file(s) added, 0 removed, 15 recycled; write=0.096 s, sync=0.426 s, total=2.091 s; sync files=9086, longest=0.008 s, average=0.001 s; distance=245485 kB, estimate=556546 kB; lsn=1B/85B89888, redo lsn=1B/8510E628
