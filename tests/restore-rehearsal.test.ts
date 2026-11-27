@@ -185,7 +185,7 @@ describe.skipIf(!enabled)('N4 restore rehearsal with the real pg_dump and pg_res
     archive=await dump(baseUrl.pathname.slice(1));
   });
   afterAll(async()=>{
-    // the databases are dropped whatever the steps before them do; a database that stays fails this hook, with its name
+    // the drops run also when a step before them throws (not when one never returns: the hook then times out); a database that is not dropped fails this hook, with its name
     try{
       await source?.reset();await source?.close();
       for(const db of pools) await db.close().catch(()=>{});
