@@ -104,7 +104,7 @@ export function WorkImport() {
       <p className="muted">Danh tính nguồn là lời khai của người nhập: tệp CSV không mang liên kết hay mốc sửa của bảng. Chỉ nhận trang «Đầu việc Tech».</p>
       <button className="doc-action" disabled={busy || !file}>{busy ? 'Đang đọc…' : 'Xem trước'}</button>
     </form>
-    {preview && !receipt && <section className="doc-card">
+    {preview && !receipt && <section className="doc-card work-import-result">
       <h2>Xem trước — chưa ghi gì</h2>
       <p className="muted">Mã băm tệp <code>{preview.fileHash.slice(0, 16)}</code> · bảng <code dir="auto">{preview.source.sourceId}</code> · trang <span dir="auto">{preview.source.sheet}</span></p>
       <Counts counts={preview.counts} />
@@ -127,7 +127,7 @@ export function WorkImport() {
           <td>{verdictLabel[r.result]}</td><td>{[...r.reasons, ...r.flags].join(', ')}</td></tr>)}</tbody></table></div>
       <button className="doc-action" onClick={commit} disabled={busy}>{busy ? 'Đang xử lý…' : 'Ghi vào hàng chờ BoM duyệt'}</button>
     </section>}
-    {receipt && <section className="doc-card">
+    {receipt && <section className="doc-card work-import-result">
       <h2>Biên nhận lô nhập</h2>
       <p className="muted">Mã lô <code>{receipt.id}</code>{receipt.replayed ? ' · lệnh đã được ghi trước đó, đây là biên nhận cũ' : ''} · Mã băm tệp <code>{receipt.fileHash.slice(0, 16)}</code></p>
       <Counts counts={receipt.counts} />

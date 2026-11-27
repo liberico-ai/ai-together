@@ -821,3 +821,72 @@ test('M7 a whole import batch is approved in one call: each request keeps its ow
   expect(again.results).toEqual(out.results);
   expect(await n('work_items')).toBe(works);
 });
+
+// ---------- GV-9 (0.9.7): «Tách <mã>» in a note is a reference to the work the row was split from ----------
+// synthetic titles that hold no code, so each code below is read from the note
+const noteRows=(notes:string[])=>notes.map((note,i)=>row8({stt:String(61+i),title:`Việc thử tách số ${i+1} đủ dài`,note}));
+const readings=(pre:{rows:{stt:string;code:string|null;result:string;reasons:string[];flags:string[]}[]})=>
+  pre.rows.map(r=>[r.stt,r.code,r.result,r.reasons,r.flags.filter(f=>f==='CODE_FROM_NOTE'||f==='MULTI_CODE')]);
+
+test('(GV-9) STT 31 keeps LBRC015 and STT 43, whose note says «Tách LBRC015», gets no code of its own: neither row is a duplicate, both are filed, and the note is stored as written',async()=>{
+  const splitNote='Tách LBRC015. Phần còn lại làm ở việc này.';
+  const {pre,receipt}=await go(tech,[
+    row8({stt:'31',title:'Việc gốc trước khi chia đôi',note:'LBRC015. Phần đầu đã xong.'}),
+    row8({stt:'43',title:'Việc được chia từ việc gốc',note:splitNote}),
+    row8({stt:'52',title:'Việc chia thêm, có mã riêng',note:'TÁCH TỪ LBRC015. Mã việc LBRC052.'}),
+    row8({stt:'53',title:'Việc chia thêm, mã riêng đứng trước',note:'LBRC053. Tách từ LBRC015.'}),
+  ]);
+  expect(readings(pre)).toEqual([
+    ['31','LBRC015','valid',[],['CODE_FROM_NOTE']],
+    ['43',null,'valid',[],[]],
+    ['52','LBRC052','valid',[],['CODE_FROM_NOTE']],
+    ['53','LBRC053','valid',[],['CODE_FROM_NOTE']],
+  ]);
+  expect(receipt.results.map(x=>x.result)).toEqual(['imported','imported','imported','imported']);
+  expect(await rows(`SELECT i.code AS source_code,i.source_note,r.code AS request_code
+    FROM work_import_rows i JOIN work_requests r ON r.id=i.request_id WHERE i.stt='43'`))
+    .toEqual([{source_code:null,source_note:splitNote,request_code:null}]);
+});
+
+test('(GV-9) a row whose only codes stand in a split phrase has no code, even with the original row absent from the file: every letter case, «từ», «khỏi», «ra», «mã (việc)», a colon, any white space, decomposed Vietnamese, and a list of codes',async()=>{
+  const notes=[
+    'tách LBRC015',
+    'tách khỏi LBRC015.',
+    'Tách ra từ LBRC015',
+    'Tách ra khỏi mã LBRC015',
+    'TÁCH KHỎI MÃ VIỆC LBRC015',
+    'Tách: LBRC015',
+    'tách từ LBRC015',
+    'Tách từ\nLBRC015',
+    'Tách từ LBRC015 theo yêu cầu mới.'.normalize('NFD'),
+    'Tách LBRC015, LBRC016 và LBRC017.',
+    'Tách từ LBRC015 + LBRC016/LBRC017 & LBRC018',
+    'Tách từ LBRC015 và từ LBRC016',
+    'Tách khỏi LBRC015, khỏi LBRC016.',
+    'TÁCH RA TỪ LBRC015 VÀ RA KHỎI MÃ VIỆC LBRC016',
+    // a comma does not say where the list ends: unless the note states a code is the row's own, the cell stays blank rather than guessed
+    'Tách LBRC015, LBRC016 là hai việc gốc.',
+  ];
+  const pre=await svc().preview(tech,envelope(noteRows(notes)));
+  expect(readings(pre)).toEqual(notes.map((_,i)=>[String(61+i),null,'valid',[],[]]));
+});
+
+test('(GV-9) outside a split phrase the note is read as before: a plain note code, «tách» as an ordinary word, a word without a digit after «khỏi», the title winning over the note, two codes of its own, a code the note states is the row\'s new or own one after a split list, and an IBS HI row read by its title only',async()=>{
+  const plain=noteRows(['LBRC043. Đang làm.','Chờ LBRC044 rồi tách sau.','Tách phần thanh toán, mã LBRC045.','Tách khỏi XECA, LBRC046 là mã của việc này.','LBRC047 và LBRC048',
+    'Tách LBRC015, LBRC054 là mã mới.','Tách từ LBRC015 và LBRC016, LBRC055 LÀ MÃ VIỆC RIÊNG của dòng.']);
+  const pre=await svc().preview(tech,envelope([...plain,
+    row8({stt:'80',title:'Việc có mã ở tiêu đề LBRC049',note:'Tách LBRC015'}),
+    row8({stt:'81',bu:'IBS HI',title:'Việc Tech cho IBS900 đủ dài',note:'Tách IBS901. IBS902'}),
+  ]));
+  expect(readings(pre)).toEqual([
+    ['61','LBRC043','valid',[],['CODE_FROM_NOTE']],
+    ['62','LBRC044','valid',[],['CODE_FROM_NOTE']],
+    ['63','LBRC045','valid',[],['CODE_FROM_NOTE']],
+    ['64','LBRC046','valid',[],['CODE_FROM_NOTE']],
+    ['65',null,'valid',[],['MULTI_CODE','CODE_FROM_NOTE']],
+    ['66','LBRC054','valid',[],['CODE_FROM_NOTE']],
+    ['67','LBRC055','valid',[],['CODE_FROM_NOTE']],
+    ['80','LBRC049','valid',[],[]],
+    ['81','IBS900','valid',[],[]],
+  ]);
+});

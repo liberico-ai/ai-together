@@ -1,0 +1,37 @@
+# vitest.config.ts of e64794c (base) + tests/test-scope.test.ts
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/test-scope.test.ts (2 tests | 1 failed) 441ms
+   × does not collect the tests of a worktree nested under .claude/ when run from the repository root 212ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/test-scope.test.ts > does not collect the tests of a worktree nested under .claude/ when run from the repository root
+AssertionError: expected [ …(2) ] to deeply equal [ 'tests/kept.test.ts' ]
+
+- Expected
++ Received
+
+  [
++   ".claude/worktrees/other/tests/nested.test.ts",
+    "tests/kept.test.ts",
+  ]
+
+ ❯ tests/test-scope.test.ts:33:33
+     31|
+     32| it('does not collect the tests of a worktree nested under .claude/ whe…
+     33|   expect(await collected(tree)).toEqual(['tests/kept.test.ts']);
+       |                                 ^
+     34| },90000);
+     35|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  12:33:59
+   Duration  507ms (tests 97%, transform 2%, import 1%)
+
+# exit 1
