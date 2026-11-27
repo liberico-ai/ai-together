@@ -3,7 +3,8 @@ import {execFile} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {readFile,readdir} from 'node:fs/promises';
 import path from 'node:path';
-import {native,openHarness,assertIsolated,type Harness} from './slice1-db';
+import {native,openHarness,type Harness} from './slice1-db';
+import {testDatabases,DROP_HOOK_TIMEOUT_MS} from './test-databases';
 import {pm,seedSlice1} from './slice1-fixtures';
 import {pooledDatabase,scoped,type Database,type Queryable} from '../src/server/db';
 import {ids} from '../src/server/identities';
@@ -14,7 +15,7 @@ import {bridgeConfig,chatSales,intakePrincipalId,messageEvent} from './slice2-fi
 // psql this file runs (`docker exec -i <container> ...`, local socket, no password: the default pg_hba of the postgres image). The login of SLICE1_TEST_DATABASE_URL must be a superuser:
 // the restore disables triggers, and migration 023 needs one. Archives are made as DEPLOY-002 says: pg_dump -Fc --data-only --exclude-table-data=public.schema_migrations, and travel through
 // memory (stdout of pg_dump, stdin of pg_restore): no archive is written to a file. Every target is a fresh database that has the migrations applied and no data, as the installer leaves it
-// before it restores. Each source and target is a database of its own whose name matches the isolation rule of slice1-db.ts, and only those names are dropped at the end.
+// before it restores. Each source and target is a database of its own whose name matches the isolation rule of slice1-db.ts, and only those names are dropped at the end (test-databases.ts).
 const CONTAINER=process.env.SLICE1_PG_CONTAINER;
 const enabled=native&&Boolean(CONTAINER);
 const hex=(c:string)=>c.repeat(64);
@@ -41,12 +42,8 @@ function plan(args:string[],input=''):Promise<{code:number;out:string;err:string
 }
 
 let superuser='',baseUrl:URL;
-const urlOf=(db:string)=>{const u=new URL(baseUrl.toString());u.pathname='/'+db;return u.toString();};
-const created:string[]=[];
+let databases:ReturnType<typeof testDatabases>;
 const pools:Database[]=[];
-let serial=0;
-const dbName=()=>`slice1_verify_${Date.now()}${String(++serial).padStart(2,'0')}`;
-let admin:Database;
 /** The first lines of what a tool said, for the evidence log: the messages are fixed sentences of PostgreSQL and of the files, never data. */
 // No DETAIL or CONTEXT line: a message of PostgreSQL can quote a row, and this log is read in a public repository. The data of this file is synthetic, but the pattern must not print a real row.
 const said=(label:string,text:string)=>console.info(`${label}: ${text.split('\n').filter(l=>/^pg_restore: error|^ERROR|POST-RESTORE|^\{/.test(l)).slice(0,2).join(' | ').slice(0,300)}`);
@@ -57,11 +54,8 @@ const errLines=(text:string)=>text.split('\n').filter(l=>/pg_restore: error|^ERR
 
 /** A new empty database with the migrations up to `upTo` applied (the state the installer leaves before it restores). */
 async function freshDatabase(upTo='999'):Promise<{name:string;db:Database}>{
-  const name=dbName();
-  assertIsolated(urlOf(name));
-  await admin.query(`CREATE DATABASE "${name}"`);
-  created.push(name);
-  const db=pooledDatabase(urlOf(name));
+  const name=await databases.create();
+  const db=pooledDatabase(databases.urlOf(name));
   pools.push(db);
   for(const file of (await readdir(path.join(process.cwd(),'migrations'))).filter(f=>/^\d+.*\.sql$/.test(f)).sort()){
     if(file.slice(0,3)>upTo) continue;
@@ -181,19 +175,22 @@ describe.skipIf(!enabled)('N4 restore rehearsal with the real pg_dump and pg_res
   beforeAll(async()=>{
     baseUrl=new URL(process.env.SLICE1_TEST_DATABASE_URL!);
     superuser=decodeURIComponent(baseUrl.username);
-    admin=pooledDatabase(urlOf('postgres'));
-    expect((await admin.query<{s:boolean}>('SELECT rolsuper s FROM pg_roles WHERE rolname=current_user')).rows[0].s,'the login of the rehearsal must be a superuser').toBe(true);
+    databases=testDatabases(baseUrl.toString());
+    const login=pooledDatabase(baseUrl.toString());
+    try{expect((await login.query<{s:boolean}>('SELECT rolsuper s FROM pg_roles WHERE rolname=current_user')).rows[0].s,'the login of the rehearsal must be a superuser').toBe(true);}
+    finally{await login.close();}
     source=await openHarness();
     await source.reset();
     sourceThreads=await writeRehearsalData(source.operator,true);
     archive=await dump(baseUrl.pathname.slice(1));
   });
   afterAll(async()=>{
-    await source?.reset();await source?.close();
-    for(const db of pools) await db.close().catch(()=>{});
-    for(const name of created) await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`).catch(()=>{});
-    await admin?.close();
-  });
+    // the databases are dropped whatever the steps before them do; a database that stays fails this hook, with its name
+    try{
+      await source?.reset();await source?.close();
+      for(const db of pools) await db.close().catch(()=>{});
+    }finally{await databases?.dropAll();}
+  },DROP_HOOK_TIMEOUT_MS);
 
   describe('what the installers did before N4 (the red of N4)',()=>{
     test('R1 the archive of a post-023 database lists the two number tables and the decision that was confirmed at a position that is no longer the last',async()=>{
