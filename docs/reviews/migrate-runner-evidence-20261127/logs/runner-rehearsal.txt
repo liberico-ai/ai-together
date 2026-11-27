@@ -1,0 +1,33 @@
+tree: commit 69005f5
+server: PostgreSQL 16.15; node v22.23.2
+
+== 1. fixed runner, empty database, the real migrations
+exit=0
+migration_applied lines: 32 ; migration files: 32 ; other lines: 0
+{"event":"migration_applied","file":"001_foundation.sql"}
+{"event":"migration_applied","file":"032_definer_search_path.sql"}
+ledger: 32 rows, newest 032; advisory locks=0
+-- run again
+exit=0
+output lines: 0
+
+== 2. database at 031, then a privileged function that is not pinned (032 must refuse)
+exit=0
+ledger: 31 rows, newest 031; advisory locks=0
+-- runner as on the base branch
+exit=1
+error: current transaction is aborted, commands ignored until end of transaction block
+  code: '25P02',
+Node.js v22.23.2
+ledger: 31 rows, newest 031; advisory locks=0
+-- fixed runner
+exit=1
+{"event":"migration_failed","file":"032_definer_search_path.sql"}
+error: 032: privileged functions without the temporary schema last in their search path: public.zz_unpinned_probe. Pin or remove them, then run 032 again.
+  code: 'P0001',
+Node.js v22.23.2
+ledger: 31 rows, newest 031; advisory locks=0
+-- fixed runner, after the function is removed
+exit=0
+{"event":"migration_applied","file":"032_definer_search_path.sql"}
+ledger: 32 rows, newest 032; advisory locks=0

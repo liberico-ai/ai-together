@@ -1,0 +1,130 @@
+# red first. scripts/migrate.ts as at 36baa8e (unchanged); tests/migrate-runner.test.ts as first written (4 cases). npx vitest run tests/migrate-runner.test.ts, PostgreSQL 16.15
+
+ RUN  v5.1.0 <repo>
+
+ ❯ tests/migrate-runner.test.ts (4 tests | 3 failed) 813ms
+   ❯ scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection) (4)
+     × shows the database message and the failed file for a refusal inside the file's own BEGIN, applies nothing of it, and runs again once corrected 176ms
+     × shows the database message and the failed file for a refusal in a file without BEGIN, applies nothing of it, and runs again once corrected 166ms
+     × shows the database message and the failed file for a failure that ends the connection, applies nothing of it, and runs again once corrected 177ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/migrate-runner.test.ts > scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection) > shows the database message and the failed file for a refusal inside the file's own BEGIN, applies nothing of it, and runs again once corrected
+AssertionError: expected '<home>/Documents/GitHub/li…' to contain '002: refused, a person has to decide …'
+
+- Expected
++ Received
+
+- 002: refused, a person has to decide about these rows first
++ <repo>/node_modules/pg/lib/client.js:694
++           Error.captureStackTrace(err)
++                 ^
++
++ error: current transaction is aborted, commands ignored until end of transaction block
++     at <repo>/node_modules/pg/lib/client.js:694:17
++     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
++     at async <anonymous> (<repo>/scripts/migrate.ts:18:12) {
++   length: 144,
++   severity: 'ERROR',
++   code: '25P02',
++   detail: undefined,
++   hint: undefined,
++   position: undefined,
++   internalPosition: undefined,
++   internalQuery: undefined,
++   where: undefined,
++   schema: undefined,
++   table: undefined,
++   column: undefined,
++   dataType: undefined,
++   constraint: undefined,
++   file: 'postgres.c',
++   line: '1140',
++   routine: 'exec_simple_query'
++ }
++
++ Node.js v22.23.2
++
+
+ ❯ tests/migrate-runner.test.ts:87:29
+     85|     const run=await db.run();
+     86|     expect(run.code,run.stderr).toBe(1);
+     87|     expect.soft(run.stderr).toContain(message);
+       |                             ^
+     88|     expect.soft(lines(run.stderr)).toContain(failed('002_fails.sql'));
+     89|     expect(lines(run.stdout)).toEqual([applied('001_ledger.sql')]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/migrate-runner.test.ts > scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection) > shows the database message and the failed file for a refusal inside the file's own BEGIN, applies nothing of it, and runs again once corrected
+ FAIL  tests/migrate-runner.test.ts > scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection) > shows the database message and the failed file for a refusal in a file without BEGIN, applies nothing of it, and runs again once corrected
+AssertionError: expected [ …(26) ] to include '{"event":"migration_failed","file":"0…'
+ ❯ tests/migrate-runner.test.ts:88:36
+     86|     expect(run.code,run.stderr).toBe(1);
+     87|     expect.soft(run.stderr).toContain(message);
+     88|     expect.soft(lines(run.stderr)).toContain(failed('002_fails.sql'));
+       |                                    ^
+     89|     expect(lines(run.stdout)).toEqual([applied('001_ledger.sql')]);
+     90|     expect(await db.state()).toEqual({tables:['schema_migrations'],ver…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/migrate-runner.test.ts > scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection) > shows the database message and the failed file for a failure that ends the connection, applies nothing of it, and runs again once corrected
+AssertionError: expected 'node:events:497\n      throw er; // U…' to contain 'terminating connection due to adminis…'
+
+- Expected
++ Received
+
+- terminating connection due to administrator command
++ node:events:497
++       throw er; // Unhandled 'error' event
++       ^
++
++ Error: Connection terminated unexpectedly
++     at Connection.<anonymous> (<repo>/node_modules/pg/lib/client.js:204:73)
++     at Object.onceWrapper (node:events:633:28)
++     at Connection.emit (node:events:519:28)
++     at Socket.<anonymous> (<repo>/node_modules/pg/lib/connection.js:64:12)
++     at Socket.emit (node:events:519:28)
++     at TCP.<anonymous> (node:net:347:12)
++ Emitted 'error' event on Client instance at:
++     at Client._handleErrorEvent (<repo>/node_modules/pg/lib/client.js:422:10)
++     at Connection.<anonymous> (<repo>/node_modules/pg/lib/client.js:222:16)
++     at Object.onceWrapper (node:events:633:28)
++     at Connection.emit (node:events:519:28)
++     at Socket.<anonymous> (<repo>/node_modules/pg/lib/connection.js:64:12)
++     at Socket.emit (node:events:519:28)
++     at TCP.<anonymous> (node:net:347:12)
++
++ Node.js v22.23.2
++
+
+ ❯ tests/migrate-runner.test.ts:87:29
+     85|     const run=await db.run();
+     86|     expect(run.code,run.stderr).toBe(1);
+     87|     expect.soft(run.stderr).toContain(message);
+       |                             ^
+     88|     expect.soft(lines(run.stderr)).toContain(failed('002_fails.sql'));
+     89|     expect(lines(run.stdout)).toEqual([applied('001_ledger.sql')]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/migrate-runner.test.ts > scripts/migrate.ts as a process (native PostgreSQL only: PGlite serves no pg connection) > shows the database message and the failed file for a failure that ends the connection, applies nothing of it, and runs again once corrected
+AssertionError: expected [ 'node:events:497', …(18) ] to include '{"event":"migration_failed","file":"0…'
+ ❯ tests/migrate-runner.test.ts:88:36
+     86|     expect(run.code,run.stderr).toBe(1);
+     87|     expect.soft(run.stderr).toContain(message);
+     88|     expect.soft(lines(run.stderr)).toContain(failed('002_fails.sql'));
+       |                                    ^
+     89|     expect(lines(run.stdout)).toEqual([applied('001_ledger.sql')]);
+     90|     expect(await db.state()).toEqual({tables:['schema_migrations'],ver…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed (4)
+   Start at  10:05:57
+   Duration  915ms (tests 95%, import 3%, transform 3%)
+
